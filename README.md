@@ -1,9 +1,22 @@
-# secS-daemon
+# secS-magik
 
-secS-daemon is a Rust machine-to-machine capability rail for packet intake, proof-envelope-aware routing, local telemetry, and sovereign sidecar execution.
+secS-magik (formerly secS-daemon) is the repository providing the RPC layer for machine-to-machine capability communication in the Zenith / Castalia stack.
 
-> Status: experimental local-first agent communication infrastructure.
-> Boundary: secS is the mathematical gate; secZ is the configurable execution sidecar. Do not collapse transport security, product policy, Hub orchestration, and machine execution into one surface.
+> **Current Direction (2026-05-29)**: This repository supplies the RPC/protocol surface. The interface remains as currently defined. Implementation of the RPC layer will go through **Dregg** (the generic capability layer). The **Wallet** (from the castalia-wallet repository) acts as the credential and ownership bridge inside secS-magik implementations.
+
+## Current Architecture (2026-05-29)
+
+- **Dregg** — Generic capability layer (proofs, revocation, authority, HubFS).
+- **secS-magik (this repo)** — RPC layer. Interface unchanged; future implementation path is through Dregg.
+- **Wallet** — Credential/ownership bridge. Lives inside secS-magik implementations. Used in **secZ** contexts. **secC** is the generic client.
+- **secDaemon role** (from this repo) — Hub auth layer and gateway into hub sections. Ownership proven via address auth or (preferred) ZK proof of wallet ownership with Dregg.
+
+The browser Castalia Wallet extension is the first place the wallet-as-bridge logic is being exercised.
+
+See the full evolving model and planning surface:
+https://github.com/bananawalnut/claude-hub/blob/main/capture/2026-05-29-castalia-wallet-rust-api-as-secZ-layer-for-secS-magik.md
+
+---
 
 ## At a Glance
 
@@ -242,3 +255,14 @@ Do not commit real tunnel keys, local telemetry databases, production packet cap
 ## License
 
 See `LICENSE`.
+
+## Repository Structure (Updated 2026-05-29)
+
+- `server/` — The **sec** side (stable RPC / mathematical gatekeeper layer from the secS-magik protocol).
+- `client/` — The **secC / secZ** side (treated as a unified client surface for now).
+- `core/` — Shared packet/types. The credential/wallet bridge logic is primarily maintained in the separate **castalia-wallet** repository and imported into secS-magik implementations (client side) as needed.
+
+Wallet placement: The Castalia Wallet acts as the credential and ownership bridge. It is imported into the secS-magik client side rather than duplicated in `core/`.
+
+See the full direction in the vault planning surface.
+
