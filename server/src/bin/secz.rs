@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use libsec_core::{tunnel::decrypt_payload, ZenithPacket};
+use server::verifier::Verifier;
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -125,8 +126,11 @@ async fn handle_connection(router: Arc<ConfigurableRouter>, mut socket: TcpStrea
         }
     };
 
-    if !validate_zk_proof(&packet) {
-        eprintln!("secZ [Auth]: Rejected packet with invalid ZK proof envelope");
+    if let Err(error) = Verifier::verify_prototype_envelope(&packet) {
+        eprintln!(
+            "secZ [Auth]: Rejected packet with invalid prototype proof envelope - {}",
+            error.reason_code()
+        );
         return;
     }
 
@@ -139,10 +143,6 @@ async fn handle_connection(router: Arc<ConfigurableRouter>, mut socket: TcpStrea
     };
 
     router.route(packet.opcode, payload).await;
-}
-
-fn validate_zk_proof(packet: &ZenithPacket) -> bool {
-    !packet.proof.is_empty() && packet.claim_ttl > 0
 }
 
 fn decrypt_machine_payload(packet: &ZenithPacket) -> Result<Vec<u8>, String> {
@@ -245,6 +245,7 @@ mod tests {
     use super::*;
     use libsec_core::tunnel::encrypt_payload;
     use serial_test::serial;
+    use server::verifier::VerificationError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct CountingProgram {
@@ -341,24 +342,30 @@ mod tests {
     }
 
     #[test]
-    fn validate_zk_proof_accepts_non_empty_proof_and_positive_ttl() {
+    fn prototype_envelope_accepts_non_empty_proof_and_positive_ttl() {
         let packet = packet_with(vec![1], 1, b"payload".to_vec());
 
-        assert!(validate_zk_proof(&packet));
+        assert!(Verifier::verify_prototype_envelope(&packet).is_ok());
     }
 
     #[test]
-    fn validate_zk_proof_rejects_empty_proof() {
+    fn prototype_envelope_rejects_empty_proof() {
         let packet = packet_with(vec![], 1, b"payload".to_vec());
 
-        assert!(!validate_zk_proof(&packet));
+        assert_eq!(
+            Verifier::verify_prototype_envelope(&packet).unwrap_err(),
+            VerificationError::MissingPrototypeProofEnvelope
+        );
     }
 
     #[test]
-    fn validate_zk_proof_rejects_zero_ttl() {
+    fn prototype_envelope_rejects_zero_ttl() {
         let packet = packet_with(vec![1], 0, b"payload".to_vec());
 
-        assert!(!validate_zk_proof(&packet));
+        assert_eq!(
+            Verifier::verify_prototype_envelope(&packet).unwrap_err(),
+            VerificationError::ExpiredClaim
+        );
     }
 
     #[test]

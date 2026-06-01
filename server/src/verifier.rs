@@ -1,4 +1,5 @@
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
+use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +82,20 @@ pub struct SignedVerifiedCallContext {
 pub enum VerificationDecision {
     Verified(VerifiedCallContext),
     Rejected(VerificationError),
+}
+
+pub struct Verifier;
+
+impl Verifier {
+    pub fn verify_prototype_envelope(packet: &ZenithPacket) -> Result<(), VerificationError> {
+        if packet.proof.is_empty() {
+            return Err(VerificationError::MissingPrototypeProofEnvelope);
+        }
+        if packet.claim_ttl == 0 {
+            return Err(VerificationError::ExpiredClaim);
+        }
+        Ok(())
+    }
 }
 
 impl VerifiedCallContext {

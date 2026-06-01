@@ -1,5 +1,6 @@
+use libsec_core::ZenithPacket;
 use server::verifier::{
-    AuthenticatorKind, VerificationError, VerifiedCallContext, VerifiedSubject,
+    AuthenticatorKind, VerificationError, VerifiedCallContext, VerifiedSubject, Verifier,
 };
 
 fn sample_context() -> VerifiedCallContext {
@@ -92,5 +93,44 @@ fn signed_context_rejects_wrong_key() {
             .verify_ed25519(&[4u8; 32], "secS://receiver-a", 150)
             .unwrap_err(),
         VerificationError::InvalidSignature
+    );
+}
+
+fn prototype_packet(proof: Vec<u8>, ttl: u64) -> ZenithPacket {
+    ZenithPacket {
+        session_id: [1u8; 16],
+        nonce: [2u8; 12],
+        opcode: 0x10,
+        proof,
+        claim_ttl: ttl,
+        encrypted_payload: b"payload".to_vec(),
+        mac: [0u8; 16],
+    }
+}
+
+#[test]
+fn prototype_envelope_accepts_non_empty_proof_and_positive_ttl() {
+    let packet = prototype_packet(vec![1], 1);
+
+    Verifier::verify_prototype_envelope(&packet).unwrap();
+}
+
+#[test]
+fn prototype_envelope_rejects_empty_proof_with_typed_error() {
+    let packet = prototype_packet(vec![], 1);
+
+    assert_eq!(
+        Verifier::verify_prototype_envelope(&packet).unwrap_err(),
+        VerificationError::MissingPrototypeProofEnvelope
+    );
+}
+
+#[test]
+fn prototype_envelope_rejects_zero_ttl_with_typed_error() {
+    let packet = prototype_packet(vec![1], 0);
+
+    assert_eq!(
+        Verifier::verify_prototype_envelope(&packet).unwrap_err(),
+        VerificationError::ExpiredClaim
     );
 }
