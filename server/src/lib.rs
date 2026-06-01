@@ -1,4 +1,5 @@
 pub mod session;
+pub mod verifier;
 
 use crate::session::SessionStore;
 use async_trait::async_trait;

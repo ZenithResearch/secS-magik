@@ -1689,7 +1689,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bincode",
+ "ed25519-dalek",
  "libsec-core",
+ "serde",
  "serial_test",
  "sqlx",
  "tokio",
