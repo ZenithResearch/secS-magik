@@ -25,7 +25,7 @@ This document is the status ledger for this repository. It separates what is imp
 | Ed25519 helper primitives | `core/src/zk.rs` | Solid / implemented as primitive | Signature/proof helper tests pass. These primitives are not yet a full server verifier. |
 | Session store | `server/src/session.rs` | Solid / implemented as local utility | In-memory session-store tests pass. This is not yet replay/session binding for the verifier pipeline. |
 | Current secS binary | `server/src/main.rs`, `server/src/lib.rs` | Partial / prototype | Runs a TCP listener and routes packet fields. It is not yet the full verifier pipeline. |
-| Current secZ-named binary | `server/src/bin/secz.rs` | Partial / prototype | Runs a configurable gateway, does prototype proof/TTL check, optional tunnel decrypt/plaintext fallback, SQLite telemetry, and opcode routing. It should not be described as verifier ownership. |
+| Current secZ-named binary | `server/src/bin/secz.rs` | Partial / prototype | Runs a configurable gateway, does prototype proof/TTL check, explicit runtime-mode payload handling, SQLite telemetry, and opcode routing. It should not be described as verifier ownership. |
 | SQLite telemetry | `server/src/bin/secz.rs` | Partial / prototype | Stores opcode and payload size in `node_telemetry`. It is not yet a receipt/event ledger. |
 | MachineProgram routing | `server/src/bin/secz.rs` | Partial / prototype | Bounded opcode routing exists. It does not yet receive signed verified context or emit signed execution receipts. |
 
@@ -34,7 +34,7 @@ This document is the status ledger for this repository. It separates what is imp
 | Behavior | Current fact | How to describe it |
 |---|---|---|
 | Proof verification | Current gateway accepts non-empty `proof` plus positive `claim_ttl`. | “Prototype proof envelope check,” not real ZK verification. |
-| Payload security | Tunnel decrypt works if key is configured; plaintext fallback currently exists. | “Optional tunnel decrypt with current local plaintext fallback,” not production-secure transport. |
+| Payload security | Tunnel decrypt works if key is configured; plaintext is only allowed when `SECZ_RUNTIME_MODE=local_dev_plaintext` or `SECS_RUNTIME_MODE=local_dev_plaintext`. | “Explicit runtime-mode payload handling,” not silent production plaintext fallback. |
 | secZ server file | `server/src/bin/secz.rs` exists and performs prototype gateway behavior. | “Historical/secZ-named prototype gateway,” not the corrected architectural secZ client surface. |
 | secS verifier | secS parses/inspects and routes; full staged verifier does not exist. | “Target verifier substrate,” not fully implemented verifier. |
 | Manifest | Hardcoded `register()` calls exist; no typed `OperationDescriptor` module yet. | “Prototype bindings,” not a real receiver-local manifest. |
@@ -50,10 +50,10 @@ These are accepted next-pass targets from the current objectives spec and issue-
 | Repository schema | `docs/repository-schema.md` | Implemented as docs; code not yet reorganized. |
 | OperationDescriptor / ReceiverManifest | `server/src/manifest.rs` | Planned / next implementation. |
 | Opcode range governance | `server/src/manifest.rs`, docs; possibly `core/src/lib.rs` constants | Planned; docs define ranges now. |
-| VerificationError / verifier pipeline | `server/src/verifier.rs` | Planned / next implementation. |
-| SignedVerifiedCallContext | `server/src/context.rs` or `server/src/verifier.rs` | Planned / next implementation. |
+| VerificationError / verifier pipeline | `server/src/verifier.rs` | Partially implemented: typed errors and prototype envelope/signature context helpers exist; full staged verifier pipeline still planned. |
+| SignedVerifiedCallContext | `server/src/verifier.rs` | Implemented for Ed25519 context signing/verification; receipt integration still planned. |
 | Identity/signature helpers for contexts/receipts | `server/src/identity.rs` | Planned / next implementation; low-level Ed25519 primitives exist in `core/src/zk.rs`. |
-| Explicit runtime modes | `server/src/runtime_mode.rs` | Planned / next implementation. |
+| Explicit runtime modes | `server/src/runtime_mode.rs` | Implemented for current gateway; local plaintext requires explicit `local_dev_plaintext`, default is `production_verified`. |
 | Receipt types | `server/src/receipt.rs` | Planned / next implementation. |
 | Event/receipt ledger | `server/src/ledger.rs` | Planned / next implementation. |
 | EvidenceAdapter trait | `server/src/evidence.rs` | Planned / next implementation. |

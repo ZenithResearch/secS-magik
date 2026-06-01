@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use libsec_core::{tunnel::decrypt_payload, ZenithPacket};
+use server::runtime_mode::RuntimeMode;
 use server::verifier::Verifier;
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::collections::HashMap;
@@ -134,7 +135,7 @@ async fn handle_connection(router: Arc<ConfigurableRouter>, mut socket: TcpStrea
         return;
     }
 
-    let payload = match decrypt_machine_payload(&packet) {
+    let payload = match decrypt_machine_payload(&packet, RuntimeMode::from_env()) {
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secZ [Crypto]: Rejected undecryptable payload - {}", e);
@@ -145,11 +146,12 @@ async fn handle_connection(router: Arc<ConfigurableRouter>, mut socket: TcpStrea
     router.route(packet.opcode, payload).await;
 }
 
-fn decrypt_machine_payload(packet: &ZenithPacket) -> Result<Vec<u8>, String> {
+fn decrypt_machine_payload(packet: &ZenithPacket, mode: RuntimeMode) -> Result<Vec<u8>, String> {
     match load_tunnel_key() {
         Some(key) => decrypt_payload(&key, &packet.nonce, &packet.encrypted_payload)
             .map_err(|_| "ChaCha20Poly1305 authentication failed".to_string()),
-        None => Ok(packet.encrypted_payload.clone()),
+        None if mode.allows_plaintext() => Ok(packet.encrypted_payload.clone()),
+        None => Err("missing tunnel key".to_string()),
     }
 }
 
@@ -370,12 +372,41 @@ mod tests {
 
     #[test]
     #[serial]
-    fn plaintext_decryption_fallback_returns_payload_without_tunnel_key() {
+    fn local_dev_plaintext_mode_returns_payload_without_tunnel_key() {
         std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");
         let packet = packet_with(vec![1], 1, b"plain".to_vec());
 
-        assert_eq!(decrypt_machine_payload(&packet).unwrap(), b"plain");
+        assert_eq!(
+            decrypt_machine_payload(&packet, RuntimeMode::LocalDevPlaintext).unwrap(),
+            b"plain"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn local_dev_tunnel_mode_rejects_missing_tunnel_key() {
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        let packet = packet_with(vec![1], 1, b"plain".to_vec());
+
+        assert_eq!(
+            decrypt_machine_payload(&packet, RuntimeMode::LocalDevTunnel).unwrap_err(),
+            "missing tunnel key"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn production_verified_mode_rejects_missing_tunnel_key() {
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        let packet = packet_with(vec![1], 1, b"plain".to_vec());
+
+        assert_eq!(
+            decrypt_machine_payload(&packet, RuntimeMode::ProductionVerified).unwrap_err(),
+            "missing tunnel key"
+        );
     }
 
     #[test]
@@ -422,7 +453,7 @@ mod tests {
         let packet = packet_with(vec![1], 1, ciphertext);
 
         assert_eq!(
-            decrypt_machine_payload(&packet).unwrap(),
+            decrypt_machine_payload(&packet, RuntimeMode::LocalDevTunnel).unwrap(),
             b"ciphertext payload"
         );
 
@@ -440,7 +471,7 @@ mod tests {
         let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload");
         let packet = packet_with(vec![1], 1, ciphertext);
 
-        assert!(decrypt_machine_payload(&packet).is_err());
+        assert!(decrypt_machine_payload(&packet, RuntimeMode::LocalDevTunnel).is_err());
 
         std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
     }
