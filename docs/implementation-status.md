@@ -63,6 +63,7 @@ These are accepted next-pass targets from the current objectives spec and issue-
 | Event/receipt ledger | `server/src/ledger.rs` | Implemented with runtime SQL and in-memory SQLite tests; gateway/ingress write reject, verify, execution, and handler lifecycle audit records. |
 | EvidenceAdapter trait | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented | Typed adapter boundary with request/result fields for subject, audience, operation, resource, evidence refs, public inputs, and reason codes. |
 | `local_static` evidence adapter | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented as local-dev-test only | Deterministic local/dev/test scaffold that can satisfy descriptor evidence requirements and flow into signed contexts/receipts without claiming production authority or adding Dregg/Midnight/Cardano dependencies. |
+| Wallet presentation adapter shell | `server/src/evidence.rs`, `server/tests/wallet_presentation.rs` | Partial / prototype | Defines typed wallet presentation fixture fields for subject, audience, origin, challenge, signature, public key, replay nonce, and validity window; fails closed for missing/invalid shape and distinguishes wrong audience/origin. Full cryptographic wallet signature verification remains explicitly unsupported. |
 | Bounded execution broker accepting verified context | `server/src/execution.rs` | Planned / next implementation. |
 | Packet-builder helper | `core/src/packet_builder.rs` | Solid / implemented as verifier-free construction helper | Builds `ZenithPacket` v0 from caller-provided envelope fields without validating capabilities, credentials, evidence, authority, replay, or verifier receipts. |
 
@@ -70,7 +71,7 @@ These are accepted next-pass targets from the current objectives spec and issue-
 
 | Rail | Status | Do not claim |
 |---|---|---|
-| Wallet presentation adapter | Future after `local_static` proves the adapter interface. | Do not claim wallet auth is currently implemented in secS-magik. |
+| Wallet presentation adapter | Implemented as a typed shell after `local_static`; full wallet signature verification remains unsupported. | Do not claim production wallet auth or verified wallet signatures are implemented in secS-magik. |
 | Midnight / generic ZK proof adapter | Future after public inputs and statement meaning are defined. | Do not claim current proof bytes are a meaningful ZK proof. |
 | Dregg receipt / federation adapter | Future after capability, revocation, and root semantics are defined. | Do not make Dregg mandatory for the current verifier. |
 | Cardano settlement evidence | Future for capital/settlement operations only. | Do not treat Cardano as generic RPC verification. |

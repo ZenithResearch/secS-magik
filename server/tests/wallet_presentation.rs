@@ -1,6 +1,6 @@
 use server::evidence::{
     EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, WalletPresentationAdapter,
-    WalletPresentationFixture,
+    WalletPresentationFixture, WalletPresentationShellStatus,
 };
 use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
 use server::verifier::VerificationError;
@@ -40,6 +40,9 @@ fn adapter() -> WalletPresentationAdapter {
         challenge_ref: "challenge:phase4-test".to_string(),
         signature_ref: "signature:fixture-only".to_string(),
         public_key_ref: "pubkey:fixture-only".to_string(),
+        replay_nonce_ref: "nonce:wallet-present-0001".to_string(),
+        issued_at: 1_717_000_000,
+        expires_at: 1_717_000_300,
     }])
 }
 
@@ -93,17 +96,54 @@ fn wallet_presentation_shell_accepts_fixture_shape_without_claiming_public_proof
             assert_eq!(summary.audience, "secS://local-test");
             assert!(!summary.local_dev_test_only);
             assert!(!summary.public_proof);
-            assert!(summary
-                .summary_fields
-                .iter()
-                .any(|field| field == "adapter_status:shape_validated_signature_unsupported"));
+            assert!(summary.summary_fields.iter().any(|field| {
+                field
+                    == WalletPresentationShellStatus::ShapeValidatedSignatureUnsupported
+                        .as_summary_field()
+            }));
             assert!(summary
                 .summary_fields
                 .iter()
                 .any(|field| field == "origin:https://gallery.localhost"));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "replay_nonce_ref:nonce:wallet-present-0001"));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "issued_at:1717000000"));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "expires_at:1717000300"));
         }
         EvidenceResult::Rejected(error) => {
             panic!("expected shell-shaped wallet evidence, got {error:?}")
         }
     }
+}
+#[test]
+fn wallet_presentation_incomplete_fixture_fails_closed_with_invalid_presentation() {
+    let incomplete = WalletPresentationAdapter::new([WalletPresentationFixture {
+        evidence_ref: "wallet-presentation:missing-shape".to_string(),
+        subject: "did:example:alice#key-1".to_string(),
+        audience: "secS://local-test".to_string(),
+        origin: "https://gallery.localhost".to_string(),
+        challenge_ref: "".to_string(),
+        signature_ref: "signature:fixture-only".to_string(),
+        public_key_ref: "pubkey:fixture-only".to_string(),
+        replay_nonce_ref: "nonce:wallet-present-0001".to_string(),
+        issued_at: 1_717_000_000,
+        expires_at: 1_717_000_300,
+    }]);
+    let mut request = request_with_ref(Some("wallet-presentation:missing-shape"));
+    request
+        .public_inputs
+        .push("origin:https://gallery.localhost".to_string());
+
+    assert_eq!(
+        incomplete.verify(&request),
+        EvidenceResult::Rejected(VerificationError::InvalidPresentation)
+    );
 }
