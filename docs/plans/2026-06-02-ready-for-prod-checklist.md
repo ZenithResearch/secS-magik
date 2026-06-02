@@ -393,6 +393,36 @@ A5 turns the cross-Hub/federated evidence rail from a phrase into a first implem
 | `membership_root` | Prove a membership state root or roster commitment. | `root_id`, `issuer_id`, `state_id`, `root_hash`, `version`, `valid_from`, `valid_until`, `signature`. | Fixture root may prove boundary; no public consensus claim. |
 | `dregg_root_ref` | Carry future-compatible Dregg root/ref semantics. | `root_id`, `issuer_id`, `root_hash`, `epoch`, `finality_hint`, `revocation_ref`, `signature_or_anchor`. | Data seam only unless A9 promotes live Dregg. |
 
+### A5 — Critical analysis of candidate evidence kinds
+
+The A5 candidate evidence kinds are intentionally broad, but they should not be implemented as six peer-level verifier inputs. They separate into three layers:
+
+| Layer | Evidence / metadata | Role | Implementation posture |
+|---|---|---|---|
+| Primary authorization evidence | `issuer_credential`, `remote_signed_receipt`, `capability_caveat` | Objects that can directly satisfy a descriptor evidence requirement if trusted and policy-bound. | Start with a narrow membership/provisioning credential; add remote receipts second; defer full capability caveats. |
+| Supporting status / freshness evidence | `revocation_proof`, `membership_root` | Objects that help evaluate freshness, revocation, or state membership. | Represent first as registry/status checks; do not pretend cryptographic proof machinery exists until implemented. |
+| Trust/root reference metadata | `dregg_root_ref`, `TrustedIssuerEntry` | Anchors and references used to discover or constrain trust roots. | Keep as verifier-held config / future root-ref seam, not caller-supplied authority. |
+
+Pros, cons, and selected posture:
+
+| Candidate | Pros | Cons / risks | A5 posture |
+|---|---|---|---|
+| `remote_signed_receipt` | Good cross-Hub primitive; reuses receipt machinery; easy to fixture with trusted issuer/root. | Can launder weak upstream policy if treated as transitive authority; must bind subject, audience, operation, descriptor hash, expiry, replay scope, and issuer. | Keep, but treat as `remote_verification_attestation`-like evidence and implement after the first membership credential unless a concrete remote-Hub proof is required earlier. |
+| `capability_caveat` | Strong long-term fit for delegated machine-to-machine authority and Dregg-style caveat semantics. | Hard to implement correctly; needs caveat language, discharge, attenuation, revocation, and path validation; can prematurely drag in Dregg semantics. | Defer full capability algebra; first pass may use a simpler scoped delegation/provisioning credential. |
+| `issuer_credential` | Best first membership/provisioning proof; easy to fixture; maps directly to trusted issuer registry. | Can become too static/role-based unless bound to audience, operation, scope, expiry, and revocation. | Use as first implementation path, preferably narrowed to `membership_credential` or `provisioning_credential` for the first E2E. |
+| `revocation_proof` | Makes revocation explicit; later can map to Dregg/status-list/accumulator proof. | "Proof of non-revocation" is too strong for static fixture status; risks fake cryptographic proof claims. | First implementation should call this `revocation_status` / `registry_status`; reserve `revocation_proof` for real proof-backed systems. |
+| `membership_root` | Useful for state/roster commitments and later inclusion proofs. | A root alone proves nothing without inclusion witness, freshness policy, and publisher governance. | Do not use root alone as authorization evidence; require `membership_inclusion_proof` or treat as `membership_root_ref`. |
+| `dregg_root_ref` | Preserves future Dregg compatibility without making Dregg a runtime dependency. | Mostly reference metadata, not authorization evidence; easy to overclaim live Dregg integration. | Generalize first as `trust_root_ref` / `registry_root_ref`; keep Dregg as a future subtype unless A9 promotes live Dregg. |
+
+Selected first implementation path:
+
+1. Use a narrowed `membership_credential` / `provisioning_credential` derived from `issuer_credential`.
+2. Verify it against a static `TrustedIssuerEntry` registry.
+3. Use `registry_status` / `revocation_status` semantics for validity, not cryptographic revocation proof claims.
+4. Carry `remote_signed_receipt`, `capability_caveat`, `membership_root`, and `dregg_root_ref` as future-compatible evidence/reference classes, not first implementation blockers.
+
+This preserves A5 acceptance while reducing implementation risk: first-prod can prove cross-Hub/federated membership authority with fixture trusted issuers and typed failures, without prematurely implementing Dregg consensus, capability algebra, Merkle roots, or public registry discovery.
+
 ### A5 — Trusted issuer/root representation
 
 First implementation should use a local/static trust registry that is shaped like future Castalia/Dregg discovery but does not claim live federation.
