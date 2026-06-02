@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added A6 production policy matrix to the ready-for-prod checklist — names runtime-mode × descriptor-evidence × adapter/evidence accept/reject rows, assigns a future test target to every row, keeps `local_static` local/dev-only, and carries A5's narrowed federated evidence model into downstream implementation work.
 - Reimplemented the A5 federated evidence model gate after candidate review — separates primary authorization evidence, supporting status/freshness evidence, and trust/root metadata; narrows first implementation to membership/provisioning credential plus static trusted issuer registry and status checks; demotes revocation proof, membership roots, and Dregg refs to future/properly bounded forms.
 - Added A4 wallet-core integration decision gate to the ready-for-prod checklist — selects a direct minimal Castalia Wallet Rust core verifier API as the first target, preserves a signed/traceable artifact fallback, rejects duplicate secS wallet verifier semantics, and names affected paths/tests/packaging constraints.
 - Added A3 identity/key lifecycle decision gate to the ready-for-prod checklist — locks the first signer posture to a single `node_verifier_key`, explicit production key config, deterministic Ed25519 key ids, local/static trust registry discovery, and revocation/rotation tests before implementation.

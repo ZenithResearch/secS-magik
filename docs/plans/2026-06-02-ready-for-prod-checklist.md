@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model gate complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
+Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model gate complete; A6 production policy matrix complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
 
 ## A0 — Production target
 
@@ -21,7 +21,7 @@ secS-magik is ready for first prod only when one Hub can run a production-shaped
 
 - rejects insecure/local-dev authority in production mode;
 - verifies wallet-core-defined presentations for app/user subjects;
-- evaluates federated evidence produced, signed, anchored, revoked, or vouched for by another Hub, Castalia authority, or Dregg-shaped root/ref seam while still applying the receiver's local manifest policy;
+- evaluates federated evidence from another Hub/Castalia-style authority through the narrowed A5 first path — signed membership/provisioning credentials, receiver-held trusted issuer/root metadata, and status checks — while preserving future Dregg anchor/root seams behind A9;
 - signs and persists operator-visible receipts/contexts;
 - executes only bounded descriptor-authorized handlers;
 - proves a membership-provisioning flow end-to-end without relying on hand-wavy future rails.
@@ -56,7 +56,7 @@ Use these phrases until code proves stronger claims:
 - typed fail-closed wallet shell;
 - cross-Hub/federated evidence rail;
 - fixture trusted issuer/root;
-- Dregg-shaped root/ref seam;
+- generic trust/root ref seam with Dregg as future subtype;
 - production-mode reject path;
 - receiver-local manifest policy.
 
@@ -159,7 +159,7 @@ Use these phrases:
 - `wallet-core-backed evidence` or `wallet-core-defined presentation` for app/user auth evidence;
 - `cross-Hub/federated evidence evaluation` for the receiver-side verifier rail;
 - `fixture trusted issuer/root` for first local federation proofs that do not yet run live Dregg;
-- `Dregg-shaped root/ref seam` for future-compatible root semantics;
+- `trust_root_ref` / `registry_root_ref` for future-compatible root semantics, with Dregg as a future subtype only;
 - `receiver-local manifest policy` for the final local authorization decision;
 - `local SQLite receipt/event ledger` for current audit storage.
 
@@ -524,6 +524,76 @@ Later code issues must use typed reject reasons and emit reject receipts for at 
 
 A5 acceptance is met because this reimplemented model defines evidence object classes, trusted issuer/root representation, public-key discovery, remote attestation / credential / status / root-reference shapes, expiry/replay semantics, typed failure reasons, and a fixture first-prod path. It also incorporates the pros/cons review by narrowing first implementation to membership/provisioning credential plus static trusted issuer registry and status checks, without pretending Dregg consensus is implemented or bypassing receiver-local policy.
 
+## A5 downstream development impact checkpoint
+
+This checkpoint captures the consequences of the A5 reimplementation for later development. Future implementation agents should treat this as a constraint, not as historical commentary.
+
+Downstream rules:
+
+- A6 production policy rows should be written around `membership_credential` / `provisioning_credential`, `TrustedIssuerEntry`, and `registry_status` / `revocation_status` as the first federated evidence path.
+- A7 first E2E should prove wallet presentation plus membership/provisioning credential evidence through receiver-local manifest policy, bounded handler execution, and receipts.
+- A8 issue decomposition should derive phase/issue boundaries from the narrowed first path; do not create first-path issues for demoted candidate kinds unless A9 promotes them.
+- A9 is the only place to promote live Dregg anchors, capability algebra, cryptographic revocation proofs, or membership inclusion proofs into first-prod scope.
+
+Forbidden first-path assumptions:
+
+- Do not accept vague remote execution receipts as authorization evidence; use `remote_verification_attestation` only as a second-path attestation with explicit verified-policy bindings.
+- Do not fake `capability_caveat` semantics with string checks.
+- Do not call static `revocation_status` a cryptographic `revocation_proof`.
+- Do not treat `membership_root_ref` as membership proof without `membership_inclusion_proof`.
+- Do not call generic `trust_root_ref` / `registry_root_ref` live Dregg validation.
+
+
+## A6 — Production policy matrix
+
+A6 converts the A0/A2/A5 boundaries into an implementable production policy matrix. This is still a checklist/design gate, not a claim that every runtime test is already implemented. Later code issues must preserve these rows as acceptance tests or named test cases before claiming production authority.
+
+### A6 — Policy principle
+
+Production authority is determined by the combination of runtime mode, receiver-local descriptor policy, and validated evidence. No adapter output bypasses the receiver's manifest policy, and no local/dev/static evidence may satisfy a production descriptor.
+
+Rules:
+
+- `local_static`, plaintext, and fixture-only local evidence are allowed only for local/dev descriptors in local/dev runtime modes.
+- `production_verified` must fail closed if the descriptor requires wallet or federated evidence and the supplied adapter evidence is local/dev/static, missing, malformed, stale, revoked, or not bound to the requested subject/audience/operation.
+- Wallet-presentation acceptance requires wallet-core-backed cryptographic verification. The current shape-only shell must remain fail-closed for production acceptance.
+- Federated evidence acceptance uses A5's narrowed first path: `membership_credential` / `provisioning_credential`, receiver-held `TrustedIssuerEntry`, and `registry_status` / `revocation_status`.
+- Valid evidence may satisfy descriptor evidence requirements, but receiver-local manifest policy still makes the final local authorization decision.
+
+### A6 — Runtime × descriptor evidence × adapter evidence matrix
+
+| Runtime mode | Descriptor evidence requirement | Adapter / evidence supplied | Expected result | Required future test target |
+|---|---|---|---|---|
+| `local_dev_plaintext` or `local_dev_tunnel` | dev-marked descriptor / local test operation | plaintext tunnel or `local_static` fixture | Accept only for dev-marked descriptors; emit visibly local/dev receipt context. | `local_dev_descriptor_accepts_local_static_fixture` |
+| `local_dev_plaintext` or `local_dev_tunnel` | production descriptor | plaintext tunnel or `local_static` fixture | Reject; local/dev runtime cannot satisfy production authority. | `local_dev_runtime_rejects_production_descriptor` |
+| `production_verified` | any production descriptor | missing evidence / plaintext-only packet | Reject before handler execution with typed missing/unsupported evidence reason. | `production_verified_missing_evidence_rejects_before_handler` |
+| `production_verified` | wallet presentation | `local_static` | Reject; local static evidence is disallowed for wallet-auth production descriptors. | `production_wallet_descriptor_rejects_local_static` |
+| `production_verified` | wallet presentation | current shape-only `wallet_presentation` shell with unsupported crypto status | Reject/fail closed until wallet-core cryptographic verification exists. | `production_wallet_shape_only_shell_fails_closed` |
+| `production_verified` | wallet presentation | wallet-core cryptographic presentation with valid signature, subject, audience, origin, operation, replay nonce, and expiry | Accept only if descriptor permits wallet evidence and receiver-local policy passes. | `production_wallet_core_presentation_accepts_when_policy_matches` |
+| `production_verified` | wallet presentation | wrong signature/key/subject/audience/origin/operation/replay/expiry | Reject with typed reason; emit reject receipt without handler execution. | `production_wallet_presentation_reject_matrix` |
+| `production_verified` | federated evidence | untrusted `membership_credential` / `provisioning_credential` issuer or caller-supplied embedded key/root | Reject `untrusted_issuer`; embedded keys/roots do not create authority. | `production_federated_untrusted_issuer_rejects` |
+| `production_verified` | federated evidence | trusted issuer but revoked, expired, unknown, not-yet-valid, or stale issuer/key/credential status | Reject `revoked_issuer`, `expired_issuer`, `revoked_evidence`, `expired_evidence`, or stale/status-specific reason. | `production_federated_status_reject_matrix` |
+| `production_verified` | federated evidence | trusted active issuer + valid credential but wrong audience, subject, operation/scope, or unsupported evidence kind for descriptor | Reject `wrong_audience`, `wrong_subject`, `wrong_operation`, or `unsupported_evidence_kind`. | `production_federated_binding_reject_matrix` |
+| `production_verified` | federated evidence | trusted active issuer + fresh non-revoked `membership_credential` / `provisioning_credential`, but receiver-local manifest policy mismatch | Reject `local_policy_reject`; valid foreign evidence never bypasses local policy. | `production_federated_valid_evidence_local_policy_rejects` |
+| `production_verified` | federated evidence | trusted active issuer + fresh non-revoked operation-bound `membership_credential` / `provisioning_credential` + descriptor permits evidence + receiver-local policy passes | Accept; emit evidence summary into signed context/receipts without raw private evidence by default. | `production_federated_membership_credential_accepts_when_policy_matches` |
+| `production_verified` | membership proof | `membership_root_ref` without `membership_inclusion_proof` when descriptor requires proof of membership | Reject as unsupported/malformed for that descriptor; root refs alone are not authorization evidence. | `production_membership_root_ref_without_inclusion_proof_rejects` |
+| `production_verified` | Dregg-backed root/revocation/capability evidence | `dregg_anchor_ref` / Dregg-shaped root data while A9 has not promoted live Dregg | Treat only as generic `trust_root_ref` / `registry_root_ref` data; do not claim live Dregg validation or use it as first-path authority. | `production_dregg_ref_without_promotion_is_not_live_validation` |
+
+### A6 — Test naming and implementation guidance
+
+The test targets above are future code test names or semantic test descriptions. They should be implemented as focused tests in the later issue that touches the corresponding verifier/evidence/descriptor path, likely across:
+
+- `server/tests/evidence.rs` or future production evidence tests for adapter policy;
+- `server/tests/wallet_presentation.rs` for wallet-core-backed acceptance/rejects;
+- future federated evidence tests once A5 objects are implemented;
+- ingress/router tests proving rejects happen before handler execution and receipts are emitted.
+
+Do not overfit future tests to exact prose from this checklist. The contract to preserve is the semantic matrix: runtime mode + descriptor requirement + validated evidence + receiver-local policy determines accept/reject.
+
+### A6 — Acceptance
+
+A6 acceptance is met because this checklist now names a runtime mode × descriptor evidence × adapter/evidence matrix, every row has a concrete future test target, `local_static` is explicitly local/dev/test-only, wallet shape-only evidence fails closed in production, federated rows use the narrowed A5 first-path objects, and forbidden first-path claims are bounded so demoted Dregg/capability/proof/root candidates cannot satisfy production authority without A9 promotion.
+
 ## Slice acceptance criteria
 
 These criteria travel with the A0–A9 slices. A later phase/issue is not complete until its row is satisfied without weakening the A0 production definition.
@@ -536,10 +606,10 @@ These criteria travel with the A0–A9 slices. A later phase/issue is not comple
 | A3 — Identity/key lifecycle decision gate | The checklist identifies the first signer/key model, key loading/config path, key id format, public-key discovery path, and minimum revocation/rotation posture for first prod. | Checklist includes tests or future issue rows for tamper, wrong key, expired context, revoked/untrusted issuer, and local/dev non-authoritative keys. | Do not claim production identity discovery or key rotation until implemented; do not let local/dev/test keys appear authoritative. |
 | A4 — Wallet-core integration decision gate | The checklist selects or explicitly carries the wallet-core integration path: direct minimal verifier API or wallet-core-defined verified artifact. The rejected option is duplicated secS wallet verifier semantics. | Checklist records the chosen path, tradeoffs, affected files/crates, tests for signature/audience/origin/replay/expiry, and browser/WASM/native packaging implications. | Do not invent independent secS wallet verification semantics; do not trust an unsigned/untraceable artifact producer as equivalent to verifying raw wallet evidence. |
 | A5 — Federated evidence model decision gate | The checklist defines layered evidence classes, trusted issuer/root representation, public-key discovery, remote attestation / membership credential / status / root-reference shapes, expiry/replay semantics, and typed failure reasons. | Checklist names the fixture first-prod path using `membership_credential` / `provisioning_credential` plus static `TrustedIssuerEntry` and tests for untrusted issuer, revoked/expired status, malformed evidence, wrong audience, wrong operation, wrong subject, replay, and embedded-key/root trust-chain failures. | Do not pretend Dregg consensus, capability algebra, membership-root inclusion proofs, or cryptographic revocation proofs are implemented by fixture evidence; do not let federated evidence bypass receiver-local manifest policy. |
-| A6 — Production policy matrix | The checklist contains a runtime mode × descriptor evidence × adapter evidence matrix proving local/dev/static evidence cannot satisfy production descriptors and that every accept/reject row has a test target. | `rg "production_verified|local_static|wallet presentation|federated evidence|untrusted issuer|revoked|stale" docs/plans/2026-06-02-ready-for-prod-checklist.md` plus future tests named per row. | Do not let `local_static`, plaintext, or dev descriptors satisfy production authority. |
-| A7 — First membership-provisioning E2E shape | The first E2E operation is selected (`membership.provision`, `gallery.member.provision`, or `hub.member.provision`) and includes happy path, failure matrix, receipt/ledger inspection, and local fixture constraints. | Checklist/runbook names the operation, descriptor, evidence inputs, handler behavior, inspectable receipts, and failures for missing wallet evidence, wrong audience/origin, invalid signature, replay/expiry, untrusted/revoked federated evidence, descriptor mismatch, handler unavailable, oversized payload, and redaction leak checks. | Do not make the E2E a packet echo; do not require real secrets; do not hide that fixtures are fake but semantically production-shaped. |
-| A8 — Convert Tracks A–I into issue-ready repo checklist | Tracks A–I are grouped into coherent implementation phases. Each phase has branch name, PR title/scope, issue/commit sequence, verification gate, and merge/stop condition. Each issue/commit has objective, files, commands, acceptance criteria, stop condition, and what it must not claim. | Checklist contains a phase/branch/PR plan preserving the repo pattern: phases are branch/PR boundaries and issues inside phases are commit boundaries. | Do not produce one branch/PR per issue unless that issue is promoted into a full phase; do not omit cross-Hub/federated evidence from first-prod requirements. |
-| A9 — Defer or promote Tracks J–L intentionally | Dregg, Midnight, and Cardano are either explicitly first-prod dependencies with concrete evidence/adapter requirements, or explicitly deferred/future/adapter-scoped with rationale. | Checklist names whether Dregg is live dependency or fixture/root-ref seam, whether Midnight/private statement work is required, and whether Cardano settlement/capital evidence is in scope. | Do not silently smuggle Dregg/Midnight/Cardano into the first implementation sequence; do not erase future adapter seams when deferring them. |
+| A6 — Production policy matrix | The checklist contains a runtime mode × descriptor evidence × adapter evidence matrix proving local/dev/static evidence cannot satisfy production descriptors and that every accept/reject row has a test target. Federated rows must use the narrowed A5 first-path objects: `membership_credential` / `provisioning_credential`, `TrustedIssuerEntry`, and registry/revocation status. | `rg "production_verified|local_static|wallet presentation|membership_credential|provisioning_credential|TrustedIssuerEntry|revocation_status|untrusted issuer|revoked|stale" docs/plans/2026-06-02-ready-for-prod-checklist.md` plus future tests named per row. | Do not let `local_static`, plaintext, dev descriptors, vague remote receipts, caller-supplied roots, or demoted Dregg refs satisfy production authority. |
+| A7 — First membership-provisioning E2E shape | The first E2E operation is selected (`membership.provision`, `gallery.member.provision`, or `hub.member.provision`) and includes happy path, failure matrix, receipt/ledger inspection, and local fixture constraints. It should combine wallet presentation with narrowed A5 membership/provisioning credential evidence. | Checklist/runbook names the operation, descriptor, evidence inputs, handler behavior, inspectable receipts, and failures for missing wallet evidence, wrong audience/origin, invalid signature, replay/expiry, untrusted/revoked membership/provisioning credential or issuer/key status, descriptor mismatch, handler unavailable, oversized payload, and redaction leak checks. | Do not make the E2E a packet echo; do not require real secrets; do not hide that fixtures are fake but semantically production-shaped; do not make live Dregg, capability algebra, cryptographic revocation proof, or membership inclusion proof first-E2E blockers unless A9 promotes them. |
+| A8 — Convert Tracks A–I into issue-ready repo checklist | Tracks A–I are grouped into coherent implementation phases. Each phase has branch name, PR title/scope, issue/commit sequence, verification gate, and merge/stop condition. Each issue/commit has objective, files, commands, acceptance criteria, stop condition, and what it must not claim. | Checklist contains a phase/branch/PR plan preserving the repo pattern: phases are branch/PR boundaries and issues inside phases are commit boundaries, with A6/A7 downstream issues derived from A5's narrowed first implementation path. | Do not produce one branch/PR per issue unless that issue is promoted into a full phase; do not omit cross-Hub/federated evidence from first-prod requirements; do not build downstream issues around demoted A5 candidates as first-path requirements. |
+| A9 — Defer or promote Tracks J–L intentionally | Dregg, Midnight, and Cardano are either explicitly first-prod dependencies with concrete evidence/adapter requirements, or explicitly deferred/future/adapter-scoped with rationale. Dregg defaults to future subtype of `trust_root_ref` / `registry_root_ref` unless promoted. | Checklist names whether Dregg is live dependency or static fixture/generic trust-root seam, whether Midnight/private statement work is required, and whether Cardano settlement/capital evidence is in scope. | Do not silently smuggle Dregg/Midnight/Cardano into the first implementation sequence; do not erase future adapter seams when deferring them; do not call static status or root refs Dregg validation. |
 
 ## Future expansion placeholders
 
@@ -550,7 +620,7 @@ Later slices should expand this checklist in place:
 - A3 — identity/key lifecycle decision gate — complete;
 - A4 — wallet-core integration decision gate — complete;
 - A5 — federated evidence model decision gate — complete;
-- A6 — production policy matrix;
+- A6 — production policy matrix — complete;
 - A7 — first membership-provisioning E2E shape;
 - A8 — issue-ready phase/branch/PR checklist for Tracks A–I;
 - A9 — Dregg/Midnight/Cardano defer-or-promote decision.
