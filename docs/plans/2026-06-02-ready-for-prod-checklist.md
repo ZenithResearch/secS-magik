@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
+Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
 
 ## A0 — Production target
 
@@ -260,6 +260,114 @@ Later code issues that implement A3 must name and pass tests for:
 
 A3 acceptance is met when later implementers can open this checklist and know the first signer model, key loading/config expectation, key id format, public-key discovery path, revocation/rotation posture, and the tests that must prevent local/dev keys from becoming production authority.
 
+## A4 — Wallet-core integration decision gate
+
+A4 fixes how secS-magik should use Castalia Wallet semantics before wallet-presentation verification becomes implementation work. This is a decision gate, not a claim that production wallet crypto is already implemented.
+
+### A4 — Locked integration path
+
+First target: **direct minimal wallet-core verifier API/crate dependency**.
+
+secS-magik should verify wallet presentations by calling a minimal verifier surface owned by the shared Castalia Wallet Rust core semantics layer. The verifier API should validate raw/canonical wallet evidence rather than making secS trust an independently produced artifact by default.
+
+Fallback path if dependency shape blocks the first implementation: **wallet-core-defined verified artifact**, but only if the artifact is signed or otherwise traceable to wallet-core semantics and still binds challenge, subject, audience, origin, replay nonce, expiry, public key, and operation/descriptor context. This fallback must be recorded as an explicit follow-up issue rather than silently duplicating logic in secS-magik.
+
+Rejected path: **duplicate secS wallet verifier logic**. secS-magik must not invent a second challenge/signature verification contract that can drift from the browser extension, secZ/secC, or wallet-core semantics.
+
+### A4 — Ownership boundary
+
+| Surface | Owner | A4 rule |
+|---|---|---|
+| Castalia Wallet Rust core verifier semantics | Castalia Wallet / shared wallet-core crate | Owns canonical challenge/signature validation, presentation schema, replay/expiry checks, and public-key binding semantics. |
+| secS `wallet_presentation` evidence adapter | secS-magik | Calls the wallet-core verifier API or validates a wallet-core-defined signed/traceable artifact; converts result into typed evidence result and receipts. |
+| Browser extension / WASM wallet UX | Castalia Wallet | Produces user-facing presentation flow; not owned by secS-magik. |
+| secZ/secC/local clients | Client surfaces | May construct requests or presentations using wallet-core bindings, but do not become verifier authority. |
+| Product session / WalletAuth UX | App/Gallery/Hub surfaces | Out of scope for secS-magik except as evidence inputs to descriptors. |
+
+### A4 — Expected verifier API contract
+
+Later implementation issues should target a narrow API shape like:
+
+```text
+verify_wallet_presentation(input) -> WalletPresentationVerification
+```
+
+Minimum input fields:
+
+- `subject_id`;
+- `audience` / receiver Hub or secS service id;
+- `origin` / app origin where applicable;
+- `operation` / descriptor operation name;
+- `challenge`;
+- `signature`;
+- `public_key` or wallet-controlled verification key reference;
+- `replay_nonce`;
+- `issued_at` / `not_before`;
+- `expires_at`;
+- optional evidence refs / issuer refs needed by A5.
+
+Minimum result fields:
+
+- `accepted: bool`;
+- `subject_id`;
+- `wallet_key_id` / public-key fingerprint;
+- `presentation_id` or hash;
+- `reason_code` for rejects;
+- `evidence_summary_hash` for receipts;
+- `verified_at`;
+- `schema_version`.
+
+### A4 — Affected repo paths / crates
+
+Expected secS-magik paths for later implementation issues:
+
+| Path | Expected role |
+|---|---|
+| `server/src/evidence.rs` | Extend `wallet_presentation` adapter from shape-only fail-closed shell into wallet-core-backed verification call. |
+| `server/tests/wallet_presentation.rs` | Add cryptographic happy-path and reject tests. |
+| `server/src/receipt.rs` | Ensure wallet verification result summaries enter signed receipts without raw private evidence by default. |
+| `server/src/verifier.rs` | Ensure accepted wallet evidence can contribute to signed `VerifiedCallContext`. |
+| `docs/plans/2026-06-02-ready-for-prod-checklist.md` | Preserve this decision and issue-level acceptance criteria. |
+
+Expected adjacent/shared crate surface:
+
+| Surface | Expected role |
+|---|---|
+| Castalia Wallet Rust core verifier crate/API | Canonical wallet presentation verification. Exact repo/path to be supplied by the wallet-core implementation slice. |
+| WASM/browser bindings | Consumer of the same semantics, not a parallel verifier contract. |
+| Native/secZ/secC bindings | Consumer of the same semantics for local/client construction paths. |
+
+### A4 — Test and acceptance matrix for implementation issues
+
+Later code issues must name and pass tests for:
+
+| Case | Expected result |
+|---|---|
+| valid wallet-core presentation for expected subject/audience/origin/operation | accept |
+| invalid signature | reject with typed reason |
+| wrong public key / key id mismatch | reject with typed reason |
+| wrong subject | reject with typed reason |
+| wrong audience / receiver | reject with typed reason |
+| wrong origin | reject with typed reason |
+| wrong operation / descriptor mismatch | reject with typed reason |
+| replayed nonce / presentation id | reject with typed reason |
+| expired or not-yet-valid presentation | reject with typed reason |
+| malformed presentation shape | reject with typed reason |
+| wallet-core verifier unavailable or feature-disabled | fail closed, not local_static fallback |
+| accepted presentation receipt | signed receipt includes summary/hash/key id without raw private evidence by default |
+
+### A4 — Packaging implications
+
+The shared verifier semantics must be usable from both browser/WASM and native/server contexts without semantic drift:
+
+- keep verifier logic in a core Rust surface with feature flags if needed;
+- isolate browser-only APIs from the minimal verifier core;
+- avoid Node/browser global assumptions in secS server builds;
+- ensure secS can compile/test without bundling extension UI code;
+- keep schema/version constants shared or explicitly mirrored with compatibility tests.
+
+A4 acceptance is met because the checklist selects the direct minimal wallet-core verifier API as the first target, records the artifact fallback boundary, rejects duplicated secS semantics, names affected secS paths/shared crate surfaces, and lists signature/audience/origin/replay/expiry tests plus browser/WASM/native packaging constraints.
+
 ## Slice acceptance criteria
 
 These criteria travel with the A0–A9 slices. A later phase/issue is not complete until its row is satisfied without weakening the A0 production definition.
@@ -284,7 +392,7 @@ Later slices should expand this checklist in place:
 - A1 — repo status reconciliation — complete;
 - A2 — rail taxonomy and non-goals — complete;
 - A3 — identity/key lifecycle decision gate — complete;
-- A4 — wallet-core integration decision gate;
+- A4 — wallet-core integration decision gate — complete;
 - A5 — federated evidence model decision gate;
 - A6 — production policy matrix;
 - A7 — first membership-provisioning E2E shape;
