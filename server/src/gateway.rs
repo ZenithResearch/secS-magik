@@ -1,32 +1,76 @@
 use crate::ledger::Ledger;
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
-use crate::verifier::{SignedVerifiedCallContext, VerificationError};
+use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::time::timeout;
 
 const PROTOTYPE_RECEIPT_SIGNER_KEY_ID: &str = "verifier:local-prototype";
 const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HandlerOutcome {
+    pub decision: Decision,
+    pub reason: Option<String>,
+}
+
+impl HandlerOutcome {
+    pub fn succeeded() -> Self {
+        Self {
+            decision: Decision::Accepted,
+            reason: None,
+        }
+    }
+
+    pub fn rejected(reason: impl Into<String>) -> Self {
+        Self {
+            decision: Decision::Rejected,
+            reason: Some(reason.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionLimits {
+    pub max_payload_bytes: usize,
+    pub handler_timeout: Duration,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            max_payload_bytes: 1024 * 1024,
+            handler_timeout: Duration::from_secs(30),
+        }
+    }
+}
+
 #[async_trait]
 pub trait MachineProgram: Send + Sync {
-    async fn execute(&self, payload: &[u8]);
+    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome;
 }
 
 pub struct ConfigurableRouter {
     programs: HashMap<u8, Box<dyn MachineProgram>>,
     pool: SqlitePool,
     ledger: Ledger,
+    limits: ExecutionLimits,
 }
 
 impl ConfigurableRouter {
     pub fn new(pool: SqlitePool) -> Self {
+        Self::with_limits(pool, ExecutionLimits::default())
+    }
+
+    pub fn with_limits(pool: SqlitePool, limits: ExecutionLimits) -> Self {
         Self {
             programs: HashMap::new(),
             ledger: Ledger::new(pool.clone()),
             pool,
+            limits,
         }
     }
 
@@ -66,7 +110,10 @@ impl ConfigurableRouter {
         }
 
         match self.programs.get(&opcode) {
-            Some(program) => program.execute(&payload).await,
+            Some(_) => eprintln!(
+                "secS [Router]: rejected unverified handler route for opcode {:#04x}",
+                opcode
+            ),
             None => eprintln!("secS [Router]: rejected unmapped opcode {:#04x}", opcode),
         }
     }
@@ -120,6 +167,20 @@ impl ConfigurableRouter {
         self.record_operation_event(ReceiptEventKind::OperationRouted, signed, timestamp, None)
             .await;
 
+        if payload.len() > self.limits.max_payload_bytes {
+            let reason = "payload_too_large";
+            self.record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                .await;
+            self.record_operation_event(
+                ReceiptEventKind::HandlerFailed,
+                signed,
+                timestamp,
+                Some(reason),
+            )
+            .await;
+            return;
+        }
+
         match self.programs.get(&context.opcode) {
             Some(program) => {
                 self.record_operation_event(
@@ -129,16 +190,24 @@ impl ConfigurableRouter {
                     Some(&format!("payload_size:{payload_size}")),
                 )
                 .await;
-                program.execute(&payload).await;
-                self.record_execution_receipt(signed, Decision::Accepted, None, timestamp)
-                    .await;
-                self.record_operation_event(
-                    ReceiptEventKind::HandlerSucceeded,
-                    signed,
-                    timestamp,
-                    None,
+                let outcome = match timeout(
+                    self.limits.handler_timeout,
+                    program.execute(context, &payload),
                 )
-                .await;
+                .await
+                {
+                    Ok(outcome) => outcome,
+                    Err(_) => HandlerOutcome::rejected("handler_timeout"),
+                };
+                let reason = outcome.reason.as_deref();
+                self.record_execution_receipt(signed, outcome.decision, reason, timestamp)
+                    .await;
+                let event_kind = match outcome.decision {
+                    Decision::Accepted => ReceiptEventKind::HandlerSucceeded,
+                    Decision::Rejected => ReceiptEventKind::HandlerFailed,
+                };
+                self.record_operation_event(event_kind, signed, timestamp, reason)
+                    .await;
             }
             None => {
                 let reason = "handler_unavailable";
@@ -287,10 +356,16 @@ impl SubprocessForwarder {
 
 #[async_trait]
 impl MachineProgram for SubprocessForwarder {
-    async fn execute(&self, payload: &[u8]) {
+    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+        let Some(handler_id) = context.handler_id.as_deref() else {
+            return HandlerOutcome::rejected("handler_unavailable");
+        };
+        if !handler_id.starts_with("dev/") {
+            return HandlerOutcome::rejected("handler_not_dev_bound");
+        }
         println!(
-            "secS [Subprocess]: invoking `{} {:?}`",
-            self.program, self.args
+            "secS [Subprocess]: invoking verified dev handler `{}` via `{} {:?}`",
+            handler_id, self.program, self.args
         );
         let mut child = match tokio::process::Command::new(&self.program)
             .args(&self.args)
@@ -302,7 +377,7 @@ impl MachineProgram for SubprocessForwarder {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("secS [Subprocess]: failed to spawn - {}", e);
-                return;
+                return HandlerOutcome::rejected("handler_spawn_failed");
             }
         };
 
@@ -312,9 +387,14 @@ impl MachineProgram for SubprocessForwarder {
                     "secS [Subprocess]: failed to write payload to stdin - {}",
                     e
                 );
+                return HandlerOutcome::rejected("handler_stdin_failed");
             }
         }
-        let _ = child.wait().await;
+        match child.wait().await {
+            Ok(status) if status.success() => HandlerOutcome::succeeded(),
+            Ok(_) => HandlerOutcome::rejected("handler_exit_failed"),
+            Err(_) => HandlerOutcome::rejected("handler_wait_failed"),
+        }
     }
 }
 
@@ -322,8 +402,13 @@ pub struct LocalRustQueue;
 
 #[async_trait]
 impl MachineProgram for LocalRustQueue {
-    async fn execute(&self, payload: &[u8]) {
-        println!("secS [Native Rust]: enqueueing {} bytes...", payload.len());
+    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+        println!(
+            "secS [Native Rust]: enqueueing {} bytes for handler {:?}...",
+            payload.len(),
+            context.handler_id
+        );
+        HandlerOutcome::succeeded()
     }
 }
 

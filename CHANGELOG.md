@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Bound handler execution to `VerifiedCallContext` — machine programs now receive verified context plus payload bytes, unverified routes no longer execute handlers, and the router enforces payload-size and timeout limits before emitting signed execution receipts so local dev handlers cannot run from raw opcode/payload assumptions.
 - Routed prototype gateway execution through manifest-aware signed verification contexts: ingress now looks up receiver-local descriptors, signs `VerifiedCallContext`, and calls `ConfigurableRouter::route_verified` before handler execution.
 - Extended local telemetry with operation names for verified routing while preserving prototype opcode/payload-size records.
 - Aligned the CI gate with the current Rust workspace by fixing the strict Clippy surface (`VerificationDecision` now boxes the large verified context variant) so `cargo clippy --workspace --all-targets --all-features -- -D warnings` matches local test expectations.
