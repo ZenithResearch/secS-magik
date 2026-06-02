@@ -9,6 +9,7 @@ Current source of truth:
 - `docs/implementation-status.md` — status ledger: implemented vs partial vs planned vs future vs out-of-scope.
 - `docs/repository-schema.md` — objective file-system schema and repository boundary map.
 - `docs/specs/2026-06-01-secs-magik-objectives-spec.md` — current architecture/objectives spec.
+- `docs/plans/2026-06-01-implementation-progress-checklist.md` — running checklist for CI alignment and phase/issue progress.
 - `docs/announcement-thread.md` — public-language draft, intentionally caveated until verifier work lands.
 
 

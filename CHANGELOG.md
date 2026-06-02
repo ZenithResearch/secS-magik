@@ -18,6 +18,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added an implementation progress checklist at `docs/plans/2026-06-01-implementation-progress-checklist.md` so CI alignment and issue-by-issue progress are trackable.
+- Added explicit Issue 0.2 packet/opcode regression tests covering non-empty packet round trip, maximum `u8` opcode, and serialization-valid-but-verifier-rejected empty proof / zero TTL envelopes.
 - Added typed verifier result and signed `VerifiedCallContext` primitives — establishes the Phase 1 handoff contract with audience, expiry, signer metadata, and Ed25519 tamper/wrong-key checks before routing code depends on it.
 - Added an implementation status ledger — makes every docs surface distinguish solid implemented behavior, partial prototype behavior, planned next work, future rails, and out-of-scope responsibilities.
 - Added a repository schema doc and repo-local copies of the current objectives spec and implementation issue slices — gives future coding agents a concrete file-system/module map before verifier implementation begins.
