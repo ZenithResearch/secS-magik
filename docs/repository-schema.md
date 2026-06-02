@@ -36,7 +36,7 @@ secS-magik/
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs                  # ZenithPacket v0, standard opcode constants, core exports
-│       ├── packet_builder.rs        # verifier-free packet construction helper, if needed
+│       ├── packet_builder.rs        # verifier-free packet construction helper
 │       ├── tunnel.rs                # tunnel crypto helpers
 │       ├── zk.rs                    # signature/proof helper primitives; not the full server verifier
 │       └── ffi.rs                   # UniFFI bindings behind feature flag

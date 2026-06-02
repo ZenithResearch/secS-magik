@@ -64,7 +64,7 @@ These are accepted next-pass targets from the current objectives spec and issue-
 | EvidenceAdapter trait | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented | Typed adapter boundary with request/result fields for subject, audience, operation, resource, evidence refs, public inputs, and reason codes. |
 | `local_static` evidence adapter | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented as local-dev-test only | Deterministic local/dev/test scaffold that can satisfy descriptor evidence requirements and flow into signed contexts/receipts without claiming production authority or adding Dregg/Midnight/Cardano dependencies. |
 | Bounded execution broker accepting verified context | `server/src/execution.rs` | Planned / next implementation. |
-| Packet-builder helper | `core/src/packet_builder.rs` | Optional planned helper if it reduces duplication without importing verifier logic into core. |
+| Packet-builder helper | `core/src/packet_builder.rs` | Solid / implemented as verifier-free construction helper | Builds `ZenithPacket` v0 from caller-provided envelope fields without validating capabilities, credentials, evidence, authority, replay, or verifier receipts. |
 
 ## Future / optional rails
 

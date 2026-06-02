@@ -21,7 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
-- Added `docs/client-surfaces.md` — records local Hermes/secC/secZ as client-side ways to call secS, prevents secZ/verifier boundary regression, and gives future packet-builder work a verifier-free documentation target.
+- Added `docs/client-surfaces.md` — records local Hermes/secC/secZ as client-side ways to call secS, prevents secZ/verifier boundary regression, and anchors the shared verifier-free packet-builder boundary.
 - Added a verifier-free `core::packet_builder` helper — gives local Hermes/secC/secZ-style client surfaces a shared `ZenithPacket` v0 construction path without importing server-side authority checks.
 - Added the Issue 4.1 evidence seam — `server/src/evidence.rs` now defines typed evidence requests/results and the deterministic `local_static` local-dev-test adapter; verifier tests prove descriptor evidence requirements can flow into signed contexts and receipts without claiming public proof or adding Dregg/Midnight/Cardano dependencies.
 - Added the local SQLite receipt/event ledger — `server/src/ledger.rs` now creates runtime-SQL `events` and `receipts` tables, gateway/ingress persist reject/verify/execution records and handler lifecycle events, signed receipt metadata is stored, and tests verify payload content is not stored by default.

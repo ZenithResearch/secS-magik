@@ -1,6 +1,6 @@
 # Client-side surfaces
 
-Status: solid boundary documentation for Phase 6.1; packet-builder extraction remains a separate implementation issue.
+Status: solid boundary documentation for Phase 6.1. The shared verifier-free packet builder now lives in `core/src/packet_builder.rs`; future local Hermes/secC/secZ surfaces can use it without becoming verifiers.
 
 secS-magik / secS remains the verifier and permissioned RPC substrate. The client-side surfaces described here construct outbound secS-compatible calls; they do not verify authority, replace receiver-side manifests, or replace secS-magik verification.
 
