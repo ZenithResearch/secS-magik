@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked; A1 repo status reconciled. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
+Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
 
 ## A0 — Production target
 
@@ -110,6 +110,71 @@ Remaining first-prod gaps carried forward into A2–A9:
 
 A1 stop condition is satisfied when `docs/implementation-status.md` and this checklist agree on the current solid/partial/planned surfaces and preserve caveats for wallet crypto, identity lifecycle, bounded broker, runtime hardening, and federated evidence.
 
+## A2 — Rail taxonomy and non-goals
+
+A2 turns the A0 production target into working ownership boundaries. These boundaries decide what belongs in secS-magik before later slices become implementation issues.
+
+### A2 — Required rails
+
+| Rail | Owned by secS-magik? | Required for first prod? | Scope in this repo | First-prod proof target |
+|---|---:|---:|---|---|
+| Local production-shaped secS service | Yes | Yes | Runtime mode enforcement, explicit operator/verifier config, bounded handler routing, signed contexts/receipts, redacted local ledger, and documented smoke commands. | Production-mode local smoke rejects local/dev evidence and produces signed verify/execute receipts. |
+| Wallet-core-backed user/app auth evidence | Partly | Yes | secS verifies or consumes canonical Castalia Wallet evidence for a descriptor. Wallet UI/session UX stays outside this repo. | Wallet presentation happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
+| Cross-Hub/federated evidence evaluation | Yes at verifier/evidence boundary | Yes | Typed evidence adapter/model for trusted issuer/root, remote receipt/capability/credential/revocation/root evidence, and receiver-local policy enforcement. | Fixture trusted issuer/root accepts valid evidence and rejects untrusted, revoked, stale, malformed, wrong-audience, or wrong-operation evidence. |
+| Signed receipt/context identity | Yes | Yes | Signer identity, key id, signed `VerifiedCallContext`, signed receipts, and local/operator-visible provenance. | Tamper, wrong key, expired context, and untrusted/revoked issuer checks are named and later tested. |
+| Descriptor-bound bounded execution | Yes | Yes | Receiver-local manifest policy binds opcode/operation/evidence to bounded handler execution after verification. | Handlers run only from verified context; oversized payload, unavailable handler, and descriptor mismatch fail closed. |
+| Redacted local ledger and operator inspection | Yes | Yes | Local SQLite receipt/event persistence with payload redaction by default and inspectable decision chain. | Verify/reject/execute receipts are inspectable without storing raw payload/evidence by default. |
+| End-to-end membership-provisioning proof | Yes for secS verifier/runbook path | Yes | A fixture operation proves machine-to-machine membership provisioning through wallet + federated evidence + bounded handler + receipts. | `membership.provision`, `gallery.member.provision`, or `hub.member.provision` runbook/test proves more than packet echo. |
+
+### A2 — Deferred / future rails
+
+| Rail | Status | First-prod posture | Promotion trigger |
+|---|---|---|---|
+| Dregg consensus / live root service | Future or explicitly promoted by A5/A9 | Not a blanket runtime dependency. May be represented by fixture trusted roots, Dregg-shaped root refs, or static registry semantics until promoted. | Promote only if first-prod federation requires live Dregg-backed roots/revocation rather than fixture trusted issuers/roots. |
+| Midnight/private-statement proof adapter | Future unless A7 chooses private statement/public-input membership proof | Not required for generic membership provisioning. | Promote only if first-prod needs private statement verification rather than public wallet/federated evidence. |
+| Cardano settlement/capital evidence | Future for settlement/capital operations | Not required for generic membership provisioning. | Promote only if the selected first operation involves settlement, capital, or on-chain business evidence. |
+| Public chain anchoring of receipts | Future external proof rail | Current SQLite ledger remains local/operator audit only. | Promote when public audit proof is a first-prod requirement, not merely a nice-to-have. |
+| Castalia Wallet product UI/session flow | Outside this repo | secS only consumes/verifies wallet evidence. | Implement in Castalia Wallet / app surfaces; secS participates through verifier contract only. |
+
+### A2 — Non-goals for secS-magik
+
+secS-magik does not own:
+
+- Gallery product policy;
+- ordinary browser app session UX beyond wallet presentation evidence;
+- Matrix room/message federation;
+- Dregg consensus implementation inside secS-magik;
+- Midnight circuit authoring inside secS-magik;
+- Cardano settlement/business logic;
+- auction/business logic;
+- broad shell access;
+- centralized Hub orchestration;
+- Castalia membership semantics as product authority.
+
+### A2 — Language discipline
+
+Use these phrases:
+
+- `local production-shaped secS service` for the local deployment target;
+- `wallet-core-backed evidence` or `wallet-core-defined presentation` for app/user auth evidence;
+- `cross-Hub/federated evidence evaluation` for the receiver-side verifier rail;
+- `fixture trusted issuer/root` for first local federation proofs that do not yet run live Dregg;
+- `Dregg-shaped root/ref seam` for future-compatible root semantics;
+- `receiver-local manifest policy` for the final local authorization decision;
+- `local SQLite receipt/event ledger` for current audit storage.
+
+Avoid these phrases unless a later issue implements and verifies them:
+
+- `production-secure wallet auth`;
+- `fully federated Dregg authority`;
+- `fully ZK-verified proof`;
+- `public auditability`;
+- `Cardano-backed membership provisioning`;
+- `Matrix federation` as the authority rail;
+- `WalletAuth is part of secS-magik`.
+
+A2 acceptance is met when future implementers can tell what belongs in secS-magik versus Castalia Wallet, Dregg, Matrix, Gallery, Hub app policy, Midnight, and Cardano without reopening A0.
+
 ## Slice acceptance criteria
 
 These criteria travel with the A0–A9 slices. A later phase/issue is not complete until its row is satisfied without weakening the A0 production definition.
@@ -132,7 +197,7 @@ These criteria travel with the A0–A9 slices. A later phase/issue is not comple
 Later slices should expand this checklist in place:
 
 - A1 — repo status reconciliation — complete;
-- A2 — rail taxonomy and non-goals;
+- A2 — rail taxonomy and non-goals — complete;
 - A3 — identity/key lifecycle decision gate;
 - A4 — wallet-core integration decision gate;
 - A5 — federated evidence model decision gate;

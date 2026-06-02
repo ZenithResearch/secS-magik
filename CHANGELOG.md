@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added A2 rail taxonomy and non-goals to the ready-for-prod checklist — separates secS-magik-owned verifier/RPC work from Castalia Wallet UI, Dregg consensus, Matrix federation, Gallery policy, Midnight circuits, Cardano settlement, and Hub orchestration before later slices become implementation issues.
 - Added A0–A9 slice acceptance criteria to the ready-for-prod checklist — each slice now carries explicit acceptance evidence and forbidden claims before the phase/branch/PR issue checklist is generated.
 - Added A1 status reconciliation to the ready-for-prod checklist and implementation ledger — records the completed/partial/planned surfaces through Issue 4.2 so the production train starts from the actual repo checkpoint instead of stale planned/done contradictions.
 - Added the ready-for-prod checklist A0 production definition — locks the first-prod target to all three rails (local production-shaped deployment, Castalia Wallet-backed app/user auth, and cross-Hub/federated evidence) so later implementation phases cannot collapse readiness into local smoke tests alone.
