@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added A3 identity/key lifecycle decision gate to the ready-for-prod checklist — locks the first signer posture to a single `node_verifier_key`, explicit production key config, deterministic Ed25519 key ids, local/static trust registry discovery, and revocation/rotation tests before implementation.
 - Added A2 rail taxonomy and non-goals to the ready-for-prod checklist — separates secS-magik-owned verifier/RPC work from Castalia Wallet UI, Dregg consensus, Matrix federation, Gallery policy, Midnight circuits, Cardano settlement, and Hub orchestration before later slices become implementation issues.
 - Added A0–A9 slice acceptance criteria to the ready-for-prod checklist — each slice now carries explicit acceptance evidence and forbidden claims before the phase/branch/PR issue checklist is generated.
 - Added A1 status reconciliation to the ready-for-prod checklist and implementation ledger — records the completed/partial/planned surfaces through Issue 4.2 so the production train starts from the actual repo checkpoint instead of stale planned/done contradictions.

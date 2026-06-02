@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
+Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
 
 ## A0 — Production target
 
@@ -175,6 +175,91 @@ Avoid these phrases unless a later issue implements and verifies them:
 
 A2 acceptance is met when future implementers can tell what belongs in secS-magik versus Castalia Wallet, Dregg, Matrix, Gallery, Hub app policy, Midnight, and Cardano without reopening A0.
 
+## A3 — Identity/key lifecycle decision gate
+
+A3 fixes the first production-shaped signer/key posture for later implementation issues. This is a checklist decision gate, not an implementation claim: current code can sign local Ed25519 contexts/receipts, but production key loading, discovery, rotation, and revocation still need implementation.
+
+### A3 — First signer/key model
+
+First implementation posture: **single `node_verifier_key` for the first production-shaped secS service**, with an explicit future split between verifier-signing and runtime/node identity keys once there is a second concrete consumer that needs separation.
+
+Rationale:
+
+- A single verifier key keeps the first local production-shaped deployment understandable and testable.
+- Signed `VerifiedCallContext` and receipts need one stable operator-visible signer before federated evidence expands.
+- Splitting verifier/runtime keys too early increases config, rotation, and discovery surface before A5 defines federated evidence consumers.
+- The naming must still avoid painting the repo into a corner: use `node_verifier_key`, not generic `node_key`, so future split keys can be introduced without redefining current semantics.
+
+### A3 — Key loading and config path
+
+First-prod implementation should load the verifier signing key from explicit operator config, not from implicit dev defaults.
+
+Required config fields for later implementation issues:
+
+| Field | Meaning | First-prod rule |
+|---|---|---|
+| `SECS_VERIFIER_KEY_PATH` or config-file equivalent | Path/handle for the private verifier signing key. | Required in `production_verified`; test fixtures may generate ephemeral keys. |
+| `SECS_VERIFIER_KEY_ID` or derived key id | Stable public identifier for receipts and signed contexts. | Must be present or derivable from public key fingerprint. |
+| `SECS_TRUST_REGISTRY_PATH` or config-file equivalent | Local/static trusted public-key registry for first local/federated fixture proofs. | Required before cross-Hub/federated evidence accepts non-local issuer evidence. |
+| `SECS_RUNTIME_MODE` | Runtime posture. | `production_verified` must fail closed if signing key or required trust registry material is missing. |
+
+Secrets rule: docs/tests may use ephemeral generated keys or fixture public keys, but real operator private keys, tokens, packet captures, and machine-specific config must not be committed.
+
+### A3 — Key id format
+
+First implementation should use a deterministic, portable key id:
+
+```text
+ed25519:<base64url-or-hex-public-key-fingerprint>
+```
+
+Rules:
+
+- The key id identifies the public verification key, not a local filename.
+- The key id appears in signed `VerifiedCallContext` and signed receipts.
+- The signature covers the context/receipt payload, while the key id lets verifiers look up the public key.
+- If later Castalia/Dregg registry identifiers become canonical, this key id can become the local key fingerprint inside a richer issuer/root namespace instead of being discarded.
+
+### A3 — Public-key discovery path
+
+First implementation posture: **local/static trust registry first, Castalia/Dregg discovery later unless A5/A9 promotes live federation**.
+
+| Discovery source | First-prod role | Notes |
+|---|---|---|
+| Local config for own verifier public key | Required | Lets the service verify its own signed contexts/receipts and expose operator-visible signer metadata. |
+| Static trusted issuer/root registry | Required for first fixture federation | Can model trusted Hub/Castalia/Dregg-shaped roots without running live Dregg consensus. |
+| Castalia registry | Future / optional until promoted | Expected durable ecosystem discovery path, but not required for the first local fixture proof unless explicitly promoted by A5/A9. |
+| Dregg root/ref | Future / optional until promoted | May become the revocation/root freshness source; first pass can carry Dregg-shaped root refs as data. |
+
+### A3 — Minimum revocation and rotation posture
+
+First implementation should model revocation/rotation at the registry semantics layer even if it uses local fixtures:
+
+- registry entries include `key_id`, public key, issuer/root id, `status`, `not_before`, `not_after`, and optional `revoked_at` / `replaced_by`;
+- accepted statuses are explicit: `active`, `revoked`, `expired`, `unknown`;
+- `production_verified` rejects unknown, revoked, expired, not-yet-valid, or wrong-issuer keys;
+- rotation means a new key id can be active while the old key id is rejected after `revoked_at` / expiry;
+- local/dev/test keys are labeled `local_dev` or fixture-only and cannot satisfy production issuer authority.
+
+### A3 — Test matrix for later implementation issues
+
+Later code issues that implement A3 must name and pass tests for:
+
+| Case | Expected result |
+|---|---|
+| valid context/receipt signed by active configured key | accept |
+| tampered context or receipt payload | reject |
+| signature from wrong key id | reject |
+| unknown key id | reject |
+| revoked key id | reject |
+| expired key id / outside validity window | reject |
+| not-yet-valid key id | reject |
+| local/dev/test key used for production authority | reject |
+| trusted static issuer/root fixture with active key | accept only for descriptors that permit that issuer/root |
+| trusted key for wrong audience/operation/subject | reject |
+
+A3 acceptance is met when later implementers can open this checklist and know the first signer model, key loading/config expectation, key id format, public-key discovery path, revocation/rotation posture, and the tests that must prevent local/dev keys from becoming production authority.
+
 ## Slice acceptance criteria
 
 These criteria travel with the A0–A9 slices. A later phase/issue is not complete until its row is satisfied without weakening the A0 production definition.
@@ -198,7 +283,7 @@ Later slices should expand this checklist in place:
 
 - A1 — repo status reconciliation — complete;
 - A2 — rail taxonomy and non-goals — complete;
-- A3 — identity/key lifecycle decision gate;
+- A3 — identity/key lifecycle decision gate — complete;
 - A4 — wallet-core integration decision gate;
 - A5 — federated evidence model decision gate;
 - A6 — production policy matrix;
