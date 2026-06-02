@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked. Later slices should expand this file phase-by-phase without weakening the production target.
+Status: A0 production definition locked; A1 repo status reconciled. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
 
 ## A0 — Production target
 
@@ -73,13 +73,48 @@ Avoid these phrases for current code:
 
 A0 stops here: the production definition is explicit, all three rails are required, and local smoke readiness is explicitly insufficient.
 
-Do not start coding from A0. The next slice is A1 repo status reconciliation, followed by A2 rail taxonomy/non-goals.
+A0 stopped here: the production definition became explicit, all three rails became required, and local smoke readiness became explicitly insufficient. A1 has since reconciled the current repo checkpoint below.
+
+## A1 — Current checkpoint and completed slices
+
+A1 reconciles the repo status ledger against the completed implementation train through Issue 4.2 and the A0 ready-for-prod definition. This section is a checkpoint, not a new production claim.
+
+Current branch context:
+
+- Phase branch: `phase/track-a-ready-for-prod`
+- A0 issue-boundary commit: `a7b556f docs: lock ready-for-prod production target`
+- A1 scope: docs/status reconciliation only; no runtime code changes.
+- Adjacent untracked dirs still out of scope unless explicitly promoted: `docs/reviews/`, `hub/`, `ops/`.
+
+Completed / solid enough to build on:
+
+| Surface | Current status | What future slices may assume | What future slices must not claim |
+|---|---|---|---|
+| `ZenithPacket` v0 and decimal `u8` opcode parsing | Solid / implemented | Packet shape and current CLI decimal parsing are regression-covered compatibility constraints. | Do not change packet shape or silently add hex opcode parsing as part of ready-for-prod work. |
+| Runtime modes and payload handling | Solid / implemented for current gateway | Plaintext is explicit local-dev only; default production-shaped mode fails closed without required tunnel/evidence. | Do not claim the whole service is production-secure only because plaintext fallback is no longer silent. |
+| Receiver-local manifest descriptors | Solid / implemented as descriptor layer | Operation descriptors and reserved opcode range governance exist in `server/src/manifest.rs`. | Do not claim final Castalia-standard opcode assignments are ratified. |
+| Signed `VerifiedCallContext` and receipts | Solid / implemented locally | Current code can sign/verify local Ed25519 contexts/receipts and persist receipt metadata. | Do not claim production identity discovery, key rotation, or public auditability yet. |
+| Receipt/event ledger | Solid / implemented as local SQLite ledger | Verify/reject/execute records can be persisted without raw payload content by default. | Do not claim public audit proof or cross-Hub receipt trust from local SQLite alone. |
+| `EvidenceAdapter` and `local_static` | Solid / implemented as local-dev-test seam | Descriptor evidence requirements can flow through an adapter into signed contexts/receipts. | `local_static` cannot satisfy production authority. |
+| `wallet_presentation` adapter shell | Partial / prototype | Shape validation and fail-closed status handling exist for wallet-presentation evidence. | Do not claim production wallet cryptographic verification. |
+| Verified-context handler routing | Partial / prototype | Handlers now consume `VerifiedCallContext` and emit execution receipts through bounded local routing. | Do not claim final durable/general execution broker semantics. |
+
+Remaining first-prod gaps carried forward into A2–A9:
+
+- production identity/key lifecycle and public-key discovery;
+- wallet-core-backed cryptographic verification path;
+- cross-Hub/federated evidence object model, trusted issuer/root representation, and revocation/staleness semantics;
+- production policy matrix proving `local_static`/dev evidence cannot satisfy production descriptors;
+- first membership-provisioning E2E operation and failure matrix;
+- phase/branch/PR checklist where phases are PR boundaries and issues are commit boundaries.
+
+A1 stop condition is satisfied when `docs/implementation-status.md` and this checklist agree on the current solid/partial/planned surfaces and preserve caveats for wallet crypto, identity lifecycle, bounded broker, runtime hardening, and federated evidence.
 
 ## Future expansion placeholders
 
 Later slices should expand this checklist in place:
 
-- A1 — repo status reconciliation;
+- A1 — repo status reconciliation — complete;
 - A2 — rail taxonomy and non-goals;
 - A3 — identity/key lifecycle decision gate;
 - A4 — wallet-core integration decision gate;

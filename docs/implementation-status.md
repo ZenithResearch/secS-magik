@@ -16,7 +16,7 @@ This document is the status ledger for this repository. It separates what is imp
 
 | Surface | Location | Status | What is solid |
 |---|---|---|---|
-| Rust workspace | `Cargo.toml` | Solid / implemented | Workspace members are `core`, `client`, and `server`. `cargo test --workspace` passes in the docs realignment worktree. |
+| Rust workspace | `Cargo.toml` | Solid / implemented | Workspace members are `core`, `client`, and `server`. Workspace tests passed after Issue 4.2; A0/A1 are docs-only checklist/status reconciliation slices and do not change runtime code. |
 | `ZenithPacket` v0 shape | `core/src/lib.rs` | Solid / implemented | The packet has `session_id`, `nonce`, `opcode: u8`, `proof`, `claim_ttl`, `encrypted_payload`, and `mac`; serialization round-trip tests pass. |
 | Standard opcode constants | `core/src/lib.rs` | Solid / implemented | `OPCODE_GENERATE = 0x01` and `OPCODE_CHAT = 0x02` exist and are tested. |
 | CLI decimal opcode parsing | `client/src/main.rs` | Solid / implemented | `hub 16 ...` parses as decimal `u8`; `0x10` and values above `255` are rejected by current tests. |
@@ -28,11 +28,12 @@ This document is the status ledger for this repository. It separates what is imp
 | Canonical prototype gateway binary | `server/src/bin/secs-gateway.rs` | Partial / prototype | Thin wrapper over library modules for prototype ingress, proof/TTL check, explicit runtime-mode payload handling, manifest descriptor lookup, signed context creation, SQLite receipt/event ledger, legacy telemetry, and opcode routing. |
 | Historical secZ compatibility binary | `server/src/bin/secz.rs` | Partial / prototype | Thin compatibility wrapper for the old command name; not canonical verifier ownership. |
 | Prototype ingress | `server/src/ingress.rs` | Partial / prototype | Deserializes packets, calls the prototype verifier/payload path, decrypts payloads by runtime mode, looks up manifest descriptors, signs a `VerifiedCallContext`, emits reject receipts for typed verifier/payload/manifest failures, and hands verified payloads to the gateway router. |
-| Prototype gateway/router | `server/src/gateway.rs` | Partial / prototype | Preserves legacy `node_telemetry`, persists verify/execution receipts and handler lifecycle events in the ledger, and routes configured machine programs from signed verified contexts. It is not yet a durable execution broker. |
+| Prototype gateway/router | `server/src/gateway.rs` | Partial / prototype | Preserves legacy `node_telemetry`, persists verify/execution receipts and handler lifecycle events in the ledger, and routes configured machine programs from signed verified contexts through bounded payload-size/timeout checks. It is not yet a durable/general execution broker. |
 | Receipt/event types | `server/src/receipt.rs`, `server/tests/receipt.rs` | Solid / implemented | Defines typed receipt kinds, decisions, authenticator kinds, stable event names, reject/verify/execution receipt constructors, and Ed25519 signing/verification tests. Payload bytes are not included in receipts by default. |
 | Receipt/event ledger | `server/src/ledger.rs`, `server/tests/ledger.rs` | Solid / implemented as local ledger | Creates `events` and `receipts` tables with runtime SQL, stores signed receipt metadata including `authenticator_kind`, `signer_key_id`, and `signature`, and keeps payload content out of default persistence. |
 | Receiver-local manifest descriptors | `server/src/manifest.rs` | Solid / implemented as descriptor layer | Defines `OperationDescriptor`, `ReceiverManifest`, opcode range classification, seeded v0 descriptors for `0x01`, `0x02`, `0x10`, `0x20`, and `0x30`, and typed unknown-opcode lookup errors. |
 | Payload handling | `server/src/payload.rs` | Solid / implemented | Parses tunnel keys and enforces explicit runtime-mode payload behavior. |
+| Ready-for-prod checklist A0/A1 | `docs/plans/2026-06-02-ready-for-prod-checklist.md` | Solid / implemented as docs/control surface | A0 locks first-prod to all three rails; A1 reconciles the current checkpoint so later slices do not rediscover or contradict landed work. |
 
 ## Current partial / prototype behavior to name carefully
 
@@ -48,7 +49,7 @@ This document is the status ledger for this repository. It separates what is imp
 
 ## Planned / next implementation surface
 
-These are accepted next-pass targets from the current objectives spec and issue-slices plan. They are not yet implemented unless a later code change lands them.
+These are accepted next-pass targets after the completed issue train and the A0/A1 ready-for-prod reconciliation. They are not yet implemented unless a later code change lands them.
 
 | Target | Planned location | Status |
 |---|---|---|
@@ -64,7 +65,7 @@ These are accepted next-pass targets from the current objectives spec and issue-
 | EvidenceAdapter trait | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented | Typed adapter boundary with request/result fields for subject, audience, operation, resource, evidence refs, public inputs, and reason codes. |
 | `local_static` evidence adapter | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented as local-dev-test only | Deterministic local/dev/test scaffold that can satisfy descriptor evidence requirements and flow into signed contexts/receipts without claiming production authority or adding Dregg/Midnight/Cardano dependencies. |
 | Wallet presentation adapter shell | `server/src/evidence.rs`, `server/tests/wallet_presentation.rs` | Partial / prototype | Defines typed wallet presentation fixture fields for subject, audience, origin, challenge, signature, public key, replay nonce, and validity window; fails closed for missing/invalid shape and distinguishes wrong audience/origin. Full cryptographic wallet signature verification remains explicitly unsupported. |
-| Bounded execution broker accepting verified context | `server/src/execution.rs` | Planned / next implementation. |
+| Bounded execution broker accepting verified context | `server/src/gateway.rs`; future `server/src/execution.rs` | Partial / prototype: current handlers consume `VerifiedCallContext` and emit execution receipts, but the durable/general execution broker module remains planned. |
 | Packet-builder helper | `core/src/packet_builder.rs` | Solid / implemented as verifier-free construction helper | Builds `ZenithPacket` v0 from caller-provided envelope fields without validating capabilities, credentials, evidence, authority, replay, or verifier receipts. |
 
 ## Future / optional rails
@@ -98,7 +99,7 @@ Use these phrases:
 
 - “current prototype” for code that exists but is incomplete;
 - “target verifier pipeline” for accepted architecture not yet implemented;
-- “signed context/receipt planned” until code lands;
+- “signed context/receipt implemented locally” for current Ed25519 signed contexts/receipts, while still caveating that production identity/key lifecycle is not complete;
 - “local/dev/test scaffold” for `local_static` and plaintext modes;
 - “client-side / outgoing-call surface” for local Hermes/secC/secZ;
 - “secS verifier/RPC substrate” for the corrected server-side boundary.
@@ -111,4 +112,4 @@ Avoid these phrases unless code proves them:
 - “Dregg implements this path”;
 - “WalletAuth is part of secS-magik”;
 - “manifest is the firewall” without caveating that current bindings are prototype hardcoded registrations;
-- “receipt ledger” before signed receipt/event tables exist.
+- “production receipt ledger” or “public auditability” for the current local SQLite receipt/event ledger.
