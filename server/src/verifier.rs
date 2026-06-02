@@ -80,7 +80,7 @@ pub struct SignedVerifiedCallContext {
 }
 
 pub enum VerificationDecision {
-    Verified(VerifiedCallContext),
+    Verified(Box<VerifiedCallContext>),
     Rejected(VerificationError),
 }
 

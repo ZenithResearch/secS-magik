@@ -23,8 +23,8 @@ jobs:
     - name: Setup Rust Cache
       uses: Swatinem/rust-cache@v2
       with:
-        # Group the cache across all jobs sharing this key prefix
-        shared-key: "zenith-core"
+        # Group the cache across all Rust workspace jobs sharing this key prefix
+        shared-key: "secs-magik"
 
     # 1. Enforce Formatting
     - name: Check Formatting
