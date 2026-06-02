@@ -98,7 +98,7 @@ Rules:
 The next implementation pass should move toward this module ownership:
 
 - `core/src/lib.rs` — `ZenithPacket` v0, constants, exports.
-- `core/src/packet_builder.rs` — verifier-free packet construction helper, if needed.
+- `core/src/packet_builder.rs` — verifier-free packet construction helper.
 - `server/src/verifier.rs` — typed verifier pipeline and `VerificationError`.
 - `server/src/context.rs` — `VerifiedCallContext` / `SignedVerifiedCallContext`, if split from verifier.
 - `server/src/identity.rs` — Ed25519 key loading, signer key IDs, signature verification helpers.

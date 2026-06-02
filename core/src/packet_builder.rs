@@ -1,6 +1,13 @@
 use crate::ZenithPacket;
 use alloc::vec::Vec;
 
+/// Verifier-free builder for the v0 `ZenithPacket` envelope.
+///
+/// This helper only preserves caller-provided packet fields. It deliberately
+/// does not validate capabilities, credentials, evidence, authority, replay,
+/// expiry, or receipt semantics. Server-side secS verifier code remains
+/// responsible for deciding whether a constructed packet is acceptable.
+#[must_use]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PacketBuilder {
     session_id: [u8; 16],
@@ -13,6 +20,12 @@ pub struct PacketBuilder {
 }
 
 impl PacketBuilder {
+    /// Create a raw packet builder with zero/empty field defaults.
+    ///
+    /// The defaults are useful for tests and prototype callers, but they are
+    /// not proof of verifier acceptance. Production callers should set every
+    /// field according to their session, presentation/proof, payload, and MAC
+    /// or tunnel policy before submitting to secS.
     pub fn new() -> Self {
         Self {
             session_id: [0; 16],
@@ -40,8 +53,8 @@ impl PacketBuilder {
         self
     }
 
-    pub fn proof(mut self, proof: Vec<u8>) -> Self {
-        self.proof = proof;
+    pub fn proof(mut self, proof: impl Into<Vec<u8>>) -> Self {
+        self.proof = proof.into();
         self
     }
 
@@ -50,8 +63,8 @@ impl PacketBuilder {
         self
     }
 
-    pub fn encrypted_payload(mut self, encrypted_payload: Vec<u8>) -> Self {
-        self.encrypted_payload = encrypted_payload;
+    pub fn encrypted_payload(mut self, encrypted_payload: impl Into<Vec<u8>>) -> Self {
+        self.encrypted_payload = encrypted_payload.into();
         self
     }
 
@@ -60,6 +73,7 @@ impl PacketBuilder {
         self
     }
 
+    /// Build a `ZenithPacket` without performing verifier or authority checks.
     pub fn build(self) -> ZenithPacket {
         ZenithPacket {
             session_id: self.session_id,
@@ -79,26 +93,6 @@ impl Default for PacketBuilder {
     }
 }
 
-pub fn build_zenith_packet(
-    session_id: [u8; 16],
-    nonce: [u8; 12],
-    opcode: u8,
-    proof: Vec<u8>,
-    claim_ttl: u64,
-    encrypted_payload: Vec<u8>,
-    mac: [u8; 16],
-) -> ZenithPacket {
-    PacketBuilder::new()
-        .session_id(session_id)
-        .nonce(nonce)
-        .opcode(opcode)
-        .proof(proof)
-        .claim_ttl(claim_ttl)
-        .encrypted_payload(encrypted_payload)
-        .mac(mac)
-        .build()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,9 +105,9 @@ mod tests {
             .session_id([0x11; 16])
             .nonce([0x22; 12])
             .opcode(16)
-            .proof(vec![0x33, 0x44])
+            .proof([0x33, 0x44])
             .claim_ttl(60)
-            .encrypted_payload(vec![0x55, 0x66])
+            .encrypted_payload([0x55, 0x66])
             .mac([0x77; 16])
             .build();
 
@@ -128,7 +122,15 @@ mod tests {
 
     #[test]
     fn packet_builder_is_verifier_free_and_allows_serializable_empty_verifier_inputs() {
-        let packet = build_zenith_packet([0; 16], [0; 12], 255, vec![], 0, vec![], [0; 16]);
+        let packet = PacketBuilder::new()
+            .session_id([0; 16])
+            .nonce([0; 12])
+            .opcode(255)
+            .proof(Vec::new())
+            .claim_ttl(0)
+            .encrypted_payload(Vec::new())
+            .mac([0; 16])
+            .build();
 
         let expected = ZenithPacket {
             session_id: [0; 16],
