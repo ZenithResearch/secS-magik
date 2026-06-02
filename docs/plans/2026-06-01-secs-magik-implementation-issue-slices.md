@@ -287,7 +287,7 @@ Acceptance for this decision:
 
 ## Phase 0 — repo-facing specification and guardrails
 
-### Issue 0.1 — Add the current spec to repo docs
+### Issue 0.0 — Add the current spec to repo docs
 
 Objective: Put the current architecture source inside the repo without changing runtime behavior.
 
@@ -320,6 +320,45 @@ rg "local Hermes|secC|secZ|verifier/RPC substrate|ZenithPacket|u8" docs/specs/20
 Stop condition:
 
 Commit only docs/specs plus optional README pointer. Do not combine with type work.
+
+### Issue 0.1 — Align codebase layout with the current secS direction
+
+Objective: Refactor the repository structure so the codebase matches the corrected boundary before more verifier behavior accumulates in legacy/prototype locations.
+
+Files:
+
+- Modify: `server/src/lib.rs`
+- Move/refactor as needed: `server/src/bin/secz.rs`
+- Possibly create: `server/src/ingress.rs`, `server/src/gateway.rs`, `server/src/runtime.rs`, `server/src/manifest.rs`, `server/src/receipt.rs`, `server/src/evidence.rs`
+- Possibly modify: `docs/repository-schema.md`, `docs/implementation-status.md`, `README.md`
+
+Instructions:
+
+1. Inventory current modules and binaries against `docs/repository-schema.md`.
+2. Identify names that still imply the wrong ownership boundary, especially the historical `server/src/bin/secz.rs` server-side gateway name.
+3. Move reusable verifier/gateway/runtime code out of binaries into library modules before adding new behavior.
+4. Keep binary compatibility where practical by leaving thin wrapper binaries or clearly documented aliases if a current command still needs to work.
+5. Update docs to describe the new paths as an orientation map, not as agent guidance.
+6. Do not change packet serialization or opcode semantics in this issue.
+
+Acceptance criteria:
+
+- [ ] Verifier, ingress/gateway, runtime execution, manifest, receipt, and evidence responsibilities have clear module homes or explicit TODO placeholders.
+- [ ] The historical secZ-named server binary is either renamed, wrapped, or documented as a compatibility shim rather than the canonical verifier location.
+- [ ] Public README stays product-neutral and reader-oriented.
+- [ ] `docs/repository-schema.md` matches the actual code layout after the refactor.
+- [ ] `cargo test --workspace` passes.
+
+Verification:
+
+```bash
+cargo test --workspace
+rg "server/src/bin/secz.rs|manifest|receipt|evidence|runtime_mode|verifier" README.md docs/repository-schema.md docs/implementation-status.md server/src
+```
+
+Stop condition:
+
+Stop after structural refactor and docs alignment. Do not introduce new verification semantics beyond preserving existing behavior.
 
 ### Issue 0.2 — Add regression tests for preserved packet and opcode behavior
 
