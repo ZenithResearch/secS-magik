@@ -1,4 +1,5 @@
 use crate::manifest::{ReceiverManifest, ReplayScope};
+pub use crate::receipt::AuthenticatorKind;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
 use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
@@ -61,16 +62,6 @@ pub struct VerifiedCallContext {
     pub expires_at: u64,
     pub replay_scope: String,
     pub handler_id: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AuthenticatorKind {
-    LocalDevUntrusted,
-    LocalMac,
-    Ed25519Node,
-    Ed25519Verifier,
-    Ed25519NodeAndVerifier,
-    ExternalAnchor,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
