@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added A9 future-rail defer/promote decision — explicitly defers Dregg, Midnight, and Cardano from first-prod implementation while preserving Dregg as a future `trust_root_ref` / `registry_root_ref` subtype, Midnight as a future private-statement proof adapter, and Cardano as future settlement/capital evidence.
 - Added A8 issue-ready phase/branch/PR checklist for Tracks A–I — groups production-readiness work into phase branches/PRs with issue-level commit sequences, gates, stop conditions, and forbidden-claim boundaries while preserving A5/A6/A7 first-path evidence requirements.
 - Added A7 first membership-provisioning E2E shape to the ready-for-prod checklist — selects `membership.provision`, defines the no-real-secret local fixture contract, happy path, failure matrix, future test targets, and receipt/ledger proof that success is real provisioning rather than packet echo.
 - Added A6 production policy matrix to the ready-for-prod checklist — names runtime-mode × descriptor-evidence × adapter/evidence accept/reject rows, assigns a future test target to every row, keeps `local_static` local/dev-only, and carries A5's narrowed federated evidence model into downstream implementation work.

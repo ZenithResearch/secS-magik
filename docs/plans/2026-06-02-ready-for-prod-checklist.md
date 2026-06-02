@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model gate complete; A6 production policy matrix complete; A7 first membership-provisioning E2E shape complete; A8 issue-ready phase/branch/PR checklist complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
+Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model gate complete; A6 production policy matrix complete; A7 first membership-provisioning E2E shape complete; A8 issue-ready phase/branch/PR checklist complete; A9 future-rail defer/promote decision complete. Track A is ready for phase review/merge after final docs hygiene because Dregg, Midnight, and Cardano can no longer enter first-prod implementation silently.
 
 ## A0 — Production target
 
@@ -812,6 +812,56 @@ After A9 closes Track A, the first implementation issue should be **B1 — Expli
 
 A8 acceptance is met because this checklist now groups Tracks A–I into coherent implementation phases, gives every phase a branch name, PR title/scope, issue/commit sequence, verification gate, and merge/stop condition, and gives every issue/commit an objective, files, commands, acceptance criteria, stop condition, and forbidden claims. The plan preserves the repo pattern that phases are branch/PR boundaries and issues are commit boundaries, includes cross-Hub/federated evidence as a first-prod requirement through A5's narrowed `membership_credential` / `provisioning_credential` + `TrustedIssuerEntry` path, and keeps demoted A5 candidates out of first-path issue requirements unless A9 promotes them.
 
+
+## A9 — Future rail defer/promote decision for Tracks J–L
+
+A9 closes Track A by deciding whether Dregg, Midnight, and Cardano are first-prod dependencies or future adapter seams. This is a decision gate, not runtime implementation.
+
+A9 decision: **defer Tracks J–L from the first implementation sequence**.
+
+Rationale:
+
+- A7 selected `membership.provision` as the first production-shaped E2E operation, and that operation can be proven with wallet presentation plus A5's narrowed federated evidence path.
+- A5/A6 already provide a concrete first federation path: `membership_credential` / `provisioning_credential`, receiver-held `TrustedIssuerEntry`, `registry_status` / `revocation_status`, and generic `trust_root_ref` / `registry_root_ref` metadata.
+- Promoting live Dregg, Midnight, or Cardano now would widen first-prod from machine-to-machine membership provisioning into consensus, private-statement proof design, or settlement/capital semantics before the verifier/runtime/bounded-execution rails are stable.
+- Deferral preserves future adapter seams without letting them become hidden blockers for Tracks B–I.
+
+### A9 — Decision matrix
+
+| Track / rail | First-prod decision | First implementation representation | Promotion trigger | Required pre-promotion artifact | Must not claim while deferred |
+|---|---|---|---|---|---|
+| Track J — Dregg receipt / federation adapter | Deferred; not a live first-prod dependency. | Generic `trust_root_ref` / `registry_root_ref` plus static fixture `TrustedIssuerEntry` and fixture `registry_status` / `revocation_status`. Dregg-specific refs may appear only as inert data labels behind the generic root seam. | Promote only if first-prod membership provisioning requires live Dregg-backed roots, revocation/freshness, capability path validation, or remote verification attestations beyond the static trusted-issuer fixture path. | A design spec naming Dregg authority boundary, root discovery, freshness/revocation model, capability object/caveat semantics, receipt/attestation schema, failure reasons, and tests for stale/revoked/wrong-root/wrong-operation cases. | Do not call generic `trust_root_ref` / `registry_root_ref`, fixture roots, fixture status, or static issuer entries live Dregg validation. Do not make capability algebra a first-path requirement. |
+| Track K — Midnight / generic ZK proof adapter | Deferred; not required for generic `membership.provision`. | No proof adapter in first path. Prototype proof envelope checks remain prototype-only; wallet and federated credentials carry first-prod authority. | Promote only if a selected first-prod operation requires a private statement whose public inputs, circuit/proof format, subject/audience/operation binding, expiry, and replay semantics are defined. | A private-statement/public-input spec, circuit/proof dependency boundary, verifier API, fixture proof model, and wrong-statement/wrong-public-input/expired/replayed proof tests. | Do not treat proof-shaped bytes, current prototype proof envelope, or generic ZK language as meaningful Midnight/private-statement verification. |
+| Track L — Cardano / settlement evidence | Deferred; not required for generic membership provisioning. | No Cardano evidence in first path. Receipts remain local/operator ledger evidence, not settlement or chain anchoring. | Promote only if the selected operation involves settlement, capital, auction/business evidence, token ownership, or on-chain finality as part of authorization or receipt proof. | A settlement/capital evidence spec naming transaction/finality schema, latency expectations, business operation linkage, verifier inputs, replay/finality failure reasons, and tests for wrong asset/wrong transaction/not-final/stale settlement cases. | Do not describe `membership.provision` fixture success, local SQLite receipts, or static credentials as Cardano-backed membership provisioning or public-chain proof. |
+
+### A9 — Resulting first implementation path
+
+Tracks B–I remain the first implementation sequence from A8:
+
+1. Track B — production identity and key lifecycle.
+2. Track C — replay, session, and expiry enforcement.
+3. Track D — wallet cryptographic verification / shared wallet core.
+4. Track E — production evidence policy and static trusted-issuer membership/provisioning credentials.
+5. Track F — bounded execution broker.
+6. Track G — ingress/service runtime hardening.
+7. Track H — receipt/event ledger production posture.
+8. Track I — first production-shaped `membership.provision` E2E.
+
+First-prod federation means: a receiver can evaluate another Hub/Castalia-style authority's signed membership/provisioning credential through receiver-held trusted issuer/root metadata and status checks, then still apply receiver-local manifest policy. It does **not** mean live Dregg consensus, Midnight proofs, Cardano settlement, public anchoring, or Matrix federation.
+
+### A9 — Future adapter seams preserved
+
+Deferral does not delete future rails. It preserves them as explicit seams:
+
+- Dregg may later become a subtype of `trust_root_ref` / `registry_root_ref` or a source for `remote_verification_attestation`, root freshness, revocation, and capability path validation.
+- Midnight may later become a proof adapter after statement meaning and public inputs are specified.
+- Cardano may later become a settlement/capital evidence adapter for operations that actually need on-chain facts.
+- Public anchoring of local receipts may later be added as an export/anchor rail, but current receipt/event ledger work remains local/operator audit evidence.
+
+### A9 — Acceptance
+
+A9 acceptance is met because Dregg, Midnight, and Cardano are explicitly deferred from first-prod implementation, each deferred rail has a rationale, a preserved adapter seam, a concrete promotion trigger, a required pre-promotion artifact, and forbidden claims. Dregg defaults to the generic `trust_root_ref` / `registry_root_ref` seam plus static `TrustedIssuerEntry` / fixture status path, Midnight requires a future private-statement/public-input spec before implementation, and Cardano is limited to future settlement/capital evidence rather than generic membership provisioning.
+
 ## Slice acceptance criteria
 
 These criteria travel with the A0–A9 slices. A later phase/issue is not complete until its row is satisfied without weakening the A0 production definition.
@@ -841,6 +891,6 @@ Later slices should expand this checklist in place:
 - A6 — production policy matrix — complete;
 - A7 — first membership-provisioning E2E shape — complete;
 - A8 — issue-ready phase/branch/PR checklist for Tracks A–I — complete;
-- A9 — Dregg/Midnight/Cardano defer-or-promote decision.
+- A9 — Dregg/Midnight/Cardano defer-or-promote decision — complete.
 
-A8 must preserve the repo workflow pattern: phases are branch/PR boundaries, and issues inside each phase are commit boundaries.
+Track A is now complete through A9. Preserve the repo workflow pattern going forward: phases are branch/PR boundaries, and issues inside each phase are commit boundaries.
