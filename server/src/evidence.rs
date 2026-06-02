@@ -179,3 +179,87 @@ impl EvidenceAdapter for LocalStaticEvidenceAdapter {
         })
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletPresentationFixture {
+    pub evidence_ref: String,
+    pub subject: String,
+    pub audience: String,
+    pub origin: String,
+    pub challenge_ref: String,
+    pub signature_ref: String,
+    pub public_key_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletPresentationAdapter {
+    fixtures: Vec<WalletPresentationFixture>,
+}
+
+impl WalletPresentationAdapter {
+    pub fn new(fixtures: impl IntoIterator<Item = WalletPresentationFixture>) -> Self {
+        Self {
+            fixtures: fixtures.into_iter().collect(),
+        }
+    }
+}
+
+impl EvidenceAdapter for WalletPresentationAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::WalletPresentation
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        if !request.accepts(self.kind()) {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        let Some(evidence_ref) = request.evidence_refs.first() else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        };
+        let Some(presentation) = self
+            .fixtures
+            .iter()
+            .find(|fixture| &fixture.evidence_ref == evidence_ref)
+        else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        };
+        if presentation.subject != request.subject {
+            return EvidenceResult::Rejected(VerificationError::WrongSubject);
+        }
+        if presentation.audience != request.audience {
+            return EvidenceResult::Rejected(VerificationError::WrongAudience);
+        }
+        if let Some(request_origin) = requested_origin(request) {
+            if request_origin != presentation.origin {
+                return EvidenceResult::Rejected(VerificationError::WrongOrigin);
+            }
+        } else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: self.kind(),
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.resource.clone(),
+            local_dev_test_only: false,
+            public_proof: false,
+            summary_fields: vec![
+                "adapter_status:shape_validated_signature_unsupported".to_string(),
+                format!("evidence_ref:{evidence_ref}"),
+                format!("origin:{}", presentation.origin),
+                format!("challenge_ref:{}", presentation.challenge_ref),
+                format!("signature_ref:{}", presentation.signature_ref),
+                format!("public_key_ref:{}", presentation.public_key_ref),
+            ],
+        })
+    }
+}
+
+fn requested_origin(request: &EvidenceRequest) -> Option<&str> {
+    request
+        .public_inputs
+        .iter()
+        .find_map(|input| input.strip_prefix("origin:"))
+}

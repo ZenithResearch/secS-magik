@@ -18,7 +18,9 @@ pub enum VerificationError {
     HandlerUnavailable,
     WrongAudience,
     WrongSubject,
+    WrongOrigin,
     InsufficientEvidence,
+    InvalidPresentation,
     InvalidSignature,
     InternalError,
 }
@@ -36,7 +38,9 @@ impl VerificationError {
             Self::HandlerUnavailable => "handler_unavailable",
             Self::WrongAudience => "wrong_audience",
             Self::WrongSubject => "wrong_subject",
+            Self::WrongOrigin => "wrong_origin",
             Self::InsufficientEvidence => "insufficient_evidence",
+            Self::InvalidPresentation => "invalid_presentation",
             Self::InvalidSignature => "invalid_signature",
             Self::InternalError => "internal_error",
         }
