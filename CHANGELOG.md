@@ -20,6 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added the Issue 4.1 evidence seam — `server/src/evidence.rs` now defines typed evidence requests/results and the deterministic `local_static` local-dev-test adapter; verifier tests prove descriptor evidence requirements can flow into signed contexts and receipts without claiming public proof or adding Dregg/Midnight/Cardano dependencies.
 - Added the local SQLite receipt/event ledger — `server/src/ledger.rs` now creates runtime-SQL `events` and `receipts` tables, gateway/ingress persist reject/verify/execution records and handler lifecycle events, signed receipt metadata is stored, and tests verify payload content is not stored by default.
 - Added typed in-memory receipt and event objects — reject, verify, execute, and forward receipts now have typed decisions/reasons/authenticator kinds, stable event names, Ed25519 signing/verification helpers, and tests proving payload bytes are not included by default before SQLite ledger persistence lands.
 - Added receiver-local manifest descriptors in `server/src/manifest.rs`, including `OperationDescriptor`, `ReceiverManifest`, seeded descriptors for `0x01`, `0x02`, `0x10`, `0x20`, and `0x30`, opcode range governance, dev-binding flags, and typed unknown-opcode lookup errors.

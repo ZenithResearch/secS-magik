@@ -36,8 +36,15 @@ Use this as the running checklist for the current implementation train. Keep one
 
 ## Phase 4
 
-- [ ] Issue 4.1 — Introduce `EvidenceAdapter` trait and `local_static` adapter.
+- [x] Issue 4.1 — Introduce `EvidenceAdapter` trait and `local_static` adapter.
+
+Issue 4.1 scope lock before implementation:
+
+- Document first, then write failing tests, then implement.
+- Keep the first adapter deterministic and labeled `local_static` / local-dev-test only.
+- Shape the request/result contract for later wallet presentation, Midnight/ZK, and Dregg/federation adapters without importing those dependencies.
+- Connect descriptor `accepted_evidence` into verifier output for signed contexts/receipts, but stop before wallet, Midnight, Dregg, Cardano, or execution-broker work.
 
 ## Next recommended issue
 
-Issue 4.1 — Introduce `EvidenceAdapter` trait and `local_static` adapter. Receipt/event types and SQLite persistence now exist; the next slice should add typed evidence verification with deterministic local/dev/test `local_static` while keeping Dregg, Midnight, and Cardano optional.
+Issue 4.2 — Add `wallet_presentation` adapter shell. The `local_static` seam now exists; the next slice should define wallet presentation request/response fields and typed unsupported/shape failures without importing Midnight, Dregg, or Cardano rails.
