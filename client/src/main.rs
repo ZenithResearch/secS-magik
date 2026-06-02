@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use ed25519_dalek::SigningKey;
+use libsec_core::packet_builder::PacketBuilder;
 use libsec_core::zk::generate_proof;
 use libsec_core::ZenithPacket;
 use rand::rngs::OsRng;
@@ -31,15 +32,15 @@ fn load_or_create_identity() -> SigningKey {
 fn build_packet(identity: &SigningKey, opcode: u8, payload: Vec<u8>) -> ZenithPacket {
     let proof = generate_proof(identity, &payload);
 
-    ZenithPacket {
-        session_id: [0xFF; 16],
-        nonce: [0u8; 12],
-        opcode,
-        proof,
-        claim_ttl: 3600,
-        encrypted_payload: payload,
-        mac: [0u8; 16],
-    }
+    PacketBuilder::new()
+        .session_id([0xFF; 16])
+        .nonce([0u8; 12])
+        .opcode(opcode)
+        .proof(proof)
+        .claim_ttl(3600)
+        .encrypted_payload(payload)
+        .mac([0u8; 16])
+        .build()
 }
 
 async fn dispatch_packet(identity: &SigningKey, server_addr: &str, opcode: u8, payload: Vec<u8>) {

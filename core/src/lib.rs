@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "uniffi")]
 pub mod ffi;
+pub mod packet_builder;
 pub mod tunnel;
 pub mod zk;
 
