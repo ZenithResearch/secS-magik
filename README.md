@@ -8,6 +8,7 @@ Current source of truth:
 
 - `docs/implementation-status.md` — status ledger: implemented vs partial vs planned vs future vs out-of-scope.
 - `docs/repository-schema.md` — objective file-system schema and repository boundary map.
+- `docs/client-surfaces.md` — client-side local Hermes/secC/secZ packet-construction boundary.
 - `docs/specs/2026-06-01-secs-magik-objectives-spec.md` — current architecture/objectives spec.
 - `docs/plans/2026-06-01-implementation-progress-checklist.md` — running checklist for CI alignment and phase/issue progress.
 - `docs/announcement-thread.md` — public-language draft, intentionally caveated until verifier work lands.
@@ -73,6 +74,7 @@ Important boundaries:
 | `Cargo.toml` | Workspace definition. | Current members: `core`, `client`, `server`. |
 | `core/` | Shared packet and verifier-free core primitives. | Owns the v0 packet shape and constants; should not own product policy or receiver-local dispatch semantics. |
 | `client/` | CLI packet sender; current secC-like client surface. | Builds and sends packets; does not verify inbound authority. |
+| `docs/client-surfaces.md` | Client-side local Hermes/secC/secZ boundary. | Documents outgoing packet construction surfaces; none replaces secS-magik verification. |
 | `server/src/lib.rs` | Current TCP node loop and shared server library surface. | To evolve into secS verifier substrate modules. |
 | `server/src/main.rs` | Current basic secS daemon binary on port `9000`. | Prototype ingress; not yet the full verifier pipeline. |
 | `server/src/ingress.rs` | Prototype TCP ingress and gateway connection handling. | Owns packet decode/prototype verification/decrypt handoff for the current gateway. |
