@@ -38,6 +38,7 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
             "secS [Auth]: rejected packet with invalid prototype proof envelope - {}",
             error.reason_code()
         );
+        router.record_reject(&packet, error).await;
         return;
     }
 
@@ -45,6 +46,9 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
+            router
+                .record_reject(&packet, crate::verifier::VerificationError::BadMac)
+                .await;
             return;
         }
     };
@@ -64,6 +68,7 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
                 "secS [Manifest]: rejected packet before handler lookup - {}",
                 error.reason_code()
             );
+            router.record_reject(&packet, error).await;
             return;
         }
     };
