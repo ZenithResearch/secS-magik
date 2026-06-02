@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model gate complete; A6 production policy matrix complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
+Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model gate complete; A6 production policy matrix complete; A7 first membership-provisioning E2E shape complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
 
 ## A0 — Production target
 
@@ -594,6 +594,101 @@ Do not overfit future tests to exact prose from this checklist. The contract to 
 
 A6 acceptance is met because this checklist now names a runtime mode × descriptor evidence × adapter/evidence matrix, every row has a concrete future test target, `local_static` is explicitly local/dev/test-only, wallet shape-only evidence fails closed in production, federated rows use the narrowed A5 first-path objects, and forbidden first-path claims are bounded so demoted Dregg/capability/proof/root candidates cannot satisfy production authority without A9 promotion.
 
+## A7 — First membership-provisioning E2E shape
+
+A7 selects the first end-to-end production-shaped flow that later implementation issues must prove. This is still a checklist/design gate, not a claim that the E2E code already exists.
+
+### A7 — Selected first operation
+
+Selected operation: **`membership.provision`**.
+
+Reason: `membership.provision` is generic enough to prove the secS verifier substrate without embedding Gallery product policy, but specific enough to demonstrate real machine-to-machine membership provisioning instead of packet echo. Product-specific aliases such as `gallery.member.provision` may be fixture descriptors later, but the first canonical operation should be generic unless A8 promotes a product-specific phase.
+
+Descriptor intent:
+
+```text
+operation: membership.provision
+runtime_mode: production_verified
+evidence_required:
+  - wallet_presentation
+  - membership_credential OR provisioning_credential
+handler: fixture_membership_provisioner
+receipt_chain:
+  - verify receipt
+  - execution receipt
+  - ledger inspection/export row
+```
+
+### A7 — Local fixture contract
+
+The first E2E must run locally without real secrets while remaining semantically production-shaped.
+
+Fixture rules:
+
+- Wallet evidence uses generated/ephemeral fixture keys and wallet-core-shaped challenge/presentation bytes; no real wallet private keys are committed.
+- Federated evidence uses a static `TrustedIssuerEntry` plus signed fixture `membership_credential` / `provisioning_credential`; no live Castalia/Dregg registry is required.
+- Registry/status evidence is fixture `registry_status` / `revocation_status`; do not call it cryptographic revocation proof.
+- The handler is a bounded fixture membership provisioner that records a local membership/provisioning result or fixture state transition. It is not a broad shell command and not product membership policy.
+- Receipts and ledger rows include evidence summary hashes / ids, signer key ids, decisions, and reason codes without storing raw private evidence or payload contents by default.
+
+### A7 — Happy path flow
+
+1. A client-side surface constructs a `ZenithPacket` v0 for `membership.provision` using the verifier-free packet builder.
+2. The request carries a wallet-core-shaped presentation for the caller subject, audience, origin, operation, replay nonce, issued/not-before/expires window, and signature material.
+3. The request carries narrowed A5 federated evidence: a signed `membership_credential` or `provisioning_credential`, plus references that chain to receiver-held `TrustedIssuerEntry` and status metadata.
+4. secS runs in `production_verified` mode and maps the opcode/operation to the receiver-local `membership.provision` descriptor.
+5. The verifier checks wallet presentation semantics and A5 federated evidence, including subject, audience, operation/scope, issuer/root trust, validity window, replay id/nonce, signer key id, and registry/revocation status.
+6. The receiver-local manifest policy confirms that this descriptor accepts the supplied wallet + membership/provisioning evidence.
+7. The verifier emits a signed `VerifiedCallContext` containing redacted evidence summaries.
+8. The descriptor-bound fixture handler provisions local membership state from the verified context only.
+9. The ledger stores verify + execute receipts and an operator-inspectable decision chain.
+
+### A7 — Failure matrix and future test targets
+
+| Case | Expected result | Required future test target |
+|---|---|---|
+| missing wallet presentation | reject before handler execution with typed missing-wallet evidence reason and reject receipt | `membership_provision_missing_wallet_presentation_rejects` |
+| wallet presentation shape-only / unsupported crypto | reject/fail closed in production until wallet-core crypto exists | `membership_provision_wallet_shape_only_fails_closed` |
+| invalid wallet signature or wrong key | reject before handler execution | `membership_provision_invalid_wallet_signature_rejects` |
+| wrong wallet subject | reject; subject must match descriptor/request/evidence binding | `membership_provision_wrong_wallet_subject_rejects` |
+| wrong audience or origin | reject with typed audience/origin reason | `membership_provision_wrong_audience_or_origin_rejects` |
+| wrong operation in wallet challenge | reject; wallet evidence must bind `membership.provision` | `membership_provision_wallet_wrong_operation_rejects` |
+| expired or not-yet-valid wallet challenge | reject before handler execution | `membership_provision_expired_wallet_challenge_rejects` |
+| replayed wallet challenge or evidence nonce | reject once replay store is implemented; until then replay-store work remains a production blocker | `membership_provision_replayed_nonce_rejects` |
+| missing membership/provisioning credential | reject; wallet evidence alone is insufficient for this E2E descriptor | `membership_provision_missing_federated_credential_rejects` |
+| untrusted issuer / embedded key without trust chain | reject `untrusted_issuer` | `membership_provision_untrusted_issuer_rejects` |
+| revoked, expired, unknown, not-yet-valid, or stale issuer/key/credential status | reject with typed issuer/evidence status reason | `membership_provision_revoked_or_stale_credential_rejects` |
+| wrong credential subject | reject `wrong_subject` | `membership_provision_wrong_credential_subject_rejects` |
+| wrong credential audience | reject `wrong_audience` | `membership_provision_wrong_credential_audience_rejects` |
+| wrong credential operation/scope | reject `wrong_operation` | `membership_provision_wrong_credential_scope_rejects` |
+| descriptor does not accept supplied evidence kind | reject `unsupported_evidence_kind` | `membership_provision_descriptor_rejects_unsupported_evidence_kind` |
+| valid wallet + valid credential but receiver-local manifest policy mismatch | reject `local_policy_reject` | `membership_provision_local_policy_rejects_valid_foreign_evidence` |
+| handler unavailable | reject/fail execution with execution receipt; verifier acceptance does not imply execution success | `membership_provision_handler_unavailable_emits_execution_receipt` |
+| oversized payload or output | reject/fail execution through bounded broker limits | `membership_provision_oversized_payload_rejects` |
+| payload/log redaction leak | test proves raw private evidence/payload is not stored in receipts/ledger by default | `membership_provision_receipts_redact_private_evidence` |
+| happy path with generated fixtures | accepts, provisions local fixture membership state, signs verified context, emits verify + execute receipts, and supports operator ledger inspection | `membership_provision_fixture_happy_path_emits_receipt_chain` |
+
+### A7 — Runbook outline for later implementation
+
+Later code issues should produce a runnable local command or integration test with this shape:
+
+```bash
+SECS_RUNTIME_MODE=production_verified SECS_VERIFIER_KEY_PATH=fixtures/keys/node-verifier.ed25519 SECS_TRUST_REGISTRY_PATH=fixtures/trust/membership-issuers.json cargo test -p libsec-server membership_provision_fixture_happy_path -- --nocapture
+```
+
+Expected observable outputs:
+
+- verified context signer key id;
+- accepted wallet evidence summary hash/id;
+- accepted membership/provisioning credential summary hash/id;
+- handler result showing local fixture membership provisioned;
+- verify receipt id and execution receipt id;
+- ledger query/export row with no raw private evidence/payload contents.
+
+### A7 — Acceptance
+
+A7 acceptance is met because the checklist selects `membership.provision` as the first canonical E2E operation, defines the local fixture contract, names the happy path, names the failure matrix with future test targets, requires wallet presentation plus narrowed A5 membership/provisioning credential evidence, preserves local/no-real-secret execution, and makes the success condition membership provisioning with receipt/ledger inspection rather than packet echo.
+
 ## Slice acceptance criteria
 
 These criteria travel with the A0–A9 slices. A later phase/issue is not complete until its row is satisfied without weakening the A0 production definition.
@@ -621,7 +716,7 @@ Later slices should expand this checklist in place:
 - A4 — wallet-core integration decision gate — complete;
 - A5 — federated evidence model decision gate — complete;
 - A6 — production policy matrix — complete;
-- A7 — first membership-provisioning E2E shape;
+- A7 — first membership-provisioning E2E shape — complete;
 - A8 — issue-ready phase/branch/PR checklist for Tracks A–I;
 - A9 — Dregg/Midnight/Cardano defer-or-promote decision.
 
