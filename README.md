@@ -2,7 +2,7 @@
 
 secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
 
-Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. A receiver-local manifest descriptor layer now exists and the prototype gateway signs manifest-aware verified contexts before routing. Receipt ledger, evidence adapters, and the full verifier pipeline are still implementation work.
+Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. A receiver-local manifest descriptor layer now exists, the prototype gateway signs manifest-aware verified contexts before routing, and typed receipt/event objects are persisted to a local SQLite ledger. Evidence adapters and the full verifier pipeline are still implementation work.
 
 Current source of truth:
 
@@ -27,9 +27,9 @@ Use these labels across all docs:
 
 Short current status:
 
-- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, and receiver-local manifest descriptors.
-- Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, manifest-aware signed context routing, `node_telemetry`, and hardcoded handler registration.
-- Planned next: typed receipts/events, full verifier pipeline, event/receipt ledger implementation, `local_static` evidence adapter, and bounded execution broker.
+- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, typed receipt/event objects, and local SQLite receipt/event persistence.
+- Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, manifest-aware signed context routing, legacy `node_telemetry`, and hardcoded handler registration.
+- Planned next: full verifier pipeline, `local_static` evidence adapter, and bounded execution broker.
 - Future/optional: external proof, federation receipt, and settlement evidence adapters.
 - Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access.
 
@@ -60,7 +60,7 @@ Important boundaries:
 
 ## At a Glance
 
-- What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, records local SQLite telemetry, and routes verified bounded opcodes to configured machine programs.
+- What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, persists typed receipt/event records to local SQLite without storing payload content by default, preserves legacy `node_telemetry`, and routes verified bounded opcodes to configured machine programs.
 - What it is becoming: a typed secS verifier pipeline with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
 - Who it is for: developers and operators building owned machine-call rails instead of broad bearer-token APIs.
 - Primary stack: Rust workspace with `core`, `client`, and `server`; Tokio TCP; bincode packet serialization; optional ChaCha20Poly1305 tunnel decryption; SQLite through SQLx runtime queries.
@@ -80,8 +80,8 @@ Important boundaries:
 | `server/src/payload.rs` | Tunnel-key parsing and runtime-mode payload decryption. | Payload handling policy separated from binary entrypoints. |
 | `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics exist; execution wiring lands in a later issue. |
 | `server/src/evidence.rs` | Evidence adapter placeholder. | External systems integrate through adapters rather than core parser logic. |
-| `server/src/receipt.rs` | Receipt/audit placeholder. | Signed receipt types land in a later issue. |
-| `server/src/ledger.rs` | Event/receipt ledger placeholder. | Structured persistence lands after receipt types. |
+| `server/src/receipt.rs` | Typed receipt/event objects. | Defines reject/verify/execute/forward receipt kinds, typed decisions/reasons/authenticator kinds, stable event names, and Ed25519 receipt signing helpers. |
+| `server/src/ledger.rs` | Event/receipt ledger. | Persists events and receipts with runtime SQL; does not store payload content by default. |
 | `server/src/bin/secs-gateway.rs` | Canonical current prototype configurable gateway binary on port `9001`. | Thin wrapper over library modules. |
 | `server/src/bin/secz.rs` | Compatibility wrapper for the historical secZ-named gateway command. | Kept for current command compatibility, not as canonical verifier ownership. |
 | `docs/repository-schema.md` | Objective file-system schema. | Defines where verifier, manifest, receipts, evidence, docs, and client surfaces should live. |

@@ -88,8 +88,8 @@ secS-magik/
 | `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
 | `server/src/manifest.rs` | Placeholder home for receiver-local operation descriptors and opcode governance. | Client-only packet construction; global product policy. |
 | `server/src/evidence.rs` | Placeholder home for evidence adapters. | Mandatory external runtime dependencies. |
-| `server/src/receipt.rs` | Placeholder home for signed receipts and event object types. | Payload content logging by default. |
-| `server/src/ledger.rs` | Placeholder home for SQLite event/receipt storage using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained. |
+| `server/src/receipt.rs` | In-memory signed receipt and event types: typed reject/verify/execute/forward receipts, decisions, authenticator kinds, stable event names, and Ed25519 receipt helpers. | Payload content logging and durable persistence by default. |
+| `server/src/ledger.rs` | SQLite event/receipt storage using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained; payload content persistence by default. |
 | `server/src/runtime_mode.rs` | Explicit local/dev/production mode selection. | Silent plaintext fallback. |
 | `server/src/bin/secs-gateway.rs` | Canonical prototype gateway command. | Reusable gateway logic. |
 | `server/src/bin/secz.rs` | Compatibility wrapper for the historical command name. | Final verifier semantics or generic interface claims. |

@@ -31,8 +31,13 @@ Use this as the running checklist for the current implementation train. Keep one
 
 ## Phase 3
 
-- [ ] Issue 3.1 — Define receipt and event types.
+- [x] Issue 3.1 — Define receipt and event types.
+- [x] Issue 3.2 — Replace thin telemetry with receipt/event SQLite tables.
+
+## Phase 4
+
+- [ ] Issue 4.1 — Introduce `EvidenceAdapter` trait and `local_static` adapter.
 
 ## Next recommended issue
 
-Issue 3.1 — Define receipt and event types. Manifest-aware lookup now signs a `VerifiedCallContext` before `ConfigurableRouter::route_verified`; the next slice should add typed receipts/events without introducing durable receipt tables yet.
+Issue 4.1 — Introduce `EvidenceAdapter` trait and `local_static` adapter. Receipt/event types and SQLite persistence now exist; the next slice should add typed evidence verification with deterministic local/dev/test `local_static` while keeping Dregg, Midnight, and Cardano optional.
