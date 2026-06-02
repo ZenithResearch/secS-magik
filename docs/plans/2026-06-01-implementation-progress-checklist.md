@@ -12,6 +12,8 @@ Use this as the running checklist for the current implementation train. Keep one
   - `cargo test --workspace --all-targets --all-features --verbose`
 - [x] Fix strict Clippy blocker: `VerificationDecision` large enum variant.
 - [x] Make CI cache key product-neutral.
+- [x] Verify merged `main` locally with the full CI-equivalent command sequence.
+- [x] Verify GitHub Actions green on `main`: Rust CI run `26790706460` succeeded for `test: lock packet and opcode regressions`.
 
 ## Phase 0
 
