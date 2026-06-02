@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added A5 federated evidence model decision gate to the ready-for-prod checklist — defines evidence object classes, trusted issuer/root registry shape, public-key discovery, expiry/replay semantics, typed failure reasons, and a fixture first-prod evidence path without claiming live Dregg consensus.
 - Added A4 wallet-core integration decision gate to the ready-for-prod checklist — selects a direct minimal Castalia Wallet Rust core verifier API as the first target, preserves a signed/traceable artifact fallback, rejects duplicate secS wallet verifier semantics, and names affected paths/tests/packaging constraints.
 - Added A3 identity/key lifecycle decision gate to the ready-for-prod checklist — locks the first signer posture to a single `node_verifier_key`, explicit production key config, deterministic Ed25519 key ids, local/static trust registry discovery, and revocation/rotation tests before implementation.
 - Added A2 rail taxonomy and non-goals to the ready-for-prod checklist — separates secS-magik-owned verifier/RPC work from Castalia Wallet UI, Dregg consensus, Matrix federation, Gallery policy, Midnight circuits, Cardano settlement, and Hub orchestration before later slices become implementation issues.

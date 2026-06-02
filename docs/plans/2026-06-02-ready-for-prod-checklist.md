@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
+Status: A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model gate complete. Later slices should expand this file phase-by-phase without weakening the production target or re-opening completed issue-train work.
 
 ## A0 — Production target
 
@@ -368,6 +368,139 @@ The shared verifier semantics must be usable from both browser/WASM and native/s
 
 A4 acceptance is met because the checklist selects the direct minimal wallet-core verifier API as the first target, records the artifact fallback boundary, rejects duplicated secS semantics, names affected secS paths/shared crate surfaces, and lists signature/audience/origin/replay/expiry tests plus browser/WASM/native packaging constraints.
 
+## A5 — Federated evidence model decision gate
+
+A5 turns the cross-Hub/federated evidence rail from a phrase into a first implementation model. This is still a checklist/design gate: it allows a fixture first-prod evidence path without pretending Dregg consensus, Castalia registry discovery, or public audit anchoring is already implemented.
+
+### A5 — Core definitions
+
+| Term | Definition | First-prod posture |
+|---|---|---|
+| Subject Hub | The Hub/secS service receiving and deciding the call, e.g. Gallery Hub. | Applies its receiver-local manifest policy last. |
+| Issuer Hub / authority | The Hub, Castalia authority, Dregg-shaped root, or delegated issuer that produced evidence. | Must be represented by an issuer/root id and discoverable verification key. |
+| Evidence object | Typed data that supports a verifier decision. | Starts with fixture/static forms that are semantically production-shaped. |
+| Trusted issuer/root | A configured trust anchor that maps issuer/root id to public keys, validity, and status. | Local/static trust registry first; Castalia/Dregg discovery later unless promoted. |
+| Receiver-local manifest policy | The receiving Hub's operation descriptor and evidence requirements. | Federated evidence may satisfy requirements, but never bypasses local policy. |
+
+### A5 — Evidence object classes
+
+| Evidence kind | Purpose | Minimum fields | First implementation posture |
+|---|---|---|---|
+| `remote_signed_receipt` | Accept a prior verifier decision from a trusted Hub/authority. | `receipt_id`, `issuer_id`, `subject_id`, `audience`, `operation`, `descriptor_hash`, `evidence_summary_hash`, `issued_at`, `expires_at`, `replay_scope`, `signer_key_id`, `signature`. | Fixture trusted issuer/root can accept if signature/key/status/audience/operation/expiry pass. |
+| `capability_caveat` | Allow delegated/scoped permission. | `capability_id`, `issuer_id`, `subject_id`, `audience`, `operation`, `resource`, `caveats`, `not_before`, `expires_at`, `signer_key_id`, `signature`. | Model caveat checks locally; reject unmet caveats. |
+| `issuer_credential` | Prove subject membership/role issued by trusted authority. | `credential_id`, `issuer_id`, `subject_id`, `role_or_membership`, `audience_or_scope`, `not_before`, `expires_at`, `revocation_ref`, `signer_key_id`, `signature`. | Suitable first membership-provisioning proof candidate. |
+| `revocation_proof` | Prove evidence/key/credential has not been revoked or has been revoked. | `revocation_ref`, `issuer_id`, `target_id`, `status`, `observed_at`, `root_id`, `signature_or_registry_proof`. | Static registry first; Dregg-backed proof later if promoted. |
+| `membership_root` | Prove a membership state root or roster commitment. | `root_id`, `issuer_id`, `state_id`, `root_hash`, `version`, `valid_from`, `valid_until`, `signature`. | Fixture root may prove boundary; no public consensus claim. |
+| `dregg_root_ref` | Carry future-compatible Dregg root/ref semantics. | `root_id`, `issuer_id`, `root_hash`, `epoch`, `finality_hint`, `revocation_ref`, `signature_or_anchor`. | Data seam only unless A9 promotes live Dregg. |
+
+### A5 — Trusted issuer/root representation
+
+First implementation should use a local/static trust registry that is shaped like future Castalia/Dregg discovery but does not claim live federation.
+
+Minimum registry entry:
+
+```text
+TrustedIssuerEntry
+  issuer_id
+  issuer_kind                  # hub | castalia_registry | dregg_root | fixture
+  trusted_root_id
+  public_keys[]                # key_id, algorithm, public_key, status, not_before, not_after, revoked_at, replaced_by
+  accepted_evidence_kinds[]
+  accepted_operations[]
+  audience_scope[]
+  root_status                  # active | revoked | expired | unknown
+  registry_version
+```
+
+Rules:
+
+- Production descriptors may accept federated evidence only from configured active issuers/roots.
+- A trusted issuer/root does not bypass receiver-local manifest policy.
+- Fixture issuers/roots must be labeled fixture/static and cannot be described as live Dregg or Castalia registry federation.
+- A revoked, expired, unknown, wrong-operation, or wrong-audience issuer/root rejects with typed reason and receipt.
+
+### A5 — Public-key discovery path
+
+| Discovery source | A5 role | Acceptance boundary |
+|---|---|---|
+| Static trust registry | First implementation path | Provides trusted issuer/root id, public keys, validity/status, accepted evidence kinds, and accepted operations. |
+| Castalia registry | Future/promoted path | May replace or feed the static registry when live registry discovery is required. |
+| Dregg root/ref | Future/promoted path | May provide root freshness, revocation, and capability path validation when A9 promotes live Dregg. |
+| Embedded evidence key | Allowed only as evidence data | Must still chain to configured trusted issuer/root; an embedded key alone is not authority. |
+
+### A5 — Expiry, replay, and audience semantics
+
+All federated evidence that can satisfy production descriptors must bind:
+
+- `subject_id` — who/what the evidence is about;
+- `audience` — the receiving Hub/secS service or accepted audience scope;
+- `operation` — the descriptor operation it may satisfy;
+- `issuer_id` / `trusted_root_id` — who issued or anchored it;
+- `issued_at` / `not_before` / `expires_at` — validity window;
+- `replay_scope` / `nonce` / evidence id — replay boundary;
+- `signer_key_id` — public key lookup id;
+- evidence hash / schema version — compatibility and receipt summarization.
+
+Rules:
+
+- Wrong audience rejects even if signature is valid.
+- Wrong operation rejects even if issuer is trusted.
+- Expired or not-yet-valid evidence rejects.
+- Replayed evidence id/nonce rejects when a replay store is available; until implemented, the checklist must carry replay-store implementation as a required future issue for production acceptance.
+- Evidence summaries/hashes may enter receipts; raw private evidence must not be stored by default.
+
+### A5 — Typed failure reasons
+
+Later code issues must use typed reject reasons and emit reject receipts for at least:
+
+| Failure reason | Meaning |
+|---|---|
+| `untrusted_issuer` | Issuer/root id is absent or not configured as trusted. |
+| `revoked_issuer` | Issuer/root/key is revoked. |
+| `expired_issuer` | Issuer/root/key is outside validity window. |
+| `unsupported_evidence_kind` | Descriptor or registry does not accept that evidence kind. |
+| `malformed_federated_evidence` | Evidence cannot parse or misses required fields. |
+| `invalid_evidence_signature` | Signature/proof does not verify against discovered public key. |
+| `wrong_audience` | Evidence targets another receiver/audience. |
+| `wrong_operation` | Evidence does not bind to the requested descriptor operation. |
+| `wrong_subject` | Evidence subject does not match request/descriptor requirements. |
+| `revoked_evidence` | Credential/capability/receipt/root has been revoked. |
+| `stale_root` | Root/ref freshness is too old for descriptor policy. |
+| `replay_detected` | Evidence id/nonce/replay scope has already been consumed. |
+| `local_policy_reject` | Evidence is valid but receiver-local manifest policy still rejects it. |
+
+### A5 — Fixture first-prod evidence path
+
+First implementation may use a fixture/static federated evidence path if it preserves production semantics:
+
+1. Configure static trusted issuer/root entry for a fixture Hub/Castalia/Dregg-shaped authority.
+2. Provide a signed `issuer_credential` or `remote_signed_receipt` for the subject and operation.
+3. Verify issuer/root trust, key status, signature, validity window, audience, operation, subject, and descriptor evidence kind.
+4. Emit accepted evidence summary into `VerifiedCallContext` and signed receipt.
+5. Reject untrusted, revoked, stale, malformed, wrong-audience, wrong-operation, wrong-subject, and replayed variants.
+
+This proves the verifier boundary and failure model without claiming Dregg consensus or live Castalia registry discovery.
+
+### A5 — Test matrix for later implementation issues
+
+| Case | Expected result |
+|---|---|
+| trusted fixture issuer + valid operation-bound evidence | accept if receiver-local manifest permits evidence kind |
+| untrusted issuer/root | reject `untrusted_issuer` |
+| revoked issuer/root/key | reject `revoked_issuer` or `revoked_evidence` |
+| expired issuer/root/key/evidence | reject `expired_issuer` or expiry-specific typed reason |
+| stale root/ref | reject `stale_root` |
+| malformed federated evidence | reject `malformed_federated_evidence` |
+| invalid evidence signature | reject `invalid_evidence_signature` |
+| wrong audience | reject `wrong_audience` |
+| wrong operation | reject `wrong_operation` |
+| wrong subject | reject `wrong_subject` |
+| unsupported evidence kind for descriptor | reject `unsupported_evidence_kind` |
+| valid evidence but receiver-local policy mismatch | reject `local_policy_reject` |
+| replayed evidence id/nonce | reject `replay_detected` once replay store is implemented; until then, carry as production blocker |
+
+A5 acceptance is met because this checklist defines evidence object classes, trusted issuer/root representation, public-key discovery, remote receipt/capability/credential/revocation/root shapes, expiry/replay semantics, typed failure reasons, and a fixture first-prod federated evidence path that does not pretend Dregg consensus is implemented or bypass receiver-local policy.
+
 ## Slice acceptance criteria
 
 These criteria travel with the A0–A9 slices. A later phase/issue is not complete until its row is satisfied without weakening the A0 production definition.
@@ -393,7 +526,7 @@ Later slices should expand this checklist in place:
 - A2 — rail taxonomy and non-goals — complete;
 - A3 — identity/key lifecycle decision gate — complete;
 - A4 — wallet-core integration decision gate — complete;
-- A5 — federated evidence model decision gate;
+- A5 — federated evidence model decision gate — complete;
 - A6 — production policy matrix;
 - A7 — first membership-provisioning E2E shape;
 - A8 — issue-ready phase/branch/PR checklist for Tracks A–I;
