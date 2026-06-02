@@ -27,9 +27,9 @@ Use these labels across all docs:
 
 Short current status:
 
-- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, typed receipt/event objects, and local SQLite receipt/event persistence.
+- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, typed receipt/event objects, local SQLite receipt/event persistence, and the deterministic `local_static` evidence seam.
 - Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, manifest-aware signed context routing, legacy `node_telemetry`, and hardcoded handler registration.
-- Planned next: full verifier pipeline, `local_static` evidence adapter, and bounded execution broker.
+- Planned next: wallet-presentation contract shell and/or bounded execution broker, after the `local_static` seam is reviewed.
 - Future/optional: external proof, federation receipt, and settlement evidence adapters.
 - Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access.
 
@@ -79,7 +79,7 @@ Important boundaries:
 | `server/src/gateway.rs` | Configurable router, prototype telemetry schema, and prototype machine-program bindings. | Shared gateway library code; binary wrappers should stay thin. |
 | `server/src/payload.rs` | Tunnel-key parsing and runtime-mode payload decryption. | Payload handling policy separated from binary entrypoints. |
 | `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics exist; execution wiring lands in a later issue. |
-| `server/src/evidence.rs` | Evidence adapter placeholder. | External systems integrate through adapters rather than core parser logic. |
+| `server/src/evidence.rs` | Evidence adapter seam. | Defines typed evidence requests/results and deterministic `local_static` local-dev-test adapter; Dregg, Midnight, Cardano, and wallet presentation stay optional/future adapters. |
 | `server/src/receipt.rs` | Typed receipt/event objects. | Defines reject/verify/execute/forward receipt kinds, typed decisions/reasons/authenticator kinds, stable event names, and Ed25519 receipt signing helpers. |
 | `server/src/ledger.rs` | Event/receipt ledger. | Persists events and receipts with runtime SQL; does not store payload content by default. |
 | `server/src/bin/secs-gateway.rs` | Canonical current prototype configurable gateway binary on port `9001`. | Thin wrapper over library modules. |

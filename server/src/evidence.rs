@@ -3,3 +3,179 @@
 //! External proof, federation, and settlement systems should enter secS through
 //! adapters rooted here rather than becoming hard dependencies of packet parsing
 //! or gateway execution.
+
+use crate::manifest::OperationDescriptor;
+use crate::verifier::VerificationError;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvidenceKind {
+    PrototypeProofEnvelope,
+    LocalStatic,
+    WalletPresentation,
+    MidnightProof,
+    DreggReceipt,
+    CardanoSettlement,
+}
+
+impl EvidenceKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::PrototypeProofEnvelope => "prototype-proof-envelope",
+            Self::LocalStatic => "local_static",
+            Self::WalletPresentation => "wallet_presentation",
+            Self::MidnightProof => "midnight_proof",
+            Self::DreggReceipt => "dregg_receipt",
+            Self::CardanoSettlement => "cardano_settlement",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceRequest {
+    pub accepted_evidence: Vec<String>,
+    pub subject: String,
+    pub audience: String,
+    pub operation: String,
+    pub resource: Option<String>,
+    pub evidence_refs: Vec<String>,
+    pub public_inputs: Vec<String>,
+}
+
+impl EvidenceRequest {
+    pub fn from_descriptor(
+        descriptor: &OperationDescriptor,
+        subject: &str,
+        audience: &str,
+        evidence_ref: Option<&str>,
+    ) -> Self {
+        Self {
+            accepted_evidence: descriptor.accepted_evidence.clone(),
+            subject: subject.to_string(),
+            audience: audience.to_string(),
+            operation: descriptor.name.as_str().to_string(),
+            resource: descriptor.payload_schema.clone(),
+            evidence_refs: evidence_ref.into_iter().map(ToString::to_string).collect(),
+            public_inputs: vec![
+                format!("opcode:{:02x}", descriptor.opcode),
+                format!("handler_id:{}", descriptor.handler_id),
+            ],
+        }
+    }
+
+    pub fn accepts(&self, kind: EvidenceKind) -> bool {
+        self.accepted_evidence
+            .iter()
+            .any(|accepted| accepted == kind.as_str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceSummary {
+    pub kind: EvidenceKind,
+    pub subject: String,
+    pub audience: String,
+    pub operation: String,
+    pub resource: Option<String>,
+    pub local_dev_test_only: bool,
+    pub public_proof: bool,
+    pub summary_fields: Vec<String>,
+}
+
+impl EvidenceSummary {
+    pub fn to_context_fields(&self) -> Vec<String> {
+        let mut fields = vec![
+            format!("evidence_kind:{}", self.kind.as_str()),
+            format!("subject:{}", self.subject),
+            format!("audience:{}", self.audience),
+            format!("operation:{}", self.operation),
+            format!("local_dev_test_only:{}", self.local_dev_test_only),
+            format!("public_proof:{}", self.public_proof),
+        ];
+        if let Some(resource) = &self.resource {
+            fields.push(format!("resource:{resource}"));
+        }
+        fields.extend(self.summary_fields.clone());
+        fields
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvidenceResult {
+    Satisfied(EvidenceSummary),
+    Rejected(VerificationError),
+}
+
+pub trait EvidenceAdapter {
+    fn kind(&self) -> EvidenceKind;
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalStaticGrant {
+    pub subject: String,
+    pub audience: String,
+    pub operation: String,
+    pub resource: Option<String>,
+    pub evidence_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalStaticEvidenceAdapter {
+    grants: Vec<LocalStaticGrant>,
+}
+
+impl LocalStaticEvidenceAdapter {
+    pub fn new(grants: impl IntoIterator<Item = LocalStaticGrant>) -> Self {
+        Self {
+            grants: grants.into_iter().collect(),
+        }
+    }
+}
+
+impl EvidenceAdapter for LocalStaticEvidenceAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::LocalStatic
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        if !request.accepts(self.kind()) {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        let Some(evidence_ref) = request.evidence_refs.first() else {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        };
+        let Some(grant) = self
+            .grants
+            .iter()
+            .find(|grant| &grant.evidence_ref == evidence_ref)
+        else {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        };
+        if grant.subject != request.subject {
+            return EvidenceResult::Rejected(VerificationError::WrongSubject);
+        }
+        if grant.audience != request.audience {
+            return EvidenceResult::Rejected(VerificationError::WrongAudience);
+        }
+        if grant.operation != request.operation {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        if grant.resource != request.resource {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: self.kind(),
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.resource.clone(),
+            local_dev_test_only: true,
+            public_proof: false,
+            summary_fields: vec![
+                "authority:local_dev_test_only".to_string(),
+                format!("evidence_ref:{evidence_ref}"),
+            ],
+        })
+    }
+}

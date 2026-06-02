@@ -1,3 +1,4 @@
+use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
 use crate::manifest::{ReceiverManifest, ReplayScope};
 pub use crate::receipt::AuthenticatorKind;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
@@ -16,6 +17,8 @@ pub enum VerificationError {
     UnknownOperation,
     HandlerUnavailable,
     WrongAudience,
+    WrongSubject,
+    InsufficientEvidence,
     InvalidSignature,
     InternalError,
 }
@@ -32,6 +35,8 @@ impl VerificationError {
             Self::UnknownOperation => "unknown_operation",
             Self::HandlerUnavailable => "handler_unavailable",
             Self::WrongAudience => "wrong_audience",
+            Self::WrongSubject => "wrong_subject",
+            Self::InsufficientEvidence => "insufficient_evidence",
             Self::InvalidSignature => "invalid_signature",
             Self::InternalError => "internal_error",
         }
@@ -100,28 +105,14 @@ impl Verifier {
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
-        let max_ttl = packet.claim_ttl.min(descriptor.max_ttl_seconds);
-        let context = VerifiedCallContext {
-            schema_version: 1,
-            context_id: format!("ctx-v1-{now}-{:02x}", packet.opcode),
-            packet_hash: packet_hash(packet)?,
-            session_id: packet.session_id,
-            nonce: packet.nonce,
-            opcode: packet.opcode,
-            operation: descriptor.name.as_str().to_string(),
-            subject: VerifiedSubject {
-                subject_id: "prototype.local-dev.subject".to_string(),
-                key_id: "prototype.local-dev.subject#key".to_string(),
-            },
-            audience: audience.to_string(),
-            evidence_summary: descriptor_evidence_summary(descriptor),
-            capability_result: descriptor.required_capabilities.join(","),
-            credential_result: descriptor.required_credentials.join(","),
-            issued_at: now,
-            expires_at: now.saturating_add(max_ttl),
-            replay_scope: replay_scope_name(descriptor.replay_scope).to_string(),
-            handler_id: Some(descriptor.handler_id.clone()),
-        };
+        let context = verified_context_for_descriptor(
+            packet,
+            descriptor,
+            audience,
+            "prototype.local-dev.subject",
+            descriptor_evidence_summary(descriptor),
+            now,
+        )?;
 
         context.sign_ed25519(
             signer_key_id,
@@ -129,6 +120,73 @@ impl Verifier {
             AuthenticatorKind::Ed25519Verifier,
         )
     }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_manifest_operation_with_evidence_and_sign(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        subject: &str,
+        evidence_ref: Option<&str>,
+        adapter: &dyn EvidenceAdapter,
+        now: u64,
+        signer_key_id: &str,
+        secret_key: &[u8; 32],
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        Self::verify_prototype_envelope(packet)?;
+        let descriptor = manifest.lookup(packet.opcode)?;
+        let request = EvidenceRequest::from_descriptor(descriptor, subject, audience, evidence_ref);
+        let evidence_summary = match adapter.verify(&request) {
+            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
+            EvidenceResult::Rejected(error) => return Err(error),
+        };
+        let context = verified_context_for_descriptor(
+            packet,
+            descriptor,
+            audience,
+            subject,
+            evidence_summary,
+            now,
+        )?;
+
+        context.sign_ed25519(
+            signer_key_id,
+            secret_key,
+            AuthenticatorKind::Ed25519Verifier,
+        )
+    }
+}
+
+fn verified_context_for_descriptor(
+    packet: &ZenithPacket,
+    descriptor: &crate::manifest::OperationDescriptor,
+    audience: &str,
+    subject: &str,
+    evidence_summary: Vec<String>,
+    now: u64,
+) -> Result<VerifiedCallContext, VerificationError> {
+    let max_ttl = packet.claim_ttl.min(descriptor.max_ttl_seconds);
+    Ok(VerifiedCallContext {
+        schema_version: 1,
+        context_id: format!("ctx-v1-{now}-{:02x}", packet.opcode),
+        packet_hash: packet_hash(packet)?,
+        session_id: packet.session_id,
+        nonce: packet.nonce,
+        opcode: packet.opcode,
+        operation: descriptor.name.as_str().to_string(),
+        subject: VerifiedSubject {
+            subject_id: subject.to_string(),
+            key_id: format!("{subject}#key"),
+        },
+        audience: audience.to_string(),
+        evidence_summary,
+        capability_result: descriptor.required_capabilities.join(","),
+        credential_result: descriptor.required_credentials.join(","),
+        issued_at: now,
+        expires_at: now.saturating_add(max_ttl),
+        replay_scope: replay_scope_name(descriptor.replay_scope).to_string(),
+        handler_id: Some(descriptor.handler_id.clone()),
+    })
 }
 
 fn packet_hash(packet: &ZenithPacket) -> Result<[u8; 32], VerificationError> {

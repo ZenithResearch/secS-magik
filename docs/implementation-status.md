@@ -41,7 +41,7 @@ This document is the status ledger for this repository. It separates what is imp
 | Proof verification | Current gateway accepts non-empty `proof` plus positive `claim_ttl`. | “Prototype proof envelope check,” not real ZK verification. |
 | Payload security | Tunnel decrypt works if key is configured; plaintext is only allowed when `SECZ_RUNTIME_MODE=local_dev_plaintext` or `SECS_RUNTIME_MODE=local_dev_plaintext`. | “Explicit runtime-mode payload handling,” not silent production plaintext fallback. |
 | secZ compatibility file | `server/src/bin/secz.rs` exists as a thin compatibility wrapper. | “Historical command compatibility wrapper,” not the canonical verifier or client architecture. |
-| secS verifier | secS parses/inspects and routes; full staged verifier does not exist. | “Target verifier substrate,” not fully implemented verifier. |
+| secS verifier | secS parses/inspects and routes; typed evidence adapter calls can now feed signed contexts, but the full staged verifier does not exist. | “Target verifier substrate with local evidence seam,” not fully implemented verifier. |
 | Manifest-to-execution wiring | The prototype gateway now creates a signed context from descriptor lookup before calling `route_verified`, but handler registration is still hardcoded. | “Manifest-aware prototype routing,” not “final execution broker.” |
 | Telemetry/audit | `node_telemetry` still stores opcode and payload size for compatibility; `events` and `receipts` now persist typed local audit records with signed receipt metadata. | “Local SQLite receipt/event ledger plus legacy telemetry,” not public audit proof. |
 | Dregg/Midnight/Cardano | No runtime dependency in current workspace. | “Future optional evidence/anchor rails,” not current implementation. |
@@ -61,8 +61,8 @@ These are accepted next-pass targets from the current objectives spec and issue-
 | Explicit runtime modes | `server/src/runtime_mode.rs` | Implemented for current gateway; local plaintext requires explicit `local_dev_plaintext`, default is `production_verified`. |
 | Receipt types | `server/src/receipt.rs` | Implemented for reject, verify, execute, and forward receipts; persisted by the local ledger slice. |
 | Event/receipt ledger | `server/src/ledger.rs` | Implemented with runtime SQL and in-memory SQLite tests; gateway/ingress write reject, verify, execution, and handler lifecycle audit records. |
-| EvidenceAdapter trait | `server/src/evidence.rs` | Module home exists; concrete adapter trait planned next. |
-| `local_static` evidence adapter | `server/src/evidence.rs` | Planned first adapter; local/dev/test scaffold only. |
+| EvidenceAdapter trait | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented | Typed adapter boundary with request/result fields for subject, audience, operation, resource, evidence refs, public inputs, and reason codes. |
+| `local_static` evidence adapter | `server/src/evidence.rs`, `server/tests/evidence.rs` | Solid / implemented as local-dev-test only | Deterministic local/dev/test scaffold that can satisfy descriptor evidence requirements and flow into signed contexts/receipts without claiming production authority or adding Dregg/Midnight/Cardano dependencies. |
 | Bounded execution broker accepting verified context | `server/src/execution.rs` | Planned / next implementation. |
 | Packet-builder helper | `core/src/packet_builder.rs` | Optional planned helper if it reduces duplication without importing verifier logic into core. |
 
