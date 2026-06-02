@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added the ready-for-prod checklist A0 production definition — locks the first-prod target to all three rails (local production-shaped deployment, Castalia Wallet-backed app/user auth, and cross-Hub/federated evidence) so later implementation phases cannot collapse readiness into local smoke tests alone.
 - Added the `wallet_presentation` adapter shell — defines typed subject/audience/origin/challenge/signature/public-key/replay fields, fail-closed shape checks, distinguishable `invalid_presentation` / `wrong_audience` / `wrong_origin` failures, and explicit `shape_validated_signature_unsupported` status without importing Midnight, Dregg, or Cardano rails.
 - Added `docs/client-surfaces.md` — records local Hermes/secC/secZ as client-side ways to call secS, prevents secZ/verifier boundary regression, and anchors the shared verifier-free packet-builder boundary.
 - Added a verifier-free `core::packet_builder` helper — gives local Hermes/secC/secZ-style client surfaces a shared `ZenithPacket` v0 construction path without importing server-side authority checks.
