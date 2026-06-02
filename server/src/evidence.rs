@@ -189,6 +189,44 @@ pub struct WalletPresentationFixture {
     pub challenge_ref: String,
     pub signature_ref: String,
     pub public_key_ref: String,
+    pub replay_nonce_ref: String,
+    pub issued_at: u64,
+    pub expires_at: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WalletPresentationShellStatus {
+    ShapeValidatedSignatureUnsupported,
+}
+
+impl WalletPresentationShellStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::ShapeValidatedSignatureUnsupported => "shape_validated_signature_unsupported",
+        }
+    }
+
+    pub fn as_summary_field(&self) -> &'static str {
+        match self {
+            Self::ShapeValidatedSignatureUnsupported => {
+                "adapter_status:shape_validated_signature_unsupported"
+            }
+        }
+    }
+}
+
+impl WalletPresentationFixture {
+    fn has_required_shape(&self) -> bool {
+        !self.evidence_ref.is_empty()
+            && !self.subject.is_empty()
+            && !self.audience.is_empty()
+            && !self.origin.is_empty()
+            && !self.challenge_ref.is_empty()
+            && !self.signature_ref.is_empty()
+            && !self.public_key_ref.is_empty()
+            && !self.replay_nonce_ref.is_empty()
+            && self.issued_at < self.expires_at
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -236,6 +274,9 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         } else {
             return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
         }
+        if !presentation.has_required_shape() {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
@@ -246,12 +287,17 @@ impl EvidenceAdapter for WalletPresentationAdapter {
             local_dev_test_only: false,
             public_proof: false,
             summary_fields: vec![
-                "adapter_status:shape_validated_signature_unsupported".to_string(),
+                WalletPresentationShellStatus::ShapeValidatedSignatureUnsupported
+                    .as_summary_field()
+                    .to_string(),
                 format!("evidence_ref:{evidence_ref}"),
                 format!("origin:{}", presentation.origin),
                 format!("challenge_ref:{}", presentation.challenge_ref),
                 format!("signature_ref:{}", presentation.signature_ref),
                 format!("public_key_ref:{}", presentation.public_key_ref),
+                format!("replay_nonce_ref:{}", presentation.replay_nonce_ref),
+                format!("issued_at:{}", presentation.issued_at),
+                format!("expires_at:{}", presentation.expires_at),
             ],
         })
     }

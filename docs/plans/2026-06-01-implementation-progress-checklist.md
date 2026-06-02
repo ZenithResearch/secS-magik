@@ -37,6 +37,7 @@ Use this as the running checklist for the current implementation train. Keep one
 ## Phase 4
 
 - [x] Issue 4.1 — Introduce `EvidenceAdapter` trait and `local_static` adapter.
+- [x] Issue 4.2 — Add `wallet_presentation` adapter shell with typed fail-closed shape/status handling.
 
 Issue 4.1 scope lock before implementation:
 
@@ -47,4 +48,4 @@ Issue 4.1 scope lock before implementation:
 
 ## Next recommended issue
 
-Issue 4.2 — Add `wallet_presentation` adapter shell. The `local_static` seam now exists; the next slice should define wallet presentation request/response fields and typed unsupported/shape failures without importing Midnight, Dregg, or Cardano rails.
+Reconcile the next implementation slice after reviewing the updated issue order; Issue 4.2 is complete as a typed shell, while full wallet signature verification, Midnight, Dregg, and Cardano rails remain intentionally out of scope.
