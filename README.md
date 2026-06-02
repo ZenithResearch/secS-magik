@@ -2,7 +2,7 @@
 
 secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
 
-Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. The receiver manifest, receipt ledger, evidence adapters, and final directory layout are still implementation work.
+Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. The receiver manifest, receipt ledger, evidence adapters, and full verifier pipeline are still implementation work.
 
 Current source of truth:
 
@@ -27,8 +27,8 @@ Use these labels across all docs:
 Short current status:
 
 - Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes.
-- Partial/prototype: current `secS` TCP listener, current `server/src/bin/secz.rs` gateway, prototype proof/TTL check, `node_telemetry`, hardcoded opcode bindings.
-- Planned next: receiver manifest, full verifier pipeline, signed receipts, event/receipt ledger, `local_static` evidence adapter, bounded execution broker, and codebase/directory realignment.
+- Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, `node_telemetry`, hardcoded opcode bindings.
+- Planned next: receiver manifest semantics, full verifier pipeline, signed receipts, event/receipt ledger implementation, `local_static` evidence adapter, and bounded execution broker.
 - Future/optional: external proof, federation receipt, and settlement evidence adapters.
 - Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access.
 
@@ -74,7 +74,15 @@ Important boundaries:
 | `client/` | CLI packet sender; current secC-like client surface. | Builds and sends packets; does not verify inbound authority. |
 | `server/src/lib.rs` | Current TCP node loop and shared server library surface. | To evolve into secS verifier substrate modules. |
 | `server/src/main.rs` | Current basic secS daemon binary on port `9000`. | Prototype ingress; not yet the full verifier pipeline. |
-| `server/src/bin/secz.rs` | Current prototype configurable gateway binary on port `9001`. | Historical/secZ-named execution prototype; should be refactored under the corrected boundary rather than treated as verifier ownership. |
+| `server/src/ingress.rs` | Prototype TCP ingress and gateway connection handling. | Owns packet decode/prototype verification/decrypt handoff for the current gateway. |
+| `server/src/gateway.rs` | Configurable router, prototype telemetry schema, and prototype machine-program bindings. | Shared gateway library code; binary wrappers should stay thin. |
+| `server/src/payload.rs` | Tunnel-key parsing and runtime-mode payload decryption. | Payload handling policy separated from binary entrypoints. |
+| `server/src/manifest.rs` | Receiver-local manifest placeholder. | Concrete descriptor semantics land in a later issue. |
+| `server/src/evidence.rs` | Evidence adapter placeholder. | External systems integrate through adapters rather than core parser logic. |
+| `server/src/receipt.rs` | Receipt/audit placeholder. | Signed receipt types land in a later issue. |
+| `server/src/ledger.rs` | Event/receipt ledger placeholder. | Structured persistence lands after receipt types. |
+| `server/src/bin/secs-gateway.rs` | Canonical current prototype configurable gateway binary on port `9001`. | Thin wrapper over library modules. |
+| `server/src/bin/secz.rs` | Compatibility wrapper for the historical secZ-named gateway command. | Kept for current command compatibility, not as canonical verifier ownership. |
 | `docs/repository-schema.md` | Objective file-system schema. | Defines where verifier, manifest, receipts, evidence, docs, and client surfaces should live. |
 | `docs/specs/` | Current architecture/objective specs. | Reviewable source of truth for implementation. |
 | `docs/reviews/` | Historical/current code reviews if tracked. | Evidence and provenance for architecture and implementation reviews. |
@@ -114,7 +122,7 @@ The implementation plan reserves opcode ranges by governance tier:
 | Range | Governance | Meaning |
 |---:|---|---|
 | `0x01`–`0x0A` | secS/core standardized | Very small cross-runtime baseline operations and legacy examples. |
-| `0x0B`–`0x3F` | Castalia standardized candidates | Castalia ecosystem operations whose names/evidence expectations should become portable across compliant receivers. |
+| `0x0B`–`0x3F` | Portable candidate | Ecosystem operations whose names/evidence expectations should become portable across compliant receivers. |
 | `0x40`–`0xFF` | Operator-defined | Receiver/operator local operations declared by the receiver manifest. |
 
 Current legacy/core examples:
@@ -128,7 +136,7 @@ Current prototype/dev bindings:
 - `0x20` / decimal `32`: native Rust queue stub.
 - `0x30` / decimal `48`: `jq .` JSON formatter/parser.
 
-These `0x10`/`0x20`/`0x30` bindings are Castalia-standard candidates or dev bindings, not final ratified global semantics.
+These `0x10`/`0x20`/`0x30` bindings are portable candidates or dev bindings, not final ratified global semantics.
 
 ## Target Verifier Pipeline
 
@@ -170,7 +178,13 @@ Run the current secS prototype on port `9000`:
 cargo run -p server --bin server
 ```
 
-Run the current secZ-named prototype gateway on port `9001`:
+Run the canonical current prototype gateway on port `9001`:
+
+```bash
+cargo run -p server --bin secs-gateway
+```
+
+The historical `secz` binary remains as a compatibility wrapper for the same prototype gateway:
 
 ```bash
 cargo run -p server --bin secz

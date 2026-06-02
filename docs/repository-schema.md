@@ -1,6 +1,6 @@
 # secS-magik repository schema
 
-This document is the objective file-system schema for the next secS-magik implementation pass. It exists to keep the README, docs, and future code aligned with the corrected boundaries before verifier work begins.
+This document records the current file-system schema plus the next target seams for secS-magik. It exists to keep the README, docs, and code aligned with the corrected boundaries as verifier work lands.
 
 ## Boundary rule
 
@@ -20,7 +20,7 @@ docs/
   source-of-truth specs, current plans, historical reviews, and public messaging drafts
 ```
 
-Do not organize the repo as though secZ is the server-side verifier. secZ is a client-side / outgoing-call vocabulary surface in the corrected architecture. The existing `server/src/bin/secz.rs` file is a historical/prototype gateway binary and should either be renamed/refactored or clearly documented as a prototype compatibility surface when implementation begins.
+Do not organize the repo as though secZ is the server-side verifier. secZ is a client-side / outgoing-call vocabulary surface in the corrected architecture. The existing `server/src/bin/secz.rs` file is now a thin compatibility wrapper. Canonical reusable gateway behavior lives in library modules and the canonical prototype binary is `server/src/bin/secs-gateway.rs`.
 
 ## Target tree
 
@@ -49,18 +49,19 @@ secS-magik/
 │   └── src/
 │       ├── lib.rs                   # server module exports and shared server entry points
 │       ├── main.rs                  # current secS prototype binary on port 9000
-│       ├── verifier.rs              # typed verifier pipeline and VerificationError
-│       ├── context.rs               # VerifiedCallContext and SignedVerifiedCallContext if split from verifier.rs
-│       ├── identity.rs              # key loading, signer key ids, signature verification helpers
-│       ├── manifest.rs              # receiver-local OperationDescriptor and opcode range governance
-│       ├── evidence.rs              # EvidenceAdapter trait and local_static adapter first
-│       ├── receipt.rs               # Receipt, ReceiptKind, Decision, AuthenticatorKind
-│       ├── ledger.rs                # SQLite event/receipt persistence with runtime SQL
-│       ├── execution.rs             # MachineProgram trait, bounded execution broker, timeout/payload limits
+│       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
+│       ├── ingress.rs               # prototype TCP ingress and verifier/payload handoff
+│       ├── gateway.rs               # configurable router, telemetry schema, prototype bindings
+│       ├── payload.rs               # tunnel key parsing and runtime-mode payload decryption
+│       ├── manifest.rs              # receiver-local OperationDescriptor and opcode governance placeholder
+│       ├── evidence.rs              # EvidenceAdapter placeholder; local_static adapter first later
+│       ├── receipt.rs               # Receipt/decision placeholder
+│       ├── ledger.rs                # SQLite event/receipt persistence placeholder
 │       ├── runtime_mode.rs          # local_dev_plaintext / local_dev_tunnel / production_verified
 │       ├── session.rs               # existing session store until superseded by verifier/session binding
 │       └── bin/
-│           └── secz.rs              # historical/prototype gateway; keep only with compatibility caveat
+│           ├── secs-gateway.rs      # canonical prototype gateway wrapper
+│           └── secz.rs              # historical compatibility wrapper
 └── docs/
     ├── README.md                    # docs index, once docs grow beyond a few files
     ├── repository-schema.md         # this file
@@ -81,16 +82,17 @@ secS-magik/
 | `core/src/packet_builder.rs` | Verifier-free `ZenithPacket` construction helper. | Capabilities, credential checks, evidence verification, authority decisions. |
 | `core/src/zk.rs` | Low-level signing/proof helper primitives. | The full secS verifier pipeline or public claims that proof bytes are enough. |
 | `client/src/main.rs` | CLI packet sending; current secC-like outgoing path. | Server-side verification, receiver-local operation authority. |
-| `server/src/verifier.rs` | Typed verifier pipeline and verifier decisions. | Product policy, app login, settlement, arbitrary handler execution. |
-| `server/src/context.rs` | Signed `VerifiedCallContext` serialization/verification if split. | Raw private evidence by default. |
-| `server/src/identity.rs` | Ed25519 signer/verifier key loading and key ids. | Hidden long-lived key generation or secret printing. |
-| `server/src/manifest.rs` | Receiver-local operation descriptors and opcode range governance. | Client-only packet construction; global product policy. |
-| `server/src/evidence.rs` | Evidence adapter trait and local_static first adapter. | Dregg/Midnight/Cardano mandatory runtime dependencies. |
-| `server/src/receipt.rs` | Signed receipts and event object types. | Payload content logging by default. |
-| `server/src/ledger.rs` | SQLite event/receipt storage using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained. |
-| `server/src/execution.rs` | Bounded handler execution after signed verified context. | Broad ambient shell authority. |
+| `server/src/verifier.rs` | Typed verifier errors, prototype envelope check, signed context helpers. | Product policy, app login, settlement, arbitrary handler execution. |
+| `server/src/ingress.rs` | Prototype TCP ingress and verifier/payload handoff. | Receiver-local manifest semantics or handler implementation details. |
+| `server/src/gateway.rs` | Configurable router, telemetry schema, prototype machine-program bindings. | Packet verification or payload decryption policy. |
+| `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
+| `server/src/manifest.rs` | Placeholder home for receiver-local operation descriptors and opcode governance. | Client-only packet construction; global product policy. |
+| `server/src/evidence.rs` | Placeholder home for evidence adapters. | Mandatory external runtime dependencies. |
+| `server/src/receipt.rs` | Placeholder home for signed receipts and event object types. | Payload content logging by default. |
+| `server/src/ledger.rs` | Placeholder home for SQLite event/receipt storage using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained. |
 | `server/src/runtime_mode.rs` | Explicit local/dev/production mode selection. | Silent plaintext fallback. |
-| `server/src/bin/secz.rs` | Current prototype gateway compatibility surface. | Final verifier semantics or generic Castalia interface claims. |
+| `server/src/bin/secs-gateway.rs` | Canonical prototype gateway command. | Reusable gateway logic. |
+| `server/src/bin/secz.rs` | Compatibility wrapper for the historical command name. | Final verifier semantics or generic interface claims. |
 
 ## Opcode range schema
 
@@ -118,7 +120,7 @@ secS-magik/
 
 Current files that need boundary care:
 
-- `server/src/bin/secz.rs` currently performs prototype proof/TTL checks, decrypt/passthrough, SQLite telemetry, and handler routing. Under the corrected boundary, these are server-side verifier/execution prototype concerns, not proof that secZ owns verification.
+- `server/src/bin/secz.rs` is now a thin compatibility wrapper. Prototype proof/TTL checks live in `server/src/verifier.rs`, payload handling in `server/src/payload.rs`, connection handling in `server/src/ingress.rs`, and telemetry/routing in `server/src/gateway.rs`.
 - `README.md` previously described Dregg as the direct implementation path and Wallet as living inside secS-magik implementations. Current boundary: Dregg/Midnight/Cardano are optional evidence/anchor rails; WalletAuth and browser app sessions are separate from internal secS RPC.
 - `docs/announcement-thread.md` previously used strong ZK/security language. It should remain a vision/draft with prototype caveats until signed contexts, receipts, evidence adapters, and verifier checks exist.
 - `docs/reviews/2026-04-30-secs-daemon-code-review.md`, if tracked, should remain historical audit evidence. Do not edit its findings into current guidance except by adding a short supersession note.

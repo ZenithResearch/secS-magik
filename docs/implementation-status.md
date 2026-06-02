@@ -25,9 +25,11 @@ This document is the status ledger for this repository. It separates what is imp
 | Ed25519 helper primitives | `core/src/zk.rs` | Solid / implemented as primitive | Signature/proof helper tests pass. These primitives are not yet a full server verifier. |
 | Session store | `server/src/session.rs` | Solid / implemented as local utility | In-memory session-store tests pass. This is not yet replay/session binding for the verifier pipeline. |
 | Current secS binary | `server/src/main.rs`, `server/src/lib.rs` | Partial / prototype | Runs a TCP listener and routes packet fields. It is not yet the full verifier pipeline. |
-| Current secZ-named binary | `server/src/bin/secz.rs` | Partial / prototype | Runs a configurable gateway, does prototype proof/TTL check, explicit runtime-mode payload handling, SQLite telemetry, and opcode routing. It should not be described as verifier ownership. |
-| SQLite telemetry | `server/src/bin/secz.rs` | Partial / prototype | Stores opcode and payload size in `node_telemetry`. It is not yet a receipt/event ledger. |
-| MachineProgram routing | `server/src/bin/secz.rs` | Partial / prototype | Bounded opcode routing exists. It does not yet receive signed verified context or emit signed execution receipts. |
+| Canonical prototype gateway binary | `server/src/bin/secs-gateway.rs` | Partial / prototype | Thin wrapper over library modules for prototype ingress, proof/TTL check, explicit runtime-mode payload handling, SQLite telemetry, and opcode routing. |
+| Historical secZ compatibility binary | `server/src/bin/secz.rs` | Partial / prototype | Thin compatibility wrapper for the old command name; not canonical verifier ownership. |
+| Prototype ingress | `server/src/ingress.rs` | Partial / prototype | Deserializes packets, calls the prototype verifier/payload path, and hands payloads to the gateway router. |
+| Prototype gateway/router | `server/src/gateway.rs` | Partial / prototype | Stores opcode and payload size in `node_telemetry` and routes configured machine programs. It is not yet a receipt/event ledger or signed execution broker. |
+| Payload handling | `server/src/payload.rs` | Solid / implemented | Parses tunnel keys and enforces explicit runtime-mode payload behavior. |
 
 ## Current partial / prototype behavior to name carefully
 
@@ -35,10 +37,10 @@ This document is the status ledger for this repository. It separates what is imp
 |---|---|---|
 | Proof verification | Current gateway accepts non-empty `proof` plus positive `claim_ttl`. | “Prototype proof envelope check,” not real ZK verification. |
 | Payload security | Tunnel decrypt works if key is configured; plaintext is only allowed when `SECZ_RUNTIME_MODE=local_dev_plaintext` or `SECS_RUNTIME_MODE=local_dev_plaintext`. | “Explicit runtime-mode payload handling,” not silent production plaintext fallback. |
-| secZ server file | `server/src/bin/secz.rs` exists and performs prototype gateway behavior. | “Historical/secZ-named prototype gateway,” not the corrected architectural secZ client surface. |
+| secZ compatibility file | `server/src/bin/secz.rs` exists as a thin compatibility wrapper. | “Historical command compatibility wrapper,” not the canonical verifier or client architecture. |
 | secS verifier | secS parses/inspects and routes; full staged verifier does not exist. | “Target verifier substrate,” not fully implemented verifier. |
 | Manifest | Hardcoded `register()` calls exist; no typed `OperationDescriptor` module yet. | “Prototype bindings,” not a real receiver-local manifest. |
-| Telemetry/audit | `node_telemetry` stores opcode and payload size. | “Thin local telemetry,” not receipt ledger or audit proof. |
+| Telemetry/audit | `node_telemetry` stores opcode and payload size from `server/src/gateway.rs`. | “Thin local telemetry,” not receipt ledger or audit proof. |
 | Dregg/Midnight/Cardano | No runtime dependency in current workspace. | “Future optional evidence/anchor rails,” not current implementation. |
 
 ## Planned / next implementation surface
@@ -47,16 +49,16 @@ These are accepted next-pass targets from the current objectives spec and issue-
 
 | Target | Planned location | Status |
 |---|---|---|
-| Repository schema | `docs/repository-schema.md` | Implemented as docs; code not yet reorganized. |
-| OperationDescriptor / ReceiverManifest | `server/src/manifest.rs` | Planned / next implementation. |
+| Repository schema / module layout | `docs/repository-schema.md`, `server/src/{ingress,gateway,payload,manifest,evidence,receipt,ledger}.rs` | Phase 0.1 implemented: reusable gateway/payload/ingress code moved out of binaries, and placeholder module homes exist for manifest/evidence/receipt/ledger. |
+| OperationDescriptor / ReceiverManifest | `server/src/manifest.rs` | Module home exists; concrete descriptors planned next. |
 | Opcode range governance | `server/src/manifest.rs`, docs; possibly `core/src/lib.rs` constants | Planned; docs define ranges now. |
 | VerificationError / verifier pipeline | `server/src/verifier.rs` | Partially implemented: typed errors and prototype envelope/signature context helpers exist; full staged verifier pipeline still planned. |
 | SignedVerifiedCallContext | `server/src/verifier.rs` | Implemented for Ed25519 context signing/verification; receipt integration still planned. |
 | Identity/signature helpers for contexts/receipts | `server/src/identity.rs` | Planned / next implementation; low-level Ed25519 primitives exist in `core/src/zk.rs`. |
 | Explicit runtime modes | `server/src/runtime_mode.rs` | Implemented for current gateway; local plaintext requires explicit `local_dev_plaintext`, default is `production_verified`. |
-| Receipt types | `server/src/receipt.rs` | Planned / next implementation. |
-| Event/receipt ledger | `server/src/ledger.rs` | Planned / next implementation. |
-| EvidenceAdapter trait | `server/src/evidence.rs` | Planned / next implementation. |
+| Receipt types | `server/src/receipt.rs` | Module home exists; concrete receipt types planned next. |
+| Event/receipt ledger | `server/src/ledger.rs` | Module home exists; structured persistence planned after receipt types. |
+| EvidenceAdapter trait | `server/src/evidence.rs` | Module home exists; concrete adapter trait planned next. |
 | `local_static` evidence adapter | `server/src/evidence.rs` | Planned first adapter; local/dev/test scaffold only. |
 | Bounded execution broker accepting verified context | `server/src/execution.rs` | Planned / next implementation. |
 | Packet-builder helper | `core/src/packet_builder.rs` | Optional planned helper if it reduces duplication without importing verifier logic into core. |

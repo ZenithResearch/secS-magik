@@ -5,7 +5,7 @@ async fn main() {
     run_prototype_gateway(
         "0.0.0.0:9001",
         "sqlite:node_telemetry.db?mode=rwc",
-        "secZ compatibility gateway",
+        "secS prototype gateway",
     )
     .await;
 }

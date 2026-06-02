@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Executed Phase 0.1 layout alignment: moved reusable prototype gateway, ingress, and payload handling out of `server/src/bin/secz.rs` into library modules; added a canonical `secs-gateway` binary and kept `secz` as a compatibility wrapper.
+- Added placeholder module homes for manifest, evidence, receipt, and ledger responsibilities so future verifier work has explicit boundaries before semantics land.
 - Made the public README product-neutral and reader-oriented: removed Gallery/Zenith product framing and moved away from agent/self-guidance language.
 - Added Phase 0.1 to the implementation slices for aligning the codebase/module layout with the current secS direction before more verifier behavior accumulates in legacy locations.
 - Made payload decryption mode explicit — `SECZ_RUNTIME_MODE`/`SECS_RUNTIME_MODE` now defaults to `production_verified`, `local_dev_tunnel` still requires a tunnel key, and only `local_dev_plaintext` permits plaintext local testing.
