@@ -18,6 +18,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added receiver-local manifest descriptors in `server/src/manifest.rs`, including `OperationDescriptor`, `ReceiverManifest`, seeded descriptors for `0x01`, `0x02`, `0x10`, `0x20`, and `0x30`, opcode range governance, dev-binding flags, and typed unknown-opcode lookup errors.
+- Added manifest tests for descriptor lookup, unknown-opcode rejection, seeded operation coverage, dev-binding labels, and reserved/core/candidate/operator range classification.
 - Added an implementation progress checklist at `docs/plans/2026-06-01-implementation-progress-checklist.md` so CI alignment and issue-by-issue progress are trackable.
 - Added explicit Issue 0.2 packet/opcode regression tests covering non-empty packet round trip, maximum `u8` opcode, and serialization-valid-but-verifier-rejected empty proof / zero TTL envelopes.
 - Added typed verifier result and signed `VerifiedCallContext` primitives — establishes the Phase 1 handoff contract with audience, expiry, signer metadata, and Ed25519 tamper/wrong-key checks before routing code depends on it.

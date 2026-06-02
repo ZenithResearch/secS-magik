@@ -26,9 +26,9 @@ Use this as the running checklist for the current implementation train. Keep one
 - [x] Issue 1.1 — Introduce typed verification results and signed context types without changing routing yet.
 - [x] Issue 1.2 — Route prototype proof envelope through typed verifier result.
 - [x] Issue 1.3 — Make runtime mode explicit and remove silent plaintext fallback.
-- [ ] Issue 1.4 — Receiver-local manifest and OperationDescriptor.
-- [ ] Issue 1.5 — Manifest-aware verifier lookup.
+- [x] Issue 1.4 / plan Issue 2.1 — Receiver-local manifest and OperationDescriptor.
+- [ ] Issue 1.5 / plan Issue 2.2 — Manifest-aware verifier lookup.
 
 ## Next recommended issue
 
-Issue 1.4 — Receiver-local manifest and OperationDescriptor. The codebase now has `server/src/manifest.rs` as the module home, and Issue 0.2 regression tests protect packet/opcode compatibility before manifest semantics land.
+Issue 1.5 / plan Issue 2.2 — Manifest-aware verifier lookup. The descriptor layer exists in `server/src/manifest.rs`; the next slice should route descriptor lookup through verification before execution without rewriting broker semantics beyond that scope.

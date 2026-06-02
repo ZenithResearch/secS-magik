@@ -29,6 +29,7 @@ This document is the status ledger for this repository. It separates what is imp
 | Historical secZ compatibility binary | `server/src/bin/secz.rs` | Partial / prototype | Thin compatibility wrapper for the old command name; not canonical verifier ownership. |
 | Prototype ingress | `server/src/ingress.rs` | Partial / prototype | Deserializes packets, calls the prototype verifier/payload path, and hands payloads to the gateway router. |
 | Prototype gateway/router | `server/src/gateway.rs` | Partial / prototype | Stores opcode and payload size in `node_telemetry` and routes configured machine programs. It is not yet a receipt/event ledger or signed execution broker. |
+| Receiver-local manifest descriptors | `server/src/manifest.rs` | Solid / implemented as descriptor layer | Defines `OperationDescriptor`, `ReceiverManifest`, opcode range classification, seeded v0 descriptors for `0x01`, `0x02`, `0x10`, `0x20`, and `0x30`, and typed unknown-opcode lookup errors. |
 | Payload handling | `server/src/payload.rs` | Solid / implemented | Parses tunnel keys and enforces explicit runtime-mode payload behavior. |
 
 ## Current partial / prototype behavior to name carefully
@@ -39,7 +40,7 @@ This document is the status ledger for this repository. It separates what is imp
 | Payload security | Tunnel decrypt works if key is configured; plaintext is only allowed when `SECZ_RUNTIME_MODE=local_dev_plaintext` or `SECS_RUNTIME_MODE=local_dev_plaintext`. | “Explicit runtime-mode payload handling,” not silent production plaintext fallback. |
 | secZ compatibility file | `server/src/bin/secz.rs` exists as a thin compatibility wrapper. | “Historical command compatibility wrapper,” not the canonical verifier or client architecture. |
 | secS verifier | secS parses/inspects and routes; full staged verifier does not exist. | “Target verifier substrate,” not fully implemented verifier. |
-| Manifest | Hardcoded `register()` calls exist; no typed `OperationDescriptor` module yet. | “Prototype bindings,” not a real receiver-local manifest. |
+| Manifest-to-execution wiring | Typed descriptors now exist, but the gateway still uses hardcoded `register()` calls. | “Receiver-local descriptor layer exists,” not “manifest-gated execution” yet. |
 | Telemetry/audit | `node_telemetry` stores opcode and payload size from `server/src/gateway.rs`. | “Thin local telemetry,” not receipt ledger or audit proof. |
 | Dregg/Midnight/Cardano | No runtime dependency in current workspace. | “Future optional evidence/anchor rails,” not current implementation. |
 
@@ -50,8 +51,8 @@ These are accepted next-pass targets from the current objectives spec and issue-
 | Target | Planned location | Status |
 |---|---|---|
 | Repository schema / module layout | `docs/repository-schema.md`, `server/src/{ingress,gateway,payload,manifest,evidence,receipt,ledger}.rs` | Phase 0.1 implemented: reusable gateway/payload/ingress code moved out of binaries, and placeholder module homes exist for manifest/evidence/receipt/ledger. |
-| OperationDescriptor / ReceiverManifest | `server/src/manifest.rs` | Module home exists; concrete descriptors planned next. |
-| Opcode range governance | `server/src/manifest.rs`, docs; possibly `core/src/lib.rs` constants | Planned; docs define ranges now. |
+| OperationDescriptor / ReceiverManifest | `server/src/manifest.rs` | Implemented as a receiver-local descriptor/lookup layer; execution wiring still planned. |
+| Opcode range governance | `server/src/manifest.rs`, docs; possibly `core/src/lib.rs` constants | Implemented in the manifest descriptor layer for reserved/core/candidate/operator ranges. |
 | VerificationError / verifier pipeline | `server/src/verifier.rs` | Partially implemented: typed errors and prototype envelope/signature context helpers exist; full staged verifier pipeline still planned. |
 | SignedVerifiedCallContext | `server/src/verifier.rs` | Implemented for Ed25519 context signing/verification; receipt integration still planned. |
 | Identity/signature helpers for contexts/receipts | `server/src/identity.rs` | Planned / next implementation; low-level Ed25519 primitives exist in `core/src/zk.rs`. |

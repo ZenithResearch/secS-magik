@@ -2,7 +2,7 @@
 
 secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
 
-Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. The receiver manifest, receipt ledger, evidence adapters, and full verifier pipeline are still implementation work.
+Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. A receiver-local manifest descriptor layer now exists; manifest-aware execution, receipt ledger, evidence adapters, and the full verifier pipeline are still implementation work.
 
 Current source of truth:
 
@@ -27,9 +27,9 @@ Use these labels across all docs:
 
 Short current status:
 
-- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes.
-- Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, `node_telemetry`, hardcoded opcode bindings.
-- Planned next: receiver manifest semantics, full verifier pipeline, signed receipts, event/receipt ledger implementation, `local_static` evidence adapter, and bounded execution broker.
+- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, and receiver-local manifest descriptors.
+- Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, `node_telemetry`, hardcoded opcode bindings not yet gated by manifest lookup.
+- Planned next: manifest-aware verifier/execution wiring, full verifier pipeline, signed receipts, event/receipt ledger implementation, `local_static` evidence adapter, and bounded execution broker.
 - Future/optional: external proof, federation receipt, and settlement evidence adapters.
 - Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access.
 
@@ -78,7 +78,7 @@ Important boundaries:
 | `server/src/ingress.rs` | Prototype TCP ingress and gateway connection handling. | Owns packet decode/prototype verification/decrypt handoff for the current gateway. |
 | `server/src/gateway.rs` | Configurable router, prototype telemetry schema, and prototype machine-program bindings. | Shared gateway library code; binary wrappers should stay thin. |
 | `server/src/payload.rs` | Tunnel-key parsing and runtime-mode payload decryption. | Payload handling policy separated from binary entrypoints. |
-| `server/src/manifest.rs` | Receiver-local manifest placeholder. | Concrete descriptor semantics land in a later issue. |
+| `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics exist; execution wiring lands in a later issue. |
 | `server/src/evidence.rs` | Evidence adapter placeholder. | External systems integrate through adapters rather than core parser logic. |
 | `server/src/receipt.rs` | Receipt/audit placeholder. | Signed receipt types land in a later issue. |
 | `server/src/ledger.rs` | Event/receipt ledger placeholder. | Structured persistence lands after receipt types. |
