@@ -27,8 +27,12 @@ Use this as the running checklist for the current implementation train. Keep one
 - [x] Issue 1.2 — Route prototype proof envelope through typed verifier result.
 - [x] Issue 1.3 — Make runtime mode explicit and remove silent plaintext fallback.
 - [x] Issue 1.4 / plan Issue 2.1 — Receiver-local manifest and OperationDescriptor.
-- [ ] Issue 1.5 / plan Issue 2.2 — Manifest-aware verifier lookup.
+- [x] Issue 1.5 / plan Issue 2.2 — Manifest-aware verifier lookup.
+
+## Phase 3
+
+- [ ] Issue 3.1 — Define receipt and event types.
 
 ## Next recommended issue
 
-Issue 1.5 / plan Issue 2.2 — Manifest-aware verifier lookup. The descriptor layer exists in `server/src/manifest.rs`; the next slice should route descriptor lookup through verification before execution without rewriting broker semantics beyond that scope.
+Issue 3.1 — Define receipt and event types. Manifest-aware lookup now signs a `VerifiedCallContext` before `ConfigurableRouter::route_verified`; the next slice should add typed receipts/events without introducing durable receipt tables yet.

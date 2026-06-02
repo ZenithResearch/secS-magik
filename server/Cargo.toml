@@ -9,6 +9,7 @@ libsec-core = { path = "../core" }
 bincode.workspace = true
 serde.workspace = true
 ed25519-dalek.workspace = true
+sha2.workspace = true
 async-trait = "0.1.89"
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
 serial_test = "3.2"

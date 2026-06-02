@@ -1,4 +1,5 @@
 use libsec_core::ZenithPacket;
+use server::manifest::ReceiverManifest;
 use server::verifier::{
     AuthenticatorKind, VerificationError, VerifiedCallContext, VerifiedSubject, Verifier,
 };
@@ -132,5 +133,59 @@ fn prototype_envelope_rejects_zero_ttl_with_typed_error() {
     assert_eq!(
         Verifier::verify_prototype_envelope(&packet).unwrap_err(),
         VerificationError::ExpiredClaim
+    );
+}
+
+#[test]
+fn verifier_signs_manifest_described_context_before_execution() {
+    let packet = prototype_packet(vec![1], 600);
+    let manifest = ReceiverManifest::default_v0();
+    let key = [7u8; 32];
+
+    let signed = Verifier::verify_manifest_operation_and_sign(
+        &packet,
+        &manifest,
+        "secS://receiver-a",
+        1_000,
+        "verifier:local-test",
+        &key,
+    )
+    .unwrap();
+
+    assert_eq!(signed.signer_key_id, "verifier:local-test");
+    assert_eq!(
+        signed.authenticator_kind,
+        AuthenticatorKind::Ed25519Verifier
+    );
+    assert_eq!(signed.context.opcode, 0x10);
+    assert_eq!(signed.context.operation, "candidate.dev.bash_echo");
+    assert_eq!(signed.context.handler_id.as_deref(), Some("dev/bash-echo"));
+    assert_eq!(signed.context.audience, "secS://receiver-a");
+    assert_eq!(signed.context.issued_at, 1_000);
+    assert_eq!(signed.context.expires_at, 1_300);
+    assert_eq!(signed.context.replay_scope, "session:opcode:nonce");
+
+    signed
+        .verify_ed25519(&key, "secS://receiver-a", 1_100)
+        .unwrap();
+}
+
+#[test]
+fn verifier_rejects_unknown_opcode_before_signed_context() {
+    let mut packet = prototype_packet(vec![1], 600);
+    packet.opcode = 0x99;
+    let manifest = ReceiverManifest::default_v0();
+
+    assert_eq!(
+        Verifier::verify_manifest_operation_and_sign(
+            &packet,
+            &manifest,
+            "secS://receiver-a",
+            1_000,
+            "verifier:local-test",
+            &[7u8; 32],
+        )
+        .unwrap_err(),
+        VerificationError::UnknownOperation
     );
 }

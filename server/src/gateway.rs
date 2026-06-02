@@ -1,3 +1,4 @@
+use crate::verifier::SignedVerifiedCallContext;
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -27,12 +28,14 @@ impl ConfigurableRouter {
     pub async fn route(&self, opcode: u8, payload: Vec<u8>) {
         let payload_size = payload.len() as i64;
 
-        if let Err(e) =
-            sqlx::query("INSERT INTO node_telemetry (opcode, payload_size) VALUES (?, ?)")
-                .bind(i64::from(opcode))
-                .bind(payload_size)
-                .execute(&self.pool)
-                .await
+        if let Err(e) = sqlx::query(
+            "INSERT INTO node_telemetry (opcode, payload_size, operation) VALUES (?, ?, ?)",
+        )
+        .bind(i64::from(opcode))
+        .bind(payload_size)
+        .bind("unverified.prototype")
+        .execute(&self.pool)
+        .await
         {
             eprintln!("secS [Telemetry]: failed to write log - {}", e);
         }
@@ -40,6 +43,31 @@ impl ConfigurableRouter {
         match self.programs.get(&opcode) {
             Some(program) => program.execute(&payload).await,
             None => eprintln!("secS [Router]: rejected unmapped opcode {:#04x}", opcode),
+        }
+    }
+
+    pub async fn route_verified(&self, signed: &SignedVerifiedCallContext, payload: Vec<u8>) {
+        let context = &signed.context;
+        let payload_size = payload.len() as i64;
+
+        if let Err(e) = sqlx::query(
+            "INSERT INTO node_telemetry (opcode, payload_size, operation) VALUES (?, ?, ?)",
+        )
+        .bind(i64::from(context.opcode))
+        .bind(payload_size)
+        .bind(&context.operation)
+        .execute(&self.pool)
+        .await
+        {
+            eprintln!("secS [Telemetry]: failed to write verified log - {}", e);
+        }
+
+        match self.programs.get(&context.opcode) {
+            Some(program) => program.execute(&payload).await,
+            None => eprintln!(
+                "secS [Router]: rejected verified operation without handler {} ({:#04x})",
+                context.operation, context.opcode
+            ),
         }
     }
 }
@@ -50,7 +78,8 @@ pub async fn init_telemetry_schema(pool: &SqlitePool) -> Result<(), sqlx::Error>
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             opcode INTEGER NOT NULL,
-            payload_size INTEGER NOT NULL
+            payload_size INTEGER NOT NULL,
+            operation TEXT NOT NULL DEFAULT 'unverified.prototype'
         );",
     )
     .execute(pool)

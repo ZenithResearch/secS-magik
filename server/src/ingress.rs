@@ -1,12 +1,18 @@
 use crate::gateway::{init_telemetry_schema, register_prototype_bindings, ConfigurableRouter};
+use crate::manifest::ReceiverManifest;
 use crate::payload::decrypt_machine_payload;
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::Verifier;
 use libsec_core::ZenithPacket;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
+
+const LOCAL_VERIFIER_KEY_ID: &str = "verifier:local-prototype";
+const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
+const LOCAL_AUDIENCE: &str = "secS://prototype-gateway";
 
 pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut socket: TcpStream) {
     let mut wire_bytes = Vec::new();
@@ -43,7 +49,33 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
         }
     };
 
-    router.route(packet.opcode, payload).await;
+    let manifest = ReceiverManifest::default_v0();
+    let signed_context = match Verifier::verify_manifest_operation_and_sign(
+        &packet,
+        &manifest,
+        LOCAL_AUDIENCE,
+        current_unix_seconds(),
+        LOCAL_VERIFIER_KEY_ID,
+        &LOCAL_VERIFIER_SECRET_KEY,
+    ) {
+        Ok(context) => context,
+        Err(error) => {
+            eprintln!(
+                "secS [Manifest]: rejected packet before handler lookup - {}",
+                error.reason_code()
+            );
+            return;
+        }
+    };
+
+    router.route_verified(&signed_context, payload).await;
+}
+
+fn current_unix_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
 }
 
 pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {

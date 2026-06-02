@@ -1,6 +1,8 @@
+use crate::manifest::{ReceiverManifest, ReplayScope};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
 use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationError {
@@ -95,6 +97,64 @@ impl Verifier {
             return Err(VerificationError::ExpiredClaim);
         }
         Ok(())
+    }
+
+    pub fn verify_manifest_operation_and_sign(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        signer_key_id: &str,
+        secret_key: &[u8; 32],
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        Self::verify_prototype_envelope(packet)?;
+        let descriptor = manifest.lookup(packet.opcode)?;
+        let max_ttl = packet.claim_ttl.min(descriptor.max_ttl_seconds);
+        let context = VerifiedCallContext {
+            schema_version: 1,
+            context_id: format!("ctx-v1-{now}-{:02x}", packet.opcode),
+            packet_hash: packet_hash(packet)?,
+            session_id: packet.session_id,
+            nonce: packet.nonce,
+            opcode: packet.opcode,
+            operation: descriptor.name.as_str().to_string(),
+            subject: VerifiedSubject {
+                subject_id: "prototype.local-dev.subject".to_string(),
+                key_id: "prototype.local-dev.subject#key".to_string(),
+            },
+            audience: audience.to_string(),
+            evidence_summary: descriptor_evidence_summary(descriptor),
+            capability_result: descriptor.required_capabilities.join(","),
+            credential_result: descriptor.required_credentials.join(","),
+            issued_at: now,
+            expires_at: now.saturating_add(max_ttl),
+            replay_scope: replay_scope_name(descriptor.replay_scope).to_string(),
+            handler_id: Some(descriptor.handler_id.clone()),
+        };
+
+        context.sign_ed25519(
+            signer_key_id,
+            secret_key,
+            AuthenticatorKind::Ed25519Verifier,
+        )
+    }
+}
+
+fn packet_hash(packet: &ZenithPacket) -> Result<[u8; 32], VerificationError> {
+    let bytes = bincode::serialize(packet).map_err(|_| VerificationError::InternalError)?;
+    Ok(Sha256::digest(bytes).into())
+}
+
+fn descriptor_evidence_summary(descriptor: &crate::manifest::OperationDescriptor) -> Vec<String> {
+    let mut evidence = descriptor.accepted_evidence.clone();
+    evidence.push(format!("opcode_range:{:?}", descriptor.range));
+    evidence.push(format!("dev_binding:{}", descriptor.dev_binding));
+    evidence
+}
+
+fn replay_scope_name(scope: ReplayScope) -> &'static str {
+    match scope {
+        ReplayScope::SessionOpcodeNonce => "session:opcode:nonce",
     }
 }
 
