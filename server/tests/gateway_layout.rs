@@ -3,12 +3,15 @@ use libsec_core::ZenithPacket;
 use server::gateway::{
     init_telemetry_schema, ConfigurableRouter, ExecutionLimits, HandlerOutcome, MachineProgram,
 };
+use server::identity::{load_node_verifier_identity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
+use server::runtime_mode::RuntimeMode;
 use server::verifier::{VerifiedCallContext, Verifier};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 struct CountingProgram {
     calls: Arc<AtomicUsize>,
@@ -71,6 +74,27 @@ fn signed_context(opcode: u8, payload: &[u8]) -> server::verifier::SignedVerifie
         &[7u8; 32],
     )
     .unwrap()
+}
+
+fn unique_temp_key_path(name: &str) -> std::path::PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!("secs-magik-{name}-{nanos}.key"))
+}
+
+fn write_key_file(bytes: [u8; 32]) -> std::path::PathBuf {
+    let path = unique_temp_key_path("b3-router-identity");
+    fs::write(
+        &path,
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+    )
+    .expect("key fixture should be writable");
+    path
 }
 
 type CountingProgramParts = (
@@ -147,6 +171,67 @@ async fn gateway_router_rejects_unmapped_opcode_without_executing_program() {
 }
 
 #[tokio::test]
+async fn gateway_router_signs_receipts_with_loaded_production_identity() {
+    let path = write_key_file([0x45; 32]);
+    let identity = load_node_verifier_identity(&VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(path.clone()),
+        verifier_key_id: None,
+    })
+    .expect("production identity should load from configured key path");
+    let expected_key_id = identity.signer_key_id().to_string();
+    let (program, _calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
+    router.register(0x10, program);
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+
+    let receipt_rows: Vec<(String, String, String, Vec<u8>)> = sqlx::query_as(
+        "SELECT kind, signer_key_id, authenticator_kind, signature FROM receipts ORDER BY timestamp, receipt_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert!(receipt_rows.iter().any(|row| {
+        row.0 == "verify"
+            && row.1 == expected_key_id
+            && row.2 == "ed25519_node_and_verifier"
+            && !row.3.is_empty()
+    }));
+    assert!(receipt_rows.iter().any(|row| {
+        row.0 == "execute"
+            && row.1 == expected_key_id
+            && row.2 == "ed25519_node_and_verifier"
+            && !row.3.is_empty()
+    }));
+
+    let _ = fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn gateway_router_default_receipts_are_marked_local_dev_untrusted() {
+    let (program, _calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+
+    let auth_kinds: Vec<(String,)> = sqlx::query_as(
+        "SELECT DISTINCT authenticator_kind FROM receipts WHERE kind IN ('verify', 'execute')",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(auth_kinds, vec![("local_dev_untrusted".to_string(),)]);
+}
+
+#[tokio::test]
 async fn gateway_router_executes_only_with_verified_context_passed_to_handler() {
     let (program, calls, bytes, handler_ids) = counting_program();
     let pool = memory_pool().await;
@@ -181,7 +266,7 @@ async fn gateway_router_executes_only_with_verified_context_passed_to_handler() 
             && row.1 == "accepted"
             && row.2 == "candidate.dev.bash_echo"
             && row.3 == "dev/bash-echo"
-            && row.4 == "ed25519_verifier"
+            && row.4 == "local_dev_untrusted"
             && !row.5.is_empty()
     }));
     assert!(receipt_rows.iter().any(|row| {
@@ -189,7 +274,7 @@ async fn gateway_router_executes_only_with_verified_context_passed_to_handler() 
             && row.1 == "accepted"
             && row.2 == "candidate.dev.bash_echo"
             && row.3 == "dev/bash-echo"
-            && row.4 == "ed25519_verifier"
+            && row.4 == "local_dev_untrusted"
             && !row.5.is_empty()
     }));
 }

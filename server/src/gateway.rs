@@ -1,5 +1,6 @@
+use crate::identity::{explicit_test_fixture_identity, NodeVerifierIdentity};
 use crate::ledger::Ledger;
-use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
+use crate::receipt::{Decision, Receipt, ReceiptEventKind};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
@@ -8,7 +9,6 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::timeout;
 
-const PROTOTYPE_RECEIPT_SIGNER_KEY_ID: &str = "verifier:local-prototype";
 const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +58,7 @@ pub struct ConfigurableRouter {
     pool: SqlitePool,
     ledger: Ledger,
     limits: ExecutionLimits,
+    identity: NodeVerifierIdentity,
 }
 
 impl ConfigurableRouter {
@@ -66,16 +67,40 @@ impl ConfigurableRouter {
     }
 
     pub fn with_limits(pool: SqlitePool, limits: ExecutionLimits) -> Self {
+        Self::with_limits_and_identity(
+            pool,
+            limits,
+            explicit_test_fixture_identity(
+                "verifier:local-prototype",
+                PROTOTYPE_RECEIPT_SIGNING_KEY,
+            ),
+        )
+    }
+
+    pub fn with_identity(pool: SqlitePool, identity: NodeVerifierIdentity) -> Self {
+        Self::with_limits_and_identity(pool, ExecutionLimits::default(), identity)
+    }
+
+    pub fn with_limits_and_identity(
+        pool: SqlitePool,
+        limits: ExecutionLimits,
+        identity: NodeVerifierIdentity,
+    ) -> Self {
         Self {
             programs: HashMap::new(),
             ledger: Ledger::new(pool.clone()),
             pool,
             limits,
+            identity,
         }
     }
 
     pub fn register(&mut self, opcode: u8, program: Box<dyn MachineProgram>) {
         self.programs.insert(opcode, program);
+    }
+
+    pub fn identity(&self) -> &NodeVerifierIdentity {
+        &self.identity
     }
 
     pub async fn route(&self, opcode: u8, payload: Vec<u8>) {
@@ -257,11 +282,7 @@ impl ConfigurableRouter {
     }
 
     async fn record_signed_receipt(&self, receipt: Receipt) {
-        let signed = match receipt.sign_ed25519(
-            PROTOTYPE_RECEIPT_SIGNER_KEY_ID,
-            &PROTOTYPE_RECEIPT_SIGNING_KEY,
-            AuthenticatorKind::Ed25519Verifier,
-        ) {
+        let signed = match self.identity.sign_receipt(receipt) {
             Ok(receipt) => receipt,
             Err(error) => {
                 eprintln!(

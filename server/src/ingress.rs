@@ -1,4 +1,7 @@
 use crate::gateway::{init_telemetry_schema, register_prototype_bindings, ConfigurableRouter};
+use crate::identity::{
+    explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
+};
 use crate::manifest::ReceiverManifest;
 use crate::payload::decrypt_machine_payload;
 use crate::runtime_mode::RuntimeMode;
@@ -10,7 +13,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 
-const LOCAL_VERIFIER_KEY_ID: &str = "verifier:local-prototype";
 const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
 const LOCAL_AUDIENCE: &str = "secS://prototype-gateway";
 
@@ -54,13 +56,12 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
     };
 
     let manifest = ReceiverManifest::default_v0();
-    let signed_context = match Verifier::verify_manifest_operation_and_sign(
+    let signed_context = match Verifier::verify_manifest_operation_and_sign_with_identity(
         &packet,
         &manifest,
         LOCAL_AUDIENCE,
         current_unix_seconds(),
-        LOCAL_VERIFIER_KEY_ID,
-        &LOCAL_VERIFIER_SECRET_KEY,
+        router.identity(),
     ) {
         Ok(context) => context,
         Err(error) => {
@@ -94,7 +95,18 @@ pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {
         .await
         .expect("secS gateway: failed to initialize node_telemetry table");
 
-    let mut router = ConfigurableRouter::new(pool);
+    let identity = match RuntimeMode::from_env() {
+        RuntimeMode::ProductionVerified => load_node_verifier_identity(
+            &VerifierIdentityConfig::from_env(),
+        )
+        .unwrap_or_else(|error| {
+            panic!("secS gateway: failed to load production verifier identity - {error}")
+        }),
+        RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => {
+            explicit_test_fixture_identity("verifier:local-prototype", LOCAL_VERIFIER_SECRET_KEY)
+        }
+    };
+    let mut router = ConfigurableRouter::with_identity(pool, identity);
     register_prototype_bindings(&mut router);
 
     let router = Arc::new(router);

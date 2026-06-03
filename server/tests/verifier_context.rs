@@ -1,8 +1,12 @@
 use libsec_core::ZenithPacket;
+use server::identity::{load_node_verifier_identity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
+use server::runtime_mode::RuntimeMode;
 use server::verifier::{
     AuthenticatorKind, VerificationError, VerifiedCallContext, VerifiedSubject, Verifier,
 };
+use std::fs;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn sample_context() -> VerifiedCallContext {
     VerifiedCallContext {
@@ -109,6 +113,27 @@ fn prototype_packet(proof: Vec<u8>, ttl: u64) -> ZenithPacket {
     }
 }
 
+fn unique_temp_key_path(name: &str) -> std::path::PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!("secs-magik-{name}-{nanos}.key"))
+}
+
+fn write_key_file(bytes: [u8; 32]) -> std::path::PathBuf {
+    let path = unique_temp_key_path("b3-verifier-context");
+    fs::write(
+        &path,
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+    )
+    .expect("key fixture should be writable");
+    path
+}
+
 #[test]
 fn prototype_envelope_accepts_non_empty_proof_and_positive_ttl() {
     let packet = prototype_packet(vec![1], 1);
@@ -168,6 +193,40 @@ fn verifier_signs_manifest_described_context_before_execution() {
     signed
         .verify_ed25519(&key, "secS://receiver-a", 1_100)
         .unwrap();
+}
+
+#[test]
+fn verifier_signs_manifest_context_with_loaded_production_identity() {
+    let path = write_key_file([0x44; 32]);
+    let identity = load_node_verifier_identity(&VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(path.clone()),
+        verifier_key_id: None,
+    })
+    .expect("production identity should load from configured key path");
+    let packet = prototype_packet(vec![1], 600);
+    let manifest = ReceiverManifest::default_v0();
+
+    let signed = Verifier::verify_manifest_operation_and_sign_with_identity(
+        &packet,
+        &manifest,
+        "secS://receiver-a",
+        1_000,
+        &identity,
+    )
+    .expect("production identity should sign manifest context");
+
+    assert_eq!(signed.signer_key_id, identity.signer_key_id());
+    assert_eq!(
+        signed.authenticator_kind,
+        AuthenticatorKind::Ed25519NodeAndVerifier
+    );
+    assert!(!signed.signature.is_empty());
+    signed
+        .verify_ed25519_with_key(identity.public_key(), "secS://receiver-a", 1_100)
+        .expect("configured public key should verify the context");
+
+    let _ = fs::remove_file(path);
 }
 
 #[test]

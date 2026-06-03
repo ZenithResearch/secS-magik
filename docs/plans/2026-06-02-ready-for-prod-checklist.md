@@ -793,6 +793,35 @@ git diff --check -- CHANGELOG.md README.md AGENTS.md docs/ server/
 
 B2 remains bounded: no live federation registry discovery, trusted issuer policy, key status, key revocation, key rotation, Dregg/Castalia registry lookup, wallet-core crypto, Midnight, or Cardano semantics are implemented or claimed by this issue.
 
+#### B3 completion checkpoint
+
+B3 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for configured signed-context and signed-receipt production posture.
+
+Implementation evidence:
+
+- `server/src/verifier.rs` exposes `verify_manifest_operation_and_sign_with_identity`, so manifest-derived signed contexts can be signed by the loaded `NodeVerifierIdentity` rather than raw signer constants.
+- `server/src/ingress.rs` loads `SECS_VERIFIER_KEY_PATH` / `SECS_VERIFIER_KEY_ID` through `VerifierIdentityConfig::from_env()` when `production_verified` is active and fails before serving if the production identity cannot load.
+- `server/src/gateway.rs` carries a `NodeVerifierIdentity` and signs verify/execute receipts through that configured identity.
+- `ConfigurableRouter::with_identity` supports production-shaped receipt signing with the loaded identity, while default/local fixture routers use `explicit_test_fixture_identity` and stamp receipts as `local_dev_untrusted`.
+- Existing context/receipt tamper, wrong-key, wrong-audience, and expired-context tests remain green.
+
+Verification evidence:
+
+```bash
+cargo test -p server verifier_signs_manifest_context_with_loaded_production_identity -- --nocapture
+cargo test -p server gateway_router -- --nocapture
+cargo test -p server verifier_context -- --nocapture
+cargo test -p server receipt -- --nocapture
+cargo test -p server identity -- --nocapture
+cargo test --workspace
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+git diff --check -- CHANGELOG.md README.md AGENTS.md docs/ server/
+```
+
+B3 remains bounded: no production key rotation/revocation, trusted issuer/root registry policy, live federation discovery, wallet-core crypto, Dregg/Castalia registry lookup, Midnight, Cardano, or public receipt/audit anchoring is implemented or claimed by this issue.
+
 ### A8 — Track C issue/commit details: replay, session, and expiry enforcement
 
 | Issue / commit | Objective | Files | TDD / verification commands | Acceptance criteria | Stop condition | Must not claim |

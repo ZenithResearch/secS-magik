@@ -1,4 +1,5 @@
 use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
+use crate::identity::NodeVerifierIdentity;
 use crate::manifest::{ReceiverManifest, ReplayScope};
 pub use crate::receipt::AuthenticatorKind;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
@@ -107,22 +108,57 @@ impl Verifier {
         signer_key_id: &str,
         secret_key: &[u8; 32],
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        Self::verify_manifest_operation_and_sign_with_kind(
+            packet,
+            manifest,
+            audience,
+            now,
+            signer_key_id,
+            secret_key,
+            AuthenticatorKind::Ed25519Verifier,
+        )
+    }
+
+    pub fn verify_manifest_operation_and_sign_with_identity(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        identity: &NodeVerifierIdentity,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let context = Self::verify_manifest_operation(packet, manifest, audience, now)?;
+        identity.sign_context(context)
+    }
+
+    pub fn verify_manifest_operation(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+    ) -> Result<VerifiedCallContext, VerificationError> {
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
-        let context = verified_context_for_descriptor(
+        verified_context_for_descriptor(
             packet,
             descriptor,
             audience,
             "prototype.local-dev.subject",
             descriptor_evidence_summary(descriptor),
             now,
-        )?;
-
-        context.sign_ed25519(
-            signer_key_id,
-            secret_key,
-            AuthenticatorKind::Ed25519Verifier,
         )
+    }
+
+    pub fn verify_manifest_operation_and_sign_with_kind(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        signer_key_id: &str,
+        secret_key: &[u8; 32],
+        authenticator_kind: AuthenticatorKind,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let context = Self::verify_manifest_operation(packet, manifest, audience, now)?;
+        context.sign_ed25519(signer_key_id, secret_key, authenticator_kind)
     }
 
     #[allow(clippy::too_many_arguments)]
