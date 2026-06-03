@@ -196,9 +196,21 @@ impl ConfigurableRouter {
             ),
         };
         if let Err(error) = verification_result {
+            let reason = error.reason_code();
+            if should_emit_signed_context_reject(&error) {
+                self.record_verified_reject_receipt(signed, reason, timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::PacketRejected,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+            }
             eprintln!(
                 "secS [Router]: rejected signed context before routing - {}",
-                error.reason_code()
+                reason
             );
             return;
         }
@@ -452,6 +464,15 @@ fn current_unix_seconds() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
+}
+
+fn should_emit_signed_context_reject(error: &VerificationError) -> bool {
+    matches!(
+        error,
+        VerificationError::ExpiredClaim
+            | VerificationError::WrongAudience
+            | VerificationError::InvalidSignature
+    )
 }
 
 fn context_receipt_suffix(context: &VerifiedCallContext) -> String {

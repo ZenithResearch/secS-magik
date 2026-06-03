@@ -113,6 +113,71 @@ fn prototype_packet(proof: Vec<u8>, ttl: u64) -> ZenithPacket {
     }
 }
 
+#[test]
+fn verifier_rejects_claim_ttl_above_descriptor_max_before_signed_context() {
+    let packet = prototype_packet(vec![1], 301);
+    let manifest = ReceiverManifest::default_v0();
+
+    assert_eq!(
+        Verifier::verify_manifest_operation_and_sign(
+            &packet,
+            &manifest,
+            "secS://receiver-a",
+            1_000,
+            "verifier:local-test",
+            &[7u8; 32],
+        )
+        .unwrap_err(),
+        VerificationError::ClaimTtlExceedsDescriptorMax
+    );
+    assert_eq!(
+        VerificationError::ClaimTtlExceedsDescriptorMax.reason_code(),
+        "claim_ttl_exceeds_descriptor_max"
+    );
+}
+
+#[test]
+fn verifier_accepts_claim_ttl_equal_descriptor_max() {
+    let packet = prototype_packet(vec![1], 300);
+    let manifest = ReceiverManifest::default_v0();
+
+    let signed = Verifier::verify_manifest_operation_and_sign(
+        &packet,
+        &manifest,
+        "secS://receiver-a",
+        1_000,
+        "verifier:local-test",
+        &[7u8; 32],
+    )
+    .unwrap();
+
+    assert_eq!(signed.context.expires_at, 1_300);
+}
+
+#[test]
+fn verifier_rejects_all_zero_session_id_before_signed_context() {
+    let mut packet = prototype_packet(vec![1], 300);
+    packet.session_id = [0u8; 16];
+    let manifest = ReceiverManifest::default_v0();
+
+    assert_eq!(
+        Verifier::verify_manifest_operation_and_sign(
+            &packet,
+            &manifest,
+            "secS://receiver-a",
+            1_000,
+            "verifier:local-test",
+            &[7u8; 32],
+        )
+        .unwrap_err(),
+        VerificationError::InvalidSession
+    );
+    assert_eq!(
+        VerificationError::InvalidSession.reason_code(),
+        "invalid_session"
+    );
+}
+
 fn unique_temp_key_path(name: &str) -> std::path::PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -169,7 +234,7 @@ fn prototype_envelope_rejects_zero_ttl_with_typed_error() {
 
 #[test]
 fn verifier_signs_manifest_described_context_before_execution() {
-    let packet = prototype_packet(vec![1], 600);
+    let packet = prototype_packet(vec![1], 300);
     let manifest = ReceiverManifest::default_v0();
     let key = [7u8; 32];
 
@@ -210,7 +275,7 @@ fn verifier_signs_manifest_context_with_loaded_production_identity() {
         verifier_key_id: None,
     })
     .expect("production identity should load from configured key path");
-    let packet = prototype_packet(vec![1], 600);
+    let packet = prototype_packet(vec![1], 300);
     let manifest = ReceiverManifest::default_v0();
 
     let signed = Verifier::verify_manifest_operation_and_sign_with_identity(
@@ -237,7 +302,7 @@ fn verifier_signs_manifest_context_with_loaded_production_identity() {
 
 #[test]
 fn verifier_rejects_unknown_opcode_before_signed_context() {
-    let mut packet = prototype_packet(vec![1], 600);
+    let mut packet = prototype_packet(vec![1], 300);
     packet.opcode = 0x99;
     let manifest = ReceiverManifest::default_v0();
 

@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Enforced Track C descriptor/session fail-closed verification: descriptor TTL overruns and all-zero sessions now reject before signed context issuance, and expired/wrong-audience/invalid-signature signed contexts emit stable reject receipts/events before any replay reservation or handler execution.
 - Wired verified routing through the Track C replay reservation ledger — duplicate signed contexts are rejected with stable `replay_detected` receipts/events before telemetry or handler execution so a local replay cannot execute a handler twice.
 - Bound handler execution to `VerifiedCallContext` — machine programs now receive verified context plus payload bytes, unverified routes no longer execute handlers, and the router enforces payload-size and timeout limits before emitting signed execution receipts so local dev handlers cannot run from raw opcode/payload assumptions.
 - Routed prototype gateway execution through manifest-aware signed verification contexts: ingress now looks up receiver-local descriptors, signs `VerifiedCallContext`, and calls `ConfigurableRouter::route_verified` before handler execution.
