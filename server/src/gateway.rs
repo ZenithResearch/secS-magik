@@ -159,18 +159,18 @@ impl ConfigurableRouter {
             error,
             timestamp,
         );
-        if let Err(e) = self.ledger.record_receipt(&receipt).await {
-            eprintln!("secS [Ledger]: failed to write reject receipt - {}", e);
-        }
+        let packet_hash = receipt.packet_hash;
+        let reason = receipt.reason.clone();
+        self.record_signed_receipt(receipt).await;
         if let Err(e) = self
             .ledger
             .record_event(
                 ReceiptEventKind::PacketRejected,
-                Some(receipt.packet_hash),
+                Some(packet_hash),
                 Some(packet.opcode),
                 None,
                 None,
-                receipt.reason.as_deref(),
+                reason.as_deref(),
                 timestamp,
             )
             .await

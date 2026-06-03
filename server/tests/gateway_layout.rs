@@ -6,7 +6,7 @@ use server::gateway::{
 use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
 use server::runtime_mode::RuntimeMode;
-use server::verifier::{VerifiedCallContext, Verifier};
+use server::verifier::{VerificationError, VerifiedCallContext, Verifier};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -227,6 +227,61 @@ async fn gateway_router_records_unverified_packets_without_executing_handler() {
     .unwrap();
     assert_eq!(row, (0x10, 7, "unverified.prototype".to_string()));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn gateway_router_signs_preverification_reject_receipts_and_emits_events_without_payload() {
+    let pool = memory_pool().await;
+    let router = ConfigurableRouter::new(pool.clone());
+    let packet = packet(0x10, b"secret payload");
+
+    router
+        .record_reject(&packet, VerificationError::BadMac)
+        .await;
+
+    let receipt: (String, String, String, String, String, Vec<u8>) = sqlx::query_as(
+        "SELECT kind, decision, reason, authenticator_kind, signer_key_id, signature FROM receipts ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(receipt.0, "reject");
+    assert_eq!(receipt.1, "rejected");
+    assert_eq!(receipt.2, "bad_mac");
+    assert_eq!(receipt.3, "local_dev_untrusted");
+    assert_eq!(receipt.4, "verifier:local-prototype");
+    assert!(!receipt.5.is_empty());
+
+    let emitted_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'receipt_emitted' AND reason = 'reject'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(emitted_event_count.0, 1);
+
+    let rejected_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'packet_rejected' AND reason = 'bad_mac'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rejected_event_count.0, 1);
+
+    let leaked_receipt_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE reason LIKE '%secret payload%' OR operation LIKE '%secret payload%'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let leaked_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE reason LIKE '%secret payload%' OR operation LIKE '%secret payload%'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(leaked_receipt_count.0, 0);
+    assert_eq!(leaked_event_count.0, 0);
 }
 
 #[tokio::test]

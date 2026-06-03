@@ -97,7 +97,20 @@ async fn first_replay_reservation_returns_reserved_and_persists_one_row() {
         .unwrap();
 
     assert_eq!(outcome, ReplayReservationOutcome::Reserved);
-    let row: (i64, i64, i64, String, Vec<u8>, i64, Vec<u8>, Vec<u8>, String, String) = sqlx::query_as(
+    type ReplayReservationRow = (
+        i64,
+        i64,
+        i64,
+        String,
+        Vec<u8>,
+        i64,
+        Vec<u8>,
+        Vec<u8>,
+        String,
+        String,
+    );
+
+    let row: ReplayReservationRow = sqlx::query_as(
         "SELECT COUNT(*), reserved_at, expires_at, replay_scope, session_id, opcode, nonce, packet_hash, context_id, signer_key_id FROM replay_reservations",
     )
     .fetch_one(ledger.pool())
