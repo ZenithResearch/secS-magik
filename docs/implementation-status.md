@@ -33,7 +33,7 @@ This document is the status ledger for this repository. It separates what is imp
 | Receipt/event ledger | `server/src/ledger.rs`, `server/tests/ledger.rs` | Solid / implemented as local ledger | Creates `events` and `receipts` tables with runtime SQL, stores signed receipt metadata including `authenticator_kind`, `signer_key_id`, and `signature`, and keeps payload content out of default persistence. |
 | Receiver-local manifest descriptors | `server/src/manifest.rs` | Solid / implemented as descriptor layer | Defines `OperationDescriptor`, `ReceiverManifest`, opcode range classification, seeded v0 descriptors for `0x01`, `0x02`, `0x10`, `0x20`, and `0x30`, and typed unknown-opcode lookup errors. |
 | Payload handling | `server/src/payload.rs` | Solid / implemented | Parses tunnel keys and enforces explicit runtime-mode payload behavior. |
-| Ready-for-prod checklist A0/A1 | `docs/plans/2026-06-02-ready-for-prod-checklist.md` | Solid / implemented as docs/control surface | A0 locks first-prod to all three rails; A1 reconciles the current checkpoint so later slices do not rediscover or contradict landed work. |
+| Ready-for-prod checklist A0–A9 | `docs/plans/2026-06-02-ready-for-prod-checklist.md` | Solid / implemented as docs/control surface | Track A is complete through A9 as a docs/control-surface phase: production definition, status reconciliation, rail taxonomy/non-goals, identity/key lifecycle gate, wallet-core gate, federated evidence model, production policy matrix, first E2E shape, phase/branch/PR issue checklist, and future-rail deferral. This does not implement Tracks B–I runtime behavior. |
 
 ## Current partial / prototype behavior to name carefully
 
