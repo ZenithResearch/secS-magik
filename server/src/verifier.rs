@@ -1,4 +1,5 @@
 use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
+use crate::identity::NodeVerifierIdentity;
 use crate::manifest::{ReceiverManifest, ReplayScope};
 pub use crate::receipt::AuthenticatorKind;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
@@ -22,6 +23,11 @@ pub enum VerificationError {
     InsufficientEvidence,
     InvalidPresentation,
     InvalidSignature,
+    UnknownVerifierKey,
+    RevokedVerifierKey,
+    ExpiredVerifierKey,
+    NotYetValidVerifierKey,
+    UntrustedVerifierKey,
     InternalError,
 }
 
@@ -42,6 +48,11 @@ impl VerificationError {
             Self::InsufficientEvidence => "insufficient_evidence",
             Self::InvalidPresentation => "invalid_presentation",
             Self::InvalidSignature => "invalid_signature",
+            Self::UnknownVerifierKey => "unknown_verifier_key",
+            Self::RevokedVerifierKey => "revoked_verifier_key",
+            Self::ExpiredVerifierKey => "expired_verifier_key",
+            Self::NotYetValidVerifierKey => "not_yet_valid_verifier_key",
+            Self::UntrustedVerifierKey => "untrusted_verifier_key",
             Self::InternalError => "internal_error",
         }
     }
@@ -107,22 +118,57 @@ impl Verifier {
         signer_key_id: &str,
         secret_key: &[u8; 32],
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        Self::verify_manifest_operation_and_sign_with_kind(
+            packet,
+            manifest,
+            audience,
+            now,
+            signer_key_id,
+            secret_key,
+            AuthenticatorKind::Ed25519Verifier,
+        )
+    }
+
+    pub fn verify_manifest_operation_and_sign_with_identity(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        identity: &NodeVerifierIdentity,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let context = Self::verify_manifest_operation(packet, manifest, audience, now)?;
+        identity.sign_context(context)
+    }
+
+    pub fn verify_manifest_operation(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+    ) -> Result<VerifiedCallContext, VerificationError> {
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
-        let context = verified_context_for_descriptor(
+        verified_context_for_descriptor(
             packet,
             descriptor,
             audience,
             "prototype.local-dev.subject",
             descriptor_evidence_summary(descriptor),
             now,
-        )?;
-
-        context.sign_ed25519(
-            signer_key_id,
-            secret_key,
-            AuthenticatorKind::Ed25519Verifier,
         )
+    }
+
+    pub fn verify_manifest_operation_and_sign_with_kind(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        signer_key_id: &str,
+        secret_key: &[u8; 32],
+        authenticator_kind: AuthenticatorKind,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let context = Self::verify_manifest_operation(packet, manifest, audience, now)?;
+        context.sign_ed25519(signer_key_id, secret_key, authenticator_kind)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -238,6 +284,17 @@ impl SignedVerifiedCallContext {
         expected_audience: &str,
         now: u64,
     ) -> Result<(), VerificationError> {
+        let signing_key = SigningKey::from_bytes(secret_key);
+        let verifying_key = VerifyingKey::from(&signing_key);
+        self.verify_ed25519_with_key(&verifying_key, expected_audience, now)
+    }
+
+    pub fn verify_ed25519_with_key(
+        &self,
+        verifying_key: &VerifyingKey,
+        expected_audience: &str,
+        now: u64,
+    ) -> Result<(), VerificationError> {
         if self.context.audience != expected_audience {
             return Err(VerificationError::WrongAudience);
         }
@@ -245,8 +302,6 @@ impl SignedVerifiedCallContext {
             return Err(VerificationError::ExpiredClaim);
         }
 
-        let signing_key = SigningKey::from_bytes(secret_key);
-        let verifying_key = VerifyingKey::from(&signing_key);
         let signature = Signature::from_slice(&self.signature)
             .map_err(|_| VerificationError::InvalidSignature)?;
         let bytes =

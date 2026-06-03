@@ -1,3 +1,6 @@
+use crate::identity::{
+    explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
+};
 use crate::ledger::Ledger;
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
@@ -8,8 +11,8 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::timeout;
 
-const PROTOTYPE_RECEIPT_SIGNER_KEY_ID: &str = "verifier:local-prototype";
 const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
+pub(crate) const DEFAULT_RECEIVER_AUDIENCE: &str = "secS://receiver-a";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandlerOutcome {
@@ -58,6 +61,9 @@ pub struct ConfigurableRouter {
     pool: SqlitePool,
     ledger: Ledger,
     limits: ExecutionLimits,
+    identity: NodeVerifierIdentity,
+    verifier_keys: PublicVerifierKeyRegistry,
+    expected_audience: String,
 }
 
 impl ConfigurableRouter {
@@ -66,16 +72,43 @@ impl ConfigurableRouter {
     }
 
     pub fn with_limits(pool: SqlitePool, limits: ExecutionLimits) -> Self {
+        Self::with_limits_and_identity(
+            pool,
+            limits,
+            explicit_test_fixture_identity(
+                "verifier:local-prototype",
+                PROTOTYPE_RECEIPT_SIGNING_KEY,
+            ),
+        )
+    }
+
+    pub fn with_identity(pool: SqlitePool, identity: NodeVerifierIdentity) -> Self {
+        Self::with_limits_and_identity(pool, ExecutionLimits::default(), identity)
+    }
+
+    pub fn with_limits_and_identity(
+        pool: SqlitePool,
+        limits: ExecutionLimits,
+        identity: NodeVerifierIdentity,
+    ) -> Self {
+        let verifier_keys = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
         Self {
             programs: HashMap::new(),
             ledger: Ledger::new(pool.clone()),
             pool,
             limits,
+            identity,
+            verifier_keys,
+            expected_audience: DEFAULT_RECEIVER_AUDIENCE.to_string(),
         }
     }
 
     pub fn register(&mut self, opcode: u8, program: Box<dyn MachineProgram>) {
         self.programs.insert(opcode, program);
+    }
+
+    pub fn identity(&self) -> &NodeVerifierIdentity {
+        &self.identity
     }
 
     pub async fn route(&self, opcode: u8, payload: Vec<u8>) {
@@ -150,6 +183,25 @@ impl ConfigurableRouter {
         let context = &signed.context;
         let payload_size = payload.len() as i64;
         let timestamp = current_unix_seconds();
+
+        let verification_result = match self.identity.authenticator_kind() {
+            AuthenticatorKind::LocalDevUntrusted => {
+                self.verifier_keys
+                    .verify_signed_context(signed, &self.expected_audience, timestamp)
+            }
+            _ => self.verifier_keys.verify_production_signed_context(
+                signed,
+                &self.expected_audience,
+                timestamp,
+            ),
+        };
+        if let Err(error) = verification_result {
+            eprintln!(
+                "secS [Router]: rejected signed context before routing - {}",
+                error.reason_code()
+            );
+            return;
+        }
 
         if let Err(e) = sqlx::query(
             "INSERT INTO node_telemetry (opcode, payload_size, operation) VALUES (?, ?, ?)",
@@ -257,11 +309,7 @@ impl ConfigurableRouter {
     }
 
     async fn record_signed_receipt(&self, receipt: Receipt) {
-        let signed = match receipt.sign_ed25519(
-            PROTOTYPE_RECEIPT_SIGNER_KEY_ID,
-            &PROTOTYPE_RECEIPT_SIGNING_KEY,
-            AuthenticatorKind::Ed25519Verifier,
-        ) {
+        let signed = match self.identity.sign_receipt(receipt) {
             Ok(receipt) => receipt,
             Err(error) => {
                 eprintln!(

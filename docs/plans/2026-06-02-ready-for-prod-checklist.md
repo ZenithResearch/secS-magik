@@ -708,7 +708,7 @@ Boundary rule:
 | Phase / tracks | Branch | PR title / scope | Issue / commit sequence | Phase verification gate | Merge / stop condition |
 |---|---|---|---|---|---|
 | Track A — production-readiness reconciliation | `phase/track-a-ready-for-prod` | `docs: define secS ready-for-prod implementation train` | A0 through A9, one commit per slice | `git diff --check -- CHANGELOG.md README.md AGENTS.md docs/` plus targeted `rg` checks for A0–A9 acceptance terms | Merge only after A9 explicitly defers or promotes Dregg/Midnight/Cardano and the checklist no longer contains unresolved Track A decisions. |
-| Track B — production identity and key lifecycle | `phase/track-b-identity-key-lifecycle` | `feat(server): add production verifier identity lifecycle` | B1 key config/loading; B2 key id/public registry; B3 signed-context/receipt production posture; B4 rotation/revocation tests/docs | `cargo test -p server identity receipt verifier -- --nocapture`; `cargo test --workspace`; `cargo build --workspace`; `cargo fmt --all -- --check`; strict Clippy if available | Stop when operator-visible key path, key ids, signatures, wrong-key/tamper tests, and local/dev non-authoritative labels are complete without hidden long-lived key generation. |
+| Track B — production identity and key lifecycle | `phase/track-b-identity-key-lifecycle` | `feat(server): add production verifier identity lifecycle` | B1 key config/loading; B2 key id/public registry; B3 signed-context/receipt production posture; B4 rotation/revocation tests/docs | `cargo test -p server identity receipt verifier -- --nocapture`; `cargo test --workspace`; `cargo build --workspace`; `cargo fmt --all -- --check`; strict Clippy if available | Stop when operator-visible key path, key ids, signatures, wrong-key/tamper tests, local/dev non-authoritative labels, and B4 unknown/revoked/expired/not-yet-valid own-verifier lifecycle checks are complete without hidden long-lived key generation. |
 | Track C — replay, session, and expiry enforcement | `phase/track-c-replay-session-expiry` | `feat(server): enforce replay session and expiry policy` | C1 replay store interface; C2 descriptor TTL/session/audience binding; C3 reject receipts for replay/expiry/session failures | `cargo test -p server replay session expiry -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when production packets cannot execute twice, stale/overlong claims reject before handlers, and receipt reasons are stable. |
 | Track D — wallet cryptographic verification / shared wallet core | `phase/track-d-wallet-core-crypto` | `feat(server): verify wallet-core presentations cryptographically` | D1 wallet-core challenge/signature contract; D2 secS verifier integration; D3 wallet reject matrix; D4 client/browser/native packaging notes | `cargo test -p server wallet_presentation -- --nocapture`; wallet-core native/WASM gate if dependency is added; workspace tests/build/fmt/Clippy | Stop when `wallet_presentation` has a successful cryptographic path and wrong signature/key/subject/audience/origin/replay/expiry reject without duplicating wallet-core semantics in secS. |
 | Track E — production evidence policy and first federated evidence path | `phase/track-e-production-evidence-policy` | `feat(server): enforce production evidence policy and trusted issuer credentials` | E1 descriptor runtime evidence policy; E2 `TrustedIssuerEntry` registry; E3 membership/provisioning credential verifier; E4 A6 production policy matrix tests | `cargo test -p server evidence production_federated production_wallet -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when `local_static` cannot satisfy production descriptors and trusted active membership/provisioning credentials can satisfy only permitted operations after receiver-local policy. |
@@ -741,7 +741,117 @@ Track A is the current checklist branch. It remains docs/design work until A9 is
 | B1 — Explicit node/verifier key config | Add operator-visible key loading for the first `node_verifier_key` posture. | `server/src/identity.rs`, `server/src/verifier.rs`, `server/src/receipt.rs`, `server/src/lib.rs`, docs/config docs | RED: tests for missing production key path and hidden generation rejection. GREEN: `cargo test -p server identity_key_config -- --nocapture` | Production mode loads keys only from explicit env/file config; tests may generate ephemeral keys. | Stop after config/load behavior and docs. | Do not generate hidden long-lived production keys. |
 | B2 — Deterministic key id and public registry seam | Define key id format and receiver-held public key lookup/registry seam. | `server/src/identity.rs`, possible `server/src/trust.rs`, `docs/implementation-status.md` | RED/GREEN targeted key id + wrong-key lookup tests; workspace gate | Contexts/receipts include deterministic `signer_key_id`; wrong/untrusted key rejects. | Stop before rotation state if not in this commit. | Do not claim live federation registry discovery. |
 | B3 — Signed context/receipt production posture | Ensure signed contexts and receipts use the configured key path in production and local/dev markers stay visibly non-authoritative. | `server/src/verifier.rs`, `server/src/receipt.rs`, tests | RED/GREEN tamper, wrong key, expired context, local-dev marker tests | `authenticator_kind`, `signer_key_id`, and signatures are present and verified. | Stop when existing tests and new production-key tests pass. | Do not call local_dev_untrusted public proof. |
-| B4 — Rotation/revocation test posture | Add first revocation/rotation seam or explicit TODO-backed registry contract if implementation waits for Track E. | `server/src/identity.rs`, checklist/status docs | RED/GREEN revoked key rejects if seam is implemented; otherwise docs hygiene + future test target checks | Revoked/untrusted/expired key cases are represented by code or explicitly carried as production blockers. | Stop when Track E dependency is clear. | Do not pretend rotation/revocation is complete if only documented. |
+| B4 — Rotation/revocation test posture | Add first revocation/rotation seam or explicit TODO-backed registry contract if implementation waits for Track E. | `server/src/identity.rs`, checklist/status docs | RED/GREEN revoked key rejects if seam is implemented; otherwise docs hygiene + future test target checks | Revoked/untrusted/expired key cases are represented by code or explicitly carried as production blockers. | Stop when Track E dependency is clear. | Do not pretend rotation/revocation is production-complete unless real state exists. |
+
+#### B1 completion checkpoint
+
+B1 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for explicit node/verifier key config.
+
+Implementation evidence:
+
+- `server/src/identity.rs` defines `VerifierIdentityConfig`, `NodeVerifierIdentity`, typed `IdentityConfigError` values, `load_node_verifier_identity`, and the explicit `explicit_test_fixture_identity` helper.
+- `production_verified` without a verifier key path fails before serving or signing with `MissingVerifierKeyPath`.
+- Missing/inaccessible key files fail as `KeyFileInaccessible`; malformed key material fails as `MalformedVerifierKey`.
+- Valid operator key files load into a signer identity that exposes `signer_key_id`, public key bytes, and context/receipt signing helpers.
+- Local/dev generated identities are represented only by the explicit test fixture helper and are stamped `LocalDevUntrusted`.
+
+Verification evidence:
+
+```bash
+cargo test -p server identity_key_config -- --nocapture
+cargo test -p server verifier -- --nocapture
+cargo test -p server receipt -- --nocapture
+```
+
+B1 remains bounded: no public-key registry discovery, deterministic key-id scheme, rotation, revocation, Dregg/Castalia registry lookup, wallet-core crypto, Midnight, or Cardano semantics are implemented or claimed by this issue.
+
+#### B2 completion checkpoint
+
+B2 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for deterministic verifier key ids and the first local public-key lookup seam.
+
+Implementation evidence:
+
+- `server/src/identity.rs` defines `derive_ed25519_key_id`, `PublicVerifierKey`, and `PublicVerifierKeyRegistry`.
+- Default production identity loading derives `signer_key_id` as `ed25519:<sha256-public-key-fingerprint>` when no safe explicit key-id override is configured.
+- Explicit key-id overrides reject empty values, local path-shaped values, and 64+-char hex secret-shaped values as `UnsafeVerifierKeyId`.
+- Signed contexts and signed receipts inherit the identity signer id.
+- `PublicVerifierKeyRegistry` verifies signed contexts and receipts by declared key id and rejects unknown key ids or signatures that only verify under a different key.
+
+Verification evidence:
+
+```bash
+cargo test -p server identity_key_id -- --nocapture
+cargo test -p server wrong_key -- --nocapture
+cargo test -p server verifier_context -- --nocapture
+cargo test -p server receipt -- --nocapture
+cargo test --workspace
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+git diff --check -- CHANGELOG.md README.md AGENTS.md docs/ server/
+```
+
+B2 remains bounded: no live federation registry discovery, trusted issuer policy, key status, key revocation, key rotation, Dregg/Castalia registry lookup, wallet-core crypto, Midnight, or Cardano semantics are implemented or claimed by this issue.
+
+#### B3 completion checkpoint
+
+B3 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for configured signed-context and signed-receipt production posture.
+
+Implementation evidence:
+
+- `server/src/verifier.rs` exposes `verify_manifest_operation_and_sign_with_identity`, so manifest-derived signed contexts can be signed by the loaded `NodeVerifierIdentity` rather than raw signer constants.
+- `server/src/ingress.rs` loads `SECS_VERIFIER_KEY_PATH` / `SECS_VERIFIER_KEY_ID` through `VerifierIdentityConfig::from_env()` when `production_verified` is active and fails before serving if the production identity cannot load.
+- `server/src/gateway.rs` carries a `NodeVerifierIdentity`, verifies signed contexts against its local own-verifier key registry before emitting verify/execute receipts or invoking handlers, and signs receipts through that configured identity.
+- `ConfigurableRouter::with_identity` supports production-shaped receipt signing with the loaded identity, while default/local fixture routers use `explicit_test_fixture_identity` and stamp receipts as `local_dev_untrusted`.
+- Existing context/receipt tamper, wrong-key, wrong-audience, and expired-context tests remain green.
+
+Verification evidence:
+
+```bash
+cargo test -p server verifier_signs_manifest_context_with_loaded_production_identity -- --nocapture
+cargo test -p server gateway_router -- --nocapture
+cargo test -p server verifier_context -- --nocapture
+cargo test -p server receipt -- --nocapture
+cargo test -p server identity -- --nocapture
+cargo test --workspace
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+git diff --check -- CHANGELOG.md README.md AGENTS.md docs/ server/
+```
+
+B3 remains bounded: no production key rotation/revocation, trusted issuer/root registry policy, live federation discovery, wallet-core crypto, Dregg/Castalia registry lookup, Midnight, Cardano, or public receipt/audit anchoring is implemented or claimed by this issue.
+
+#### B4 completion checkpoint
+
+B4 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for the first own-verifier key rotation/revocation posture.
+
+Implementation evidence:
+
+- `server/src/identity.rs` extends `PublicVerifierKey` entries with `status`, `not_before`, `not_after`, `revoked_at`, `replaced_by`, and `production_authority` fields.
+- `VerificationKeyStatus` explicitly represents `active`, `revoked`, `expired`, `unknown`, and `not_yet_valid` status states.
+- `PublicVerifierKeyRegistry::verify_signed_context` and `verify_receipt_at` reject unknown key ids, duplicate key ids, revoked keys including effective `revoked_at` metadata, expired keys, unknown-status keys, and keys outside their validity windows before trusting signatures.
+- Receipt verification evaluates key validity at the receipt's signing timestamp, so historical receipts signed while the verifier key was valid can still verify after later key expiry while receipts signed after expiry reject.
+- `PublicVerifierKey::active` is fail-closed for production authority by default; `NodeVerifierIdentity::public_verifier_key` marks only configured non-local verifier identities as production authority, and `verify_production_signed_context` / `verify_production_receipt_at` reject local/dev/test fixture keys, non-`ed25519_node_and_verifier` authenticator kinds, and non-`ed25519` key metadata even when their signatures verify.
+- Production identity loading rejects symlink and group/world-readable verifier key files, and the public `NodeVerifierIdentity` API no longer exposes raw secret key bytes.
+- Rotation metadata is intentionally non-transitive: `replaced_by` documents a successor key id but does not automatically trust that replacement unless it is separately configured and active in the registry.
+
+Verification evidence:
+
+```bash
+cargo test -p server identity_key_status -- --nocapture
+cargo test -p server revoked_key_rejects -- --nocapture
+cargo test -p server expired_key_rejects -- --nocapture
+cargo test -p server --test identity -- --nocapture
+cargo test -p server verifier_context -- --nocapture
+cargo test -p server receipt -- --nocapture
+cargo test --workspace
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+B4 remains bounded: this is an own configured verifier-key lifecycle seam, not a complete production trusted issuer/root registry. Static `TrustedIssuerEntry` policy, federated credential status checks, live Castalia/Dregg discovery, cryptographic revocation proof, wallet-core crypto, Midnight, Cardano, and operator rotation runbooks remain future Track E or later work unless explicitly promoted.
 
 ### A8 — Track C issue/commit details: replay, session, and expiry enforcement
 
