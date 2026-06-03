@@ -5,11 +5,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serial_test::serial;
 use server::identity::{
     derive_ed25519_key_id, explicit_test_fixture_identity, load_node_verifier_identity,
-    IdentityConfigError, PublicVerifierKeyRegistry, VerifierIdentityConfig,
+    IdentityConfigError, PublicVerifierKey, PublicVerifierKeyRegistry, VerificationKeyStatus,
+    VerifierIdentityConfig,
 };
 use server::receipt::{AuthenticatorKind, Decision, Receipt};
 use server::runtime_mode::RuntimeMode;
-use server::verifier::{VerifiedCallContext, VerifiedSubject};
+use server::verifier::{VerificationError, VerifiedCallContext, VerifiedSubject};
+
+const KEY_VALID_NOW: u64 = 150;
 
 fn unique_temp_path(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -163,6 +166,10 @@ fn identity_key_config_loads_operator_key_and_exposes_signer_key_id() {
     signed_context
         .verify_ed25519(&identity.secret_key_bytes(), "secs://receiver-a", 150)
         .expect("configured public key should verify the signed context");
+    let registry = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
+    registry
+        .verify_production_signed_context(&signed_context, "secs://receiver-a", 150)
+        .expect("configured non-local identity should satisfy production context authority");
 
     let unsigned_receipt = Receipt::execution(
         "receipt-identity-config",
@@ -181,6 +188,9 @@ fn identity_key_config_loads_operator_key_and_exposes_signer_key_id() {
     signed_receipt
         .verify_ed25519_with_key(identity.public_key())
         .expect("configured public key should verify the signed receipt");
+    registry
+        .verify_production_receipt_at(&signed_receipt, 151)
+        .expect("configured non-local identity should satisfy production receipt authority");
     let _ = fs::remove_file(path);
 }
 
@@ -316,12 +326,317 @@ fn identity_key_id_registry_verifies_receipts_by_declared_key_id() {
         .expect("trusted identity should sign receipt");
 
     registry
-        .verify_receipt(&signed_receipt)
+        .verify_receipt_at(&signed_receipt, 170)
         .expect("registered receipt key id should verify");
 
     let mut mismatched_receipt = signed_receipt.clone();
     mismatched_receipt.signer_key_id = derive_ed25519_key_id(untrusted.public_key());
     registry
-        .verify_receipt(&mismatched_receipt)
+        .verify_receipt_at(&mismatched_receipt, 170)
         .expect_err("receipt verification must fail when declared key id selects another key");
+}
+
+#[test]
+fn identity_key_status_public_verifier_key_active_defaults_to_non_production_authority() {
+    let signer = explicit_test_fixture_identity("node-verifier:explicit-non-prod", [0x79; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([PublicVerifierKey::active(
+        signer.signer_key_id(),
+        "ed25519",
+        *signer.public_key(),
+    )]);
+    let signed_context = sample_context()
+        .sign_ed25519(
+            signer.signer_key_id(),
+            &signer.secret_key_bytes(),
+            AuthenticatorKind::Ed25519NodeAndVerifier,
+        )
+        .expect("non-local-shaped context should sign");
+
+    registry
+        .verify_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+        .expect("normal registry lookup should still verify when the key is active");
+    assert_eq!(
+        registry
+            .verify_production_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::UntrustedVerifierKey
+    );
+}
+
+#[test]
+fn identity_key_status_active_configured_key_verifies_contexts_and_receipts() {
+    let trusted = explicit_test_fixture_identity("node-verifier:active", [0x81; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([trusted
+        .public_verifier_key()
+        .with_validity_window(Some(100), Some(200))]);
+    let signed_context = trusted
+        .sign_context(sample_context())
+        .expect("trusted identity should sign context");
+
+    registry
+        .verify_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+        .expect("active key inside validity window should verify context");
+
+    let signed_receipt = trusted
+        .sign_receipt(Receipt::execution(
+            "receipt-active-key-status",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .expect("trusted identity should sign receipt");
+
+    registry
+        .verify_receipt_at(&signed_receipt, KEY_VALID_NOW)
+        .expect("active key inside validity window should verify receipt");
+}
+
+#[test]
+fn revoked_key_rejects_contexts_and_receipts_without_trusting_replacement_automatically() {
+    let old = explicit_test_fixture_identity("node-verifier:old", [0x82; 32]);
+    let replacement = explicit_test_fixture_identity("node-verifier:replacement", [0x83; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([old
+        .public_verifier_key()
+        .with_status(VerificationKeyStatus::Revoked)
+        .with_revoked_at(Some(140))
+        .with_replaced_by(Some(replacement.signer_key_id().to_string()))]);
+    let signed_context = old
+        .sign_context(sample_context())
+        .expect("revoked identity can still produce bytes, but registry must reject");
+
+    assert_eq!(
+        registry
+            .verify_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::RevokedVerifierKey
+    );
+
+    let replacement_context = replacement
+        .sign_context(sample_context())
+        .expect("replacement identity can sign bytes");
+    assert_eq!(
+        registry
+            .verify_signed_context(&replacement_context, "secs://receiver-a", KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::UnknownVerifierKey
+    );
+
+    let signed_receipt = old
+        .sign_receipt(Receipt::execution(
+            "receipt-revoked-key-status",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .expect("revoked identity can still produce receipt bytes");
+    assert_eq!(
+        registry
+            .verify_receipt_at(&signed_receipt, KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::RevokedVerifierKey
+    );
+}
+
+#[test]
+fn revoked_key_rejects_active_key_with_effective_revoked_at_metadata() {
+    let revoked = explicit_test_fixture_identity("node-verifier:revoked-at-active", [0x89; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([revoked
+        .public_verifier_key()
+        .with_revoked_at(Some(140))]);
+    let signed_context = revoked
+        .sign_context(sample_context())
+        .expect("active identity can still produce bytes, but revoked_at must reject");
+    let signed_receipt = revoked
+        .sign_receipt(Receipt::execution(
+            "receipt-revoked-at-active-key-status",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .expect("active identity can still produce receipt bytes");
+
+    assert_eq!(
+        registry
+            .verify_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::RevokedVerifierKey
+    );
+    assert_eq!(
+        registry
+            .verify_receipt_at(&signed_receipt, KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::RevokedVerifierKey
+    );
+}
+
+#[test]
+fn expired_key_rejects_contexts_and_receipts() {
+    let expired = explicit_test_fixture_identity("node-verifier:expired", [0x84; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([expired
+        .public_verifier_key()
+        .with_validity_window(Some(10), Some(120))]);
+    let signed_context = expired
+        .sign_context(sample_context())
+        .expect("expired identity can still produce bytes, but registry must reject");
+
+    assert_eq!(
+        registry
+            .verify_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::ExpiredVerifierKey
+    );
+
+    let signed_receipt = expired
+        .sign_receipt(Receipt::execution(
+            "receipt-expired-key-status",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .expect("expired identity can still produce receipt bytes");
+    assert_eq!(
+        registry
+            .verify_receipt_at(&signed_receipt, KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::ExpiredVerifierKey
+    );
+}
+
+#[test]
+fn identity_key_status_rejects_unknown_and_not_yet_valid_keys() {
+    let unknown = explicit_test_fixture_identity("node-verifier:unknown-status", [0x85; 32]);
+    let not_yet_valid = explicit_test_fixture_identity("node-verifier:not-yet-valid", [0x86; 32]);
+    let missing = explicit_test_fixture_identity("node-verifier:missing", [0x87; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([
+        unknown
+            .public_verifier_key()
+            .with_status(VerificationKeyStatus::Unknown),
+        not_yet_valid
+            .public_verifier_key()
+            .with_validity_window(Some(200), Some(300)),
+    ]);
+
+    assert_eq!(
+        registry
+            .verify_signed_context(
+                &missing.sign_context(sample_context()).unwrap(),
+                "secs://receiver-a",
+                KEY_VALID_NOW,
+            )
+            .unwrap_err(),
+        VerificationError::UnknownVerifierKey
+    );
+    assert_eq!(
+        registry
+            .verify_signed_context(
+                &unknown.sign_context(sample_context()).unwrap(),
+                "secs://receiver-a",
+                KEY_VALID_NOW,
+            )
+            .unwrap_err(),
+        VerificationError::UnknownVerifierKey
+    );
+    assert_eq!(
+        registry
+            .verify_signed_context(
+                &not_yet_valid.sign_context(sample_context()).unwrap(),
+                "secs://receiver-a",
+                KEY_VALID_NOW,
+            )
+            .unwrap_err(),
+        VerificationError::NotYetValidVerifierKey
+    );
+
+    let missing_receipt_context = missing.sign_context(sample_context()).unwrap();
+    let missing_receipt = missing
+        .sign_receipt(Receipt::execution(
+            "receipt-missing-status",
+            &missing_receipt_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .unwrap();
+    assert_eq!(
+        registry
+            .verify_receipt_at(&missing_receipt, KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::UnknownVerifierKey
+    );
+
+    let unknown_receipt_context = unknown.sign_context(sample_context()).unwrap();
+    let unknown_receipt = unknown
+        .sign_receipt(Receipt::execution(
+            "receipt-unknown-status",
+            &unknown_receipt_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .unwrap();
+    assert_eq!(
+        registry
+            .verify_receipt_at(&unknown_receipt, KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::UnknownVerifierKey
+    );
+
+    let not_yet_valid_receipt_context = not_yet_valid.sign_context(sample_context()).unwrap();
+    let not_yet_valid_receipt = not_yet_valid
+        .sign_receipt(Receipt::execution(
+            "receipt-not-yet-valid-status",
+            &not_yet_valid_receipt_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .unwrap();
+    assert_eq!(
+        registry
+            .verify_receipt_at(&not_yet_valid_receipt, KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::NotYetValidVerifierKey
+    );
+}
+
+#[test]
+fn identity_key_status_local_dev_fixture_cannot_satisfy_production_authority() {
+    let fixture = explicit_test_fixture_identity("node-verifier:local-fixture", [0x88; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([fixture.public_verifier_key()]);
+    let signed_context = fixture
+        .sign_context(sample_context())
+        .expect("local fixture should sign bytes for tests");
+
+    registry
+        .verify_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+        .expect("local lookup still verifies test signatures");
+    assert_eq!(
+        registry
+            .verify_production_signed_context(&signed_context, "secs://receiver-a", KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::UntrustedVerifierKey
+    );
+
+    let signed_receipt = fixture
+        .sign_receipt(Receipt::execution(
+            "receipt-local-fixture-production-rejected",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .expect("local fixture should sign receipt bytes for tests");
+    registry
+        .verify_receipt_at(&signed_receipt, KEY_VALID_NOW)
+        .expect("local lookup still verifies test receipt signatures");
+    assert_eq!(
+        registry
+            .verify_production_receipt_at(&signed_receipt, KEY_VALID_NOW)
+            .unwrap_err(),
+        VerificationError::UntrustedVerifierKey
+    );
 }

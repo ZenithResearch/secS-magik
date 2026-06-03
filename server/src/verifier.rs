@@ -23,6 +23,11 @@ pub enum VerificationError {
     InsufficientEvidence,
     InvalidPresentation,
     InvalidSignature,
+    UnknownVerifierKey,
+    RevokedVerifierKey,
+    ExpiredVerifierKey,
+    NotYetValidVerifierKey,
+    UntrustedVerifierKey,
     InternalError,
 }
 
@@ -43,6 +48,11 @@ impl VerificationError {
             Self::InsufficientEvidence => "insufficient_evidence",
             Self::InvalidPresentation => "invalid_presentation",
             Self::InvalidSignature => "invalid_signature",
+            Self::UnknownVerifierKey => "unknown_verifier_key",
+            Self::RevokedVerifierKey => "revoked_verifier_key",
+            Self::ExpiredVerifierKey => "expired_verifier_key",
+            Self::NotYetValidVerifierKey => "not_yet_valid_verifier_key",
+            Self::UntrustedVerifierKey => "untrusted_verifier_key",
             Self::InternalError => "internal_error",
         }
     }

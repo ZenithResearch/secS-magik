@@ -66,6 +66,105 @@ pub struct PublicVerifierKey {
     pub key_id: String,
     pub algorithm: String,
     pub public_key: VerifyingKey,
+    pub status: VerificationKeyStatus,
+    pub not_before: Option<u64>,
+    pub not_after: Option<u64>,
+    pub revoked_at: Option<u64>,
+    pub replaced_by: Option<String>,
+    pub production_authority: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerificationKeyStatus {
+    Active,
+    Revoked,
+    Expired,
+    Unknown,
+    NotYetValid,
+}
+
+impl PublicVerifierKey {
+    pub fn active(
+        key_id: impl Into<String>,
+        algorithm: impl Into<String>,
+        public_key: VerifyingKey,
+    ) -> Self {
+        Self {
+            key_id: key_id.into(),
+            algorithm: algorithm.into(),
+            public_key,
+            status: VerificationKeyStatus::Active,
+            not_before: None,
+            not_after: None,
+            revoked_at: None,
+            replaced_by: None,
+            production_authority: false,
+        }
+    }
+
+    pub fn configured_production_authority(
+        key_id: impl Into<String>,
+        algorithm: impl Into<String>,
+        public_key: VerifyingKey,
+    ) -> Self {
+        Self::active(key_id, algorithm, public_key).with_production_authority(true)
+    }
+
+    pub fn with_status(mut self, status: VerificationKeyStatus) -> Self {
+        self.status = status;
+        self
+    }
+
+    pub fn with_validity_window(mut self, not_before: Option<u64>, not_after: Option<u64>) -> Self {
+        self.not_before = not_before;
+        self.not_after = not_after;
+        self
+    }
+
+    pub fn with_revoked_at(mut self, revoked_at: Option<u64>) -> Self {
+        self.revoked_at = revoked_at;
+        self
+    }
+
+    pub fn with_replaced_by(mut self, replaced_by: Option<String>) -> Self {
+        self.replaced_by = replaced_by;
+        self
+    }
+
+    pub fn with_production_authority(mut self, production_authority: bool) -> Self {
+        self.production_authority = production_authority;
+        self
+    }
+
+    fn ensure_active_at(&self, now: u64) -> Result<(), VerificationError> {
+        match self.status {
+            VerificationKeyStatus::Active => {}
+            VerificationKeyStatus::Revoked => return Err(VerificationError::RevokedVerifierKey),
+            VerificationKeyStatus::Expired => return Err(VerificationError::ExpiredVerifierKey),
+            VerificationKeyStatus::Unknown => return Err(VerificationError::UnknownVerifierKey),
+            VerificationKeyStatus::NotYetValid => {
+                return Err(VerificationError::NotYetValidVerifierKey)
+            }
+        }
+
+        if let Some(not_before) = self.not_before {
+            if now < not_before {
+                return Err(VerificationError::NotYetValidVerifierKey);
+            }
+        }
+        if let Some(not_after) = self.not_after {
+            if now > not_after {
+                return Err(VerificationError::ExpiredVerifierKey);
+            }
+        }
+        if let Some(revoked_at) = self.revoked_at {
+            if revoked_at <= now {
+                return Err(VerificationError::RevokedVerifierKey);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -94,14 +193,51 @@ impl PublicVerifierKeyRegistry {
     ) -> Result<(), VerificationError> {
         let key = self
             .get(&signed.signer_key_id)
-            .ok_or(VerificationError::InvalidSignature)?;
+            .ok_or(VerificationError::UnknownVerifierKey)?;
+        key.ensure_active_at(now)?;
         signed.verify_ed25519_with_key(&key.public_key, expected_audience, now)
     }
 
-    pub fn verify_receipt(&self, receipt: &Receipt) -> Result<(), VerificationError> {
+    pub fn verify_production_signed_context(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        expected_audience: &str,
+        now: u64,
+    ) -> Result<(), VerificationError> {
+        let key = self
+            .get(&signed.signer_key_id)
+            .ok_or(VerificationError::UnknownVerifierKey)?;
+        key.ensure_active_at(now)?;
+        if !key.production_authority
+            || signed.authenticator_kind == AuthenticatorKind::LocalDevUntrusted
+        {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
+        signed.verify_ed25519_with_key(&key.public_key, expected_audience, now)
+    }
+
+    pub fn verify_receipt_at(&self, receipt: &Receipt, now: u64) -> Result<(), VerificationError> {
         let key = self
             .get(&receipt.signer_key_id)
-            .ok_or(VerificationError::InvalidSignature)?;
+            .ok_or(VerificationError::UnknownVerifierKey)?;
+        key.ensure_active_at(now)?;
+        receipt.verify_ed25519_with_key(&key.public_key)
+    }
+
+    pub fn verify_production_receipt_at(
+        &self,
+        receipt: &Receipt,
+        now: u64,
+    ) -> Result<(), VerificationError> {
+        let key = self
+            .get(&receipt.signer_key_id)
+            .ok_or(VerificationError::UnknownVerifierKey)?;
+        key.ensure_active_at(now)?;
+        if !key.production_authority
+            || receipt.authenticator_kind == AuthenticatorKind::LocalDevUntrusted
+        {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
         receipt.verify_ed25519_with_key(&key.public_key)
     }
 }
@@ -132,10 +268,15 @@ impl NodeVerifierIdentity {
     }
 
     pub fn public_verifier_key(&self) -> PublicVerifierKey {
-        PublicVerifierKey {
-            key_id: self.signer_key_id.clone(),
-            algorithm: "ed25519".to_string(),
-            public_key: self.public_key,
+        match self.authenticator_kind {
+            AuthenticatorKind::LocalDevUntrusted => {
+                PublicVerifierKey::active(self.signer_key_id.clone(), "ed25519", self.public_key)
+            }
+            _ => PublicVerifierKey::configured_production_authority(
+                self.signer_key_id.clone(),
+                "ed25519",
+                self.public_key,
+            ),
         }
     }
 

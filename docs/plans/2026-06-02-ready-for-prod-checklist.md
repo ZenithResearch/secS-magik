@@ -708,7 +708,7 @@ Boundary rule:
 | Phase / tracks | Branch | PR title / scope | Issue / commit sequence | Phase verification gate | Merge / stop condition |
 |---|---|---|---|---|---|
 | Track A — production-readiness reconciliation | `phase/track-a-ready-for-prod` | `docs: define secS ready-for-prod implementation train` | A0 through A9, one commit per slice | `git diff --check -- CHANGELOG.md README.md AGENTS.md docs/` plus targeted `rg` checks for A0–A9 acceptance terms | Merge only after A9 explicitly defers or promotes Dregg/Midnight/Cardano and the checklist no longer contains unresolved Track A decisions. |
-| Track B — production identity and key lifecycle | `phase/track-b-identity-key-lifecycle` | `feat(server): add production verifier identity lifecycle` | B1 key config/loading; B2 key id/public registry; B3 signed-context/receipt production posture; B4 rotation/revocation tests/docs | `cargo test -p server identity receipt verifier -- --nocapture`; `cargo test --workspace`; `cargo build --workspace`; `cargo fmt --all -- --check`; strict Clippy if available | Stop when operator-visible key path, key ids, signatures, wrong-key/tamper tests, and local/dev non-authoritative labels are complete without hidden long-lived key generation. |
+| Track B — production identity and key lifecycle | `phase/track-b-identity-key-lifecycle` | `feat(server): add production verifier identity lifecycle` | B1 key config/loading; B2 key id/public registry; B3 signed-context/receipt production posture; B4 rotation/revocation tests/docs | `cargo test -p server identity receipt verifier -- --nocapture`; `cargo test --workspace`; `cargo build --workspace`; `cargo fmt --all -- --check`; strict Clippy if available | Stop when operator-visible key path, key ids, signatures, wrong-key/tamper tests, local/dev non-authoritative labels, and B4 unknown/revoked/expired/not-yet-valid own-verifier lifecycle checks are complete without hidden long-lived key generation. |
 | Track C — replay, session, and expiry enforcement | `phase/track-c-replay-session-expiry` | `feat(server): enforce replay session and expiry policy` | C1 replay store interface; C2 descriptor TTL/session/audience binding; C3 reject receipts for replay/expiry/session failures | `cargo test -p server replay session expiry -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when production packets cannot execute twice, stale/overlong claims reject before handlers, and receipt reasons are stable. |
 | Track D — wallet cryptographic verification / shared wallet core | `phase/track-d-wallet-core-crypto` | `feat(server): verify wallet-core presentations cryptographically` | D1 wallet-core challenge/signature contract; D2 secS verifier integration; D3 wallet reject matrix; D4 client/browser/native packaging notes | `cargo test -p server wallet_presentation -- --nocapture`; wallet-core native/WASM gate if dependency is added; workspace tests/build/fmt/Clippy | Stop when `wallet_presentation` has a successful cryptographic path and wrong signature/key/subject/audience/origin/replay/expiry reject without duplicating wallet-core semantics in secS. |
 | Track E — production evidence policy and first federated evidence path | `phase/track-e-production-evidence-policy` | `feat(server): enforce production evidence policy and trusted issuer credentials` | E1 descriptor runtime evidence policy; E2 `TrustedIssuerEntry` registry; E3 membership/provisioning credential verifier; E4 A6 production policy matrix tests | `cargo test -p server evidence production_federated production_wallet -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when `local_static` cannot satisfy production descriptors and trusted active membership/provisioning credentials can satisfy only permitted operations after receiver-local policy. |
@@ -821,6 +821,34 @@ git diff --check -- CHANGELOG.md README.md AGENTS.md docs/ server/
 ```
 
 B3 remains bounded: no production key rotation/revocation, trusted issuer/root registry policy, live federation discovery, wallet-core crypto, Dregg/Castalia registry lookup, Midnight, Cardano, or public receipt/audit anchoring is implemented or claimed by this issue.
+
+#### B4 completion checkpoint
+
+B4 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for the first own-verifier key rotation/revocation posture.
+
+Implementation evidence:
+
+- `server/src/identity.rs` extends `PublicVerifierKey` entries with `status`, `not_before`, `not_after`, `revoked_at`, `replaced_by`, and `production_authority` fields.
+- `VerificationKeyStatus` explicitly represents `active`, `revoked`, `expired`, `unknown`, and `not_yet_valid` status states.
+- `PublicVerifierKeyRegistry::verify_signed_context` and explicit status-time `verify_receipt_at` reject unknown key ids, revoked keys including effective `revoked_at` metadata, expired keys, unknown-status keys, and keys outside their validity windows before trusting signatures.
+- `PublicVerifierKey::active` is fail-closed for production authority by default; `NodeVerifierIdentity::public_verifier_key` marks only configured non-local verifier identities as production authority, and `verify_production_signed_context` / `verify_production_receipt_at` reject local/dev/test fixture keys even when their test signatures verify.
+- Rotation metadata is intentionally non-transitive: `replaced_by` documents a successor key id but does not automatically trust that replacement unless it is separately configured and active in the registry.
+
+Verification evidence:
+
+```bash
+cargo test -p server identity_key_status -- --nocapture
+cargo test -p server revoked_key_rejects -- --nocapture
+cargo test -p server expired_key_rejects -- --nocapture
+cargo test -p server verifier_context -- --nocapture
+cargo test -p server receipt -- --nocapture
+cargo test --workspace
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+B4 remains bounded: this is an own configured verifier-key lifecycle seam, not a complete production trusted issuer/root registry. Static `TrustedIssuerEntry` policy, federated credential status checks, live Castalia/Dregg discovery, cryptographic revocation proof, wallet-core crypto, Midnight, Cardano, and operator rotation runbooks remain future Track E or later work unless explicitly promoted.
 
 ### A8 — Track C issue/commit details: replay, session, and expiry enforcement
 
