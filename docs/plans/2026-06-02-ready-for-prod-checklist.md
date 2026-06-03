@@ -741,7 +741,29 @@ Track A is the current checklist branch. It remains docs/design work until A9 is
 | B1 — Explicit node/verifier key config | Add operator-visible key loading for the first `node_verifier_key` posture. | `server/src/identity.rs`, `server/src/verifier.rs`, `server/src/receipt.rs`, `server/src/lib.rs`, docs/config docs | RED: tests for missing production key path and hidden generation rejection. GREEN: `cargo test -p server identity_key_config -- --nocapture` | Production mode loads keys only from explicit env/file config; tests may generate ephemeral keys. | Stop after config/load behavior and docs. | Do not generate hidden long-lived production keys. |
 | B2 — Deterministic key id and public registry seam | Define key id format and receiver-held public key lookup/registry seam. | `server/src/identity.rs`, possible `server/src/trust.rs`, `docs/implementation-status.md` | RED/GREEN targeted key id + wrong-key lookup tests; workspace gate | Contexts/receipts include deterministic `signer_key_id`; wrong/untrusted key rejects. | Stop before rotation state if not in this commit. | Do not claim live federation registry discovery. |
 | B3 — Signed context/receipt production posture | Ensure signed contexts and receipts use the configured key path in production and local/dev markers stay visibly non-authoritative. | `server/src/verifier.rs`, `server/src/receipt.rs`, tests | RED/GREEN tamper, wrong key, expired context, local-dev marker tests | `authenticator_kind`, `signer_key_id`, and signatures are present and verified. | Stop when existing tests and new production-key tests pass. | Do not call local_dev_untrusted public proof. |
-| B4 — Rotation/revocation test posture | Add first revocation/rotation seam or explicit TODO-backed registry contract if implementation waits for Track E. | `server/src/identity.rs`, checklist/status docs | RED/GREEN revoked key rejects if seam is implemented; otherwise docs hygiene + future test target checks | Revoked/untrusted/expired key cases are represented by code or explicitly carried as production blockers. | Stop when Track E dependency is clear. | Do not pretend rotation/revocation is complete if only documented. |
+| B4 — Rotation/revocation test posture | Add first revocation/rotation seam or explicit TODO-backed registry contract if implementation waits for Track E. | `server/src/identity.rs`, checklist/status docs | RED/GREEN revoked key rejects if seam is implemented; otherwise docs hygiene + future test target checks | Revoked/untrusted/expired key cases are represented by code or explicitly carried as production blockers. | Stop when Track E dependency is clear. | Do not pretend rotation/revocation is production-complete unless real state exists. |
+
+#### B1 completion checkpoint
+
+B1 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for explicit node/verifier key config.
+
+Implementation evidence:
+
+- `server/src/identity.rs` defines `VerifierIdentityConfig`, `NodeVerifierIdentity`, typed `IdentityConfigError` values, `load_node_verifier_identity`, and the explicit `explicit_test_fixture_identity` helper.
+- `production_verified` without a verifier key path fails before serving or signing with `MissingVerifierKeyPath`.
+- Missing/inaccessible key files fail as `KeyFileInaccessible`; malformed key material fails as `MalformedVerifierKey`.
+- Valid operator key files load into a signer identity that exposes `signer_key_id`, public key bytes, and context/receipt signing helpers.
+- Local/dev generated identities are represented only by the explicit test fixture helper and are stamped `LocalDevUntrusted`.
+
+Verification evidence:
+
+```bash
+cargo test -p server identity_key_config -- --nocapture
+cargo test -p server verifier -- --nocapture
+cargo test -p server receipt -- --nocapture
+```
+
+B1 remains bounded: no public-key registry discovery, deterministic key-id scheme, rotation, revocation, Dregg/Castalia registry lookup, wallet-core crypto, Midnight, or Cardano semantics are implemented or claimed by this issue.
 
 ### A8 — Track C issue/commit details: replay, session, and expiry enforcement
 

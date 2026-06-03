@@ -1,5 +1,6 @@
 pub mod evidence;
 pub mod gateway;
+pub mod identity;
 pub mod ingress;
 pub mod ledger;
 pub mod manifest;
