@@ -801,7 +801,7 @@ Implementation evidence:
 
 - `server/src/verifier.rs` exposes `verify_manifest_operation_and_sign_with_identity`, so manifest-derived signed contexts can be signed by the loaded `NodeVerifierIdentity` rather than raw signer constants.
 - `server/src/ingress.rs` loads `SECS_VERIFIER_KEY_PATH` / `SECS_VERIFIER_KEY_ID` through `VerifierIdentityConfig::from_env()` when `production_verified` is active and fails before serving if the production identity cannot load.
-- `server/src/gateway.rs` carries a `NodeVerifierIdentity` and signs verify/execute receipts through that configured identity.
+- `server/src/gateway.rs` carries a `NodeVerifierIdentity`, verifies signed contexts against its local own-verifier key registry before emitting verify/execute receipts or invoking handlers, and signs receipts through that configured identity.
 - `ConfigurableRouter::with_identity` supports production-shaped receipt signing with the loaded identity, while default/local fixture routers use `explicit_test_fixture_identity` and stamp receipts as `local_dev_untrusted`.
 - Existing context/receipt tamper, wrong-key, wrong-audience, and expired-context tests remain green.
 
@@ -830,8 +830,10 @@ Implementation evidence:
 
 - `server/src/identity.rs` extends `PublicVerifierKey` entries with `status`, `not_before`, `not_after`, `revoked_at`, `replaced_by`, and `production_authority` fields.
 - `VerificationKeyStatus` explicitly represents `active`, `revoked`, `expired`, `unknown`, and `not_yet_valid` status states.
-- `PublicVerifierKeyRegistry::verify_signed_context` and explicit status-time `verify_receipt_at` reject unknown key ids, revoked keys including effective `revoked_at` metadata, expired keys, unknown-status keys, and keys outside their validity windows before trusting signatures.
-- `PublicVerifierKey::active` is fail-closed for production authority by default; `NodeVerifierIdentity::public_verifier_key` marks only configured non-local verifier identities as production authority, and `verify_production_signed_context` / `verify_production_receipt_at` reject local/dev/test fixture keys even when their test signatures verify.
+- `PublicVerifierKeyRegistry::verify_signed_context` and `verify_receipt_at` reject unknown key ids, duplicate key ids, revoked keys including effective `revoked_at` metadata, expired keys, unknown-status keys, and keys outside their validity windows before trusting signatures.
+- Receipt verification evaluates key validity at the receipt's signing timestamp, so historical receipts signed while the verifier key was valid can still verify after later key expiry while receipts signed after expiry reject.
+- `PublicVerifierKey::active` is fail-closed for production authority by default; `NodeVerifierIdentity::public_verifier_key` marks only configured non-local verifier identities as production authority, and `verify_production_signed_context` / `verify_production_receipt_at` reject local/dev/test fixture keys, non-`ed25519_node_and_verifier` authenticator kinds, and non-`ed25519` key metadata even when their signatures verify.
+- Production identity loading rejects symlink and group/world-readable verifier key files, and the public `NodeVerifierIdentity` API no longer exposes raw secret key bytes.
 - Rotation metadata is intentionally non-transitive: `replaced_by` documents a successor key id but does not automatically trust that replacement unless it is separately configured and active in the registry.
 
 Verification evidence:
@@ -840,6 +842,7 @@ Verification evidence:
 cargo test -p server identity_key_status -- --nocapture
 cargo test -p server revoked_key_rejects -- --nocapture
 cargo test -p server expired_key_rejects -- --nocapture
+cargo test -p server --test identity -- --nocapture
 cargo test -p server verifier_context -- --nocapture
 cargo test -p server receipt -- --nocapture
 cargo test --workspace

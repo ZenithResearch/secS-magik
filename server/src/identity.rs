@@ -3,7 +3,7 @@ use crate::runtime_mode::RuntimeMode;
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -29,6 +29,7 @@ pub enum IdentityConfigError {
     MissingVerifierKeyPath,
     KeyFileInaccessible { path: PathBuf },
     MalformedVerifierKey,
+    UnsafeVerifierKeyFile { path: PathBuf },
     UnsafeVerifierKeyId,
     LocalDevRequiresExplicitFixture,
 }
@@ -46,6 +47,11 @@ impl fmt::Display for IdentityConfigError {
             Self::MalformedVerifierKey => write!(
                 f,
                 "verifier key file must contain a 32-byte hex Ed25519 secret"
+            ),
+            Self::UnsafeVerifierKeyFile { path } => write!(
+                f,
+                "verifier key file must be a regular owner-private file: {}",
+                path.display()
             ),
             Self::UnsafeVerifierKeyId => write!(
                 f,
@@ -170,12 +176,16 @@ impl PublicVerifierKey {
 #[derive(Debug, Clone, Default)]
 pub struct PublicVerifierKeyRegistry {
     keys: HashMap<String, PublicVerifierKey>,
+    duplicate_key_ids: HashSet<String>,
 }
 
 impl PublicVerifierKeyRegistry {
     pub fn from_keys(keys: impl IntoIterator<Item = PublicVerifierKey>) -> Self {
         let mut registry = Self::default();
         for key in keys {
+            if registry.keys.contains_key(&key.key_id) {
+                registry.duplicate_key_ids.insert(key.key_id.clone());
+            }
             registry.keys.insert(key.key_id.clone(), key);
         }
         registry
@@ -194,6 +204,9 @@ impl PublicVerifierKeyRegistry {
         let key = self
             .get(&signed.signer_key_id)
             .ok_or(VerificationError::UnknownVerifierKey)?;
+        if self.duplicate_key_ids.contains(&signed.signer_key_id) {
+            return Err(VerificationError::UnknownVerifierKey);
+        }
         key.ensure_active_at(now)?;
         signed.verify_ed25519_with_key(&key.public_key, expected_audience, now)
     }
@@ -207,9 +220,13 @@ impl PublicVerifierKeyRegistry {
         let key = self
             .get(&signed.signer_key_id)
             .ok_or(VerificationError::UnknownVerifierKey)?;
+        if self.duplicate_key_ids.contains(&signed.signer_key_id) {
+            return Err(VerificationError::UnknownVerifierKey);
+        }
         key.ensure_active_at(now)?;
         if !key.production_authority
-            || signed.authenticator_kind == AuthenticatorKind::LocalDevUntrusted
+            || key.algorithm != "ed25519"
+            || signed.authenticator_kind != AuthenticatorKind::Ed25519NodeAndVerifier
         {
             return Err(VerificationError::UntrustedVerifierKey);
         }
@@ -220,7 +237,11 @@ impl PublicVerifierKeyRegistry {
         let key = self
             .get(&receipt.signer_key_id)
             .ok_or(VerificationError::UnknownVerifierKey)?;
-        key.ensure_active_at(now)?;
+        if self.duplicate_key_ids.contains(&receipt.signer_key_id) {
+            return Err(VerificationError::UnknownVerifierKey);
+        }
+        let _ = now;
+        key.ensure_active_at(receipt.timestamp)?;
         receipt.verify_ed25519_with_key(&key.public_key)
     }
 
@@ -232,9 +253,14 @@ impl PublicVerifierKeyRegistry {
         let key = self
             .get(&receipt.signer_key_id)
             .ok_or(VerificationError::UnknownVerifierKey)?;
-        key.ensure_active_at(now)?;
+        if self.duplicate_key_ids.contains(&receipt.signer_key_id) {
+            return Err(VerificationError::UnknownVerifierKey);
+        }
+        let _ = now;
+        key.ensure_active_at(receipt.timestamp)?;
         if !key.production_authority
-            || receipt.authenticator_kind == AuthenticatorKind::LocalDevUntrusted
+            || key.algorithm != "ed25519"
+            || receipt.authenticator_kind != AuthenticatorKind::Ed25519NodeAndVerifier
         {
             return Err(VerificationError::UntrustedVerifierKey);
         }
@@ -259,7 +285,7 @@ impl NodeVerifierIdentity {
         &self.public_key
     }
 
-    pub fn secret_key_bytes(&self) -> [u8; 32] {
+    fn secret_key_bytes(&self) -> [u8; 32] {
         self.signing_key.to_bytes()
     }
 
@@ -315,6 +341,7 @@ pub fn load_node_verifier_identity(
         }
     };
 
+    validate_key_file_safety(path)?;
     let raw = std::fs::read_to_string(path)
         .map_err(|_| IdentityConfigError::KeyFileInaccessible { path: path.clone() })?;
     let secret_key = parse_hex_secret_key(&raw)?;
@@ -345,6 +372,24 @@ pub fn explicit_test_fixture_identity(
         public_key,
         authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
     }
+}
+
+fn validate_key_file_safety(path: &PathBuf) -> Result<(), IdentityConfigError> {
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|_| IdentityConfigError::KeyFileInaccessible { path: path.clone() })?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(IdentityConfigError::UnsafeVerifierKeyFile { path: path.clone() });
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 {
+            return Err(IdentityConfigError::UnsafeVerifierKeyFile { path: path.clone() });
+        }
+    }
+
+    Ok(())
 }
 
 fn parse_hex_secret_key(raw: &str) -> Result<[u8; 32], IdentityConfigError> {

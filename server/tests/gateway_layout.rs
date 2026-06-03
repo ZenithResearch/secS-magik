@@ -3,7 +3,7 @@ use libsec_core::ZenithPacket;
 use server::gateway::{
     init_telemetry_schema, ConfigurableRouter, ExecutionLimits, HandlerOutcome, MachineProgram,
 };
-use server::identity::{load_node_verifier_identity, VerifierIdentityConfig};
+use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
 use server::runtime_mode::RuntimeMode;
 use server::verifier::{VerifiedCallContext, Verifier};
@@ -69,11 +69,33 @@ fn signed_context(opcode: u8, payload: &[u8]) -> server::verifier::SignedVerifie
         &packet(opcode, payload),
         &ReceiverManifest::default_v0(),
         "secS://receiver-a",
-        1_000,
-        "verifier:local-test",
+        current_test_time(),
+        "verifier:local-prototype",
         &[7u8; 32],
     )
     .unwrap()
+}
+
+fn signed_context_with_identity(
+    opcode: u8,
+    payload: &[u8],
+    identity: &NodeVerifierIdentity,
+) -> server::verifier::SignedVerifiedCallContext {
+    Verifier::verify_manifest_operation_and_sign_with_identity(
+        &packet(opcode, payload),
+        &ReceiverManifest::default_v0(),
+        "secS://receiver-a",
+        current_test_time(),
+        identity,
+    )
+    .unwrap()
+}
+
+fn current_test_time() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_secs()
 }
 
 fn unique_temp_key_path(name: &str) -> std::path::PathBuf {
@@ -94,6 +116,12 @@ fn write_key_file(bytes: [u8; 32]) -> std::path::PathBuf {
             .collect::<String>(),
     )
     .expect("key fixture should be writable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+            .expect("key fixture should be owner-private");
+    }
     path
 }
 
@@ -185,9 +213,8 @@ async fn gateway_router_signs_receipts_with_loaded_production_identity() {
     let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
     router.register(0x10, program);
 
-    router
-        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
-        .await;
+    let signed = signed_context_with_identity(0x10, b"payload", router.identity());
+    router.route_verified(&signed, b"payload".to_vec()).await;
 
     let receipt_rows: Vec<(String, String, String, Vec<u8>)> = sqlx::query_as(
         "SELECT kind, signer_key_id, authenticator_kind, signature FROM receipts ORDER BY timestamp, receipt_id",
@@ -207,6 +234,39 @@ async fn gateway_router_signs_receipts_with_loaded_production_identity() {
             && row.2 == "ed25519_node_and_verifier"
             && !row.3.is_empty()
     }));
+
+    let _ = fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn gateway_router_rejects_untrusted_signed_context_before_receipts_or_handler() {
+    let path = write_key_file([0x55; 32]);
+    let identity = load_node_verifier_identity(&VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(path.clone()),
+        verifier_key_id: None,
+    })
+    .expect("production identity should load from configured key path");
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
+    router.register(0x10, program);
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let receipt_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM receipts")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(receipt_count.0, 0);
+    let telemetry_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM node_telemetry")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(telemetry_count.0, 0);
 
     let _ = fs::remove_file(path);
 }

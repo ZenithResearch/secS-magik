@@ -25,6 +25,12 @@ fn unique_temp_path(name: &str) -> PathBuf {
 fn write_key_file(bytes: [u8; 32]) -> PathBuf {
     let path = unique_temp_path("identity-key-config");
     fs::write(&path, hex_encode(&bytes)).expect("key fixture should be writable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+            .expect("key fixture should be owner-private");
+    }
     path
 }
 
@@ -79,7 +85,7 @@ fn identity_key_config_from_env_reads_operator_visible_key_path_and_id() {
     assert_eq!(config.runtime_mode, RuntimeMode::ProductionVerified);
     assert_eq!(config.verifier_key_path.as_ref(), Some(&path));
     assert_eq!(identity.signer_key_id(), "node-verifier:env-configured");
-    assert_eq!(identity.secret_key_bytes(), [0x21; 32]);
+    assert_eq!(identity.public_key().as_bytes().len(), 32);
 
     clear_identity_env();
     let _ = fs::remove_file(path);
@@ -154,7 +160,6 @@ fn identity_key_config_loads_operator_key_and_exposes_signer_key_id() {
         identity.authenticator_kind(),
         AuthenticatorKind::Ed25519NodeAndVerifier
     );
-    assert_eq!(identity.secret_key_bytes(), [0x11; 32]);
     assert_eq!(identity.public_key().as_bytes().len(), 32);
     let signed_context = identity
         .sign_context(sample_context())
@@ -164,7 +169,7 @@ fn identity_key_config_loads_operator_key_and_exposes_signer_key_id() {
         "node-verifier:operator-configured"
     );
     signed_context
-        .verify_ed25519(&identity.secret_key_bytes(), "secs://receiver-a", 150)
+        .verify_ed25519_with_key(identity.public_key(), "secs://receiver-a", 150)
         .expect("configured public key should verify the signed context");
     let registry = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
     registry
@@ -221,7 +226,7 @@ fn identity_key_config_local_dev_uses_only_explicit_fixture_helper() {
     let identity = explicit_test_fixture_identity("node-verifier:test-fixture", [0x07; 32]);
 
     assert_eq!(identity.signer_key_id(), "node-verifier:test-fixture");
-    assert_eq!(identity.secret_key_bytes(), [0x07; 32]);
+    assert_eq!(identity.public_key().as_bytes().len(), 32);
     assert_eq!(
         identity.authenticator_kind(),
         AuthenticatorKind::LocalDevUntrusted
@@ -347,7 +352,7 @@ fn identity_key_status_public_verifier_key_active_defaults_to_non_production_aut
     let signed_context = sample_context()
         .sign_ed25519(
             signer.signer_key_id(),
-            &signer.secret_key_bytes(),
+            &[0x79; 32],
             AuthenticatorKind::Ed25519NodeAndVerifier,
         )
         .expect("non-local-shaped context should sign");
@@ -638,5 +643,229 @@ fn identity_key_status_local_dev_fixture_cannot_satisfy_production_authority() {
             .verify_production_receipt_at(&signed_receipt, KEY_VALID_NOW)
             .unwrap_err(),
         VerificationError::UntrustedVerifierKey
+    );
+}
+
+#[test]
+fn production_verification_rejects_every_non_allowlisted_authenticator_kind() {
+    let signer = explicit_test_fixture_identity("node-verifier:allowlist", [0x91; 32]);
+    let registry =
+        PublicVerifierKeyRegistry::from_keys([PublicVerifierKey::configured_production_authority(
+            signer.signer_key_id(),
+            "ed25519",
+            *signer.public_key(),
+        )]);
+
+    for kind in [
+        AuthenticatorKind::LocalDevUntrusted,
+        AuthenticatorKind::LocalMac,
+        AuthenticatorKind::Ed25519Node,
+        AuthenticatorKind::Ed25519Verifier,
+        AuthenticatorKind::ExternalAnchor,
+    ] {
+        let signed_context = sample_context()
+            .sign_ed25519(signer.signer_key_id(), &[0x91; 32], kind)
+            .expect("test context should sign for authenticator allowlist check");
+        assert_eq!(
+            registry
+                .verify_production_signed_context(
+                    &signed_context,
+                    "secs://receiver-a",
+                    KEY_VALID_NOW
+                )
+                .unwrap_err(),
+            VerificationError::UntrustedVerifierKey,
+            "production context verification must reject {kind:?} even with a valid signature"
+        );
+
+        let signed_receipt = signer
+            .sign_receipt(Receipt::execution(
+                format!("receipt-auth-kind-{kind:?}"),
+                &signed_context.context,
+                Decision::Accepted,
+                None,
+                KEY_VALID_NOW,
+            ))
+            .expect("test receipt should sign for authenticator allowlist check");
+        assert_eq!(
+            registry
+                .verify_production_receipt_at(&signed_receipt, KEY_VALID_NOW)
+                .unwrap_err(),
+            VerificationError::UntrustedVerifierKey,
+            "production receipt verification must reject {kind:?} even with a valid signature"
+        );
+    }
+}
+
+#[test]
+fn production_verification_rejects_algorithm_metadata_that_does_not_match_ed25519() {
+    let signer = explicit_test_fixture_identity("node-verifier:algorithm", [0x92; 32]);
+    let signed_context = sample_context()
+        .sign_ed25519(
+            signer.signer_key_id(),
+            &[0x92; 32],
+            AuthenticatorKind::Ed25519NodeAndVerifier,
+        )
+        .unwrap();
+    let signed_receipt = signer
+        .sign_receipt(Receipt::execution(
+            "receipt-wrong-algorithm",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            KEY_VALID_NOW,
+        ))
+        .unwrap();
+
+    for algorithm in ["", "rsa", "external_anchor", "ED25519"] {
+        let registry = PublicVerifierKeyRegistry::from_keys([
+            PublicVerifierKey::configured_production_authority(
+                signer.signer_key_id(),
+                algorithm,
+                *signer.public_key(),
+            ),
+        ]);
+        assert_eq!(
+            registry
+                .verify_production_signed_context(
+                    &signed_context,
+                    "secs://receiver-a",
+                    KEY_VALID_NOW
+                )
+                .unwrap_err(),
+            VerificationError::UntrustedVerifierKey,
+            "non-ed25519 algorithm metadata {algorithm:?} must fail closed for contexts"
+        );
+        assert_eq!(
+            registry
+                .verify_production_receipt_at(&signed_receipt, KEY_VALID_NOW)
+                .unwrap_err(),
+            VerificationError::UntrustedVerifierKey,
+            "non-ed25519 algorithm metadata {algorithm:?} must fail closed for receipts"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn production_key_loader_rejects_world_readable_key_files() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = write_key_file([0x93; 32]);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644))
+        .expect("test should be able to set unsafe key permissions");
+    let config = VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(path.clone()),
+        verifier_key_id: None,
+    };
+
+    let err = load_node_verifier_identity(&config)
+        .expect_err("production key loader must reject group/world-readable key files");
+    assert!(
+        format!("{err:?}").contains("UnsafeVerifierKeyFile"),
+        "expected unsafe key-file permission error, got {err:?}"
+    );
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn production_key_loader_rejects_symlink_key_paths_before_reading_secret_material() {
+    let target = write_key_file([0x94; 32]);
+    let link = unique_temp_path("identity-key-symlink");
+
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&target, &link).expect("test symlink should be creatable");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(&target, &link).expect("test symlink should be creatable");
+
+    let config = VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(link.clone()),
+        verifier_key_id: None,
+    };
+    let err = load_node_verifier_identity(&config)
+        .expect_err("production key loader must reject symlink key paths");
+    assert!(
+        format!("{err:?}").contains("UnsafeVerifierKeyFile"),
+        "expected unsafe key-file type error, got {err:?}"
+    );
+    let _ = fs::remove_file(link);
+    let _ = fs::remove_file(target);
+}
+
+#[test]
+fn identity_source_does_not_expose_public_secret_key_byte_accessor_in_normal_builds() {
+    let source = include_str!("../src/identity.rs");
+    assert!(
+        !source.contains("pub fn secret_key_bytes"),
+        "normal builds must not expose raw verifier secret bytes through a public accessor"
+    );
+}
+
+#[test]
+fn receipt_verification_uses_receipt_signing_time_for_key_validity() {
+    let signer = explicit_test_fixture_identity("node-verifier:historical-receipt", [0x95; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([signer
+        .public_verifier_key()
+        .with_validity_window(Some(100), Some(200))]);
+    let signed_context = signer.sign_context(sample_context()).unwrap();
+    let receipt_signed_while_valid = signer
+        .sign_receipt(Receipt::execution(
+            "receipt-before-expiry",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            150,
+        ))
+        .unwrap();
+
+    registry
+        .verify_receipt_at(&receipt_signed_while_valid, 250)
+        .expect("historical receipt signed while key was valid should verify after key expiry");
+
+    let receipt_signed_after_expiry = signer
+        .sign_receipt(Receipt::execution(
+            "receipt-after-expiry",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            250,
+        ))
+        .unwrap();
+    assert_eq!(
+        registry
+            .verify_receipt_at(&receipt_signed_after_expiry, 150)
+            .unwrap_err(),
+        VerificationError::ExpiredVerifierKey,
+        "receipt timestamp after key expiry must fail even if caller supplies an in-window now"
+    );
+}
+
+#[test]
+fn duplicate_key_ids_do_not_silently_depend_on_registry_input_order() {
+    let first = explicit_test_fixture_identity("node-verifier:duplicate", [0x96; 32]);
+    let second = explicit_test_fixture_identity("node-verifier:duplicate", [0x97; 32]);
+    let signed_by_first = first.sign_context(sample_context()).unwrap();
+
+    let first_then_second = PublicVerifierKeyRegistry::from_keys([
+        first.public_verifier_key(),
+        second.public_verifier_key(),
+    ]);
+    let second_then_first = PublicVerifierKeyRegistry::from_keys([
+        second.public_verifier_key(),
+        first.public_verifier_key(),
+    ]);
+
+    let first_result = first_then_second
+        .verify_signed_context(&signed_by_first, "secs://receiver-a", KEY_VALID_NOW)
+        .map(|_| ());
+    let second_result = second_then_first
+        .verify_signed_context(&signed_by_first, "secs://receiver-a", KEY_VALID_NOW)
+        .map(|_| ());
+
+    assert_eq!(
+        first_result, second_result,
+        "duplicate key ids must be rejected or modeled explicitly; registry input order must not change verification outcome"
     );
 }

@@ -1,6 +1,8 @@
-use crate::identity::{explicit_test_fixture_identity, NodeVerifierIdentity};
+use crate::identity::{
+    explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
+};
 use crate::ledger::Ledger;
-use crate::receipt::{Decision, Receipt, ReceiptEventKind};
+use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
@@ -10,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::timeout;
 
 const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
+pub(crate) const DEFAULT_RECEIVER_AUDIENCE: &str = "secS://receiver-a";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandlerOutcome {
@@ -59,6 +62,8 @@ pub struct ConfigurableRouter {
     ledger: Ledger,
     limits: ExecutionLimits,
     identity: NodeVerifierIdentity,
+    verifier_keys: PublicVerifierKeyRegistry,
+    expected_audience: String,
 }
 
 impl ConfigurableRouter {
@@ -86,12 +91,15 @@ impl ConfigurableRouter {
         limits: ExecutionLimits,
         identity: NodeVerifierIdentity,
     ) -> Self {
+        let verifier_keys = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
         Self {
             programs: HashMap::new(),
             ledger: Ledger::new(pool.clone()),
             pool,
             limits,
             identity,
+            verifier_keys,
+            expected_audience: DEFAULT_RECEIVER_AUDIENCE.to_string(),
         }
     }
 
@@ -175,6 +183,25 @@ impl ConfigurableRouter {
         let context = &signed.context;
         let payload_size = payload.len() as i64;
         let timestamp = current_unix_seconds();
+
+        let verification_result = match self.identity.authenticator_kind() {
+            AuthenticatorKind::LocalDevUntrusted => {
+                self.verifier_keys
+                    .verify_signed_context(signed, &self.expected_audience, timestamp)
+            }
+            _ => self.verifier_keys.verify_production_signed_context(
+                signed,
+                &self.expected_audience,
+                timestamp,
+            ),
+        };
+        if let Err(error) = verification_result {
+            eprintln!(
+                "secS [Router]: rejected signed context before routing - {}",
+                error.reason_code()
+            );
+            return;
+        }
 
         if let Err(e) = sqlx::query(
             "INSERT INTO node_telemetry (opcode, payload_size, operation) VALUES (?, ?, ?)",

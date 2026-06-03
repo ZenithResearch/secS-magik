@@ -1,4 +1,7 @@
-use crate::gateway::{init_telemetry_schema, register_prototype_bindings, ConfigurableRouter};
+use crate::gateway::{
+    init_telemetry_schema, register_prototype_bindings, ConfigurableRouter,
+    DEFAULT_RECEIVER_AUDIENCE,
+};
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
 };
@@ -14,7 +17,6 @@ use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 
 const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
-const LOCAL_AUDIENCE: &str = "secS://prototype-gateway";
 
 pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut socket: TcpStream) {
     let mut wire_bytes = Vec::new();
@@ -59,7 +61,7 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
     let signed_context = match Verifier::verify_manifest_operation_and_sign_with_identity(
         &packet,
         &manifest,
-        LOCAL_AUDIENCE,
+        DEFAULT_RECEIVER_AUDIENCE,
         current_unix_seconds(),
         router.identity(),
     ) {

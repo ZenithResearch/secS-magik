@@ -131,6 +131,12 @@ fn write_key_file(bytes: [u8; 32]) -> std::path::PathBuf {
             .collect::<String>(),
     )
     .expect("key fixture should be writable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+            .expect("key fixture should be owner-private");
+    }
     path
 }
 
