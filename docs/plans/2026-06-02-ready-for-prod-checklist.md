@@ -765,6 +765,34 @@ cargo test -p server receipt -- --nocapture
 
 B1 remains bounded: no public-key registry discovery, deterministic key-id scheme, rotation, revocation, Dregg/Castalia registry lookup, wallet-core crypto, Midnight, or Cardano semantics are implemented or claimed by this issue.
 
+#### B2 completion checkpoint
+
+B2 is implemented on `phase/track-b-identity-key-lifecycle` as the issue-boundary runtime slice for deterministic verifier key ids and the first local public-key lookup seam.
+
+Implementation evidence:
+
+- `server/src/identity.rs` defines `derive_ed25519_key_id`, `PublicVerifierKey`, and `PublicVerifierKeyRegistry`.
+- Default production identity loading derives `signer_key_id` as `ed25519:<sha256-public-key-fingerprint>` when no safe explicit key-id override is configured.
+- Explicit key-id overrides reject empty values, local path-shaped values, and 64+-char hex secret-shaped values as `UnsafeVerifierKeyId`.
+- Signed contexts and signed receipts inherit the identity signer id.
+- `PublicVerifierKeyRegistry` verifies signed contexts and receipts by declared key id and rejects unknown key ids or signatures that only verify under a different key.
+
+Verification evidence:
+
+```bash
+cargo test -p server identity_key_id -- --nocapture
+cargo test -p server wrong_key -- --nocapture
+cargo test -p server verifier_context -- --nocapture
+cargo test -p server receipt -- --nocapture
+cargo test --workspace
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+git diff --check -- CHANGELOG.md README.md AGENTS.md docs/ server/
+```
+
+B2 remains bounded: no live federation registry discovery, trusted issuer policy, key status, key revocation, key rotation, Dregg/Castalia registry lookup, wallet-core crypto, Midnight, or Cardano semantics are implemented or claimed by this issue.
+
 ### A8 — Track C issue/commit details: replay, session, and expiry enforcement
 
 | Issue / commit | Objective | Files | TDD / verification commands | Acceptance criteria | Stop condition | Must not claim |

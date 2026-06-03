@@ -238,6 +238,17 @@ impl SignedVerifiedCallContext {
         expected_audience: &str,
         now: u64,
     ) -> Result<(), VerificationError> {
+        let signing_key = SigningKey::from_bytes(secret_key);
+        let verifying_key = VerifyingKey::from(&signing_key);
+        self.verify_ed25519_with_key(&verifying_key, expected_audience, now)
+    }
+
+    pub fn verify_ed25519_with_key(
+        &self,
+        verifying_key: &VerifyingKey,
+        expected_audience: &str,
+        now: u64,
+    ) -> Result<(), VerificationError> {
         if self.context.audience != expected_audience {
             return Err(VerificationError::WrongAudience);
         }
@@ -245,8 +256,6 @@ impl SignedVerifiedCallContext {
             return Err(VerificationError::ExpiredClaim);
         }
 
-        let signing_key = SigningKey::from_bytes(secret_key);
-        let verifying_key = VerifyingKey::from(&signing_key);
         let signature = Signature::from_slice(&self.signature)
             .map_err(|_| VerificationError::InvalidSignature)?;
         let bytes =

@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added Track B / B2 deterministic verifier key ids and local public-key registry seam — default signer ids are derived from Ed25519 public-key fingerprints, contexts and receipts carry those ids, unsafe explicit overrides that look like paths or secret material fail closed, and `PublicVerifierKeyRegistry` verifies signed contexts/receipts by declared key id while rejecting unknown ids and wrong-key signatures.
 - Added Track B / B1 explicit node-verifier identity key config — `production_verified` now requires an operator-provided verifier key path before signing, malformed/inaccessible key files fail with typed identity config errors, loaded identities expose signer key id/public key material for context and receipt signing, and local/dev tests use only an explicit fixture helper.
 - Added A9 future-rail defer/promote decision — explicitly defers Dregg, Midnight, and Cardano from first-prod implementation while preserving Dregg as a future `trust_root_ref` / `registry_root_ref` subtype, Midnight as a future private-statement proof adapter, and Cardano as future settlement/capital evidence.
 - Added A8 issue-ready phase/branch/PR checklist for Tracks A–I — groups production-readiness work into phase branches/PRs with issue-level commit sequences, gates, stop conditions, and forbidden-claim boundaries while preserving A5/A6/A7 first-path evidence requirements.

@@ -4,8 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serial_test::serial;
 use server::identity::{
-    explicit_test_fixture_identity, load_node_verifier_identity, IdentityConfigError,
-    VerifierIdentityConfig,
+    derive_ed25519_key_id, explicit_test_fixture_identity, load_node_verifier_identity,
+    IdentityConfigError, PublicVerifierKeyRegistry, VerifierIdentityConfig,
 };
 use server::receipt::{AuthenticatorKind, Decision, Receipt};
 use server::runtime_mode::RuntimeMode;
@@ -185,6 +185,28 @@ fn identity_key_config_loads_operator_key_and_exposes_signer_key_id() {
 }
 
 #[test]
+fn identity_key_id_rejects_unsafe_explicit_override_that_looks_like_path_or_secret() {
+    let path = write_key_file([0x71; 32]);
+    for unsafe_key_id in [
+        "/tmp/node-verifier.ed25519",
+        "relative/path/key",
+        "3131313131313131313131313131313131313131313131313131313131313131",
+    ] {
+        let config = VerifierIdentityConfig {
+            runtime_mode: RuntimeMode::ProductionVerified,
+            verifier_key_path: Some(path.clone()),
+            verifier_key_id: Some(unsafe_key_id.to_string()),
+        };
+
+        let err = load_node_verifier_identity(&config)
+            .expect_err("unsafe key id overrides must not encode paths or key material");
+
+        assert_eq!(err, IdentityConfigError::UnsafeVerifierKeyId);
+    }
+    let _ = fs::remove_file(path);
+}
+
+#[test]
 fn identity_key_config_local_dev_uses_only_explicit_fixture_helper() {
     let identity = explicit_test_fixture_identity("node-verifier:test-fixture", [0x07; 32]);
 
@@ -194,4 +216,112 @@ fn identity_key_config_local_dev_uses_only_explicit_fixture_helper() {
         identity.authenticator_kind(),
         AuthenticatorKind::LocalDevUntrusted
     );
+}
+
+#[test]
+fn identity_key_id_is_stable_for_same_key_and_changes_for_different_key() {
+    let first = explicit_test_fixture_identity("ignored:first", [0x31; 32]);
+    let same = explicit_test_fixture_identity("ignored:same", [0x31; 32]);
+    let different = explicit_test_fixture_identity("ignored:different", [0x32; 32]);
+
+    let first_id = derive_ed25519_key_id(first.public_key());
+    let same_id = derive_ed25519_key_id(same.public_key());
+    let different_id = derive_ed25519_key_id(different.public_key());
+
+    assert_eq!(first_id, same_id);
+    assert_ne!(first_id, different_id);
+    assert!(first_id.starts_with("ed25519:"));
+    assert!(!first_id.contains('/'));
+    assert!(!first_id.contains("31".repeat(16).as_str()));
+}
+
+#[test]
+fn identity_key_id_defaults_to_public_key_fingerprint_for_contexts_and_receipts() {
+    let path = write_key_file([0x41; 32]);
+    let config = VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(path.clone()),
+        verifier_key_id: None,
+    };
+
+    let identity = load_node_verifier_identity(&config).expect("valid explicit key should load");
+    let expected_key_id = derive_ed25519_key_id(identity.public_key());
+    let signed_context = identity
+        .sign_context(sample_context())
+        .expect("identity should sign context with deterministic key id");
+    let signed_receipt = identity
+        .sign_receipt(Receipt::execution(
+            "receipt-key-id",
+            &signed_context.context,
+            Decision::Accepted,
+            None,
+            160,
+        ))
+        .expect("identity should sign receipt with deterministic key id");
+
+    assert_eq!(identity.signer_key_id(), expected_key_id);
+    assert_eq!(signed_context.signer_key_id, expected_key_id);
+    assert_eq!(signed_receipt.signer_key_id, expected_key_id);
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn identity_key_id_registry_rejects_unknown_key_id_and_wrong_key() {
+    let trusted = explicit_test_fixture_identity("ignored:trusted", [0x51; 32]);
+    let untrusted = explicit_test_fixture_identity("ignored:untrusted", [0x52; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([
+        trusted.public_verifier_key(),
+        untrusted.public_verifier_key(),
+    ]);
+    let unknown = explicit_test_fixture_identity("ignored:unknown", [0x53; 32]);
+
+    let trusted_context = trusted
+        .sign_context(sample_context())
+        .expect("trusted identity should sign context");
+    registry
+        .verify_signed_context(&trusted_context, "secs://receiver-a", 150)
+        .expect("registered key id should verify");
+
+    let unknown_context = unknown
+        .sign_context(sample_context())
+        .expect("unknown identity should sign context");
+    registry
+        .verify_signed_context(&unknown_context, "secs://receiver-a", 150)
+        .expect_err("unknown key id must fail through registry seam");
+
+    let mut mismatched_context = trusted_context.clone();
+    mismatched_context.signer_key_id = derive_ed25519_key_id(untrusted.public_key());
+    registry
+        .verify_signed_context(&mismatched_context, "secs://receiver-a", 150)
+        .expect_err("declared key id must select the verifying key, so wrong key fails");
+}
+
+#[test]
+fn identity_key_id_registry_verifies_receipts_by_declared_key_id() {
+    let trusted = explicit_test_fixture_identity("ignored:trusted-receipt", [0x61; 32]);
+    let untrusted = explicit_test_fixture_identity("ignored:untrusted-receipt", [0x62; 32]);
+    let registry = PublicVerifierKeyRegistry::from_keys([trusted.public_verifier_key()]);
+    let signed_context = trusted
+        .sign_context(sample_context())
+        .expect("trusted identity should sign context");
+    let receipt = Receipt::execution(
+        "receipt-registry-key-id",
+        &signed_context.context,
+        Decision::Accepted,
+        None,
+        170,
+    );
+    let signed_receipt = trusted
+        .sign_receipt(receipt)
+        .expect("trusted identity should sign receipt");
+
+    registry
+        .verify_receipt(&signed_receipt)
+        .expect("registered receipt key id should verify");
+
+    let mut mismatched_receipt = signed_receipt.clone();
+    mismatched_receipt.signer_key_id = derive_ed25519_key_id(untrusted.public_key());
+    registry
+        .verify_receipt(&mismatched_receipt)
+        .expect_err("receipt verification must fail when declared key id selects another key");
 }

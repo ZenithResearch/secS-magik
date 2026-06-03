@@ -2,6 +2,8 @@ use crate::receipt::{AuthenticatorKind, Receipt};
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use ed25519_dalek::{SigningKey, VerifyingKey};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
 
@@ -27,6 +29,7 @@ pub enum IdentityConfigError {
     MissingVerifierKeyPath,
     KeyFileInaccessible { path: PathBuf },
     MalformedVerifierKey,
+    UnsafeVerifierKeyId,
     LocalDevRequiresExplicitFixture,
 }
 
@@ -44,6 +47,10 @@ impl fmt::Display for IdentityConfigError {
                 f,
                 "verifier key file must contain a 32-byte hex Ed25519 secret"
             ),
+            Self::UnsafeVerifierKeyId => write!(
+                f,
+                "verifier key id override must not contain local paths or secret-shaped material"
+            ),
             Self::LocalDevRequiresExplicitFixture => write!(
                 f,
                 "local/dev verifier keys must be created through explicit fixture helpers"
@@ -53,6 +60,51 @@ impl fmt::Display for IdentityConfigError {
 }
 
 impl std::error::Error for IdentityConfigError {}
+
+#[derive(Debug, Clone)]
+pub struct PublicVerifierKey {
+    pub key_id: String,
+    pub algorithm: String,
+    pub public_key: VerifyingKey,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PublicVerifierKeyRegistry {
+    keys: HashMap<String, PublicVerifierKey>,
+}
+
+impl PublicVerifierKeyRegistry {
+    pub fn from_keys(keys: impl IntoIterator<Item = PublicVerifierKey>) -> Self {
+        let mut registry = Self::default();
+        for key in keys {
+            registry.keys.insert(key.key_id.clone(), key);
+        }
+        registry
+    }
+
+    pub fn get(&self, key_id: &str) -> Option<&PublicVerifierKey> {
+        self.keys.get(key_id)
+    }
+
+    pub fn verify_signed_context(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        expected_audience: &str,
+        now: u64,
+    ) -> Result<(), VerificationError> {
+        let key = self
+            .get(&signed.signer_key_id)
+            .ok_or(VerificationError::InvalidSignature)?;
+        signed.verify_ed25519_with_key(&key.public_key, expected_audience, now)
+    }
+
+    pub fn verify_receipt(&self, receipt: &Receipt) -> Result<(), VerificationError> {
+        let key = self
+            .get(&receipt.signer_key_id)
+            .ok_or(VerificationError::InvalidSignature)?;
+        receipt.verify_ed25519_with_key(&key.public_key)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct NodeVerifierIdentity {
@@ -77,6 +129,14 @@ impl NodeVerifierIdentity {
 
     pub fn authenticator_kind(&self) -> AuthenticatorKind {
         self.authenticator_kind
+    }
+
+    pub fn public_verifier_key(&self) -> PublicVerifierKey {
+        PublicVerifierKey {
+            key_id: self.signer_key_id.clone(),
+            algorithm: "ed25519".to_string(),
+            public_key: self.public_key,
+        }
     }
 
     pub fn sign_context(
@@ -119,10 +179,10 @@ pub fn load_node_verifier_identity(
     let secret_key = parse_hex_secret_key(&raw)?;
     let signing_key = SigningKey::from_bytes(&secret_key);
     let public_key = VerifyingKey::from(&signing_key);
-    let signer_key_id = config
-        .verifier_key_id
-        .clone()
-        .unwrap_or_else(|| "node_verifier_key:operator-configured".to_string());
+    let signer_key_id = match &config.verifier_key_id {
+        Some(key_id) => safe_configured_key_id(key_id)?,
+        None => derive_ed25519_key_id(&public_key),
+    };
 
     Ok(NodeVerifierIdentity {
         signer_key_id,
@@ -160,4 +220,29 @@ fn parse_hex_secret_key(raw: &str) -> Result<[u8; 32], IdentityConfigError> {
             u8::from_str_radix(hex, 16).map_err(|_| IdentityConfigError::MalformedVerifierKey)?;
     }
     Ok(bytes)
+}
+
+fn safe_configured_key_id(value: &str) -> Result<String, IdentityConfigError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty()
+        || trimmed.contains('/')
+        || trimmed.contains('\\')
+        || looks_like_secret_hex(trimmed)
+    {
+        return Err(IdentityConfigError::UnsafeVerifierKeyId);
+    }
+    Ok(trimmed.to_string())
+}
+
+fn looks_like_secret_hex(value: &str) -> bool {
+    value.len() >= 64 && value.as_bytes().iter().all(u8::is_ascii_hexdigit)
+}
+
+pub fn derive_ed25519_key_id(public_key: &VerifyingKey) -> String {
+    let digest = Sha256::digest(public_key.as_bytes());
+    format!("ed25519:{}", lower_hex(&digest[..16]))
+}
+
+fn lower_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
