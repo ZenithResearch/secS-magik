@@ -1,7 +1,7 @@
 use crate::identity::{
     explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
 };
-use crate::ledger::Ledger;
+use crate::ledger::{Ledger, ReplayReservationOutcome};
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
@@ -203,6 +203,45 @@ impl ConfigurableRouter {
             return;
         }
 
+        match self
+            .ledger
+            .reserve_replay(context, &signed.signer_key_id, timestamp)
+            .await
+        {
+            Ok(ReplayReservationOutcome::Reserved) => {}
+            Ok(ReplayReservationOutcome::Duplicate) => {
+                let reason = "replay_detected";
+                self.record_verified_reject_receipt(signed, reason, timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::PacketRejected,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+                eprintln!(
+                    "secS [Router]: rejected replayed verified context {} before handler execution",
+                    context.context_id
+                );
+                return;
+            }
+            Err(e) => {
+                let reason = "replay_reservation_failed";
+                eprintln!("secS [Ledger]: failed to reserve replay slot - {}", e);
+                self.record_verified_reject_receipt(signed, reason, timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::PacketRejected,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+                return;
+            }
+        }
+
         if let Err(e) = sqlx::query(
             "INSERT INTO node_telemetry (opcode, payload_size, operation) VALUES (?, ?, ?)",
         )
@@ -280,9 +319,32 @@ impl ConfigurableRouter {
         }
     }
 
+    async fn record_verified_reject_receipt(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        reason: &str,
+        timestamp: u64,
+    ) {
+        let receipt = Receipt::reject_from_verified_context(
+            format!(
+                "receipt-reject-{timestamp}-{:02x}-{}",
+                signed.context.opcode,
+                context_receipt_suffix(&signed.context)
+            ),
+            &signed.context,
+            reason,
+            timestamp,
+        );
+        self.record_signed_receipt(receipt).await;
+    }
+
     async fn record_verify_receipt(&self, signed: &SignedVerifiedCallContext, timestamp: u64) {
         let receipt = Receipt::verify_from_signed_context(
-            format!("receipt-verify-{timestamp}-{:02x}", signed.context.opcode),
+            format!(
+                "receipt-verify-{timestamp}-{:02x}-{}",
+                signed.context.opcode,
+                context_receipt_suffix(&signed.context)
+            ),
             signed,
             timestamp,
         );
@@ -299,7 +361,11 @@ impl ConfigurableRouter {
         timestamp: u64,
     ) {
         let receipt = Receipt::execution(
-            format!("receipt-execute-{timestamp}-{:02x}", signed.context.opcode),
+            format!(
+                "receipt-execute-{timestamp}-{:02x}-{}",
+                signed.context.opcode,
+                context_receipt_suffix(&signed.context)
+            ),
             &signed.context,
             decision,
             reason,
@@ -386,6 +452,14 @@ fn current_unix_seconds() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
+}
+
+fn context_receipt_suffix(context: &VerifiedCallContext) -> String {
+    let hash_prefix = context.packet_hash[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("{}-{hash_prefix}", context.context_id)
 }
 
 pub struct SubprocessForwarder {

@@ -184,6 +184,30 @@ impl Receipt {
         }
     }
 
+    pub fn reject_from_verified_context(
+        receipt_id: impl Into<String>,
+        context: &VerifiedCallContext,
+        reason: &str,
+        timestamp: u64,
+    ) -> Self {
+        Self {
+            receipt_id: receipt_id.into(),
+            kind: ReceiptKind::Reject,
+            packet_hash: context.packet_hash,
+            session_id: context.session_id,
+            nonce: context.nonce,
+            opcode: context.opcode,
+            operation: Some(context.operation.clone()),
+            decision: Decision::Rejected,
+            reason: Some(reason.to_string()),
+            handler_id: context.handler_id.clone(),
+            timestamp,
+            authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
+            signer_key_id: String::new(),
+            signature: Vec::new(),
+        }
+    }
+
     pub fn execution(
         receipt_id: impl Into<String>,
         context: &VerifiedCallContext,
