@@ -1,7 +1,7 @@
 use libsec_core::ZenithPacket;
-use server::ledger::Ledger;
+use server::ledger::{Ledger, ReplayReservationOutcome};
 use server::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind, ReceiptKind};
-use server::verifier::{VerificationError, Verifier};
+use server::verifier::{VerificationError, VerifiedCallContext, VerifiedSubject, Verifier};
 use sqlx::sqlite::SqlitePoolOptions;
 
 async fn memory_ledger() -> Ledger {
@@ -27,6 +27,30 @@ fn packet() -> ZenithPacket {
     }
 }
 
+fn verified_context(session_id: [u8; 16], nonce: [u8; 12], opcode: u8) -> VerifiedCallContext {
+    VerifiedCallContext {
+        schema_version: 1,
+        context_id: format!("ctx-{opcode:02x}-{}", nonce[0]),
+        packet_hash: [9u8; 32],
+        session_id,
+        nonce,
+        opcode,
+        operation: "candidate.dev.bash_echo".to_string(),
+        subject: VerifiedSubject {
+            subject_id: "prototype.local-dev.subject".to_string(),
+            key_id: "subject-key:test".to_string(),
+        },
+        audience: "secS://receiver-a".to_string(),
+        evidence_summary: vec!["prototype".to_string()],
+        capability_result: "accepted".to_string(),
+        credential_result: "accepted".to_string(),
+        issued_at: 1_000,
+        expires_at: 1_300,
+        replay_scope: "SessionOpcodeNonce".to_string(),
+        handler_id: Some("dev/bash-echo".to_string()),
+    }
+}
+
 #[tokio::test]
 async fn ledger_schema_creates_events_and_receipts_tables() {
     let ledger = memory_ledger().await;
@@ -46,6 +70,143 @@ async fn ledger_schema_creates_events_and_receipts_tables() {
 
     assert_eq!(events_count.0, 1);
     assert_eq!(receipts_count.0, 1);
+}
+
+#[tokio::test]
+async fn ledger_schema_creates_replay_reservations_table() {
+    let ledger = memory_ledger().await;
+
+    let replay_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'replay_reservations'",
+    )
+    .fetch_one(ledger.pool())
+    .await
+    .unwrap();
+
+    assert_eq!(replay_count.0, 1);
+}
+
+#[tokio::test]
+async fn first_replay_reservation_returns_reserved_and_persists_one_row() {
+    let ledger = memory_ledger().await;
+    let context = verified_context([1u8; 16], [2u8; 12], 0x10);
+
+    let outcome = ledger
+        .reserve_replay(&context, "verifier:local-test", 1_001)
+        .await
+        .unwrap();
+
+    assert_eq!(outcome, ReplayReservationOutcome::Reserved);
+    let row: (i64, i64, i64, String, Vec<u8>, i64, Vec<u8>, Vec<u8>, String, String) = sqlx::query_as(
+        "SELECT COUNT(*), reserved_at, expires_at, replay_scope, session_id, opcode, nonce, packet_hash, context_id, signer_key_id FROM replay_reservations",
+    )
+    .fetch_one(ledger.pool())
+    .await
+    .unwrap();
+
+    assert_eq!(row.0, 1);
+    assert_eq!(row.1, 1_001);
+    assert_eq!(row.2, 1_300);
+    assert_eq!(row.3, "SessionOpcodeNonce");
+    assert_eq!(row.4, context.session_id.to_vec());
+    assert_eq!(row.5, 0x10);
+    assert_eq!(row.6, context.nonce.to_vec());
+    assert_eq!(row.7, context.packet_hash.to_vec());
+    assert_eq!(row.8, context.context_id);
+    assert_eq!(row.9, "verifier:local-test");
+}
+
+#[tokio::test]
+async fn duplicate_replay_reservation_same_session_opcode_nonce_scope_is_duplicate() {
+    let ledger = memory_ledger().await;
+    let context = verified_context([1u8; 16], [2u8; 12], 0x10);
+
+    assert_eq!(
+        ledger
+            .reserve_replay(&context, "verifier:local-test", 1_001)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+    assert_eq!(
+        ledger
+            .reserve_replay(&context, "verifier:local-test", 1_002)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Duplicate
+    );
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(ledger.pool())
+        .await
+        .unwrap();
+    assert_eq!(count.0, 1);
+}
+
+#[tokio::test]
+async fn replay_reservation_allows_different_nonce_same_session_opcode() {
+    let ledger = memory_ledger().await;
+    let first = verified_context([1u8; 16], [2u8; 12], 0x10);
+    let second = verified_context([1u8; 16], [3u8; 12], 0x10);
+
+    assert_eq!(
+        ledger
+            .reserve_replay(&first, "verifier:local-test", 1_001)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+    assert_eq!(
+        ledger
+            .reserve_replay(&second, "verifier:local-test", 1_002)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+}
+
+#[tokio::test]
+async fn replay_reservation_allows_same_nonce_different_session_under_session_opcode_nonce_scope() {
+    let ledger = memory_ledger().await;
+    let first = verified_context([1u8; 16], [2u8; 12], 0x10);
+    let second = verified_context([4u8; 16], [2u8; 12], 0x10);
+
+    assert_eq!(
+        ledger
+            .reserve_replay(&first, "verifier:local-test", 1_001)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+    assert_eq!(
+        ledger
+            .reserve_replay(&second, "verifier:local-test", 1_002)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+}
+
+#[tokio::test]
+async fn replay_reservation_allows_same_nonce_same_session_different_opcode() {
+    let ledger = memory_ledger().await;
+    let first = verified_context([1u8; 16], [2u8; 12], 0x10);
+    let second = verified_context([1u8; 16], [2u8; 12], 0x11);
+
+    assert_eq!(
+        ledger
+            .reserve_replay(&first, "verifier:local-test", 1_001)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+    assert_eq!(
+        ledger
+            .reserve_replay(&second, "verifier:local-test", 1_002)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
 }
 
 #[tokio::test]
