@@ -2,7 +2,7 @@
 
 secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
 
-Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. A receiver-local manifest descriptor layer now exists, the prototype gateway signs manifest-aware verified contexts before routing, and typed receipt/event objects are persisted to a local SQLite ledger. Evidence adapters and the full verifier pipeline are still implementation work.
+Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. A receiver-local manifest descriptor layer now exists, the prototype gateway signs manifest-aware verified contexts before routing, enforces receiver-local durable replay/session/expiry checks within the configured local replay store/scope, and persists typed receipt/event objects to a local SQLite ledger. Evidence adapters beyond the current local/static and shape-only shells and the full production verifier pipeline are still implementation work.
 
 Current source of truth:
 
@@ -28,9 +28,9 @@ Use these labels across all docs:
 
 Short current status:
 
-- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, typed receipt/event objects, local SQLite receipt/event persistence, and the deterministic `local_static` evidence seam.
+- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, receiver-local durable replay/session/expiry enforcement within the configured local replay store/scope, typed receipt/event objects, local SQLite receipt/event persistence, and the deterministic `local_static` evidence seam.
 - Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, manifest-aware signed context routing, legacy `node_telemetry`, and hardcoded handler registration.
-- Planned next: wallet-presentation contract shell and/or bounded execution broker, after the `local_static` seam is reviewed.
+- Planned next: wallet-core cryptographic verification / shared wallet-core integration, production evidence policy with trusted issuer/root registry, and the remaining production-shaped runtime hardening tracks.
 - Future/optional: external proof, federation receipt, and settlement evidence adapters.
 - Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access.
 
@@ -61,7 +61,7 @@ Important boundaries:
 
 ## At a Glance
 
-- What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, persists typed receipt/event records to local SQLite without storing payload content by default, preserves legacy `node_telemetry`, and routes verified bounded opcodes to configured machine programs.
+- What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, enforces descriptor max TTL/session validity and receiver-local replay reservation before handler execution, persists typed receipt/event records to local SQLite without storing payload content by default, preserves legacy `node_telemetry`, and routes verified bounded opcodes to configured machine programs.
 - What it is becoming: a typed secS verifier pipeline with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
 - Who it is for: developers and operators building owned machine-call rails instead of broad bearer-token APIs.
 - Primary stack: Rust workspace with `core`, `client`, and `server`; Tokio TCP; bincode packet serialization; optional ChaCha20Poly1305 tunnel decryption; SQLite through SQLx runtime queries.

@@ -4,7 +4,15 @@
 //! does not need to maintain SQLx offline metadata yet.
 
 use crate::receipt::{Receipt, ReceiptEventKind};
+use crate::schema::{apply_schema, LEDGER_TABLES};
+use crate::verifier::VerifiedCallContext;
 use sqlx::SqlitePool;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayReservationOutcome {
+    Reserved,
+    Duplicate,
+}
 
 #[derive(Clone)]
 pub struct Ledger {
@@ -21,43 +29,45 @@ impl Ledger {
     }
 
     pub async fn init_schema(&self) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp INTEGER NOT NULL,
-                event_kind TEXT NOT NULL,
-                packet_hash BLOB,
-                opcode INTEGER,
-                operation TEXT,
-                handler_id TEXT,
-                reason TEXT
-            );",
+        apply_schema(&self.pool, LEDGER_TABLES).await
+    }
+
+    pub async fn reserve_replay(
+        &self,
+        context: &VerifiedCallContext,
+        signer_key_id: &str,
+        reserved_at: u64,
+    ) -> Result<ReplayReservationOutcome, sqlx::Error> {
+        let result = sqlx::query(
+            "INSERT OR IGNORE INTO replay_reservations (
+                reserved_at,
+                expires_at,
+                replay_scope,
+                session_id,
+                opcode,
+                nonce,
+                packet_hash,
+                context_id,
+                signer_key_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
+        .bind(reserved_at as i64)
+        .bind(context.expires_at as i64)
+        .bind(&context.replay_scope)
+        .bind(context.session_id.to_vec())
+        .bind(i64::from(context.opcode))
+        .bind(context.nonce.to_vec())
+        .bind(context.packet_hash.to_vec())
+        .bind(&context.context_id)
+        .bind(signer_key_id)
         .execute(&self.pool)
         .await?;
 
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS receipts (
-                receipt_id TEXT PRIMARY KEY,
-                timestamp INTEGER NOT NULL,
-                kind TEXT NOT NULL,
-                packet_hash BLOB NOT NULL,
-                session_id BLOB NOT NULL,
-                nonce BLOB NOT NULL,
-                opcode INTEGER NOT NULL,
-                operation TEXT,
-                decision TEXT NOT NULL,
-                reason TEXT,
-                handler_id TEXT,
-                authenticator_kind TEXT NOT NULL,
-                signer_key_id TEXT NOT NULL,
-                signature BLOB NOT NULL
-            );",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
+        if result.rows_affected() == 0 {
+            Ok(ReplayReservationOutcome::Duplicate)
+        } else {
+            Ok(ReplayReservationOutcome::Reserved)
+        }
     }
 
     #[allow(clippy::too_many_arguments)]

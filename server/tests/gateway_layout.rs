@@ -6,7 +6,7 @@ use server::gateway::{
 use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
 use server::runtime_mode::RuntimeMode;
-use server::verifier::{VerifiedCallContext, Verifier};
+use server::verifier::{VerificationError, VerifiedCallContext, Verifier};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -32,6 +32,18 @@ impl MachineProgram for CountingProgram {
     }
 }
 
+struct DecliningProgram {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl MachineProgram for DecliningProgram {
+    async fn execute(&self, _context: &VerifiedCallContext, _payload: &[u8]) -> HandlerOutcome {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        HandlerOutcome::rejected("handler_declined")
+    }
+}
+
 struct SlowProgram;
 
 #[async_trait]
@@ -52,28 +64,94 @@ async fn memory_pool() -> SqlitePool {
     pool
 }
 
+async fn file_pool(name: &str) -> (SqlitePool, std::path::PathBuf) {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("secs-magik-{name}-{nanos}.sqlite"));
+    let url = format!("sqlite://{}?mode=rwc", path.display());
+    let pool = SqlitePoolOptions::new()
+        .max_connections(4)
+        .connect(&url)
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    (pool, path)
+}
+
 fn packet(opcode: u8, payload: &[u8]) -> ZenithPacket {
+    packet_with([1u8; 16], [2u8; 12], opcode, payload)
+}
+
+fn packet_with(session_id: [u8; 16], nonce: [u8; 12], opcode: u8, payload: &[u8]) -> ZenithPacket {
     ZenithPacket {
-        session_id: [1u8; 16],
-        nonce: [2u8; 12],
+        session_id,
+        nonce,
         opcode,
         proof: vec![1],
-        claim_ttl: 600,
+        claim_ttl: 300,
         encrypted_payload: payload.to_vec(),
         mac: [0u8; 16],
     }
 }
 
 fn signed_context(opcode: u8, payload: &[u8]) -> server::verifier::SignedVerifiedCallContext {
+    signed_context_from_packet(&packet(opcode, payload))
+}
+
+fn signed_context_from_packet(
+    packet: &ZenithPacket,
+) -> server::verifier::SignedVerifiedCallContext {
+    signed_context_from_packet_at(packet, current_test_time())
+}
+
+fn signed_context_from_packet_at(
+    packet: &ZenithPacket,
+    issued_at: u64,
+) -> server::verifier::SignedVerifiedCallContext {
+    Verifier::verify_manifest_operation_and_sign(
+        packet,
+        &ReceiverManifest::default_v0(),
+        "secS://receiver-a",
+        issued_at,
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .unwrap()
+}
+
+fn expired_signed_context(
+    opcode: u8,
+    payload: &[u8],
+) -> server::verifier::SignedVerifiedCallContext {
+    let mut packet = packet(opcode, payload);
+    packet.claim_ttl = 1;
+    signed_context_from_packet_at(&packet, current_test_time().saturating_sub(2))
+}
+
+fn wrong_audience_signed_context(
+    opcode: u8,
+    payload: &[u8],
+) -> server::verifier::SignedVerifiedCallContext {
     Verifier::verify_manifest_operation_and_sign(
         &packet(opcode, payload),
         &ReceiverManifest::default_v0(),
-        "secS://receiver-a",
+        "secS://other",
         current_test_time(),
         "verifier:local-prototype",
         &[7u8; 32],
     )
     .unwrap()
+}
+
+fn signed_context_with_fields(
+    session_id: [u8; 16],
+    nonce: [u8; 12],
+    opcode: u8,
+    payload: &[u8],
+) -> server::verifier::SignedVerifiedCallContext {
+    signed_context_from_packet(&packet_with(session_id, nonce, opcode, payload))
 }
 
 fn signed_context_with_identity(
@@ -165,6 +243,61 @@ async fn gateway_router_records_unverified_packets_without_executing_handler() {
     .unwrap();
     assert_eq!(row, (0x10, 7, "unverified.prototype".to_string()));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn gateway_router_signs_preverification_reject_receipts_and_emits_events_without_payload() {
+    let pool = memory_pool().await;
+    let router = ConfigurableRouter::new(pool.clone());
+    let packet = packet(0x10, b"secret payload");
+
+    router
+        .record_reject(&packet, VerificationError::BadMac)
+        .await;
+
+    let receipt: (String, String, String, String, String, Vec<u8>) = sqlx::query_as(
+        "SELECT kind, decision, reason, authenticator_kind, signer_key_id, signature FROM receipts ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(receipt.0, "reject");
+    assert_eq!(receipt.1, "rejected");
+    assert_eq!(receipt.2, "bad_mac");
+    assert_eq!(receipt.3, "local_dev_untrusted");
+    assert_eq!(receipt.4, "verifier:local-prototype");
+    assert!(!receipt.5.is_empty());
+
+    let emitted_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'receipt_emitted' AND reason = 'reject'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(emitted_event_count.0, 1);
+
+    let rejected_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'packet_rejected' AND reason = 'bad_mac'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rejected_event_count.0, 1);
+
+    let leaked_receipt_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE reason LIKE '%secret payload%' OR operation LIKE '%secret payload%'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let leaked_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE reason LIKE '%secret payload%' OR operation LIKE '%secret payload%'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(leaked_receipt_count.0, 0);
+    assert_eq!(leaked_event_count.0, 0);
 }
 
 #[tokio::test]
@@ -267,8 +400,280 @@ async fn gateway_router_rejects_untrusted_signed_context_before_receipts_or_hand
         .await
         .unwrap();
     assert_eq!(telemetry_count.0, 0);
+    let replay_reservation_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(replay_reservation_count.0, 0);
 
     let _ = fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn gateway_router_rejects_replayed_verified_context_before_handler_execution() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+    let signed = signed_context(0x10, b"payload");
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let reject_receipt: (String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason FROM receipts WHERE kind = 'reject' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        reject_receipt,
+        (
+            "reject".to_string(),
+            "rejected".to_string(),
+            "replay_detected".to_string()
+        )
+    );
+    let rejected_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'packet_rejected' AND reason = 'replay_detected'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rejected_event_count.0, 1);
+    let handler_started_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind = 'handler_started'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(handler_started_count.0, 1);
+    let operation_routed_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind = 'operation_routed'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(operation_routed_count.0, 1);
+    let telemetry_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM node_telemetry")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(telemetry_count.0, 1);
+    let accepted_verify_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'verify' AND decision = 'accepted'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(accepted_verify_count.0, 1);
+    let accepted_execute_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'execute' AND decision = 'accepted'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(accepted_execute_count.0, 1);
+}
+
+#[tokio::test]
+async fn gateway_router_records_reject_receipt_for_expired_signed_context_before_handler_execution()
+{
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+    let signed = expired_signed_context(0x10, b"payload");
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let reject_receipt: (String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason FROM receipts WHERE kind = 'reject' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        reject_receipt,
+        (
+            "reject".to_string(),
+            "rejected".to_string(),
+            "expired_claim".to_string()
+        )
+    );
+    let rejected_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'packet_rejected' AND reason = 'expired_claim'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rejected_event_count.0, 1);
+    let replay_reservation_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(replay_reservation_count.0, 0);
+    let handler_started_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind = 'handler_started'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(handler_started_count.0, 0);
+}
+
+#[tokio::test]
+async fn gateway_router_wrong_audience_signed_context_records_reject_without_replay_reservation() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+    let signed = wrong_audience_signed_context(0x10, b"payload");
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let reject_receipt_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND decision = 'rejected' AND reason = 'wrong_audience'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(reject_receipt_count.0, 1);
+    let rejected_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'packet_rejected' AND reason = 'wrong_audience'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rejected_event_count.0, 1);
+    let replay_reservation_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(replay_reservation_count.0, 0);
+}
+
+#[tokio::test]
+async fn gateway_router_replay_reservation_survives_first_handler_rejection() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(
+        0x10,
+        Box::new(DecliningProgram {
+            calls: Arc::clone(&calls),
+        }),
+    );
+    let signed = signed_context(0x10, b"payload");
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let reasons: Vec<(String, String)> = sqlx::query_as(
+        "SELECT kind, reason FROM receipts WHERE reason IS NOT NULL ORDER BY timestamp, receipt_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert!(reasons
+        .iter()
+        .any(|row| row.0 == "execute" && row.1 == "handler_declined"));
+    assert!(reasons
+        .iter()
+        .any(|row| row.0 == "reject" && row.1 == "replay_detected"));
+}
+
+#[tokio::test]
+async fn gateway_router_replay_scope_is_session_opcode_nonce() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+    let (program_20, _calls_20, _bytes_20, _handler_ids_20) = counting_program();
+    router.register(0x20, program_20);
+
+    let exact = signed_context_with_fields([1u8; 16], [2u8; 12], 0x10, b"payload");
+    let different_session_same_nonce =
+        signed_context_with_fields([3u8; 16], [2u8; 12], 0x10, b"payload");
+    let same_session_nonce_different_opcode =
+        signed_context_with_fields([1u8; 16], [2u8; 12], 0x20, b"payload");
+
+    router.route_verified(&exact, b"payload".to_vec()).await;
+    router
+        .route_verified(&different_session_same_nonce, b"payload".to_vec())
+        .await;
+    router
+        .route_verified(&same_session_nonce_different_opcode, b"payload".to_vec())
+        .await;
+    router.route_verified(&exact, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    let reservation_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(reservation_count.0, 3);
+    let replay_reject_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND reason = 'replay_detected'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(replay_reject_count.0, 1);
+}
+
+#[tokio::test]
+async fn gateway_router_concurrent_identical_replay_executes_once() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let (pool, db_path) = file_pool("concurrent-replay").await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+    let router = Arc::new(router);
+    let signed = signed_context(0x10, b"payload");
+    let first_router = Arc::clone(&router);
+    let second_router = Arc::clone(&router);
+    let first_signed = signed.clone();
+    let second_signed = signed.clone();
+
+    let ((), ()) = tokio::join!(
+        async move {
+            first_router
+                .route_verified(&first_signed, b"payload".to_vec())
+                .await;
+        },
+        async move {
+            second_router
+                .route_verified(&second_signed, b"payload".to_vec())
+                .await;
+        }
+    );
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let reservation_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(reservation_count.0, 1);
+    let replay_reject_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND reason = 'replay_detected'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(replay_reject_count.0, 1);
+    let handler_started_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind = 'handler_started'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(handler_started_count.0, 1);
+
+    drop(pool);
+    let _ = fs::remove_file(db_path);
 }
 
 #[tokio::test]

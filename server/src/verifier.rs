@@ -1,8 +1,10 @@
 use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
 use crate::identity::NodeVerifierIdentity;
 use crate::manifest::{ReceiverManifest, ReplayScope};
+use crate::ontology::PROTOTYPE_LOCAL_SUBJECT;
 pub use crate::receipt::AuthenticatorKind;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
+
 use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -11,6 +13,8 @@ use sha2::{Digest, Sha256};
 pub enum VerificationError {
     MalformedPacket,
     ExpiredClaim,
+    ClaimTtlExceedsDescriptorMax,
+    InvalidSession,
     MissingPrototypeProofEnvelope,
     BadPrototypeProofEnvelope,
     MissingTunnelKey,
@@ -36,6 +40,8 @@ impl VerificationError {
         match self {
             Self::MalformedPacket => "malformed_packet",
             Self::ExpiredClaim => "expired_claim",
+            Self::ClaimTtlExceedsDescriptorMax => "claim_ttl_exceeds_descriptor_max",
+            Self::InvalidSession => "invalid_session",
             Self::MissingPrototypeProofEnvelope => "missing_prototype_proof_envelope",
             Self::BadPrototypeProofEnvelope => "bad_prototype_proof_envelope",
             Self::MissingTunnelKey => "missing_tunnel_key",
@@ -152,7 +158,7 @@ impl Verifier {
             packet,
             descriptor,
             audience,
-            "prototype.local-dev.subject",
+            PROTOTYPE_LOCAL_SUBJECT,
             descriptor_evidence_summary(descriptor),
             now,
         )
@@ -215,7 +221,13 @@ fn verified_context_for_descriptor(
     evidence_summary: Vec<String>,
     now: u64,
 ) -> Result<VerifiedCallContext, VerificationError> {
-    let max_ttl = packet.claim_ttl.min(descriptor.max_ttl_seconds);
+    if packet.claim_ttl > descriptor.max_ttl_seconds {
+        return Err(VerificationError::ClaimTtlExceedsDescriptorMax);
+    }
+    if packet.session_id == [0u8; 16] {
+        return Err(VerificationError::InvalidSession);
+    }
+
     Ok(VerifiedCallContext {
         schema_version: 1,
         context_id: format!("ctx-v1-{now}-{:02x}", packet.opcode),
@@ -233,7 +245,7 @@ fn verified_context_for_descriptor(
         capability_result: descriptor.required_capabilities.join(","),
         credential_result: descriptor.required_credentials.join(","),
         issued_at: now,
-        expires_at: now.saturating_add(max_ttl),
+        expires_at: now.saturating_add(packet.claim_ttl),
         replay_scope: replay_scope_name(descriptor.replay_scope).to_string(),
         handler_id: Some(descriptor.handler_id.clone()),
     })

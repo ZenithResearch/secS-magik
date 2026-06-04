@@ -70,3 +70,64 @@ fn merged_track_a_status_has_no_unresolved_final_hygiene_condition() {
         "checklist should state the post-merge Track A completion boundary"
     );
 }
+
+#[test]
+fn track_c_status_documents_receiver_local_bounded_replay_enforcement() {
+    for required in [
+        "Track C is implemented",
+        "receiver-local/local durable replay/session/expiry enforcement",
+        "Duplicate `(session_id, opcode, nonce, replay_scope)` verified contexts reserve atomically in local SQLite",
+        "replay_detected",
+        "before handler execution",
+        "claim_ttl_exceeds_descriptor_max",
+        "before signed context issuance",
+        "invalid_session",
+        "Expired/wrong-audience/invalid-signature signed contexts emit signed reject receipts/events",
+        "before replay reservation",
+        "Pre-verification/signature failures do not consume replay slots",
+    ] {
+        assert!(
+            IMPLEMENTATION_STATUS.contains(required),
+            "implementation status should document Track C bounded replay claim: {required}"
+        );
+    }
+
+    assert!(
+        IMPLEMENTATION_STATUS
+            .contains("not distributed/global/cross-Hub/cluster-wide replay protection"),
+        "Track C status must explicitly negate distributed/global/cross-Hub replay protection"
+    );
+    assert!(
+        !IMPLEMENTATION_STATUS.contains("Solid / implemented as distributed"),
+        "Track C status must not mark distributed replay as implemented"
+    );
+}
+
+#[test]
+fn ready_for_prod_checklist_records_track_c_completion_without_global_overclaim() {
+    for required in [
+        "Track C was completed on fresh branch `phase/track-c-replay-session-expiry-v2`",
+        "receiver-local bounded-claim implementation",
+        "within the configured receiver-local replay store/scope",
+        "including concurrent identical routes",
+        "server/src/schema.rs",
+        "schema ontology",
+        "server/src/ontology.rs",
+        "default receiver audience",
+        "Pre-verification/signature failures emit signed reject receipts/events",
+        "do not consume replay slots",
+        "claim_ttl_exceeds_descriptor_max",
+        "invalid_session",
+        "replay_detected",
+    ] {
+        assert!(
+            READY_FOR_PROD_CHECKLIST.contains(required),
+            "ready-for-prod checklist should record bounded Track C completion: {required}"
+        );
+    }
+
+    assert!(
+        !READY_FOR_PROD_CHECKLIST.contains("Stop when production packets cannot execute twice,"),
+        "Track C stop condition must be qualified by receiver-local replay store/scope"
+    );
+}

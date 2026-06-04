@@ -1,8 +1,13 @@
 use crate::identity::{
     explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
 };
-use crate::ledger::Ledger;
+use crate::ledger::{Ledger, ReplayReservationOutcome};
+use crate::ontology::{
+    DEFAULT_RECEIVER_AUDIENCE, LOCAL_PROTOTYPE_SIGNER_ID, REPLAY_DETECTED_REASON,
+    REPLAY_RESERVATION_FAILED_REASON, UNVERIFIED_PROTOTYPE_OPERATION,
+};
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
+use crate::schema::{apply_schema, TELEMETRY_TABLES};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
@@ -12,7 +17,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::timeout;
 
 const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
-pub(crate) const DEFAULT_RECEIVER_AUDIENCE: &str = "secS://receiver-a";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandlerOutcome {
@@ -76,7 +80,7 @@ impl ConfigurableRouter {
             pool,
             limits,
             explicit_test_fixture_identity(
-                "verifier:local-prototype",
+                LOCAL_PROTOTYPE_SIGNER_ID,
                 PROTOTYPE_RECEIPT_SIGNING_KEY,
             ),
         )
@@ -120,7 +124,7 @@ impl ConfigurableRouter {
         )
         .bind(i64::from(opcode))
         .bind(payload_size)
-        .bind("unverified.prototype")
+        .bind(UNVERIFIED_PROTOTYPE_OPERATION)
         .execute(&self.pool)
         .await
         {
@@ -132,7 +136,7 @@ impl ConfigurableRouter {
                 ReceiptEventKind::PacketReceived,
                 None,
                 Some(opcode),
-                Some("unverified.prototype"),
+                Some(UNVERIFIED_PROTOTYPE_OPERATION),
                 None,
                 Some(&format!("payload_size:{payload_size}")),
                 timestamp,
@@ -159,18 +163,18 @@ impl ConfigurableRouter {
             error,
             timestamp,
         );
-        if let Err(e) = self.ledger.record_receipt(&receipt).await {
-            eprintln!("secS [Ledger]: failed to write reject receipt - {}", e);
-        }
+        let packet_hash = receipt.packet_hash;
+        let reason = receipt.reason.clone();
+        self.record_signed_receipt(receipt).await;
         if let Err(e) = self
             .ledger
             .record_event(
                 ReceiptEventKind::PacketRejected,
-                Some(receipt.packet_hash),
+                Some(packet_hash),
                 Some(packet.opcode),
                 None,
                 None,
-                receipt.reason.as_deref(),
+                reason.as_deref(),
                 timestamp,
             )
             .await
@@ -196,11 +200,62 @@ impl ConfigurableRouter {
             ),
         };
         if let Err(error) = verification_result {
+            let reason = error.reason_code();
+            if should_emit_signed_context_reject(&error) {
+                self.record_verified_reject_receipt(signed, reason, timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::PacketRejected,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+            }
             eprintln!(
                 "secS [Router]: rejected signed context before routing - {}",
-                error.reason_code()
+                reason
             );
             return;
+        }
+
+        match self
+            .ledger
+            .reserve_replay(context, &signed.signer_key_id, timestamp)
+            .await
+        {
+            Ok(ReplayReservationOutcome::Reserved) => {}
+            Ok(ReplayReservationOutcome::Duplicate) => {
+                let reason = REPLAY_DETECTED_REASON;
+                self.record_verified_reject_receipt(signed, reason, timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::PacketRejected,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+                eprintln!(
+                    "secS [Router]: rejected replayed verified context {} before handler execution",
+                    context.context_id
+                );
+                return;
+            }
+            Err(e) => {
+                let reason = REPLAY_RESERVATION_FAILED_REASON;
+                eprintln!("secS [Ledger]: failed to reserve replay slot - {}", e);
+                self.record_verified_reject_receipt(signed, reason, timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::PacketRejected,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+                return;
+            }
         }
 
         if let Err(e) = sqlx::query(
@@ -280,9 +335,32 @@ impl ConfigurableRouter {
         }
     }
 
+    async fn record_verified_reject_receipt(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        reason: &str,
+        timestamp: u64,
+    ) {
+        let receipt = Receipt::reject_from_verified_context(
+            format!(
+                "receipt-reject-{timestamp}-{:02x}-{}",
+                signed.context.opcode,
+                context_receipt_suffix(&signed.context)
+            ),
+            &signed.context,
+            reason,
+            timestamp,
+        );
+        self.record_signed_receipt(receipt).await;
+    }
+
     async fn record_verify_receipt(&self, signed: &SignedVerifiedCallContext, timestamp: u64) {
         let receipt = Receipt::verify_from_signed_context(
-            format!("receipt-verify-{timestamp}-{:02x}", signed.context.opcode),
+            format!(
+                "receipt-verify-{timestamp}-{:02x}-{}",
+                signed.context.opcode,
+                context_receipt_suffix(&signed.context)
+            ),
             signed,
             timestamp,
         );
@@ -299,7 +377,11 @@ impl ConfigurableRouter {
         timestamp: u64,
     ) {
         let receipt = Receipt::execution(
-            format!("receipt-execute-{timestamp}-{:02x}", signed.context.opcode),
+            format!(
+                "receipt-execute-{timestamp}-{:02x}-{}",
+                signed.context.opcode,
+                context_receipt_suffix(&signed.context)
+            ),
             &signed.context,
             decision,
             reason,
@@ -366,18 +448,7 @@ impl ConfigurableRouter {
     }
 }
 pub async fn init_telemetry_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS node_telemetry (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            opcode INTEGER NOT NULL,
-            payload_size INTEGER NOT NULL,
-            operation TEXT NOT NULL DEFAULT 'unverified.prototype'
-        );",
-    )
-    .execute(pool)
-    .await?;
-
+    apply_schema(pool, TELEMETRY_TABLES).await?;
     Ledger::new(pool.clone()).init_schema().await
 }
 
@@ -386,6 +457,23 @@ fn current_unix_seconds() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
+}
+
+fn should_emit_signed_context_reject(error: &VerificationError) -> bool {
+    matches!(
+        error,
+        VerificationError::ExpiredClaim
+            | VerificationError::WrongAudience
+            | VerificationError::InvalidSignature
+    )
+}
+
+fn context_receipt_suffix(context: &VerifiedCallContext) -> String {
+    let hash_prefix = context.packet_hash[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("{}-{hash_prefix}", context.context_id)
 }
 
 pub struct SubprocessForwarder {
