@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Moved local SQLite DDL into a named runtime schema ontology and centralized prototype receiver constants/replay reason strings so Track C does not leave table definitions or default audience values embedded in ledger/gateway/verifier methods.
+
 - Updated Track C docs/status acceptance language — records the implemented replay/session/expiry behavior with receiver-local bounded claims so readers do not infer distributed replay protection or unrelated production rails.
 - Enforced Track C descriptor/session fail-closed verification: descriptor TTL overruns and all-zero sessions now reject before signed context issuance, and expired/wrong-audience/invalid-signature signed contexts emit stable reject receipts/events before any replay reservation or handler execution.
 - Wired verified routing through the Track C replay reservation ledger — duplicate signed contexts are rejected with stable `replay_detected` receipts/events before telemetry or handler execution so a local replay cannot execute a handler twice.

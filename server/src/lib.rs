@@ -4,9 +4,11 @@ pub mod identity;
 pub mod ingress;
 pub mod ledger;
 pub mod manifest;
+pub mod ontology;
 pub mod payload;
 pub mod receipt;
 pub mod runtime_mode;
+pub mod schema;
 pub mod session;
 pub mod verifier;
 

@@ -1,11 +1,9 @@
-use crate::gateway::{
-    init_telemetry_schema, register_prototype_bindings, ConfigurableRouter,
-    DEFAULT_RECEIVER_AUDIENCE,
-};
+use crate::gateway::{init_telemetry_schema, register_prototype_bindings, ConfigurableRouter};
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
 };
 use crate::manifest::ReceiverManifest;
+use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
 use crate::payload::decrypt_machine_payload;
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::Verifier;

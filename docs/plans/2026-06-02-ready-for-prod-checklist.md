@@ -869,6 +869,8 @@ Track C was completed on fresh branch `phase/track-c-replay-session-expiry-v2` a
 Implementation evidence:
 
 - Duplicate `(session_id, opcode, nonce, replay_scope)` verified contexts reserve atomically in local SQLite, including concurrent identical routes, and duplicate reservations reject with `replay_detected` before telemetry or handler execution.
+- Runtime DDL now lives in `server/src/schema.rs` as a named schema ontology for `events`, `receipts`, `replay_reservations`, and `node_telemetry`; ledger/gateway initialization applies those named table definitions instead of embedding `CREATE TABLE` DDL inline.
+- Prototype receiver constants now live in `server/src/ontology.rs` for the default receiver audience, prototype local subject, local test audience/origin, local prototype signer id, unverified prototype operation label, and replay reservation reason strings.
 - Descriptor max TTL overclaims reject with `claim_ttl_exceeds_descriptor_max` before signed context issuance.
 - All-zero session IDs reject with `invalid_session` before signed context issuance.
 - Expired, wrong-audience, and invalid-signature signed contexts emit signed reject receipts/events before replay reservation and before handler execution.
@@ -880,6 +882,7 @@ Verification evidence:
 cargo test -p server --test ledger replay -- --nocapture
 cargo test -p server --test gateway_layout replay -- --nocapture
 cargo test -p server --test gateway_layout gateway_router_concurrent_identical_replay_executes_once -- --nocapture
+cargo test -p server --test schema -- --nocapture
 cargo test -p server --test verifier_context -- --nocapture
 cargo test -p server --test ready_for_prod_docs -- --nocapture
 cargo test --workspace
@@ -889,7 +892,13 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 git diff --check -- README.md CHANGELOG.md docs/ server/
 ```
 
-Boundary assessment: C1–C4 are the planned Track C runtime/docs slices. The additional C5/C6 review-fix commits did not widen Track C into Track F/G/H/E; they repaired audit consistency for Track C reject paths and added explicit concurrent replay coverage required by issue #23. C2/C3 are broader than issue #23 alone, but they are inside the planned Track C phase boundary from the A8 phase map.
+Boundary assessment: C1–C4 are the planned Track C runtime/docs slices. The additional C5/C6 review-fix commits did not widen Track C into Track F/G/H/E; they repaired audit consistency for Track C reject paths and added explicit concurrent replay coverage required by issue #23. C7 updated the repo/capture/PR boundary assessment, and C8 moved inline DDL plus repeated receiver constants into central schema/ontology modules without changing the Track C runtime boundary. C2/C3 are broader than issue #23 alone, but they are inside the planned Track C phase boundary from the A8 phase map.
+
+Centralization follow-ups for later tracks:
+
+- Move runtime receiver audience from prototype constant toward operator configuration when Track G production service runtime hardening lands.
+- Consider a typed reason-code module or enum for gateway-only execution/replay reasons (`payload_too_large`, `handler_timeout`, `handler_unavailable`, handler subprocess errors) before Track F/H expand handler/ledger surfaces.
+- Replace remaining test-local repeated audience/subject/origin fixtures with shared fixture helpers if those tests start driving production policy in Tracks D/E/I; until then they are test data, not runtime authority.
 
 C4 remains bounded: Track C is not distributed/global/cross-Hub/cluster-wide replay protection, does not complete production wallet crypto, trusted issuer/root registry, Dregg/Midnight/Cardano rails, ingress DoS hardening, bounded subprocess side-effect containment, or ledger public auditability, and must not be described as “production packets cannot execute twice” unless qualified as within the configured receiver-local replay store/scope.
 

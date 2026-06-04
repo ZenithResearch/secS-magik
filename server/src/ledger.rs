@@ -4,6 +4,7 @@
 //! does not need to maintain SQLx offline metadata yet.
 
 use crate::receipt::{Receipt, ReceiptEventKind};
+use crate::schema::{apply_schema, LEDGER_TABLES};
 use crate::verifier::VerifiedCallContext;
 use sqlx::SqlitePool;
 
@@ -28,61 +29,7 @@ impl Ledger {
     }
 
     pub async fn init_schema(&self) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp INTEGER NOT NULL,
-                event_kind TEXT NOT NULL,
-                packet_hash BLOB,
-                opcode INTEGER,
-                operation TEXT,
-                handler_id TEXT,
-                reason TEXT
-            );",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS receipts (
-                receipt_id TEXT PRIMARY KEY,
-                timestamp INTEGER NOT NULL,
-                kind TEXT NOT NULL,
-                packet_hash BLOB NOT NULL,
-                session_id BLOB NOT NULL,
-                nonce BLOB NOT NULL,
-                opcode INTEGER NOT NULL,
-                operation TEXT,
-                decision TEXT NOT NULL,
-                reason TEXT,
-                handler_id TEXT,
-                authenticator_kind TEXT NOT NULL,
-                signer_key_id TEXT NOT NULL,
-                signature BLOB NOT NULL
-            );",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS replay_reservations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                reserved_at INTEGER NOT NULL,
-                expires_at INTEGER NOT NULL,
-                replay_scope TEXT NOT NULL,
-                session_id BLOB NOT NULL,
-                opcode INTEGER NOT NULL,
-                nonce BLOB NOT NULL,
-                packet_hash BLOB NOT NULL,
-                context_id TEXT NOT NULL,
-                signer_key_id TEXT NOT NULL,
-                UNIQUE(session_id, opcode, nonce, replay_scope)
-            );",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
+        apply_schema(&self.pool, LEDGER_TABLES).await
     }
 
     pub async fn reserve_replay(

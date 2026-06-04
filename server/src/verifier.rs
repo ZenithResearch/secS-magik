@@ -1,8 +1,10 @@
 use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
 use crate::identity::NodeVerifierIdentity;
 use crate::manifest::{ReceiverManifest, ReplayScope};
+use crate::ontology::PROTOTYPE_LOCAL_SUBJECT;
 pub use crate::receipt::AuthenticatorKind;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
+
 use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -156,7 +158,7 @@ impl Verifier {
             packet,
             descriptor,
             audience,
-            "prototype.local-dev.subject",
+            PROTOTYPE_LOCAL_SUBJECT,
             descriptor_evidence_summary(descriptor),
             now,
         )
