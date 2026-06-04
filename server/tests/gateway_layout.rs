@@ -64,6 +64,22 @@ async fn memory_pool() -> SqlitePool {
     pool
 }
 
+async fn file_pool(name: &str) -> (SqlitePool, std::path::PathBuf) {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("secs-magik-{name}-{nanos}.sqlite"));
+    let url = format!("sqlite://{}?mode=rwc", path.display());
+    let pool = SqlitePoolOptions::new()
+        .max_connections(4)
+        .connect(&url)
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    (pool, path)
+}
+
 fn packet(opcode: u8, payload: &[u8]) -> ZenithPacket {
     packet_with([1u8; 16], [2u8; 12], opcode, payload)
 }
@@ -608,6 +624,56 @@ async fn gateway_router_replay_scope_is_session_opcode_nonce() {
     .await
     .unwrap();
     assert_eq!(replay_reject_count.0, 1);
+}
+
+#[tokio::test]
+async fn gateway_router_concurrent_identical_replay_executes_once() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let (pool, db_path) = file_pool("concurrent-replay").await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+    let router = Arc::new(router);
+    let signed = signed_context(0x10, b"payload");
+    let first_router = Arc::clone(&router);
+    let second_router = Arc::clone(&router);
+    let first_signed = signed.clone();
+    let second_signed = signed.clone();
+
+    let ((), ()) = tokio::join!(
+        async move {
+            first_router
+                .route_verified(&first_signed, b"payload".to_vec())
+                .await;
+        },
+        async move {
+            second_router
+                .route_verified(&second_signed, b"payload".to_vec())
+                .await;
+        }
+    );
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let reservation_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(reservation_count.0, 1);
+    let replay_reject_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND reason = 'replay_detected'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(replay_reject_count.0, 1);
+    let handler_started_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind = 'handler_started'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(handler_started_count.0, 1);
+
+    drop(pool);
+    let _ = fs::remove_file(db_path);
 }
 
 #[tokio::test]
