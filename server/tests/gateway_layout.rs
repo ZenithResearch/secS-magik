@@ -826,6 +826,74 @@ async fn gateway_router_rejects_payloads_over_configured_limit_before_handler_ex
 }
 
 
+
+#[tokio::test]
+async fn gateway_router_emits_execution_receipts_for_all_handler_outcomes() {
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_limits(
+        pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 4,
+            max_output_bytes: 4,
+            handler_timeout: Duration::from_millis(1),
+        },
+    );
+    let calls = Arc::new(AtomicUsize::new(0));
+    router.register(
+        0x10,
+        Box::new(DecliningProgram {
+            calls: Arc::clone(&calls),
+        }),
+    );
+    router.register(0x20, Box::new(OutputProgram { output_bytes: 8 }));
+    router.register(0x30, Box::new(SlowProgram));
+
+    router
+        .route_verified(
+            &signed_context_with_fields([1u8; 16], [1u8; 12], 0x10, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
+    router
+        .route_verified(
+            &signed_context_with_fields([2u8; 16], [2u8; 12], 0x10, b"oversized"),
+            b"oversized".to_vec(),
+        )
+        .await;
+    router
+        .route_verified(
+            &signed_context_with_fields([3u8; 16], [3u8; 12], 0x20, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
+    router
+        .route_verified(
+            &signed_context_with_fields([4u8; 16], [4u8; 12], 0x30, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
+    let mut unavailable = signed_context_with_fields([5u8; 16], [5u8; 12], 0x10, b"ok");
+    unavailable.context.handler_id = Some("dev/unregistered-handler".to_string());
+    unavailable = router
+        .identity()
+        .sign_context(unavailable.context)
+        .expect("mutated unavailable handler context should re-sign");
+    router.route_verified(&unavailable, b"ok".to_vec()).await;
+
+    let rows: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT decision, reason FROM receipts WHERE kind = 'execute' ORDER BY timestamp, receipt_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert!(rows.iter().any(|row| row == &("rejected".to_string(), Some("handler_declined".to_string()))));
+    assert!(rows.iter().any(|row| row == &("rejected".to_string(), Some("payload_too_large".to_string()))));
+    assert!(rows.iter().any(|row| row == &("rejected".to_string(), Some("output_too_large".to_string()))));
+    assert!(rows.iter().any(|row| row == &("rejected".to_string(), Some("handler_timeout".to_string()))));
+    assert!(rows.iter().any(|row| row == &("rejected".to_string(), Some("handler_unavailable".to_string()))));
+    assert_eq!(rows.len(), 5);
+}
+
 #[tokio::test]
 async fn gateway_router_rejects_handler_output_over_configured_limit_without_logging_output() {
     let pool = memory_pool().await;
