@@ -331,6 +331,40 @@ async fn gateway_router_rejects_unmapped_opcode_without_executing_program() {
     );
 }
 
+
+#[tokio::test]
+async fn gateway_router_uses_descriptor_handler_id_not_opcode_for_program_selection() {
+    let (registered_program, registered_calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, registered_program);
+    let mut signed = signed_context(0x10, b"payload");
+    signed.context.handler_id = Some("dev/unregistered-handler".to_string());
+    signed = router
+        .identity()
+        .sign_context(signed.context)
+        .expect("mutated descriptor context should be re-signed by test identity");
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(registered_calls.load(Ordering::SeqCst), 0);
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "handler_unavailable".to_string(),
+            "dev/unregistered-handler".to_string()
+        )
+    );
+}
+
 #[tokio::test]
 async fn gateway_router_signs_receipts_with_loaded_production_identity() {
     let path = write_key_file([0x45; 32]);

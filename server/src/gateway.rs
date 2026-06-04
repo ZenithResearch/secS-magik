@@ -61,7 +61,7 @@ pub trait MachineProgram: Send + Sync {
 }
 
 pub struct ConfigurableRouter {
-    programs: HashMap<u8, Box<dyn MachineProgram>>,
+    programs: HashMap<String, Box<dyn MachineProgram>>,
     pool: SqlitePool,
     ledger: Ledger,
     limits: ExecutionLimits,
@@ -126,7 +126,19 @@ impl ConfigurableRouter {
     }
 
     pub fn register(&mut self, opcode: u8, program: Box<dyn MachineProgram>) {
-        self.programs.insert(opcode, program);
+        let handler_id = crate::manifest::ReceiverManifest::default_v0()
+            .lookup(opcode)
+            .map(|descriptor| descriptor.handler_id.clone())
+            .unwrap_or_else(|_| format!("opcode/{opcode:02x}"));
+        self.register_handler(handler_id, program);
+    }
+
+    pub fn register_handler(
+        &mut self,
+        handler_id: impl Into<String>,
+        program: Box<dyn MachineProgram>,
+    ) {
+        self.programs.insert(handler_id.into(), program);
     }
 
     pub fn identity(&self) -> &NodeVerifierIdentity {
@@ -164,7 +176,11 @@ impl ConfigurableRouter {
             eprintln!("secS [Ledger]: failed to write unverified event - {}", e);
         }
 
-        match self.programs.get(&opcode) {
+        let handler_id = crate::manifest::ReceiverManifest::default_v0()
+            .lookup(opcode)
+            .ok()
+            .map(|descriptor| descriptor.handler_id.clone());
+        match handler_id.as_deref().and_then(|handler_id| self.programs.get(handler_id)) {
             Some(_) => eprintln!(
                 "secS [Router]: rejected unverified handler route for opcode {:#04x}",
                 opcode
@@ -306,7 +322,25 @@ impl ConfigurableRouter {
             return;
         }
 
-        match self.programs.get(&context.opcode) {
+        let Some(handler_id) = context.handler_id.as_deref() else {
+            let reason = "handler_unavailable";
+            self.record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                .await;
+            self.record_operation_event(
+                ReceiptEventKind::HandlerFailed,
+                signed,
+                timestamp,
+                Some(reason),
+            )
+            .await;
+            eprintln!(
+                "secS [Router]: rejected verified operation without descriptor handler {} ({:#04x})",
+                context.operation, context.opcode
+            );
+            return;
+        };
+
+        match self.programs.get(handler_id) {
             Some(program) => {
                 self.record_operation_event(
                     ReceiptEventKind::HandlerStarted,
@@ -567,15 +601,15 @@ impl MachineProgram for LocalRustQueue {
 }
 
 pub fn register_prototype_bindings(router: &mut ConfigurableRouter) {
-    router.register(
-        0x10,
+    router.register_handler(
+        "dev/bash-echo",
         Box::new(SubprocessForwarder::new(
             "bash",
             vec!["-c", "echo 'Bash received payload:'; cat"],
         )),
     );
-    router.register(0x20, Box::new(LocalRustQueue));
-    router.register(0x30, Box::new(SubprocessForwarder::new("jq", vec!["."])));
+    router.register_handler("dev/json-validate", Box::new(LocalRustQueue));
+    router.register_handler("dev/jq-identity", Box::new(SubprocessForwarder::new("jq", vec!["."])));
 }
 
 #[cfg(test)]
