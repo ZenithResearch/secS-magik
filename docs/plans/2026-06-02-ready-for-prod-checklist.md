@@ -929,6 +929,10 @@ C4 remains bounded: Track C is not distributed/global/cross-Hub/cluster-wide rep
 | F3 — Execution receipts for all outcomes | Ensure success, unavailable, failure, timeout, oversized all emit execution receipts/events. | `server/src/receipt.rs`, `server/src/ledger.rs`, ingress/execution tests | RED missing receipt for failure; GREEN targeted tests | Every handler outcome is receipt-backed. | Stop when ledger inspection proves chain. | Do not claim verifier acceptance implies execution success. |
 | F4 — Gate or remove subprocess prototype path | Contain arbitrary subprocess/native demo behavior behind explicit allowlisted descriptors or remove it from production binary. | `server/src/bin/secz.rs`, `server/src/gateway.rs`, docs | Search for subprocess paths + tests proving production disallows unallowlisted shell | Production path cannot reach arbitrary shell commands by default. | Stop before runtime hardening. | Do not break compatibility binary silently without docs. |
 
+#### Track F completion checkpoint
+
+Track F is complete as a receiver-local bounded execution broker: handler selection is bound to descriptor `handler_id` from the signed `VerifiedCallContext`; unknown or missing handlers reject with execution receipts instead of falling through by opcode; payload size, output size, and timeout limits reject with stable execution reasons; success, handler-decline, unavailable, timeout, oversized-payload, and oversized-output paths all emit signed execution receipts; and production runtime bindings do not register dev subprocess handlers by default. This does **not** claim durable distributed execution, broad shell authority, production wallet/federated evidence policy, Dregg/Midnight/Cardano authority, or public auditability.
+
 ### A8 — Track G issue/commit details: ingress/service runtime hardening
 
 | Issue / commit | Objective | Files | TDD / verification commands | Acceptance criteria | Stop condition | Must not claim |

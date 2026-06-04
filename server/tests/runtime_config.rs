@@ -13,6 +13,7 @@ fn clear_env() {
         "SECS_TRUST_REGISTRY_PATH",
         "SECS_MAX_WIRE_BYTES",
         "SECS_MAX_PAYLOAD_BYTES",
+        "SECS_MAX_OUTPUT_BYTES",
         "SECS_HANDLER_TIMEOUT_MS",
         "SECS_INGRESS_READ_TIMEOUT_MS",
         "SECS_ALLOWED_EVIDENCE_ADAPTERS",
@@ -68,6 +69,7 @@ fn production_config_accepts_explicit_operator_runtime_fields() {
     assert_eq!(config.bind_addr, "127.0.0.1:9009");
     assert_eq!(config.max_wire_bytes, 2 * 1024 * 1024);
     assert_eq!(config.max_payload_bytes, 1024 * 1024);
+    assert_eq!(config.max_output_bytes, 1024 * 1024);
     assert_eq!(config.handler_timeout, Duration::from_secs(30));
     assert_eq!(config.ingress_read_timeout, Duration::from_secs(10));
     assert_eq!(
