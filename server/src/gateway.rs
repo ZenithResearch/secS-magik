@@ -22,6 +22,7 @@ const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 pub struct HandlerOutcome {
     pub decision: Decision,
     pub reason: Option<String>,
+    pub output_bytes: usize,
 }
 
 impl HandlerOutcome {
@@ -29,6 +30,15 @@ impl HandlerOutcome {
         Self {
             decision: Decision::Accepted,
             reason: None,
+            output_bytes: 0,
+        }
+    }
+
+    pub fn succeeded_with_output_bytes(output_bytes: usize) -> Self {
+        Self {
+            decision: Decision::Accepted,
+            reason: None,
+            output_bytes,
         }
     }
 
@@ -36,6 +46,7 @@ impl HandlerOutcome {
         Self {
             decision: Decision::Rejected,
             reason: Some(reason.into()),
+            output_bytes: 0,
         }
     }
 }
@@ -43,6 +54,7 @@ impl HandlerOutcome {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExecutionLimits {
     pub max_payload_bytes: usize,
+    pub max_output_bytes: usize,
     pub handler_timeout: Duration,
 }
 
@@ -50,6 +62,7 @@ impl Default for ExecutionLimits {
     fn default() -> Self {
         Self {
             max_payload_bytes: 1024 * 1024,
+            max_output_bytes: 1024 * 1024,
             handler_timeout: Duration::from_secs(30),
         }
     }
@@ -357,6 +370,11 @@ impl ConfigurableRouter {
                 {
                     Ok(outcome) => outcome,
                     Err(_) => HandlerOutcome::rejected("handler_timeout"),
+                };
+                let outcome = if outcome.output_bytes > self.limits.max_output_bytes {
+                    HandlerOutcome::rejected("output_too_large")
+                } else {
+                    outcome
                 };
                 let reason = outcome.reason.as_deref();
                 self.record_execution_receipt(signed, outcome.decision, reason, timestamp)

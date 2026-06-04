@@ -44,6 +44,17 @@ impl MachineProgram for DecliningProgram {
     }
 }
 
+struct OutputProgram {
+    output_bytes: usize,
+}
+
+#[async_trait]
+impl MachineProgram for OutputProgram {
+    async fn execute(&self, _context: &VerifiedCallContext, _payload: &[u8]) -> HandlerOutcome {
+        HandlerOutcome::succeeded_with_output_bytes(self.output_bytes)
+    }
+}
+
 struct SlowProgram;
 
 #[async_trait]
@@ -786,6 +797,7 @@ async fn gateway_router_rejects_payloads_over_configured_limit_before_handler_ex
         pool.clone(),
         ExecutionLimits {
             max_payload_bytes: 4,
+            max_output_bytes: 1024,
             handler_timeout: Duration::from_secs(1),
         },
     );
@@ -813,6 +825,41 @@ async fn gateway_router_rejects_payloads_over_configured_limit_before_handler_ex
     );
 }
 
+
+#[tokio::test]
+async fn gateway_router_rejects_handler_output_over_configured_limit_without_logging_output() {
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_limits(
+        pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 1024,
+            max_output_bytes: 4,
+            handler_timeout: Duration::from_secs(1),
+        },
+    );
+    router.register(0x10, Box::new(OutputProgram { output_bytes: 8 }));
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "output_too_large".to_string(),
+            "dev/bash-echo".to_string()
+        )
+    );
+}
+
 #[tokio::test]
 async fn gateway_router_rejects_timed_out_handlers_and_records_failure_without_payload_content() {
     let pool = memory_pool().await;
@@ -820,6 +867,7 @@ async fn gateway_router_rejects_timed_out_handlers_and_records_failure_without_p
         pool.clone(),
         ExecutionLimits {
             max_payload_bytes: 1024,
+            max_output_bytes: 1024,
             handler_timeout: Duration::from_millis(1),
         },
     );

@@ -19,6 +19,7 @@ pub struct GatewayRuntimeConfig {
     pub trust_registry_path: Option<PathBuf>,
     pub max_wire_bytes: usize,
     pub max_payload_bytes: usize,
+    pub max_output_bytes: usize,
     pub handler_timeout: Duration,
     pub ingress_read_timeout: Duration,
     pub allowed_evidence_adapters: Vec<String>,
@@ -100,6 +101,7 @@ impl GatewayRuntimeConfig {
         let ledger_path = std::env::var_os("SECS_LEDGER_PATH").map(PathBuf::from);
         let max_wire_bytes = parse_usize_env("SECS_MAX_WIRE_BYTES", DEFAULT_MAX_WIRE_BYTES)?;
         let max_payload_bytes = parse_usize_env("SECS_MAX_PAYLOAD_BYTES", 1024 * 1024)?;
+        let max_output_bytes = parse_usize_env("SECS_MAX_OUTPUT_BYTES", 1024 * 1024)?;
         let handler_timeout = Duration::from_millis(parse_u64_env(
             "SECS_HANDLER_TIMEOUT_MS",
             ExecutionLimits::default().handler_timeout.as_millis() as u64,
@@ -124,6 +126,7 @@ impl GatewayRuntimeConfig {
                 trust_registry_path,
                 max_wire_bytes,
                 max_payload_bytes,
+                max_output_bytes,
                 handler_timeout,
                 ingress_read_timeout,
                 allowed_evidence_adapters,
@@ -140,6 +143,7 @@ impl GatewayRuntimeConfig {
                 trust_registry_path,
                 max_wire_bytes,
                 max_payload_bytes,
+                max_output_bytes,
                 handler_timeout,
                 ingress_read_timeout,
                 allowed_evidence_adapters,
@@ -168,6 +172,7 @@ impl GatewayRuntimeConfig {
             Some(PathBuf::from(trust_registry_path)),
             DEFAULT_MAX_WIRE_BYTES,
             1024 * 1024,
+            1024 * 1024,
             Duration::from_secs(30),
             DEFAULT_INGRESS_READ_TIMEOUT,
             parse_adapter_list(allowed_evidence_adapters.to_string()),
@@ -186,6 +191,7 @@ impl GatewayRuntimeConfig {
             trust_registry_path: None,
             max_wire_bytes: DEFAULT_MAX_WIRE_BYTES,
             max_payload_bytes: 1024 * 1024,
+            max_output_bytes: 1024 * 1024,
             handler_timeout: Duration::from_secs(30),
             ingress_read_timeout: DEFAULT_INGRESS_READ_TIMEOUT,
             allowed_evidence_adapters: vec!["local_static".to_string()],
@@ -196,6 +202,7 @@ impl GatewayRuntimeConfig {
     pub fn execution_limits(&self) -> ExecutionLimits {
         ExecutionLimits {
             max_payload_bytes: self.max_payload_bytes,
+            max_output_bytes: self.max_output_bytes,
             handler_timeout: self.handler_timeout,
         }
     }
@@ -243,6 +250,7 @@ impl GatewayRuntimeConfig {
         trust_registry_path: Option<PathBuf>,
         max_wire_bytes: usize,
         max_payload_bytes: usize,
+        max_output_bytes: usize,
         handler_timeout: Duration,
         ingress_read_timeout: Duration,
         allowed_evidence_adapters: Vec<String>,
@@ -277,8 +285,9 @@ impl GatewayRuntimeConfig {
             trust_registry_path,
             max_wire_bytes,
             max_payload_bytes,
+            max_output_bytes,
             handler_timeout,
-            ingress_read_timeout,
+ingress_read_timeout,
             allowed_evidence_adapters,
             fixture_only: false,
         })
