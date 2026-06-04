@@ -95,6 +95,20 @@ impl ConfigurableRouter {
         limits: ExecutionLimits,
         identity: NodeVerifierIdentity,
     ) -> Self {
+        Self::with_limits_identity_and_audience(
+            pool,
+            limits,
+            identity,
+            DEFAULT_RECEIVER_AUDIENCE.to_string(),
+        )
+    }
+
+    pub fn with_limits_identity_and_audience(
+        pool: SqlitePool,
+        limits: ExecutionLimits,
+        identity: NodeVerifierIdentity,
+        expected_audience: impl Into<String>,
+    ) -> Self {
         let verifier_keys = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
         Self {
             programs: HashMap::new(),
@@ -103,8 +117,12 @@ impl ConfigurableRouter {
             limits,
             identity,
             verifier_keys,
-            expected_audience: DEFAULT_RECEIVER_AUDIENCE.to_string(),
+            expected_audience: expected_audience.into(),
         }
+    }
+
+    pub fn expected_audience(&self) -> &str {
+        &self.expected_audience
     }
 
     pub fn register(&mut self, opcode: u8, program: Box<dyn MachineProgram>) {

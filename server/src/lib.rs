@@ -1,3 +1,4 @@
+pub mod config;
 pub mod evidence;
 pub mod gateway;
 pub mod identity;
