@@ -806,11 +806,13 @@ impl MachineProgram for SubprocessForwarder {
 
         if let Some(mut stdin) = child.stdin.take() {
             if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut stdin, payload).await {
-                eprintln!(
-                    "secS [Subprocess]: failed to write payload to stdin - {}",
-                    e
-                );
-                return HandlerOutcome::rejected("handler_stdin_failed");
+                if e.kind() != std::io::ErrorKind::BrokenPipe {
+                    eprintln!(
+                        "secS [Subprocess]: failed to write payload to stdin - {}",
+                        e
+                    );
+                    return HandlerOutcome::rejected("handler_stdin_failed");
+                }
             }
         }
         wait_for_bounded_subprocess_output(child, limits.max_output_bytes, limits.handler_timeout)
