@@ -8,6 +8,7 @@ fn clear_env() {
         "SECS_RECEIVER_AUDIENCE",
         "SECS_BIND_ADDR",
         "SECS_DB_URL",
+        "SECS_LEDGER_PATH",
         "SECS_VERIFIER_KEY_PATH",
         "SECS_VERIFIER_KEY_ID",
         "SECS_TRUST_REGISTRY_PATH",
@@ -24,13 +25,27 @@ fn clear_env() {
     }
 }
 
+fn set_required_production_env() {
+    std::env::set_var("SECS_RUNTIME_MODE", "production_verified");
+    std::env::set_var("SECS_BIND_ADDR", "127.0.0.1:9009");
+    std::env::set_var("SECS_DB_URL", "sqlite:/tmp/prod.db?mode=rwc");
+    std::env::set_var("SECS_LEDGER_PATH", "/tmp/prod.db");
+    std::env::set_var("SECS_RECEIVER_AUDIENCE", "secS://operator-receiver");
+    std::env::set_var("SECS_VERIFIER_KEY_PATH", "/tmp/operator.key");
+    std::env::set_var("SECS_TRUST_REGISTRY_PATH", "/tmp/trust-registry.json");
+    std::env::set_var("SECS_MAX_WIRE_BYTES", "2097152");
+    std::env::set_var("SECS_MAX_PAYLOAD_BYTES", "1048576");
+    std::env::set_var("SECS_MAX_OUTPUT_BYTES", "1048576");
+    std::env::set_var("SECS_HANDLER_TIMEOUT_MS", "30000");
+    std::env::set_var("SECS_INGRESS_READ_TIMEOUT_MS", "10000");
+}
+
 #[test]
 #[serial]
 fn production_config_requires_explicit_receiver_audience() {
     clear_env();
-    std::env::set_var("SECS_RUNTIME_MODE", "production_verified");
-    std::env::set_var("SECS_VERIFIER_KEY_PATH", "/tmp/fixture.key");
-    std::env::set_var("SECS_TRUST_REGISTRY_PATH", "/tmp/trust-registry.json");
+    set_required_production_env();
+    std::env::remove_var("SECS_RECEIVER_AUDIENCE");
 
     let config = GatewayRuntimeConfig::from_env();
 
@@ -40,6 +55,93 @@ fn production_config_requires_explicit_receiver_audience() {
             "SECS_RECEIVER_AUDIENCE"
         ))
     ));
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn secs_runtime_mode_takes_precedence_over_legacy_secz() {
+    clear_env();
+    set_required_production_env();
+    std::env::set_var("SECS_RUNTIME_MODE", "production_verified");
+    std::env::set_var("SECZ_RUNTIME_MODE", "local_dev_plaintext");
+
+    let config = GatewayRuntimeConfig::from_env().unwrap();
+
+    assert_eq!(config.runtime_mode, RuntimeMode::ProductionVerified);
+    assert!(!config.fixture_only);
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn production_config_rejects_missing_explicit_runtime_fields() {
+    for field in [
+        "SECS_BIND_ADDR",
+        "SECS_DB_URL",
+        "SECS_LEDGER_PATH",
+        "SECS_MAX_WIRE_BYTES",
+        "SECS_MAX_PAYLOAD_BYTES",
+        "SECS_MAX_OUTPUT_BYTES",
+        "SECS_HANDLER_TIMEOUT_MS",
+        "SECS_INGRESS_READ_TIMEOUT_MS",
+    ] {
+        clear_env();
+        set_required_production_env();
+        std::env::remove_var(field);
+
+        let config = GatewayRuntimeConfig::from_env();
+
+        assert_eq!(
+            config,
+            Err(RuntimeConfigError::MissingProductionField(field))
+        );
+    }
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn production_config_rejects_unbounded_or_inconsistent_limits() {
+    for (field, value) in [
+        ("SECS_MAX_WIRE_BYTES", "2097153"),
+        ("SECS_MAX_PAYLOAD_BYTES", "1048577"),
+        ("SECS_MAX_OUTPUT_BYTES", "1048577"),
+        ("SECS_HANDLER_TIMEOUT_MS", "300001"),
+        ("SECS_INGRESS_READ_TIMEOUT_MS", "60001"),
+    ] {
+        clear_env();
+        set_required_production_env();
+        std::env::set_var(field, value);
+
+        assert!(matches!(
+            GatewayRuntimeConfig::from_env(),
+            Err(RuntimeConfigError::InvalidNumber { field: rejected, .. }) if rejected == field
+        ));
+    }
+
+    clear_env();
+    set_required_production_env();
+    std::env::set_var("SECS_MAX_WIRE_BYTES", "1024");
+    std::env::set_var("SECS_MAX_PAYLOAD_BYTES", "1025");
+    assert_eq!(
+        GatewayRuntimeConfig::from_env(),
+        Err(RuntimeConfigError::PayloadExceedsWireBudget)
+    );
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn production_config_rejects_db_and_ledger_path_mismatch() {
+    clear_env();
+    set_required_production_env();
+    std::env::set_var("SECS_LEDGER_PATH", "/tmp/other-ledger.db");
+
+    assert_eq!(
+        GatewayRuntimeConfig::from_env(),
+        Err(RuntimeConfigError::LedgerPathDoesNotMatchDbUrl)
+    );
     clear_env();
 }
 

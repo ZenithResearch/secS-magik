@@ -1,4 +1,4 @@
-use crate::config::GatewayRuntimeConfig;
+use crate::config::{validate_production_startup_readiness, GatewayRuntimeConfig};
 use crate::gateway::{init_telemetry_schema, register_runtime_bindings, ConfigurableRouter};
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
@@ -83,6 +83,7 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, socket: 
         socket,
         DEFAULT_MAX_WIRE_BYTES,
         DEFAULT_INGRESS_READ_TIMEOUT,
+        RuntimeMode::ProductionVerified,
     )
     .await;
 }
@@ -92,6 +93,7 @@ pub async fn handle_gateway_connection_with_limits(
     socket: TcpStream,
     max_wire_bytes: usize,
     read_timeout: Duration,
+    runtime_mode: RuntimeMode,
 ) {
     let packet = match read_bounded_wire_packet(socket, max_wire_bytes, read_timeout).await {
         Ok(Some(packet)) => packet,
@@ -125,7 +127,7 @@ pub async fn handle_gateway_connection_with_limits(
         return;
     }
 
-    let payload = match decrypt_machine_payload(&packet, RuntimeMode::from_env()) {
+    let payload = match decrypt_machine_payload(&packet, runtime_mode) {
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
@@ -174,6 +176,9 @@ pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {
 }
 
 pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) {
+    validate_production_startup_readiness(&config)
+        .unwrap_or_else(|error| panic!("secS gateway: startup readiness check failed - {error}"));
+
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&config.db_url)
@@ -228,12 +233,14 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
                 let router = Arc::clone(&router);
                 let max_wire_bytes = config.max_wire_bytes;
                 let ingress_read_timeout = config.ingress_read_timeout;
+                let runtime_mode = config.runtime_mode;
                 tokio::spawn(async move {
                     handle_gateway_connection_with_limits(
                         router,
                         socket,
                         max_wire_bytes,
                         ingress_read_timeout,
+                        runtime_mode,
                     )
                     .await;
                 });
