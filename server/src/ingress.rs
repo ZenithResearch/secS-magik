@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
 const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
@@ -216,25 +217,36 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         .expect("secS gateway: failed to bind TCP listener");
 
     println!(
-        "{} listening on {} with runtime_mode={} receiver_audience={} max_wire_bytes={} read_timeout_ms={} allowed_evidence_adapters={}",
+        "{} listening on {} with runtime_mode={} receiver_audience={} max_wire_bytes={} read_timeout_ms={} max_in_flight_connections={} allowed_evidence_adapters={}",
         label,
         config.bind_addr,
         config.runtime_mode.label(),
         config.receiver_audience,
         config.max_wire_bytes,
         config.ingress_read_timeout.as_millis(),
+        config.max_in_flight_connections,
         config.allowed_evidence_adapters.join(",")
     );
 
+    let in_flight = Arc::new(Semaphore::new(config.max_in_flight_connections));
     loop {
         match listener.accept().await {
             Ok((socket, peer)) => {
+                let Ok(permit) = Arc::clone(&in_flight).try_acquire_owned() else {
+                    eprintln!(
+                        "secS [Transport]: refused connection from {} because in-flight cap {} is saturated",
+                        peer, config.max_in_flight_connections
+                    );
+                    drop(socket);
+                    continue;
+                };
                 println!("secS [Transport]: accepted connection from {}", peer);
                 let router = Arc::clone(&router);
                 let max_wire_bytes = config.max_wire_bytes;
                 let ingress_read_timeout = config.ingress_read_timeout;
                 let runtime_mode = config.runtime_mode;
                 tokio::spawn(async move {
+                    let _permit = permit;
                     handle_gateway_connection_with_limits(
                         router,
                         socket,

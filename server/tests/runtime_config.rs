@@ -17,6 +17,7 @@ fn clear_env() {
         "SECS_MAX_OUTPUT_BYTES",
         "SECS_HANDLER_TIMEOUT_MS",
         "SECS_INGRESS_READ_TIMEOUT_MS",
+        "SECS_MAX_IN_FLIGHT_CONNECTIONS",
         "SECS_ALLOWED_EVIDENCE_ADAPTERS",
         "SECS_RUNTIME_MODE",
         "SECZ_RUNTIME_MODE",
@@ -38,6 +39,7 @@ fn set_required_production_env() {
     std::env::set_var("SECS_MAX_OUTPUT_BYTES", "1048576");
     std::env::set_var("SECS_HANDLER_TIMEOUT_MS", "30000");
     std::env::set_var("SECS_INGRESS_READ_TIMEOUT_MS", "10000");
+    std::env::set_var("SECS_MAX_IN_FLIGHT_CONNECTIONS", "64");
 }
 
 #[test]
@@ -85,6 +87,7 @@ fn production_config_rejects_missing_explicit_runtime_fields() {
         "SECS_MAX_OUTPUT_BYTES",
         "SECS_HANDLER_TIMEOUT_MS",
         "SECS_INGRESS_READ_TIMEOUT_MS",
+        "SECS_MAX_IN_FLIGHT_CONNECTIONS",
     ] {
         clear_env();
         set_required_production_env();
@@ -109,6 +112,8 @@ fn production_config_rejects_unbounded_or_inconsistent_limits() {
         ("SECS_MAX_OUTPUT_BYTES", "1048577"),
         ("SECS_HANDLER_TIMEOUT_MS", "300001"),
         ("SECS_INGRESS_READ_TIMEOUT_MS", "60001"),
+        ("SECS_MAX_IN_FLIGHT_CONNECTIONS", "0"),
+        ("SECS_MAX_IN_FLIGHT_CONNECTIONS", "4097"),
     ] {
         clear_env();
         set_required_production_env();
@@ -174,6 +179,7 @@ fn production_config_accepts_explicit_operator_runtime_fields() {
     assert_eq!(config.max_output_bytes, 1024 * 1024);
     assert_eq!(config.handler_timeout, Duration::from_secs(30));
     assert_eq!(config.ingress_read_timeout, Duration::from_secs(10));
+    assert_eq!(config.max_in_flight_connections, 64);
     assert_eq!(
         config.allowed_evidence_adapters,
         vec!["local_static", "wallet_presentation"]

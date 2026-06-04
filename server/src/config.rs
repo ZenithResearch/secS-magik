@@ -12,6 +12,8 @@ pub const MAX_CONFIGURED_PAYLOAD_BYTES: usize = 1024 * 1024;
 pub const MAX_CONFIGURED_OUTPUT_BYTES: usize = 1024 * 1024;
 pub const MAX_HANDLER_TIMEOUT_MS: u64 = 300_000;
 pub const MAX_INGRESS_READ_TIMEOUT_MS: u64 = 60_000;
+pub const DEFAULT_MAX_IN_FLIGHT_CONNECTIONS: usize = 64;
+pub const MAX_CONFIGURED_IN_FLIGHT_CONNECTIONS: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GatewayRuntimeConfig {
@@ -28,6 +30,7 @@ pub struct GatewayRuntimeConfig {
     pub max_output_bytes: usize,
     pub handler_timeout: Duration,
     pub ingress_read_timeout: Duration,
+    pub max_in_flight_connections: usize,
     pub allowed_evidence_adapters: Vec<String>,
     pub fixture_only: bool,
 }
@@ -158,6 +161,11 @@ impl GatewayRuntimeConfig {
             DEFAULT_INGRESS_READ_TIMEOUT.as_millis() as u64,
             MAX_INGRESS_READ_TIMEOUT_MS,
         )?);
+        let max_in_flight_connections = parse_usize_env(
+            "SECS_MAX_IN_FLIGHT_CONNECTIONS",
+            DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
+            MAX_CONFIGURED_IN_FLIGHT_CONNECTIONS,
+        )?;
         let allowed_evidence_adapters = parse_adapter_list(
             std::env::var("SECS_ALLOWED_EVIDENCE_ADAPTERS")
                 .unwrap_or_else(|_| "local_static".to_string()),
@@ -170,6 +178,7 @@ impl GatewayRuntimeConfig {
                 require_env_present("SECS_MAX_OUTPUT_BYTES")?;
                 require_env_present("SECS_HANDLER_TIMEOUT_MS")?;
                 require_env_present("SECS_INGRESS_READ_TIMEOUT_MS")?;
+                require_env_present("SECS_MAX_IN_FLIGHT_CONNECTIONS")?;
                 Self::production(
                     required_env_string(bind_addr, "SECS_BIND_ADDR")?,
                     required_env_string(db_url, "SECS_DB_URL")?,
@@ -183,6 +192,7 @@ impl GatewayRuntimeConfig {
                     max_output_bytes,
                     handler_timeout,
                     ingress_read_timeout,
+                    max_in_flight_connections,
                     allowed_evidence_adapters,
                 )
             }
@@ -201,6 +211,7 @@ impl GatewayRuntimeConfig {
                 max_output_bytes,
                 handler_timeout,
                 ingress_read_timeout,
+                max_in_flight_connections,
                 allowed_evidence_adapters,
                 fixture_only: true,
             }),
@@ -230,6 +241,7 @@ impl GatewayRuntimeConfig {
             1024 * 1024,
             Duration::from_secs(30),
             DEFAULT_INGRESS_READ_TIMEOUT,
+            DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
             parse_adapter_list(allowed_evidence_adapters.to_string()),
         )
     }
@@ -249,6 +261,7 @@ impl GatewayRuntimeConfig {
             max_output_bytes: 1024 * 1024,
             handler_timeout: Duration::from_secs(30),
             ingress_read_timeout: DEFAULT_INGRESS_READ_TIMEOUT,
+            max_in_flight_connections: DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
             allowed_evidence_adapters: vec!["local_static".to_string()],
             fixture_only: true,
         }
@@ -304,6 +317,7 @@ impl GatewayRuntimeConfig {
         max_output_bytes: usize,
         handler_timeout: Duration,
         ingress_read_timeout: Duration,
+        max_in_flight_connections: usize,
         allowed_evidence_adapters: Vec<String>,
     ) -> Result<Self, RuntimeConfigError> {
         let receiver_audience = receiver_audience
@@ -347,6 +361,7 @@ impl GatewayRuntimeConfig {
             max_output_bytes,
             handler_timeout,
             ingress_read_timeout,
+            max_in_flight_connections,
             allowed_evidence_adapters,
             fixture_only: false,
         })

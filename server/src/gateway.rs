@@ -2,6 +2,7 @@ use crate::identity::{
     explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
 };
 use crate::ledger::{Ledger, ReplayReservationOutcome};
+use crate::manifest::ReceiverManifest;
 use crate::ontology::{
     DEFAULT_RECEIVER_AUDIENCE, LOCAL_PROTOTYPE_SIGNER_ID, REPLAY_DETECTED_REASON,
     REPLAY_RESERVATION_FAILED_REASON, UNVERIFIED_PROTOTYPE_OPERATION,
@@ -15,7 +16,11 @@ use libsec_core::ZenithPacket;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::process::Child;
 use tokio::time::timeout;
+
+const DESCRIPTOR_CONTEXT_MISMATCH_REASON: &str = "descriptor_context_mismatch";
 
 const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
@@ -270,6 +275,24 @@ impl ConfigurableRouter {
             }
             eprintln!(
                 "secS [Router]: rejected signed context before routing - {}",
+                reason
+            );
+            return;
+        }
+
+        if !signed_context_matches_active_manifest(context) {
+            let reason = DESCRIPTOR_CONTEXT_MISMATCH_REASON;
+            self.record_verified_reject_receipt(signed, reason, timestamp)
+                .await;
+            self.record_operation_event(
+                ReceiptEventKind::PacketRejected,
+                signed,
+                timestamp,
+                Some(reason),
+            )
+            .await;
+            eprintln!(
+                "secS [Router]: rejected signed context that mismatches active descriptor - {}",
                 reason
             );
             return;
@@ -547,6 +570,15 @@ fn should_emit_signed_context_reject(error: &VerificationError) -> bool {
     )
 }
 
+fn signed_context_matches_active_manifest(context: &VerifiedCallContext) -> bool {
+    let manifest = ReceiverManifest::default_v0();
+    let Ok(descriptor) = manifest.lookup(context.opcode) else {
+        return false;
+    };
+    context.operation == descriptor.name.as_str()
+        && context.handler_id.as_deref() == Some(descriptor.handler_id.as_str())
+}
+
 fn context_receipt_suffix(context: &VerifiedCallContext) -> String {
     let hash_prefix = context.packet_hash[..8]
         .iter()
@@ -569,6 +601,138 @@ impl SubprocessForwarder {
     }
 }
 
+struct ProcessGroupGuard {
+    #[cfg(unix)]
+    pid: Option<u32>,
+}
+
+impl ProcessGroupGuard {
+    fn new(child: &Child) -> Self {
+        Self {
+            #[cfg(unix)]
+            pid: child.id(),
+        }
+    }
+
+    async fn terminate(&mut self, child: &mut Child) {
+        #[cfg(unix)]
+        if let Some(pid) = self.pid.take() {
+            kill_process_group(pid, "-TERM").await;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            kill_process_group(pid, "-KILL").await;
+            let _ = child.wait().await;
+            return;
+        }
+
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+    }
+
+    fn disarm(&mut self) {
+        #[cfg(unix)]
+        {
+            self.pid = None;
+        }
+    }
+}
+
+impl Drop for ProcessGroupGuard {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        if let Some(pid) = self.pid.take() {
+            let _ = std::process::Command::new("kill")
+                .arg("-KILL")
+                .arg(format!("-{pid}"))
+                .status();
+        }
+    }
+}
+
+#[cfg(unix)]
+async fn kill_process_group(pid: u32, signal: &str) {
+    let _ = tokio::process::Command::new("kill")
+        .arg(signal)
+        .arg(format!("-{pid}"))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
+}
+
+async fn read_one_chunk<R: AsyncRead + Unpin>(
+    reader: &mut Option<R>,
+    limit: usize,
+) -> Result<usize, std::io::Error> {
+    let Some(stream) = reader.as_mut() else {
+        return Ok(0);
+    };
+    let mut buffer = vec![0u8; limit.max(1).min(8192)];
+    let read = stream.read(&mut buffer).await?;
+    if read == 0 {
+        *reader = None;
+    }
+    Ok(read)
+}
+
+async fn wait_for_bounded_subprocess_output(
+    mut child: Child,
+    limit: usize,
+    timeout_duration: Duration,
+) -> HandlerOutcome {
+    let mut guard = ProcessGroupGuard::new(&child);
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
+    let mut output_bytes = 0usize;
+    let sleep = tokio::time::sleep(timeout_duration);
+    tokio::pin!(sleep);
+
+    loop {
+        if output_bytes > limit {
+            guard.terminate(&mut child).await;
+            return HandlerOutcome::rejected("output_too_large");
+        }
+
+        if stdout.is_none() && stderr.is_none() {
+            match child.wait().await {
+                Ok(status) if status.success() => {
+                    guard.disarm();
+                    return HandlerOutcome::succeeded_with_output_bytes(output_bytes);
+                }
+                Ok(_) => {
+                    guard.disarm();
+                    return HandlerOutcome::rejected("handler_exit_failed");
+                }
+                Err(_) => return HandlerOutcome::rejected("handler_wait_failed"),
+            }
+        }
+
+        tokio::select! {
+            _ = &mut sleep => {
+                guard.terminate(&mut child).await;
+                return HandlerOutcome::rejected("handler_timeout");
+            }
+            result = read_one_chunk(&mut stdout, limit.saturating_sub(output_bytes).saturating_add(1)), if stdout.is_some() => {
+                match result {
+                    Ok(read) => output_bytes = output_bytes.saturating_add(read),
+                    Err(_) => {
+                        guard.terminate(&mut child).await;
+                        return HandlerOutcome::rejected("handler_wait_failed");
+                    }
+                }
+            }
+            result = read_one_chunk(&mut stderr, limit.saturating_sub(output_bytes).saturating_add(1)), if stderr.is_some() => {
+                match result {
+                    Ok(read) => output_bytes = output_bytes.saturating_add(read),
+                    Err(_) => {
+                        guard.terminate(&mut child).await;
+                        return HandlerOutcome::rejected("handler_wait_failed");
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[async_trait]
 impl MachineProgram for SubprocessForwarder {
     async fn execute(
@@ -587,14 +751,18 @@ impl MachineProgram for SubprocessForwarder {
             "secS [Subprocess]: invoking verified dev handler `{}` via `{} {:?}`",
             handler_id, self.program, self.args
         );
-        let mut child = match tokio::process::Command::new(&self.program)
+        let mut command = tokio::process::Command::new(&self.program);
+        command
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
+            .kill_on_drop(true);
+        #[cfg(unix)]
         {
+            command.process_group(0);
+        }
+        let mut child = match command.spawn() {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("secS [Subprocess]: failed to spawn - {}", e);
@@ -611,18 +779,8 @@ impl MachineProgram for SubprocessForwarder {
                 return HandlerOutcome::rejected("handler_stdin_failed");
             }
         }
-        match child.wait_with_output().await {
-            Ok(output) if output.status.success() => {
-                let output_bytes = output.stdout.len().saturating_add(output.stderr.len());
-                if output_bytes > limits.max_output_bytes {
-                    HandlerOutcome::rejected("output_too_large")
-                } else {
-                    HandlerOutcome::succeeded_with_output_bytes(output_bytes)
-                }
-            }
-            Ok(_) => HandlerOutcome::rejected("handler_exit_failed"),
-            Err(_) => HandlerOutcome::rejected("handler_wait_failed"),
-        }
+        wait_for_bounded_subprocess_output(child, limits.max_output_bytes, limits.handler_timeout)
+            .await
     }
 }
 

@@ -388,6 +388,54 @@ async fn subprocess_forwarder_reports_output_too_large_from_captured_stdout() {
 }
 
 #[tokio::test]
+async fn subprocess_forwarder_counts_large_stderr_against_output_limit() {
+    let signed = signed_context(0x10, b"payload");
+    let forwarder = SubprocessForwarder {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), "printf abcdefgh >&2".to_string()],
+    };
+
+    let outcome = forwarder
+        .execute(
+            &signed.context,
+            b"payload",
+            ExecutionLimits {
+                max_payload_bytes: 1024,
+                max_output_bytes: 4,
+                handler_timeout: Duration::from_secs(1),
+            },
+        )
+        .await;
+
+    assert_eq!(outcome.decision, server::receipt::Decision::Rejected);
+    assert_eq!(outcome.reason.as_deref(), Some("output_too_large"));
+}
+
+#[tokio::test]
+async fn subprocess_forwarder_allows_output_exactly_at_limit() {
+    let signed = signed_context(0x10, b"payload");
+    let forwarder = SubprocessForwarder {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), "printf abcd".to_string()],
+    };
+
+    let outcome = forwarder
+        .execute(
+            &signed.context,
+            b"payload",
+            ExecutionLimits {
+                max_payload_bytes: 1024,
+                max_output_bytes: 4,
+                handler_timeout: Duration::from_secs(1),
+            },
+        )
+        .await;
+
+    assert_eq!(outcome.decision, server::receipt::Decision::Accepted);
+    assert_eq!(outcome.output_bytes, 4);
+}
+
+#[tokio::test]
 async fn subprocess_forwarder_is_killed_when_router_timeout_drops_handler_future() {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -466,13 +514,13 @@ async fn production_runtime_bindings_do_not_register_dev_subprocess_handlers_by_
 }
 
 #[tokio::test]
-async fn gateway_router_uses_descriptor_handler_id_not_opcode_for_program_selection() {
+async fn gateway_router_revalidates_signed_descriptor_context_before_handler_lookup() {
     let (registered_program, registered_calls, _bytes, _handler_ids) = counting_program();
     let pool = memory_pool().await;
     let mut router = ConfigurableRouter::new(pool.clone());
     router.register(0x10, registered_program);
     let mut signed = signed_context(0x10, b"payload");
-    signed.context.handler_id = Some("dev/unregistered-handler".to_string());
+    signed.context.handler_id = Some("dev/json-validate".to_string());
     signed = router
         .identity()
         .sign_context(signed.context)
@@ -482,7 +530,7 @@ async fn gateway_router_uses_descriptor_handler_id_not_opcode_for_program_select
 
     assert_eq!(registered_calls.load(Ordering::SeqCst), 0);
     let receipt: (String, String, String, String) = sqlx::query_as(
-        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'reject' ORDER BY timestamp DESC LIMIT 1",
     )
     .fetch_one(&pool)
     .await
@@ -490,10 +538,10 @@ async fn gateway_router_uses_descriptor_handler_id_not_opcode_for_program_select
     assert_eq!(
         receipt,
         (
-            "execute".to_string(),
+            "reject".to_string(),
             "rejected".to_string(),
-            "handler_unavailable".to_string(),
-            "dev/unregistered-handler".to_string()
+            "descriptor_context_mismatch".to_string(),
+            "dev/json-validate".to_string()
         )
     );
 }
@@ -992,13 +1040,12 @@ async fn gateway_router_emits_execution_receipts_for_all_handler_outcomes() {
             b"ok".to_vec(),
         )
         .await;
-    let mut unavailable = signed_context_with_fields([5u8; 16], [5u8; 12], 0x10, b"ok");
-    unavailable.context.handler_id = Some("dev/unregistered-handler".to_string());
-    unavailable = router
-        .identity()
-        .sign_context(unavailable.context)
-        .expect("mutated unavailable handler context should re-sign");
-    router.route_verified(&unavailable, b"ok".to_vec()).await;
+    router
+        .route_verified(
+            &signed_context_with_fields([5u8; 16], [5u8; 12], 0x01, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
 
     let rows: Vec<(String, Option<String>)> = sqlx::query_as(
         "SELECT decision, reason FROM receipts WHERE kind = 'execute' ORDER BY timestamp, receipt_id",
