@@ -106,9 +106,12 @@ fn track_c_status_documents_receiver_local_bounded_replay_enforcement() {
 #[test]
 fn ready_for_prod_checklist_records_track_c_completion_without_global_overclaim() {
     for required in [
-        "Track C is complete as a receiver-local bounded-claim implementation",
+        "Track C was completed on fresh branch `phase/track-c-replay-session-expiry-v2`",
+        "receiver-local bounded-claim implementation",
         "within the configured receiver-local replay store/scope",
-        "pre-verification/signature failures do not consume replay slots",
+        "including concurrent identical routes",
+        "Pre-verification/signature failures emit signed reject receipts/events",
+        "do not consume replay slots",
         "claim_ttl_exceeds_descriptor_max",
         "invalid_session",
         "replay_detected",

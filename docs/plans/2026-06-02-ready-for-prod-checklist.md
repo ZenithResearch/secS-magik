@@ -709,7 +709,7 @@ Boundary rule:
 |---|---|---|---|---|---|
 | Track A — production-readiness reconciliation | `phase/track-a-ready-for-prod` | `docs: define secS ready-for-prod implementation train` | A0 through A9, one commit per slice | `git diff --check -- CHANGELOG.md README.md AGENTS.md docs/` plus targeted `rg` checks for A0–A9 acceptance terms | Merge only after A9 explicitly defers or promotes Dregg/Midnight/Cardano and the checklist no longer contains unresolved Track A decisions. |
 | Track B — production identity and key lifecycle | `phase/track-b-identity-key-lifecycle` | `feat(server): add production verifier identity lifecycle` | B1 key config/loading; B2 key id/public registry; B3 signed-context/receipt production posture; B4 rotation/revocation tests/docs | `cargo test -p server identity receipt verifier -- --nocapture`; `cargo test --workspace`; `cargo build --workspace`; `cargo fmt --all -- --check`; strict Clippy if available | Stop when operator-visible key path, key ids, signatures, wrong-key/tamper tests, local/dev non-authoritative labels, and B4 unknown/revoked/expired/not-yet-valid own-verifier lifecycle checks are complete without hidden long-lived key generation. |
-| Track C — replay, session, and expiry enforcement | `phase/track-c-replay-session-expiry` | `feat(server): enforce replay session and expiry policy` | C1 replay store interface; C2 descriptor TTL/session/audience binding; C3 reject receipts for replay/expiry/session failures; C4 docs/status acceptance | `cargo test -p server replay session expiry -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when production packets cannot execute twice within the configured receiver-local replay store/scope, stale/overlong claims reject before handlers, receipt reasons are stable, and pre-verification/signature failures do not consume replay slots. |
+| Track C — replay, session, and expiry enforcement | `phase/track-c-replay-session-expiry` | `feat(server): enforce replay session and expiry policy` | C1 replay store interface; C2 descriptor TTL/session/audience binding; C3 reject receipts for replay/expiry/session failures; C4 docs/status acceptance; review-fix commits may extend test coverage without widening the runtime scope | `cargo test -p server --test ledger replay -- --nocapture`; `cargo test -p server --test gateway_layout replay -- --nocapture`; `cargo test -p server --test verifier_context -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when production packets cannot execute twice within the configured receiver-local replay store/scope, stale/overlong claims reject before handlers, receipt reasons are stable, and pre-verification/signature failures do not consume replay slots. |
 | Track D — wallet cryptographic verification / shared wallet core | `phase/track-d-wallet-core-crypto` | `feat(server): verify wallet-core presentations cryptographically` | D1 wallet-core challenge/signature contract; D2 secS verifier integration; D3 wallet reject matrix; D4 client/browser/native packaging notes | `cargo test -p server wallet_presentation -- --nocapture`; wallet-core native/WASM gate if dependency is added; workspace tests/build/fmt/Clippy | Stop when `wallet_presentation` has a successful cryptographic path and wrong signature/key/subject/audience/origin/replay/expiry reject without duplicating wallet-core semantics in secS. |
 | Track E — production evidence policy and first federated evidence path | `phase/track-e-production-evidence-policy` | `feat(server): enforce production evidence policy and trusted issuer credentials` | E1 descriptor runtime evidence policy; E2 `TrustedIssuerEntry` registry; E3 membership/provisioning credential verifier; E4 A6 production policy matrix tests | `cargo test -p server evidence production_federated production_wallet -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when `local_static` cannot satisfy production descriptors and trusted active membership/provisioning credentials can satisfy only permitted operations after receiver-local policy. |
 | Track F — bounded execution broker | `phase/track-f-bounded-execution-broker` | `feat(server): execute verified operations through bounded handlers` | F1 descriptor-bound handler registry; F2 timeout/payload/output limits; F3 execution receipts for all outcomes; F4 remove/gate ambient subprocess path | `cargo test -p server execution handler limits -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when no broad shell authority is reachable by default, handler selection is descriptor-bound, and every success/failure emits an execution receipt. |
@@ -862,25 +862,34 @@ B4 remains bounded: this is an own configured verifier-key lifecycle seam, not a
 | C3 — Reject receipts for replay/expiry/session failures | Persist typed reject receipts for replay, expiry, wrong session/audience. | `server/src/ingress.rs`, `server/src/receipt.rs`, `server/src/ledger.rs`, tests | RED receipt absent on replay reject; GREEN targeted ledger/receipt tests | Reject reasons are receipt-backed and inspectable. | Stop when handler is not called on reject. | Do not expose raw payload/evidence in receipts. |
 | C4 — Docs/status acceptance | Record implemented Track C behavior and bounded claims after C1–C3. | `docs/implementation-status.md`, checklist, maybe README/changelog/docs-contract tests | RED/GREEN docs-contract status tests; `git diff --check`; targeted replay tests | Track C status names receiver-local/local durable replay/session/expiry enforcement, stable reject reasons, and non-consumption of replay slots on pre-verification/signature failure. | Stop after docs match implemented behavior. | Do not claim distributed/global/cross-Hub/cluster-wide replay, wallet crypto, trusted issuer/root registry, Dregg/Midnight/Cardano rails, ingress DoS hardening, bounded subprocess containment, or public auditability. |
 
-#### C4 completion checkpoint
+#### Track C completion checkpoint
 
-Track C is complete as a receiver-local bounded-claim implementation. It implements receiver-local/local durable replay/session/expiry enforcement only within the configured receiver-local replay store/scope.
+Track C was completed on fresh branch `phase/track-c-replay-session-expiry-v2` as a receiver-local bounded-claim implementation. It implements receiver-local/local durable replay/session/expiry enforcement only within the configured receiver-local replay store/scope.
 
 Implementation evidence:
 
-- Duplicate `(session_id, opcode, nonce, replay_scope)` verified contexts reserve atomically in local SQLite and duplicate reservations reject with `replay_detected` before telemetry or handler execution.
+- Duplicate `(session_id, opcode, nonce, replay_scope)` verified contexts reserve atomically in local SQLite, including concurrent identical routes, and duplicate reservations reject with `replay_detected` before telemetry or handler execution.
 - Descriptor max TTL overclaims reject with `claim_ttl_exceeds_descriptor_max` before signed context issuance.
 - All-zero session IDs reject with `invalid_session` before signed context issuance.
 - Expired, wrong-audience, and invalid-signature signed contexts emit signed reject receipts/events before replay reservation and before handler execution.
-- Pre-verification/signature failures do not consume replay slots.
+- Pre-verification/signature failures emit signed reject receipts/events where the router has identity context, preserve stable reason codes, avoid raw payload content, and do not consume replay slots.
 
 Verification evidence:
 
 ```bash
-cargo test -p server replay -- --nocapture
+cargo test -p server --test ledger replay -- --nocapture
+cargo test -p server --test gateway_layout replay -- --nocapture
+cargo test -p server --test gateway_layout gateway_router_concurrent_identical_replay_executes_once -- --nocapture
+cargo test -p server --test verifier_context -- --nocapture
 cargo test -p server --test ready_for_prod_docs -- --nocapture
-git diff --check -- README.md CHANGELOG.md docs/ server/tests/ready_for_prod_docs.rs
+cargo test --workspace
+cargo build --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+git diff --check -- README.md CHANGELOG.md docs/ server/
 ```
+
+Boundary assessment: C1–C4 are the planned Track C runtime/docs slices. The additional C5/C6 review-fix commits did not widen Track C into Track F/G/H/E; they repaired audit consistency for Track C reject paths and added explicit concurrent replay coverage required by issue #23. C2/C3 are broader than issue #23 alone, but they are inside the planned Track C phase boundary from the A8 phase map.
 
 C4 remains bounded: Track C is not distributed/global/cross-Hub/cluster-wide replay protection, does not complete production wallet crypto, trusted issuer/root registry, Dregg/Midnight/Cardano rails, ingress DoS hardening, bounded subprocess side-effect containment, or ledger public auditability, and must not be described as “production packets cannot execute twice” unless qualified as within the configured receiver-local replay store/scope.
 
