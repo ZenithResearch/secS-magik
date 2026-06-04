@@ -287,7 +287,7 @@ impl GatewayRuntimeConfig {
             max_payload_bytes,
             max_output_bytes,
             handler_timeout,
-ingress_read_timeout,
+            ingress_read_timeout,
             allowed_evidence_adapters,
             fixture_only: false,
         })

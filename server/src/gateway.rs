@@ -199,7 +199,10 @@ impl ConfigurableRouter {
             .lookup(opcode)
             .ok()
             .map(|descriptor| descriptor.handler_id.clone());
-        match handler_id.as_deref().and_then(|handler_id| self.programs.get(handler_id)) {
+        match handler_id
+            .as_deref()
+            .and_then(|handler_id| self.programs.get(handler_id))
+        {
             Some(_) => eprintln!(
                 "secS [Router]: rejected unverified handler route for opcode {:#04x}",
                 opcode
@@ -664,7 +667,10 @@ pub fn register_dev_subprocess_bindings(router: &mut ConfigurableRouter) {
             vec!["-c", "echo 'Bash received payload:'; cat"],
         )),
     );
-    router.register_handler("dev/jq-identity", Box::new(SubprocessForwarder::new("jq", vec!["."])));
+    router.register_handler(
+        "dev/jq-identity",
+        Box::new(SubprocessForwarder::new("jq", vec!["."])),
+    );
 }
 
 #[cfg(test)]
