@@ -1,5 +1,5 @@
-use crate::config::GatewayRuntimeConfig;
-use crate::gateway::{init_telemetry_schema, register_prototype_bindings, ConfigurableRouter};
+use crate::config::{validate_production_startup_readiness, GatewayRuntimeConfig};
+use crate::gateway::{init_telemetry_schema, register_runtime_bindings, ConfigurableRouter};
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
 };
@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
 const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
@@ -83,6 +84,7 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, socket: 
         socket,
         DEFAULT_MAX_WIRE_BYTES,
         DEFAULT_INGRESS_READ_TIMEOUT,
+        RuntimeMode::ProductionVerified,
     )
     .await;
 }
@@ -92,6 +94,7 @@ pub async fn handle_gateway_connection_with_limits(
     socket: TcpStream,
     max_wire_bytes: usize,
     read_timeout: Duration,
+    runtime_mode: RuntimeMode,
 ) {
     let packet = match read_bounded_wire_packet(socket, max_wire_bytes, read_timeout).await {
         Ok(Some(packet)) => packet,
@@ -125,7 +128,7 @@ pub async fn handle_gateway_connection_with_limits(
         return;
     }
 
-    let payload = match decrypt_machine_payload(&packet, RuntimeMode::from_env()) {
+    let payload = match decrypt_machine_payload(&packet, runtime_mode) {
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
@@ -137,23 +140,25 @@ pub async fn handle_gateway_connection_with_limits(
     };
 
     let manifest = ReceiverManifest::default_v0();
-    let signed_context = match Verifier::verify_manifest_operation_and_sign_with_identity(
-        &packet,
-        &manifest,
-        router.expected_audience(),
-        current_unix_seconds(),
-        router.identity(),
-    ) {
-        Ok(context) => context,
-        Err(error) => {
-            eprintln!(
-                "secS [Manifest]: rejected packet before handler lookup - {}",
-                error.reason_code()
-            );
-            router.record_reject(&packet, error).await;
-            return;
-        }
-    };
+    let signed_context =
+        match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity(
+            &packet,
+            &manifest,
+            router.expected_audience(),
+            current_unix_seconds(),
+            router.identity(),
+            runtime_mode,
+        ) {
+            Ok(context) => context,
+            Err(error) => {
+                eprintln!(
+                    "secS [Manifest]: rejected packet before handler lookup - {}",
+                    error.reason_code()
+                );
+                router.record_reject(&packet, error).await;
+                return;
+            }
+        };
 
     router.route_verified(&signed_context, payload).await;
 }
@@ -174,6 +179,9 @@ pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {
 }
 
 pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) {
+    validate_production_startup_readiness(&config)
+        .unwrap_or_else(|error| panic!("secS gateway: startup readiness check failed - {error}"));
+
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&config.db_url)
@@ -203,37 +211,53 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         identity,
         config.receiver_audience.clone(),
     );
-    register_prototype_bindings(&mut router);
+    register_runtime_bindings(&mut router, config.runtime_mode);
 
     let router = Arc::new(router);
     let listener = TcpListener::bind(&config.bind_addr)
         .await
         .expect("secS gateway: failed to bind TCP listener");
 
+    let local_addr = listener
+        .local_addr()
+        .expect("secS gateway: failed to read bound TCP listener address");
     println!(
-        "{} listening on {} with runtime_mode={} receiver_audience={} max_wire_bytes={} read_timeout_ms={} allowed_evidence_adapters={}",
+        "{} listening on {} with runtime_mode={} receiver_audience={} max_wire_bytes={} read_timeout_ms={} max_in_flight_connections={} allowed_evidence_adapters={}",
         label,
-        config.bind_addr,
+        local_addr,
         config.runtime_mode.label(),
         config.receiver_audience,
         config.max_wire_bytes,
         config.ingress_read_timeout.as_millis(),
+        config.max_in_flight_connections,
         config.allowed_evidence_adapters.join(",")
     );
 
+    let in_flight = Arc::new(Semaphore::new(config.max_in_flight_connections));
     loop {
         match listener.accept().await {
             Ok((socket, peer)) => {
+                let Ok(permit) = Arc::clone(&in_flight).try_acquire_owned() else {
+                    eprintln!(
+                        "secS [Transport]: refused connection from {} because in-flight cap {} is saturated",
+                        peer, config.max_in_flight_connections
+                    );
+                    drop(socket);
+                    continue;
+                };
                 println!("secS [Transport]: accepted connection from {}", peer);
                 let router = Arc::clone(&router);
                 let max_wire_bytes = config.max_wire_bytes;
                 let ingress_read_timeout = config.ingress_read_timeout;
+                let runtime_mode = config.runtime_mode;
                 tokio::spawn(async move {
+                    let _permit = permit;
                     handle_gateway_connection_with_limits(
                         router,
                         socket,
                         max_wire_bytes,
                         ingress_read_timeout,
+                        runtime_mode,
                     )
                     .await;
                 });

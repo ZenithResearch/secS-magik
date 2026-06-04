@@ -1,7 +1,14 @@
 use libsec_core::ZenithPacket;
-use server::ingress::{read_bounded_wire_packet, IngressReadError};
+use server::gateway::{init_telemetry_schema, ConfigurableRouter};
+use server::ingress::{
+    handle_gateway_connection_with_limits, read_bounded_wire_packet, IngressReadError,
+};
+use server::runtime_mode::RuntimeMode;
+use sqlx::sqlite::SqlitePoolOptions;
+use std::sync::Arc;
 use tokio::io::duplex;
 use tokio::io::AsyncWriteExt;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::time::{timeout, Duration};
 
 fn packet(payload: &[u8]) -> ZenithPacket {
@@ -101,3 +108,40 @@ async fn slow_incomplete_ingress_stream_times_out() {
 
     assert!(matches!(result, Err(IngressReadError::ReadTimeout)));
 }
+
+#[tokio::test]
+async fn connection_uses_validated_runtime_mode_not_environment_for_plaintext_payload() {
+    std::env::set_var("SECS_RUNTIME_MODE", "production_verified");
+    std::env::set_var("SECZ_RUNTIME_MODE", "production_verified");
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let router = Arc::new(ConfigurableRouter::new(pool));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let packet_bytes = bincode::serialize(&packet(b"plain local fixture payload")).unwrap();
+
+    let server = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        handle_gateway_connection_with_limits(
+            router,
+            socket,
+            DEFAULT_TEST_WIRE_LIMIT,
+            Duration::from_secs(1),
+            RuntimeMode::LocalDevPlaintext,
+        )
+        .await;
+    });
+    let mut client = TcpStream::connect(addr).await.unwrap();
+    client.write_all(&packet_bytes).await.unwrap();
+    client.shutdown().await.unwrap();
+    server.await.unwrap();
+
+    std::env::remove_var("SECS_RUNTIME_MODE");
+    std::env::remove_var("SECZ_RUNTIME_MODE");
+}
+
+const DEFAULT_TEST_WIRE_LIMIT: usize = 2 * 1024 * 1024;

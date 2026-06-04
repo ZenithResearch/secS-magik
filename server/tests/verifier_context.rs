@@ -319,3 +319,44 @@ fn verifier_rejects_unknown_opcode_before_signed_context() {
         VerificationError::UnknownOperation
     );
 }
+
+#[test]
+fn production_runtime_rejects_dev_candidate_descriptors_before_signing_context() {
+    let manifest = ReceiverManifest::default_v0();
+
+    for opcode in [0x10, 0x20, 0x30] {
+        let mut packet = prototype_packet(vec![1], 300);
+        packet.opcode = opcode;
+
+        assert_eq!(
+            Verifier::verify_manifest_operation_for_runtime(
+                &packet,
+                &manifest,
+                "secS://operator-receiver",
+                1_000,
+                RuntimeMode::ProductionVerified,
+            )
+            .unwrap_err(),
+            VerificationError::PrototypeOperationNotProductionAuthorized,
+            "opcode {opcode:#04x} must not be production-authorized by prototype proof alone"
+        );
+    }
+}
+
+#[test]
+fn local_dev_runtime_still_accepts_dev_candidate_descriptors() {
+    let packet = prototype_packet(vec![1], 300);
+    let manifest = ReceiverManifest::default_v0();
+
+    let context = Verifier::verify_manifest_operation_for_runtime(
+        &packet,
+        &manifest,
+        "secS://receiver-a",
+        1_000,
+        RuntimeMode::LocalDevPlaintext,
+    )
+    .expect("local-dev smoke paths may still route dev candidate descriptors");
+
+    assert_eq!(context.operation, "candidate.dev.bash_echo");
+    assert_eq!(context.handler_id.as_deref(), Some("dev/bash-echo"));
+}

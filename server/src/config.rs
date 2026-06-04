@@ -4,8 +4,16 @@ use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
 use crate::runtime_mode::RuntimeMode;
 use sqlx::SqlitePool;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+pub const MAX_CONFIGURED_WIRE_BYTES: usize = DEFAULT_MAX_WIRE_BYTES;
+pub const MAX_CONFIGURED_PAYLOAD_BYTES: usize = 1024 * 1024;
+pub const MAX_CONFIGURED_OUTPUT_BYTES: usize = 1024 * 1024;
+pub const MAX_HANDLER_TIMEOUT_MS: u64 = 300_000;
+pub const MAX_INGRESS_READ_TIMEOUT_MS: u64 = 60_000;
+pub const DEFAULT_MAX_IN_FLIGHT_CONNECTIONS: usize = 64;
+pub const MAX_CONFIGURED_IN_FLIGHT_CONNECTIONS: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GatewayRuntimeConfig {
@@ -19,10 +27,13 @@ pub struct GatewayRuntimeConfig {
     pub trust_registry_path: Option<PathBuf>,
     pub max_wire_bytes: usize,
     pub max_payload_bytes: usize,
+    pub max_output_bytes: usize,
     pub handler_timeout: Duration,
     pub ingress_read_timeout: Duration,
+    pub max_in_flight_connections: usize,
     pub allowed_evidence_adapters: Vec<String>,
     pub fixture_only: bool,
+    pub fixture_only_smoke: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +41,8 @@ pub enum RuntimeConfigError {
     MissingProductionField(&'static str),
     PrototypeReceiverAudienceInProduction,
     InvalidNumber { field: &'static str, value: String },
+    PayloadExceedsWireBudget,
+    LedgerPathDoesNotMatchDbUrl,
     InvalidRuntimeMode(String),
 }
 
@@ -44,8 +57,15 @@ impl fmt::Display for RuntimeConfigError {
                 "production_verified must not use fixture receiver audience {DEFAULT_RECEIVER_AUDIENCE}"
             ),
             Self::InvalidNumber { field, value } => {
-                write!(formatter, "{field} must be a positive integer, got {value:?}")
+                write!(formatter, "{field} must be a positive bounded integer, got {value:?}")
             }
+            Self::PayloadExceedsWireBudget => {
+                write!(formatter, "SECS_MAX_PAYLOAD_BYTES must not exceed SECS_MAX_WIRE_BYTES")
+            }
+            Self::LedgerPathDoesNotMatchDbUrl => write!(
+                formatter,
+                "SECS_LEDGER_PATH must match the SQLite path named by SECS_DB_URL"
+            ),
             Self::InvalidRuntimeMode(value) => write!(formatter, "unsupported runtime mode {value:?}"),
         }
     }
@@ -78,10 +98,31 @@ impl GatewayReadiness {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartupReadinessError {
+    TrustRegistryNotReady { path: PathBuf, reason: String },
+}
+
+impl fmt::Display for StartupReadinessError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TrustRegistryNotReady { path, reason } => {
+                write!(
+                    formatter,
+                    "production trust registry {:?} is not ready: {reason}",
+                    path
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for StartupReadinessError {}
+
 impl GatewayRuntimeConfig {
     pub fn from_env() -> Result<Self, RuntimeConfigError> {
-        let runtime_mode = match std::env::var("SECZ_RUNTIME_MODE")
-            .or_else(|_| std::env::var("SECS_RUNTIME_MODE"))
+        let runtime_mode = match std::env::var("SECS_RUNTIME_MODE")
+            .or_else(|_| std::env::var("SECZ_RUNTIME_MODE"))
         {
             Ok(value) => {
                 RuntimeMode::parse(&value).ok_or(RuntimeConfigError::InvalidRuntimeMode(value))?
@@ -89,48 +130,78 @@ impl GatewayRuntimeConfig {
             Err(_) => RuntimeMode::ProductionVerified,
         };
 
-        let bind_addr =
-            std::env::var("SECS_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:9001".to_string());
-        let db_url = std::env::var("SECS_DB_URL")
-            .unwrap_or_else(|_| "sqlite:node_telemetry.db?mode=rwc".to_string());
+        let bind_addr = std::env::var("SECS_BIND_ADDR").ok();
+        let db_url = std::env::var("SECS_DB_URL").ok();
         let receiver_audience = std::env::var("SECS_RECEIVER_AUDIENCE").ok();
         let verifier_key_path = std::env::var_os("SECS_VERIFIER_KEY_PATH").map(PathBuf::from);
         let verifier_key_id = std::env::var("SECS_VERIFIER_KEY_ID").ok();
         let trust_registry_path = std::env::var_os("SECS_TRUST_REGISTRY_PATH").map(PathBuf::from);
         let ledger_path = std::env::var_os("SECS_LEDGER_PATH").map(PathBuf::from);
-        let max_wire_bytes = parse_usize_env("SECS_MAX_WIRE_BYTES", DEFAULT_MAX_WIRE_BYTES)?;
-        let max_payload_bytes = parse_usize_env("SECS_MAX_PAYLOAD_BYTES", 1024 * 1024)?;
+        let max_wire_bytes = parse_usize_env(
+            "SECS_MAX_WIRE_BYTES",
+            DEFAULT_MAX_WIRE_BYTES,
+            MAX_CONFIGURED_WIRE_BYTES,
+        )?;
+        let max_payload_bytes = parse_usize_env(
+            "SECS_MAX_PAYLOAD_BYTES",
+            1024 * 1024,
+            MAX_CONFIGURED_PAYLOAD_BYTES,
+        )?;
+        let max_output_bytes = parse_usize_env(
+            "SECS_MAX_OUTPUT_BYTES",
+            1024 * 1024,
+            MAX_CONFIGURED_OUTPUT_BYTES,
+        )?;
         let handler_timeout = Duration::from_millis(parse_u64_env(
             "SECS_HANDLER_TIMEOUT_MS",
             ExecutionLimits::default().handler_timeout.as_millis() as u64,
+            MAX_HANDLER_TIMEOUT_MS,
         )?);
         let ingress_read_timeout = Duration::from_millis(parse_u64_env(
             "SECS_INGRESS_READ_TIMEOUT_MS",
             DEFAULT_INGRESS_READ_TIMEOUT.as_millis() as u64,
+            MAX_INGRESS_READ_TIMEOUT_MS,
         )?);
+        let max_in_flight_connections = parse_usize_env(
+            "SECS_MAX_IN_FLIGHT_CONNECTIONS",
+            DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
+            MAX_CONFIGURED_IN_FLIGHT_CONNECTIONS,
+        )?;
         let allowed_evidence_adapters = parse_adapter_list(
             std::env::var("SECS_ALLOWED_EVIDENCE_ADAPTERS")
                 .unwrap_or_else(|_| "local_static".to_string()),
         );
+        let fixture_only_smoke = parse_bool_env("SECS_FIXTURE_ONLY_SMOKE");
 
         match runtime_mode {
-            RuntimeMode::ProductionVerified => Self::production(
-                bind_addr,
-                db_url,
-                receiver_audience,
-                verifier_key_path,
-                verifier_key_id,
-                ledger_path,
-                trust_registry_path,
-                max_wire_bytes,
-                max_payload_bytes,
-                handler_timeout,
-                ingress_read_timeout,
-                allowed_evidence_adapters,
-            ),
+            RuntimeMode::ProductionVerified => {
+                require_env_present("SECS_MAX_WIRE_BYTES")?;
+                require_env_present("SECS_MAX_PAYLOAD_BYTES")?;
+                require_env_present("SECS_MAX_OUTPUT_BYTES")?;
+                require_env_present("SECS_HANDLER_TIMEOUT_MS")?;
+                require_env_present("SECS_INGRESS_READ_TIMEOUT_MS")?;
+                require_env_present("SECS_MAX_IN_FLIGHT_CONNECTIONS")?;
+                Self::production(
+                    required_env_string(bind_addr, "SECS_BIND_ADDR")?,
+                    required_env_string(db_url, "SECS_DB_URL")?,
+                    receiver_audience,
+                    verifier_key_path,
+                    verifier_key_id,
+                    Some(required_env_path(ledger_path, "SECS_LEDGER_PATH")?),
+                    trust_registry_path,
+                    max_wire_bytes,
+                    max_payload_bytes,
+                    max_output_bytes,
+                    handler_timeout,
+                    ingress_read_timeout,
+                    max_in_flight_connections,
+                    allowed_evidence_adapters,
+                    fixture_only_smoke,
+                )
+            }
             RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => Ok(Self {
-                bind_addr,
-                db_url,
+                bind_addr: bind_addr.unwrap_or_else(|| "0.0.0.0:9001".to_string()),
+                db_url: db_url.unwrap_or_else(|| "sqlite:node_telemetry.db?mode=rwc".to_string()),
                 receiver_audience: receiver_audience
                     .unwrap_or_else(|| DEFAULT_RECEIVER_AUDIENCE.to_string()),
                 runtime_mode,
@@ -140,10 +211,13 @@ impl GatewayRuntimeConfig {
                 trust_registry_path,
                 max_wire_bytes,
                 max_payload_bytes,
+                max_output_bytes,
                 handler_timeout,
                 ingress_read_timeout,
+                max_in_flight_connections,
                 allowed_evidence_adapters,
                 fixture_only: true,
+                fixture_only_smoke: true,
             }),
         }
     }
@@ -164,13 +238,16 @@ impl GatewayRuntimeConfig {
             Some(receiver_audience.to_string()),
             Some(PathBuf::from(verifier_key_path)),
             verifier_key_id.map(str::to_string),
-            Some(PathBuf::from(db_url.trim_start_matches("sqlite:"))),
+            sqlite_path_from_db_url(db_url),
             Some(PathBuf::from(trust_registry_path)),
             DEFAULT_MAX_WIRE_BYTES,
             1024 * 1024,
+            1024 * 1024,
             Duration::from_secs(30),
             DEFAULT_INGRESS_READ_TIMEOUT,
+            DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
             parse_adapter_list(allowed_evidence_adapters.to_string()),
+            false,
         )
     }
 
@@ -186,16 +263,20 @@ impl GatewayRuntimeConfig {
             trust_registry_path: None,
             max_wire_bytes: DEFAULT_MAX_WIRE_BYTES,
             max_payload_bytes: 1024 * 1024,
+            max_output_bytes: 1024 * 1024,
             handler_timeout: Duration::from_secs(30),
             ingress_read_timeout: DEFAULT_INGRESS_READ_TIMEOUT,
+            max_in_flight_connections: DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
             allowed_evidence_adapters: vec!["local_static".to_string()],
             fixture_only: true,
+            fixture_only_smoke: true,
         }
     }
 
     pub fn execution_limits(&self) -> ExecutionLimits {
         ExecutionLimits {
             max_payload_bytes: self.max_payload_bytes,
+            max_output_bytes: self.max_output_bytes,
             handler_timeout: self.handler_timeout,
         }
     }
@@ -210,10 +291,11 @@ impl GatewayRuntimeConfig {
         };
         let trust_registry_ready = match self.runtime_mode {
             RuntimeMode::ProductionVerified => {
-                if self
-                    .trust_registry_path
-                    .as_ref()
-                    .is_some_and(|path| path.exists())
+                if validate_trust_registry_file(
+                    self.trust_registry_path.as_deref(),
+                    self.fixture_only_smoke,
+                )
+                .is_ok()
                 {
                     ReadinessStatus::Ready
                 } else {
@@ -243,9 +325,12 @@ impl GatewayRuntimeConfig {
         trust_registry_path: Option<PathBuf>,
         max_wire_bytes: usize,
         max_payload_bytes: usize,
+        max_output_bytes: usize,
         handler_timeout: Duration,
         ingress_read_timeout: Duration,
+        max_in_flight_connections: usize,
         allowed_evidence_adapters: Vec<String>,
+        fixture_only_smoke: bool,
     ) -> Result<Self, RuntimeConfigError> {
         let receiver_audience = receiver_audience
             .filter(|value| !value.trim().is_empty())
@@ -255,34 +340,67 @@ impl GatewayRuntimeConfig {
         if receiver_audience == DEFAULT_RECEIVER_AUDIENCE {
             return Err(RuntimeConfigError::PrototypeReceiverAudienceInProduction);
         }
-        if verifier_key_path.is_none() {
-            return Err(RuntimeConfigError::MissingProductionField(
+        let verifier_key_path = verifier_key_path
+            .filter(|path| !path.as_os_str().is_empty())
+            .ok_or(RuntimeConfigError::MissingProductionField(
                 "SECS_VERIFIER_KEY_PATH",
-            ));
+            ))?;
+        let ledger_path = ledger_path
+            .filter(|path| !path.as_os_str().is_empty())
+            .ok_or(RuntimeConfigError::MissingProductionField(
+                "SECS_LEDGER_PATH",
+            ))?;
+        if sqlite_path_from_db_url(&db_url).as_deref() != Some(ledger_path.as_path()) {
+            return Err(RuntimeConfigError::LedgerPathDoesNotMatchDbUrl);
         }
-        let trust_registry_path = trust_registry_path.filter(|path| !path.as_os_str().is_empty());
-        if trust_registry_path.is_none() {
-            return Err(RuntimeConfigError::MissingProductionField(
+        let trust_registry_path = trust_registry_path
+            .filter(|path| !path.as_os_str().is_empty())
+            .ok_or(RuntimeConfigError::MissingProductionField(
                 "SECS_TRUST_REGISTRY_PATH",
-            ));
-        }
+            ))?;
+        validate_limits(max_wire_bytes, max_payload_bytes)?;
         Ok(Self {
             bind_addr,
             db_url,
             receiver_audience,
             runtime_mode: RuntimeMode::ProductionVerified,
-            verifier_key_path,
+            verifier_key_path: Some(verifier_key_path),
             verifier_key_id,
-            ledger_path,
-            trust_registry_path,
+            ledger_path: Some(ledger_path),
+            trust_registry_path: Some(trust_registry_path),
             max_wire_bytes,
             max_payload_bytes,
+            max_output_bytes,
             handler_timeout,
             ingress_read_timeout,
+            max_in_flight_connections,
             allowed_evidence_adapters,
             fixture_only: false,
+            fixture_only_smoke,
         })
     }
+}
+
+pub fn validate_production_startup_readiness(
+    config: &GatewayRuntimeConfig,
+) -> Result<(), StartupReadinessError> {
+    if config.runtime_mode != RuntimeMode::ProductionVerified {
+        return Ok(());
+    }
+    validate_trust_registry_file(
+        config.trust_registry_path.as_deref(),
+        config.fixture_only_smoke,
+    )
+    .map_err(|reason| StartupReadinessError::TrustRegistryNotReady {
+        path: config.trust_registry_path.clone().unwrap_or_default(),
+        reason,
+    })?;
+    validate_allowed_evidence_adapters(config).map_err(|reason| {
+        StartupReadinessError::TrustRegistryNotReady {
+            path: config.trust_registry_path.clone().unwrap_or_default(),
+            reason,
+        }
+    })
 }
 
 async fn sqlite_table_exists(pool: &SqlitePool, table_name: &str) -> Result<bool, sqlx::Error> {
@@ -294,26 +412,141 @@ async fn sqlite_table_exists(pool: &SqlitePool, table_name: &str) -> Result<bool
     Ok(count.0 > 0)
 }
 
-fn parse_usize_env(field: &'static str, default: usize) -> Result<usize, RuntimeConfigError> {
+fn validate_trust_registry_file(
+    path: Option<&Path>,
+    allow_fixture_only_smoke: bool,
+) -> Result<(), String> {
+    let path = path.ok_or_else(|| "missing path".to_string())?;
+    let metadata = std::fs::metadata(path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("path is not a regular file".to_string());
+    }
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let value =
+        serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|error| error.to_string())?;
+    let fixture_only = value
+        .get("fixture_only")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let trusted_count = value
+        .get("trusted_verifiers")
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len)
+        + value
+            .get("issuers")
+            .and_then(serde_json::Value::as_array)
+            .map_or(0, Vec::len);
+    if fixture_only && !allow_fixture_only_smoke {
+        return Err(
+            "fixture-only trust registry requires explicit SECS_FIXTURE_ONLY_SMOKE=1".to_string(),
+        );
+    }
+    if trusted_count == 0 && !allow_fixture_only_smoke {
+        return Err(
+            "production trust registry has no trusted verifier or issuer entries".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_allowed_evidence_adapters(config: &GatewayRuntimeConfig) -> Result<(), String> {
+    if config.allowed_evidence_adapters.is_empty() {
+        return Err("SECS_ALLOWED_EVIDENCE_ADAPTERS must list at least one adapter".to_string());
+    }
+    if config
+        .allowed_evidence_adapters
+        .iter()
+        .any(|adapter| adapter == "local_static")
+        && !config.fixture_only_smoke
+    {
+        return Err("local_static evidence adapter is fixture-only and is not allowed in production ingress".to_string());
+    }
+    Ok(())
+}
+
+fn parse_usize_env(
+    field: &'static str,
+    default: usize,
+    max: usize,
+) -> Result<usize, RuntimeConfigError> {
     match std::env::var(field) {
         Ok(value) => value
             .parse::<usize>()
             .ok()
-            .filter(|parsed| *parsed > 0)
+            .filter(|parsed| *parsed > 0 && *parsed <= max)
             .ok_or(RuntimeConfigError::InvalidNumber { field, value }),
         Err(_) => Ok(default),
     }
 }
 
-fn parse_u64_env(field: &'static str, default: u64) -> Result<u64, RuntimeConfigError> {
+fn parse_u64_env(field: &'static str, default: u64, max: u64) -> Result<u64, RuntimeConfigError> {
     match std::env::var(field) {
         Ok(value) => value
             .parse::<u64>()
             .ok()
-            .filter(|parsed| *parsed > 0)
+            .filter(|parsed| *parsed > 0 && *parsed <= max)
             .ok_or(RuntimeConfigError::InvalidNumber { field, value }),
         Err(_) => Ok(default),
     }
+}
+
+fn required_env_string(
+    value: Option<String>,
+    field: &'static str,
+) -> Result<String, RuntimeConfigError> {
+    value
+        .filter(|value| !value.trim().is_empty())
+        .ok_or(RuntimeConfigError::MissingProductionField(field))
+}
+
+fn require_env_present(field: &'static str) -> Result<(), RuntimeConfigError> {
+    match std::env::var(field) {
+        Ok(value) if !value.trim().is_empty() => Ok(()),
+        _ => Err(RuntimeConfigError::MissingProductionField(field)),
+    }
+}
+
+fn required_env_path(
+    value: Option<PathBuf>,
+    field: &'static str,
+) -> Result<PathBuf, RuntimeConfigError> {
+    value
+        .filter(|value| !value.as_os_str().is_empty())
+        .ok_or(RuntimeConfigError::MissingProductionField(field))
+}
+
+fn validate_limits(
+    max_wire_bytes: usize,
+    max_payload_bytes: usize,
+) -> Result<(), RuntimeConfigError> {
+    if max_payload_bytes > max_wire_bytes {
+        return Err(RuntimeConfigError::PayloadExceedsWireBudget);
+    }
+    Ok(())
+}
+
+fn sqlite_path_from_db_url(db_url: &str) -> Option<PathBuf> {
+    let without_scheme = db_url
+        .strip_prefix("sqlite://")
+        .or_else(|| db_url.strip_prefix("sqlite:"))?;
+    if without_scheme == ":memory:" {
+        return None;
+    }
+    let path = without_scheme
+        .split_once('?')
+        .map_or(without_scheme, |(path, _)| path);
+    if path.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(path))
+    }
+}
+
+fn parse_bool_env(field: &'static str) -> bool {
+    matches!(
+        std::env::var(field).as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+    )
 }
 
 fn parse_adapter_list(value: String) -> Vec<String> {
