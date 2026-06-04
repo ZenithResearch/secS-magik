@@ -1,36 +1,120 @@
-use crate::gateway::{init_telemetry_schema, register_prototype_bindings, ConfigurableRouter};
+use crate::config::{validate_production_startup_readiness, GatewayRuntimeConfig};
+use crate::gateway::{init_telemetry_schema, register_runtime_bindings, ConfigurableRouter};
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
 };
 use crate::manifest::ReceiverManifest;
-use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
 use crate::payload::decrypt_machine_payload;
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::Verifier;
 use libsec_core::ZenithPacket;
 use sqlx::sqlite::SqlitePoolOptions;
+use std::fmt;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::io::AsyncReadExt;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Semaphore;
+use tokio::time::timeout;
 
 const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
+pub const DEFAULT_MAX_WIRE_BYTES: usize = 2 * 1024 * 1024;
+pub const DEFAULT_INGRESS_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
-pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut socket: TcpStream) {
-    let mut wire_bytes = Vec::new();
-    if let Err(e) = socket.read_to_end(&mut wire_bytes).await {
-        eprintln!("secS [Transport]: failed to read connection - {}", e);
-        return;
+#[derive(Debug)]
+pub enum IngressReadError {
+    Transport(std::io::Error),
+    ReadTimeout,
+    WireFrameTooLarge { limit: usize },
+    MalformedPacket(Box<bincode::ErrorKind>),
+}
+
+impl fmt::Display for IngressReadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Transport(error) => write!(formatter, "transport read failed: {error}"),
+            Self::ReadTimeout => write!(formatter, "wire read timed out before EOF"),
+            Self::WireFrameTooLarge { limit } => {
+                write!(
+                    formatter,
+                    "wire frame exceeded configured limit of {limit} bytes"
+                )
+            }
+            Self::MalformedPacket(error) => write!(formatter, "malformed packet: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for IngressReadError {}
+
+pub async fn read_bounded_wire_packet<R>(
+    reader: R,
+    max_wire_bytes: usize,
+    read_timeout: Duration,
+) -> Result<Option<ZenithPacket>, IngressReadError>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut bounded_reader = reader.take((max_wire_bytes as u64).saturating_add(1));
+    let mut wire_bytes = Vec::with_capacity(max_wire_bytes.min(64 * 1024));
+    match timeout(read_timeout, bounded_reader.read_to_end(&mut wire_bytes)).await {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => return Err(IngressReadError::Transport(error)),
+        Err(_) => return Err(IngressReadError::ReadTimeout),
     }
 
     if wire_bytes.is_empty() {
-        return;
+        return Ok(None);
     }
 
-    let packet = match bincode::deserialize::<ZenithPacket>(&wire_bytes) {
-        Ok(packet) => packet,
-        Err(e) => {
-            eprintln!("secS [Transport]: rejected malformed packet - {}", e);
+    if wire_bytes.len() > max_wire_bytes {
+        return Err(IngressReadError::WireFrameTooLarge {
+            limit: max_wire_bytes,
+        });
+    }
+
+    bincode::deserialize::<ZenithPacket>(&wire_bytes)
+        .map(Some)
+        .map_err(IngressReadError::MalformedPacket)
+}
+
+pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, socket: TcpStream) {
+    handle_gateway_connection_with_limits(
+        router,
+        socket,
+        DEFAULT_MAX_WIRE_BYTES,
+        DEFAULT_INGRESS_READ_TIMEOUT,
+        RuntimeMode::ProductionVerified,
+    )
+    .await;
+}
+
+pub async fn handle_gateway_connection_with_limits(
+    router: Arc<ConfigurableRouter>,
+    socket: TcpStream,
+    max_wire_bytes: usize,
+    read_timeout: Duration,
+    runtime_mode: RuntimeMode,
+) {
+    let packet = match read_bounded_wire_packet(socket, max_wire_bytes, read_timeout).await {
+        Ok(Some(packet)) => packet,
+        Ok(None) => return,
+        Err(IngressReadError::MalformedPacket(error)) => {
+            eprintln!("secS [Transport]: rejected malformed packet - {}", error);
+            return;
+        }
+        Err(IngressReadError::WireFrameTooLarge { limit }) => {
+            eprintln!(
+                "secS [Transport]: rejected oversized wire frame above {} bytes before packet decode",
+                limit
+            );
+            return;
+        }
+        Err(error) => {
+            eprintln!(
+                "secS [Transport]: failed to read bounded connection - {}",
+                error
+            );
             return;
         }
     };
@@ -44,7 +128,7 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
         return;
     }
 
-    let payload = match decrypt_machine_payload(&packet, RuntimeMode::from_env()) {
+    let payload = match decrypt_machine_payload(&packet, runtime_mode) {
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
@@ -56,23 +140,25 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, mut sock
     };
 
     let manifest = ReceiverManifest::default_v0();
-    let signed_context = match Verifier::verify_manifest_operation_and_sign_with_identity(
-        &packet,
-        &manifest,
-        DEFAULT_RECEIVER_AUDIENCE,
-        current_unix_seconds(),
-        router.identity(),
-    ) {
-        Ok(context) => context,
-        Err(error) => {
-            eprintln!(
-                "secS [Manifest]: rejected packet before handler lookup - {}",
-                error.reason_code()
-            );
-            router.record_reject(&packet, error).await;
-            return;
-        }
-    };
+    let signed_context =
+        match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity(
+            &packet,
+            &manifest,
+            router.expected_audience(),
+            current_unix_seconds(),
+            router.identity(),
+            runtime_mode,
+        ) {
+            Ok(context) => context,
+            Err(error) => {
+                eprintln!(
+                    "secS [Manifest]: rejected packet before handler lookup - {}",
+                    error.reason_code()
+                );
+                router.record_reject(&packet, error).await;
+                return;
+            }
+        };
 
     router.route_verified(&signed_context, payload).await;
 }
@@ -85,9 +171,20 @@ fn current_unix_seconds() -> u64 {
 }
 
 pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {
+    let mut config = GatewayRuntimeConfig::from_env()
+        .unwrap_or_else(|error| panic!("secS gateway: invalid runtime config - {error}"));
+    config.bind_addr = addr.to_string();
+    config.db_url = db_url.to_string();
+    run_gateway_with_config(config, label).await;
+}
+
+pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) {
+    validate_production_startup_readiness(&config)
+        .unwrap_or_else(|error| panic!("secS gateway: startup readiness check failed - {error}"));
+
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect(db_url)
+        .connect(&config.db_url)
         .await
         .expect("secS gateway: failed to connect to node_telemetry SQLite DB");
 
@@ -95,10 +192,12 @@ pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {
         .await
         .expect("secS gateway: failed to initialize node_telemetry table");
 
-    let identity = match RuntimeMode::from_env() {
-        RuntimeMode::ProductionVerified => load_node_verifier_identity(
-            &VerifierIdentityConfig::from_env(),
-        )
+    let identity = match config.runtime_mode {
+        RuntimeMode::ProductionVerified => load_node_verifier_identity(&VerifierIdentityConfig {
+            runtime_mode: config.runtime_mode,
+            verifier_key_path: config.verifier_key_path.clone(),
+            verifier_key_id: config.verifier_key_id.clone(),
+        })
         .unwrap_or_else(|error| {
             panic!("secS gateway: failed to load production verifier identity - {error}")
         }),
@@ -106,23 +205,61 @@ pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {
             explicit_test_fixture_identity("verifier:local-prototype", LOCAL_VERIFIER_SECRET_KEY)
         }
     };
-    let mut router = ConfigurableRouter::with_identity(pool, identity);
-    register_prototype_bindings(&mut router);
+    let mut router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool,
+        config.execution_limits(),
+        identity,
+        config.receiver_audience.clone(),
+    );
+    register_runtime_bindings(&mut router, config.runtime_mode);
 
     let router = Arc::new(router);
-    let listener = TcpListener::bind(addr)
+    let listener = TcpListener::bind(&config.bind_addr)
         .await
         .expect("secS gateway: failed to bind TCP listener");
 
-    println!("{} listening on {}", label, addr);
+    let local_addr = listener
+        .local_addr()
+        .expect("secS gateway: failed to read bound TCP listener address");
+    println!(
+        "{} listening on {} with runtime_mode={} receiver_audience={} max_wire_bytes={} read_timeout_ms={} max_in_flight_connections={} allowed_evidence_adapters={}",
+        label,
+        local_addr,
+        config.runtime_mode.label(),
+        config.receiver_audience,
+        config.max_wire_bytes,
+        config.ingress_read_timeout.as_millis(),
+        config.max_in_flight_connections,
+        config.allowed_evidence_adapters.join(",")
+    );
 
+    let in_flight = Arc::new(Semaphore::new(config.max_in_flight_connections));
     loop {
         match listener.accept().await {
             Ok((socket, peer)) => {
+                let Ok(permit) = Arc::clone(&in_flight).try_acquire_owned() else {
+                    eprintln!(
+                        "secS [Transport]: refused connection from {} because in-flight cap {} is saturated",
+                        peer, config.max_in_flight_connections
+                    );
+                    drop(socket);
+                    continue;
+                };
                 println!("secS [Transport]: accepted connection from {}", peer);
                 let router = Arc::clone(&router);
+                let max_wire_bytes = config.max_wire_bytes;
+                let ingress_read_timeout = config.ingress_read_timeout;
+                let runtime_mode = config.runtime_mode;
                 tokio::spawn(async move {
-                    handle_gateway_connection(router, socket).await;
+                    let _permit = permit;
+                    handle_gateway_connection_with_limits(
+                        router,
+                        socket,
+                        max_wire_bytes,
+                        ingress_read_timeout,
+                        runtime_mode,
+                    )
+                    .await;
                 });
             }
             Err(e) => eprintln!("secS [Transport]: failed to accept connection - {}", e),

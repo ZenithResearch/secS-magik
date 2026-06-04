@@ -1,8 +1,9 @@
 use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
 use crate::identity::NodeVerifierIdentity;
-use crate::manifest::{ReceiverManifest, ReplayScope};
+use crate::manifest::{OperationDescriptor, ReceiverManifest, ReplayScope};
 use crate::ontology::PROTOTYPE_LOCAL_SUBJECT;
 pub use crate::receipt::AuthenticatorKind;
+use crate::runtime_mode::RuntimeMode;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
 
 use libsec_core::ZenithPacket;
@@ -21,6 +22,7 @@ pub enum VerificationError {
     BadMac,
     UnknownOperation,
     HandlerUnavailable,
+    PrototypeOperationNotProductionAuthorized,
     WrongAudience,
     WrongSubject,
     WrongOrigin,
@@ -48,6 +50,9 @@ impl VerificationError {
             Self::BadMac => "bad_mac",
             Self::UnknownOperation => "unknown_operation",
             Self::HandlerUnavailable => "handler_unavailable",
+            Self::PrototypeOperationNotProductionAuthorized => {
+                "prototype_operation_not_production_authorized"
+            }
             Self::WrongAudience => "wrong_audience",
             Self::WrongSubject => "wrong_subject",
             Self::WrongOrigin => "wrong_origin",
@@ -146,6 +151,24 @@ impl Verifier {
         identity.sign_context(context)
     }
 
+    pub fn verify_manifest_operation_and_sign_for_runtime_with_identity(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        identity: &NodeVerifierIdentity,
+        runtime_mode: RuntimeMode,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let context = Self::verify_manifest_operation_for_runtime(
+            packet,
+            manifest,
+            audience,
+            now,
+            runtime_mode,
+        )?;
+        identity.sign_context(context)
+    }
+
     pub fn verify_manifest_operation(
         packet: &ZenithPacket,
         manifest: &ReceiverManifest,
@@ -154,6 +177,26 @@ impl Verifier {
     ) -> Result<VerifiedCallContext, VerificationError> {
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
+        verified_context_for_descriptor(
+            packet,
+            descriptor,
+            audience,
+            PROTOTYPE_LOCAL_SUBJECT,
+            descriptor_evidence_summary(descriptor),
+            now,
+        )
+    }
+
+    pub fn verify_manifest_operation_for_runtime(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        runtime_mode: RuntimeMode,
+    ) -> Result<VerifiedCallContext, VerificationError> {
+        Self::verify_prototype_envelope(packet)?;
+        let descriptor = manifest.lookup(packet.opcode)?;
+        reject_non_production_descriptor(descriptor, runtime_mode)?;
         verified_context_for_descriptor(
             packet,
             descriptor,
@@ -211,6 +254,22 @@ impl Verifier {
             AuthenticatorKind::Ed25519Verifier,
         )
     }
+}
+
+fn reject_non_production_descriptor(
+    descriptor: &OperationDescriptor,
+    runtime_mode: RuntimeMode,
+) -> Result<(), VerificationError> {
+    if runtime_mode != RuntimeMode::ProductionVerified {
+        return Ok(());
+    }
+    if descriptor.dev_binding
+        || descriptor.handler_id.starts_with("dev/")
+        || descriptor.name.as_str().starts_with("candidate.dev")
+    {
+        return Err(VerificationError::PrototypeOperationNotProductionAuthorized);
+    }
+    Ok(())
 }
 
 fn verified_context_for_descriptor(

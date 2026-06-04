@@ -2,11 +2,13 @@ use crate::identity::{
     explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
 };
 use crate::ledger::{Ledger, ReplayReservationOutcome};
+use crate::manifest::ReceiverManifest;
 use crate::ontology::{
     DEFAULT_RECEIVER_AUDIENCE, LOCAL_PROTOTYPE_SIGNER_ID, REPLAY_DETECTED_REASON,
     REPLAY_RESERVATION_FAILED_REASON, UNVERIFIED_PROTOTYPE_OPERATION,
 };
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
+use crate::runtime_mode::RuntimeMode;
 use crate::schema::{apply_schema, TELEMETRY_TABLES};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
@@ -14,7 +16,11 @@ use libsec_core::ZenithPacket;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::process::Child;
 use tokio::time::timeout;
+
+const DESCRIPTOR_CONTEXT_MISMATCH_REASON: &str = "descriptor_context_mismatch";
 
 const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
@@ -22,6 +28,7 @@ const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 pub struct HandlerOutcome {
     pub decision: Decision,
     pub reason: Option<String>,
+    pub output_bytes: usize,
 }
 
 impl HandlerOutcome {
@@ -29,6 +36,15 @@ impl HandlerOutcome {
         Self {
             decision: Decision::Accepted,
             reason: None,
+            output_bytes: 0,
+        }
+    }
+
+    pub fn succeeded_with_output_bytes(output_bytes: usize) -> Self {
+        Self {
+            decision: Decision::Accepted,
+            reason: None,
+            output_bytes,
         }
     }
 
@@ -36,6 +52,7 @@ impl HandlerOutcome {
         Self {
             decision: Decision::Rejected,
             reason: Some(reason.into()),
+            output_bytes: 0,
         }
     }
 }
@@ -43,6 +60,7 @@ impl HandlerOutcome {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExecutionLimits {
     pub max_payload_bytes: usize,
+    pub max_output_bytes: usize,
     pub handler_timeout: Duration,
 }
 
@@ -50,6 +68,7 @@ impl Default for ExecutionLimits {
     fn default() -> Self {
         Self {
             max_payload_bytes: 1024 * 1024,
+            max_output_bytes: 1024 * 1024,
             handler_timeout: Duration::from_secs(30),
         }
     }
@@ -57,11 +76,16 @@ impl Default for ExecutionLimits {
 
 #[async_trait]
 pub trait MachineProgram: Send + Sync {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome;
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        limits: ExecutionLimits,
+    ) -> HandlerOutcome;
 }
 
 pub struct ConfigurableRouter {
-    programs: HashMap<u8, Box<dyn MachineProgram>>,
+    programs: HashMap<String, Box<dyn MachineProgram>>,
     pool: SqlitePool,
     ledger: Ledger,
     limits: ExecutionLimits,
@@ -95,6 +119,20 @@ impl ConfigurableRouter {
         limits: ExecutionLimits,
         identity: NodeVerifierIdentity,
     ) -> Self {
+        Self::with_limits_identity_and_audience(
+            pool,
+            limits,
+            identity,
+            DEFAULT_RECEIVER_AUDIENCE.to_string(),
+        )
+    }
+
+    pub fn with_limits_identity_and_audience(
+        pool: SqlitePool,
+        limits: ExecutionLimits,
+        identity: NodeVerifierIdentity,
+        expected_audience: impl Into<String>,
+    ) -> Self {
         let verifier_keys = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
         Self {
             programs: HashMap::new(),
@@ -103,12 +141,28 @@ impl ConfigurableRouter {
             limits,
             identity,
             verifier_keys,
-            expected_audience: DEFAULT_RECEIVER_AUDIENCE.to_string(),
+            expected_audience: expected_audience.into(),
         }
     }
 
+    pub fn expected_audience(&self) -> &str {
+        &self.expected_audience
+    }
+
     pub fn register(&mut self, opcode: u8, program: Box<dyn MachineProgram>) {
-        self.programs.insert(opcode, program);
+        let handler_id = crate::manifest::ReceiverManifest::default_v0()
+            .lookup(opcode)
+            .map(|descriptor| descriptor.handler_id.clone())
+            .unwrap_or_else(|_| format!("opcode/{opcode:02x}"));
+        self.register_handler(handler_id, program);
+    }
+
+    pub fn register_handler(
+        &mut self,
+        handler_id: impl Into<String>,
+        program: Box<dyn MachineProgram>,
+    ) {
+        self.programs.insert(handler_id.into(), program);
     }
 
     pub fn identity(&self) -> &NodeVerifierIdentity {
@@ -146,7 +200,14 @@ impl ConfigurableRouter {
             eprintln!("secS [Ledger]: failed to write unverified event - {}", e);
         }
 
-        match self.programs.get(&opcode) {
+        let handler_id = crate::manifest::ReceiverManifest::default_v0()
+            .lookup(opcode)
+            .ok()
+            .map(|descriptor| descriptor.handler_id.clone());
+        match handler_id
+            .as_deref()
+            .and_then(|handler_id| self.programs.get(handler_id))
+        {
             Some(_) => eprintln!(
                 "secS [Router]: rejected unverified handler route for opcode {:#04x}",
                 opcode
@@ -214,6 +275,42 @@ impl ConfigurableRouter {
             }
             eprintln!(
                 "secS [Router]: rejected signed context before routing - {}",
+                reason
+            );
+            return;
+        }
+
+        if !signed_context_matches_active_manifest(context) {
+            let reason = DESCRIPTOR_CONTEXT_MISMATCH_REASON;
+            self.record_verified_reject_receipt(signed, reason, timestamp)
+                .await;
+            self.record_operation_event(
+                ReceiptEventKind::PacketRejected,
+                signed,
+                timestamp,
+                Some(reason),
+            )
+            .await;
+            eprintln!(
+                "secS [Router]: rejected signed context that mismatches active descriptor - {}",
+                reason
+            );
+            return;
+        }
+
+        if production_context_uses_dev_descriptor(signed, self.identity.authenticator_kind()) {
+            let reason = VerificationError::PrototypeOperationNotProductionAuthorized.reason_code();
+            self.record_verified_reject_receipt(signed, reason, timestamp)
+                .await;
+            self.record_operation_event(
+                ReceiptEventKind::PacketRejected,
+                signed,
+                timestamp,
+                Some(reason),
+            )
+            .await;
+            eprintln!(
+                "secS [Router]: rejected production signed context for dev/prototype descriptor before handler lookup - {}",
                 reason
             );
             return;
@@ -288,7 +385,25 @@ impl ConfigurableRouter {
             return;
         }
 
-        match self.programs.get(&context.opcode) {
+        let Some(handler_id) = context.handler_id.as_deref() else {
+            let reason = "handler_unavailable";
+            self.record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                .await;
+            self.record_operation_event(
+                ReceiptEventKind::HandlerFailed,
+                signed,
+                timestamp,
+                Some(reason),
+            )
+            .await;
+            eprintln!(
+                "secS [Router]: rejected verified operation without descriptor handler {} ({:#04x})",
+                context.operation, context.opcode
+            );
+            return;
+        };
+
+        match self.programs.get(handler_id) {
             Some(program) => {
                 self.record_operation_event(
                     ReceiptEventKind::HandlerStarted,
@@ -299,12 +414,17 @@ impl ConfigurableRouter {
                 .await;
                 let outcome = match timeout(
                     self.limits.handler_timeout,
-                    program.execute(context, &payload),
+                    program.execute(context, &payload, self.limits),
                 )
                 .await
                 {
                     Ok(outcome) => outcome,
                     Err(_) => HandlerOutcome::rejected("handler_timeout"),
+                };
+                let outcome = if outcome.output_bytes > self.limits.max_output_bytes {
+                    HandlerOutcome::rejected("output_too_large")
+                } else {
+                    outcome
                 };
                 let reason = outcome.reason.as_deref();
                 self.record_execution_receipt(signed, outcome.decision, reason, timestamp)
@@ -468,6 +588,31 @@ fn should_emit_signed_context_reject(error: &VerificationError) -> bool {
     )
 }
 
+fn signed_context_matches_active_manifest(context: &VerifiedCallContext) -> bool {
+    let manifest = ReceiverManifest::default_v0();
+    let Ok(descriptor) = manifest.lookup(context.opcode) else {
+        return false;
+    };
+    context.operation == descriptor.name.as_str()
+        && context.handler_id.as_deref() == Some(descriptor.handler_id.as_str())
+}
+
+fn production_context_uses_dev_descriptor(
+    signed: &SignedVerifiedCallContext,
+    router_authenticator_kind: AuthenticatorKind,
+) -> bool {
+    if router_authenticator_kind == AuthenticatorKind::LocalDevUntrusted {
+        return false;
+    }
+    let manifest = ReceiverManifest::default_v0();
+    let Ok(descriptor) = manifest.lookup(signed.context.opcode) else {
+        return true;
+    };
+    descriptor.dev_binding
+        || descriptor.handler_id.starts_with("dev/")
+        || descriptor.name.as_str().starts_with("candidate.dev")
+}
+
 fn context_receipt_suffix(context: &VerifiedCallContext) -> String {
     let hash_prefix = context.packet_hash[..8]
         .iter()
@@ -490,9 +635,146 @@ impl SubprocessForwarder {
     }
 }
 
+struct ProcessGroupGuard {
+    #[cfg(unix)]
+    pid: Option<u32>,
+}
+
+impl ProcessGroupGuard {
+    fn new(child: &Child) -> Self {
+        Self {
+            #[cfg(unix)]
+            pid: child.id(),
+        }
+    }
+
+    async fn terminate(&mut self, child: &mut Child) {
+        #[cfg(unix)]
+        if let Some(pid) = self.pid.take() {
+            kill_process_group(pid, "-TERM").await;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            kill_process_group(pid, "-KILL").await;
+            let _ = child.wait().await;
+            return;
+        }
+
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+    }
+
+    fn disarm(&mut self) {
+        #[cfg(unix)]
+        {
+            self.pid = None;
+        }
+    }
+}
+
+impl Drop for ProcessGroupGuard {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        if let Some(pid) = self.pid.take() {
+            let _ = std::process::Command::new("kill")
+                .arg("-KILL")
+                .arg(format!("-{pid}"))
+                .status();
+        }
+    }
+}
+
+#[cfg(unix)]
+async fn kill_process_group(pid: u32, signal: &str) {
+    let _ = tokio::process::Command::new("kill")
+        .arg(signal)
+        .arg(format!("-{pid}"))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
+}
+
+async fn read_one_chunk<R: AsyncRead + Unpin>(
+    reader: &mut Option<R>,
+    limit: usize,
+) -> Result<usize, std::io::Error> {
+    let Some(stream) = reader.as_mut() else {
+        return Ok(0);
+    };
+    let mut buffer = vec![0u8; limit.clamp(1, 8192)];
+    let read = stream.read(&mut buffer).await?;
+    if read == 0 {
+        *reader = None;
+    }
+    Ok(read)
+}
+
+async fn wait_for_bounded_subprocess_output(
+    mut child: Child,
+    limit: usize,
+    timeout_duration: Duration,
+) -> HandlerOutcome {
+    let mut guard = ProcessGroupGuard::new(&child);
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
+    let mut output_bytes = 0usize;
+    let sleep = tokio::time::sleep(timeout_duration);
+    tokio::pin!(sleep);
+
+    loop {
+        if output_bytes > limit {
+            guard.terminate(&mut child).await;
+            return HandlerOutcome::rejected("output_too_large");
+        }
+
+        if stdout.is_none() && stderr.is_none() {
+            match child.wait().await {
+                Ok(status) if status.success() => {
+                    guard.disarm();
+                    return HandlerOutcome::succeeded_with_output_bytes(output_bytes);
+                }
+                Ok(_) => {
+                    guard.disarm();
+                    return HandlerOutcome::rejected("handler_exit_failed");
+                }
+                Err(_) => return HandlerOutcome::rejected("handler_wait_failed"),
+            }
+        }
+
+        tokio::select! {
+            _ = &mut sleep => {
+                guard.terminate(&mut child).await;
+                return HandlerOutcome::rejected("handler_timeout");
+            }
+            result = read_one_chunk(&mut stdout, limit.saturating_sub(output_bytes).saturating_add(1)), if stdout.is_some() => {
+                match result {
+                    Ok(read) => output_bytes = output_bytes.saturating_add(read),
+                    Err(_) => {
+                        guard.terminate(&mut child).await;
+                        return HandlerOutcome::rejected("handler_wait_failed");
+                    }
+                }
+            }
+            result = read_one_chunk(&mut stderr, limit.saturating_sub(output_bytes).saturating_add(1)), if stderr.is_some() => {
+                match result {
+                    Ok(read) => output_bytes = output_bytes.saturating_add(read),
+                    Err(_) => {
+                        guard.terminate(&mut child).await;
+                        return HandlerOutcome::rejected("handler_wait_failed");
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[async_trait]
 impl MachineProgram for SubprocessForwarder {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         let Some(handler_id) = context.handler_id.as_deref() else {
             return HandlerOutcome::rejected("handler_unavailable");
         };
@@ -503,13 +785,18 @@ impl MachineProgram for SubprocessForwarder {
             "secS [Subprocess]: invoking verified dev handler `{}` via `{} {:?}`",
             handler_id, self.program, self.args
         );
-        let mut child = match tokio::process::Command::new(&self.program)
+        let mut command = tokio::process::Command::new(&self.program);
+        command
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        #[cfg(unix)]
         {
+            command.process_group(0);
+        }
+        let mut child = match command.spawn() {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("secS [Subprocess]: failed to spawn - {}", e);
@@ -526,11 +813,8 @@ impl MachineProgram for SubprocessForwarder {
                 return HandlerOutcome::rejected("handler_stdin_failed");
             }
         }
-        match child.wait().await {
-            Ok(status) if status.success() => HandlerOutcome::succeeded(),
-            Ok(_) => HandlerOutcome::rejected("handler_exit_failed"),
-            Err(_) => HandlerOutcome::rejected("handler_wait_failed"),
-        }
+        wait_for_bounded_subprocess_output(child, limits.max_output_bytes, limits.handler_timeout)
+            .await
     }
 }
 
@@ -538,7 +822,12 @@ pub struct LocalRustQueue;
 
 #[async_trait]
 impl MachineProgram for LocalRustQueue {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         println!(
             "secS [Native Rust]: enqueueing {} bytes for handler {:?}...",
             payload.len(),
@@ -548,16 +837,32 @@ impl MachineProgram for LocalRustQueue {
     }
 }
 
+pub fn register_runtime_bindings(router: &mut ConfigurableRouter, runtime_mode: RuntimeMode) {
+    if matches!(
+        runtime_mode,
+        RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel
+    ) {
+        router.register_handler("dev/json-validate", Box::new(LocalRustQueue));
+        register_dev_subprocess_bindings(router);
+    }
+}
+
 pub fn register_prototype_bindings(router: &mut ConfigurableRouter) {
-    router.register(
-        0x10,
+    register_runtime_bindings(router, RuntimeMode::LocalDevPlaintext);
+}
+
+pub fn register_dev_subprocess_bindings(router: &mut ConfigurableRouter) {
+    router.register_handler(
+        "dev/bash-echo",
         Box::new(SubprocessForwarder::new(
             "bash",
             vec!["-c", "echo 'Bash received payload:'; cat"],
         )),
     );
-    router.register(0x20, Box::new(LocalRustQueue));
-    router.register(0x30, Box::new(SubprocessForwarder::new("jq", vec!["."])));
+    router.register_handler(
+        "dev/jq-identity",
+        Box::new(SubprocessForwarder::new("jq", vec!["."])),
+    );
 }
 
 #[cfg(test)]

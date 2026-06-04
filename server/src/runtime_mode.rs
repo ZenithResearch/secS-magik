@@ -7,8 +7,8 @@ pub enum RuntimeMode {
 
 impl RuntimeMode {
     pub fn from_env() -> Self {
-        std::env::var("SECZ_RUNTIME_MODE")
-            .or_else(|_| std::env::var("SECS_RUNTIME_MODE"))
+        std::env::var("SECS_RUNTIME_MODE")
+            .or_else(|_| std::env::var("SECZ_RUNTIME_MODE"))
             .ok()
             .as_deref()
             .and_then(Self::parse)

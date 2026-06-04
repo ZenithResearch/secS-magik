@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
 use server::gateway::{
-    init_telemetry_schema, ConfigurableRouter, ExecutionLimits, HandlerOutcome, MachineProgram,
+    init_telemetry_schema, register_runtime_bindings, ConfigurableRouter, ExecutionLimits,
+    HandlerOutcome, MachineProgram, SubprocessForwarder,
 };
 use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
@@ -21,7 +22,12 @@ struct CountingProgram {
 
 #[async_trait]
 impl MachineProgram for CountingProgram {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.bytes.fetch_add(payload.len(), Ordering::SeqCst);
         self.handler_ids
@@ -38,9 +44,30 @@ struct DecliningProgram {
 
 #[async_trait]
 impl MachineProgram for DecliningProgram {
-    async fn execute(&self, _context: &VerifiedCallContext, _payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        _context: &VerifiedCallContext,
+        _payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         self.calls.fetch_add(1, Ordering::SeqCst);
         HandlerOutcome::rejected("handler_declined")
+    }
+}
+
+struct OutputProgram {
+    output_bytes: usize,
+}
+
+#[async_trait]
+impl MachineProgram for OutputProgram {
+    async fn execute(
+        &self,
+        _context: &VerifiedCallContext,
+        _payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
+        HandlerOutcome::succeeded_with_output_bytes(self.output_bytes)
     }
 }
 
@@ -48,7 +75,12 @@ struct SlowProgram;
 
 #[async_trait]
 impl MachineProgram for SlowProgram {
-    async fn execute(&self, _context: &VerifiedCallContext, _payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        _context: &VerifiedCallContext,
+        _payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         tokio::time::sleep(Duration::from_millis(50)).await;
         HandlerOutcome::succeeded()
     }
@@ -332,6 +364,226 @@ async fn gateway_router_rejects_unmapped_opcode_without_executing_program() {
 }
 
 #[tokio::test]
+async fn subprocess_forwarder_reports_output_too_large_from_captured_stdout() {
+    let signed = signed_context(0x10, b"payload");
+    let forwarder = SubprocessForwarder {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), "printf abcdefgh".to_string()],
+    };
+
+    let outcome = forwarder
+        .execute(
+            &signed.context,
+            b"payload",
+            ExecutionLimits {
+                max_payload_bytes: 1024,
+                max_output_bytes: 4,
+                handler_timeout: Duration::from_secs(1),
+            },
+        )
+        .await;
+
+    assert_eq!(outcome.decision, server::receipt::Decision::Rejected);
+    assert_eq!(outcome.reason.as_deref(), Some("output_too_large"));
+}
+
+#[tokio::test]
+async fn subprocess_forwarder_counts_large_stderr_against_output_limit() {
+    let signed = signed_context(0x10, b"payload");
+    let forwarder = SubprocessForwarder {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), "printf abcdefgh >&2".to_string()],
+    };
+
+    let outcome = forwarder
+        .execute(
+            &signed.context,
+            b"payload",
+            ExecutionLimits {
+                max_payload_bytes: 1024,
+                max_output_bytes: 4,
+                handler_timeout: Duration::from_secs(1),
+            },
+        )
+        .await;
+
+    assert_eq!(outcome.decision, server::receipt::Decision::Rejected);
+    assert_eq!(outcome.reason.as_deref(), Some("output_too_large"));
+}
+
+#[tokio::test]
+async fn subprocess_forwarder_allows_output_exactly_at_limit() {
+    let signed = signed_context(0x10, b"payload");
+    let forwarder = SubprocessForwarder {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), "printf abcd".to_string()],
+    };
+
+    let outcome = forwarder
+        .execute(
+            &signed.context,
+            b"payload",
+            ExecutionLimits {
+                max_payload_bytes: 1024,
+                max_output_bytes: 4,
+                handler_timeout: Duration::from_secs(1),
+            },
+        )
+        .await;
+
+    assert_eq!(outcome.decision, server::receipt::Decision::Accepted);
+    assert_eq!(outcome.output_bytes, 4);
+}
+
+#[tokio::test]
+async fn subprocess_forwarder_is_killed_when_router_timeout_drops_handler_future() {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let marker = std::env::temp_dir().join(format!("secs-magik-timeout-marker-{nanos}"));
+    let command = format!("sleep 0.2; touch {}", marker.display());
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_limits(
+        pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 1024,
+            max_output_bytes: 1024,
+            handler_timeout: Duration::from_millis(10),
+        },
+    );
+    router.register_handler(
+        "dev/bash-echo",
+        Box::new(SubprocessForwarder {
+            program: "sh".to_string(),
+            args: vec!["-c".to_string(), command],
+        }),
+    );
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+    tokio::time::sleep(Duration::from_millis(350)).await;
+
+    assert!(
+        !marker.exists(),
+        "timed-out subprocess should be killed before marker write"
+    );
+    let receipt: (String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "handler_timeout".to_string()
+        )
+    );
+    let _ = fs::remove_file(marker);
+}
+
+#[tokio::test]
+async fn production_runtime_bindings_do_not_register_dev_subprocess_handlers_by_default() {
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    register_runtime_bindings(&mut router, RuntimeMode::ProductionVerified);
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "handler_unavailable".to_string(),
+            "dev/bash-echo".to_string()
+        )
+    );
+}
+
+#[tokio::test]
+async fn production_signed_dev_descriptor_rejects_before_handler_execution() {
+    let path = write_key_file([0x66; 32]);
+    let identity = load_node_verifier_identity(&VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(path.clone()),
+        verifier_key_id: None,
+    })
+    .expect("production identity should load from configured key path");
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
+    router.register(0x10, program);
+
+    let signed = signed_context_with_identity(0x10, b"payload", router.identity());
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'reject' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "reject".to_string(),
+            "rejected".to_string(),
+            "prototype_operation_not_production_authorized".to_string(),
+            "dev/bash-echo".to_string()
+        )
+    );
+
+    let _ = fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn gateway_router_revalidates_signed_descriptor_context_before_handler_lookup() {
+    let (registered_program, registered_calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, registered_program);
+    let mut signed = signed_context(0x10, b"payload");
+    signed.context.handler_id = Some("dev/json-validate".to_string());
+    signed = router
+        .identity()
+        .sign_context(signed.context)
+        .expect("mutated descriptor context should be re-signed by test identity");
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(registered_calls.load(Ordering::SeqCst), 0);
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'reject' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "reject".to_string(),
+            "rejected".to_string(),
+            "descriptor_context_mismatch".to_string(),
+            "dev/json-validate".to_string()
+        )
+    );
+}
+
+#[tokio::test]
 async fn gateway_router_signs_receipts_with_loaded_production_identity() {
     let path = write_key_file([0x45; 32]);
     let identity = load_node_verifier_identity(&VerifierIdentityConfig {
@@ -344,9 +596,9 @@ async fn gateway_router_signs_receipts_with_loaded_production_identity() {
     let (program, _calls, _bytes, _handler_ids) = counting_program();
     let pool = memory_pool().await;
     let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
-    router.register(0x10, program);
+    router.register(0x01, program);
 
-    let signed = signed_context_with_identity(0x10, b"payload", router.identity());
+    let signed = signed_context_with_identity(0x01, b"payload", router.identity());
     router.route_verified(&signed, b"payload".to_vec()).await;
 
     let receipt_rows: Vec<(String, String, String, Vec<u8>)> = sqlx::query_as(
@@ -752,6 +1004,7 @@ async fn gateway_router_rejects_payloads_over_configured_limit_before_handler_ex
         pool.clone(),
         ExecutionLimits {
             max_payload_bytes: 4,
+            max_output_bytes: 1024,
             handler_timeout: Duration::from_secs(1),
         },
     );
@@ -780,12 +1033,127 @@ async fn gateway_router_rejects_payloads_over_configured_limit_before_handler_ex
 }
 
 #[tokio::test]
+async fn gateway_router_emits_execution_receipts_for_all_handler_outcomes() {
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_limits(
+        pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 4,
+            max_output_bytes: 4,
+            handler_timeout: Duration::from_millis(1),
+        },
+    );
+    let calls = Arc::new(AtomicUsize::new(0));
+    router.register(
+        0x10,
+        Box::new(DecliningProgram {
+            calls: Arc::clone(&calls),
+        }),
+    );
+    router.register(0x20, Box::new(OutputProgram { output_bytes: 8 }));
+    router.register(0x30, Box::new(SlowProgram));
+
+    router
+        .route_verified(
+            &signed_context_with_fields([1u8; 16], [1u8; 12], 0x10, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
+    router
+        .route_verified(
+            &signed_context_with_fields([2u8; 16], [2u8; 12], 0x10, b"oversized"),
+            b"oversized".to_vec(),
+        )
+        .await;
+    router
+        .route_verified(
+            &signed_context_with_fields([3u8; 16], [3u8; 12], 0x20, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
+    router
+        .route_verified(
+            &signed_context_with_fields([4u8; 16], [4u8; 12], 0x30, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
+    router
+        .route_verified(
+            &signed_context_with_fields([5u8; 16], [5u8; 12], 0x01, b"ok"),
+            b"ok".to_vec(),
+        )
+        .await;
+
+    let rows: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT decision, reason FROM receipts WHERE kind = 'execute' ORDER BY timestamp, receipt_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert!(rows
+        .iter()
+        .any(|row| row == &("rejected".to_string(), Some("handler_declined".to_string()))));
+    assert!(rows.iter().any(|row| row
+        == &(
+            "rejected".to_string(),
+            Some("payload_too_large".to_string())
+        )));
+    assert!(rows
+        .iter()
+        .any(|row| row == &("rejected".to_string(), Some("output_too_large".to_string()))));
+    assert!(rows
+        .iter()
+        .any(|row| row == &("rejected".to_string(), Some("handler_timeout".to_string()))));
+    assert!(rows.iter().any(|row| row
+        == &(
+            "rejected".to_string(),
+            Some("handler_unavailable".to_string())
+        )));
+    assert_eq!(rows.len(), 5);
+}
+
+#[tokio::test]
+async fn gateway_router_rejects_handler_output_over_configured_limit_without_logging_output() {
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_limits(
+        pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 1024,
+            max_output_bytes: 4,
+            handler_timeout: Duration::from_secs(1),
+        },
+    );
+    router.register(0x10, Box::new(OutputProgram { output_bytes: 8 }));
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "output_too_large".to_string(),
+            "dev/bash-echo".to_string()
+        )
+    );
+}
+
+#[tokio::test]
 async fn gateway_router_rejects_timed_out_handlers_and_records_failure_without_payload_content() {
     let pool = memory_pool().await;
     let mut router = ConfigurableRouter::with_limits(
         pool.clone(),
         ExecutionLimits {
             max_payload_bytes: 1024,
+            max_output_bytes: 1024,
             handler_timeout: Duration::from_millis(1),
         },
     );
