@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
 use server::gateway::{
-    init_telemetry_schema, ConfigurableRouter, ExecutionLimits, HandlerOutcome, MachineProgram,
+    init_telemetry_schema, register_runtime_bindings, ConfigurableRouter, ExecutionLimits,
+    HandlerOutcome, MachineProgram,
 };
 use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
@@ -342,6 +343,34 @@ async fn gateway_router_rejects_unmapped_opcode_without_executing_program() {
     );
 }
 
+
+
+#[tokio::test]
+async fn production_runtime_bindings_do_not_register_dev_subprocess_handlers_by_default() {
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    register_runtime_bindings(&mut router, RuntimeMode::ProductionVerified);
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "handler_unavailable".to_string(),
+            "dev/bash-echo".to_string()
+        )
+    );
+}
 
 #[tokio::test]
 async fn gateway_router_uses_descriptor_handler_id_not_opcode_for_program_selection() {

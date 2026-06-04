@@ -1,5 +1,5 @@
 use crate::config::GatewayRuntimeConfig;
-use crate::gateway::{init_telemetry_schema, register_prototype_bindings, ConfigurableRouter};
+use crate::gateway::{init_telemetry_schema, register_runtime_bindings, ConfigurableRouter};
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
 };
@@ -203,7 +203,7 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         identity,
         config.receiver_audience.clone(),
     );
-    register_prototype_bindings(&mut router);
+    register_runtime_bindings(&mut router, config.runtime_mode);
 
     let router = Arc::new(router);
     let listener = TcpListener::bind(&config.bind_addr)

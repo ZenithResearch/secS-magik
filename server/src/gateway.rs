@@ -7,6 +7,7 @@ use crate::ontology::{
     REPLAY_RESERVATION_FAILED_REASON, UNVERIFIED_PROTOTYPE_OPERATION,
 };
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
+use crate::runtime_mode::RuntimeMode;
 use crate::schema::{apply_schema, TELEMETRY_TABLES};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
@@ -618,7 +619,21 @@ impl MachineProgram for LocalRustQueue {
     }
 }
 
+pub fn register_runtime_bindings(router: &mut ConfigurableRouter, runtime_mode: RuntimeMode) {
+    router.register_handler("dev/json-validate", Box::new(LocalRustQueue));
+    if matches!(
+        runtime_mode,
+        RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel
+    ) {
+        register_dev_subprocess_bindings(router);
+    }
+}
+
 pub fn register_prototype_bindings(router: &mut ConfigurableRouter) {
+    register_runtime_bindings(router, RuntimeMode::LocalDevPlaintext);
+}
+
+pub fn register_dev_subprocess_bindings(router: &mut ConfigurableRouter) {
     router.register_handler(
         "dev/bash-echo",
         Box::new(SubprocessForwarder::new(
@@ -626,7 +641,6 @@ pub fn register_prototype_bindings(router: &mut ConfigurableRouter) {
             vec!["-c", "echo 'Bash received payload:'; cat"],
         )),
     );
-    router.register_handler("dev/json-validate", Box::new(LocalRustQueue));
     router.register_handler("dev/jq-identity", Box::new(SubprocessForwarder::new("jq", vec!["."])));
 }
 
