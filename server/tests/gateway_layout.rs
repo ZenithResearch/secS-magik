@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use libsec_core::ZenithPacket;
 use server::gateway::{
     init_telemetry_schema, register_runtime_bindings, ConfigurableRouter, ExecutionLimits,
-    HandlerOutcome, MachineProgram,
+    HandlerOutcome, MachineProgram, SubprocessForwarder,
 };
 use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
 use server::manifest::ReceiverManifest;
@@ -22,7 +22,12 @@ struct CountingProgram {
 
 #[async_trait]
 impl MachineProgram for CountingProgram {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.bytes.fetch_add(payload.len(), Ordering::SeqCst);
         self.handler_ids
@@ -39,7 +44,12 @@ struct DecliningProgram {
 
 #[async_trait]
 impl MachineProgram for DecliningProgram {
-    async fn execute(&self, _context: &VerifiedCallContext, _payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        _context: &VerifiedCallContext,
+        _payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         self.calls.fetch_add(1, Ordering::SeqCst);
         HandlerOutcome::rejected("handler_declined")
     }
@@ -51,7 +61,12 @@ struct OutputProgram {
 
 #[async_trait]
 impl MachineProgram for OutputProgram {
-    async fn execute(&self, _context: &VerifiedCallContext, _payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        _context: &VerifiedCallContext,
+        _payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         HandlerOutcome::succeeded_with_output_bytes(self.output_bytes)
     }
 }
@@ -60,7 +75,12 @@ struct SlowProgram;
 
 #[async_trait]
 impl MachineProgram for SlowProgram {
-    async fn execute(&self, _context: &VerifiedCallContext, _payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        _context: &VerifiedCallContext,
+        _payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         tokio::time::sleep(Duration::from_millis(50)).await;
         HandlerOutcome::succeeded()
     }
@@ -344,6 +364,79 @@ async fn gateway_router_rejects_unmapped_opcode_without_executing_program() {
 }
 
 
+
+
+#[tokio::test]
+async fn subprocess_forwarder_reports_output_too_large_from_captured_stdout() {
+    let signed = signed_context(0x10, b"payload");
+    let forwarder = SubprocessForwarder {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), "printf abcdefgh".to_string()],
+    };
+
+    let outcome = forwarder
+        .execute(
+            &signed.context,
+            b"payload",
+            ExecutionLimits {
+                max_payload_bytes: 1024,
+                max_output_bytes: 4,
+                handler_timeout: Duration::from_secs(1),
+            },
+        )
+        .await;
+
+    assert_eq!(outcome.decision, server::receipt::Decision::Rejected);
+    assert_eq!(outcome.reason.as_deref(), Some("output_too_large"));
+}
+
+#[tokio::test]
+async fn subprocess_forwarder_is_killed_when_router_timeout_drops_handler_future() {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let marker = std::env::temp_dir().join(format!("secs-magik-timeout-marker-{nanos}"));
+    let command = format!("sleep 0.2; touch {}", marker.display());
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_limits(
+        pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 1024,
+            max_output_bytes: 1024,
+            handler_timeout: Duration::from_millis(10),
+        },
+    );
+    router.register_handler(
+        "dev/bash-echo",
+        Box::new(SubprocessForwarder {
+            program: "sh".to_string(),
+            args: vec!["-c".to_string(), command],
+        }),
+    );
+
+    router
+        .route_verified(&signed_context(0x10, b"payload"), b"payload".to_vec())
+        .await;
+    tokio::time::sleep(Duration::from_millis(350)).await;
+
+    assert!(!marker.exists(), "timed-out subprocess should be killed before marker write");
+    let receipt: (String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "handler_timeout".to_string()
+        )
+    );
+    let _ = fs::remove_file(marker);
+}
 
 #[tokio::test]
 async fn production_runtime_bindings_do_not_register_dev_subprocess_handlers_by_default() {

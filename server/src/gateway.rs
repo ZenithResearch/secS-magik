@@ -71,7 +71,12 @@ impl Default for ExecutionLimits {
 
 #[async_trait]
 pub trait MachineProgram: Send + Sync {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome;
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        limits: ExecutionLimits,
+    ) -> HandlerOutcome;
 }
 
 pub struct ConfigurableRouter {
@@ -365,7 +370,7 @@ impl ConfigurableRouter {
                 .await;
                 let outcome = match timeout(
                     self.limits.handler_timeout,
-                    program.execute(context, &payload),
+                    program.execute(context, &payload, self.limits),
                 )
                 .await
                 {
@@ -563,7 +568,12 @@ impl SubprocessForwarder {
 
 #[async_trait]
 impl MachineProgram for SubprocessForwarder {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         let Some(handler_id) = context.handler_id.as_deref() else {
             return HandlerOutcome::rejected("handler_unavailable");
         };
@@ -577,8 +587,9 @@ impl MachineProgram for SubprocessForwarder {
         let mut child = match tokio::process::Command::new(&self.program)
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true)
             .spawn()
         {
             Ok(c) => c,
@@ -597,8 +608,15 @@ impl MachineProgram for SubprocessForwarder {
                 return HandlerOutcome::rejected("handler_stdin_failed");
             }
         }
-        match child.wait().await {
-            Ok(status) if status.success() => HandlerOutcome::succeeded(),
+        match child.wait_with_output().await {
+            Ok(output) if output.status.success() => {
+                let output_bytes = output.stdout.len().saturating_add(output.stderr.len());
+                if output_bytes > limits.max_output_bytes {
+                    HandlerOutcome::rejected("output_too_large")
+                } else {
+                    HandlerOutcome::succeeded_with_output_bytes(output_bytes)
+                }
+            }
             Ok(_) => HandlerOutcome::rejected("handler_exit_failed"),
             Err(_) => HandlerOutcome::rejected("handler_wait_failed"),
         }
@@ -609,7 +627,12 @@ pub struct LocalRustQueue;
 
 #[async_trait]
 impl MachineProgram for LocalRustQueue {
-    async fn execute(&self, context: &VerifiedCallContext, payload: &[u8]) -> HandlerOutcome {
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
         println!(
             "secS [Native Rust]: enqueueing {} bytes for handler {:?}...",
             payload.len(),
