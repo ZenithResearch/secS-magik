@@ -97,7 +97,7 @@ Completed / solid enough to build on:
 | Receipt/event ledger | Solid / implemented as local SQLite ledger | Verify/reject/execute records can be persisted without raw payload content by default. | Do not claim public audit proof or cross-Hub receipt trust from local SQLite alone. |
 | `EvidenceAdapter` and `local_static` | Solid / implemented as local-dev-test seam | Descriptor evidence requirements can flow through an adapter into signed contexts/receipts. | `local_static` cannot satisfy production authority. |
 | `wallet_presentation` adapter shell | Partial / prototype | Shape validation and fail-closed status handling exist for wallet-presentation evidence. | Do not claim production wallet cryptographic verification. |
-| Verified-context handler routing | Partial / prototype | Handlers now consume `VerifiedCallContext` and emit execution receipts through bounded local routing. | Do not claim final durable/general execution broker semantics. |
+| Verified-context handler routing | Solid / implemented as receiver-local bounded routing after Track F | Handlers consume `VerifiedCallContext`, select by descriptor `handler_id`, enforce local limits, and emit execution receipts for bounded outcomes. | Do not claim durable/distributed broker semantics or broad shell authority. |
 
 Remaining first-prod gaps carried forward into A2–A9:
 
@@ -996,7 +996,7 @@ Rationale:
 
 ### A9 — Resulting first implementation path
 
-Tracks B–I remain the first implementation sequence from A8:
+Tracks B–I were the first implementation sequence selected from A8; later completion checkpoints in this checklist annotate tracks as they land:
 
 1. Track B — production identity and key lifecycle.
 2. Track C — replay, session, and expiry enforcement.
