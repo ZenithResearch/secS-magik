@@ -140,23 +140,25 @@ pub async fn handle_gateway_connection_with_limits(
     };
 
     let manifest = ReceiverManifest::default_v0();
-    let signed_context = match Verifier::verify_manifest_operation_and_sign_with_identity(
-        &packet,
-        &manifest,
-        router.expected_audience(),
-        current_unix_seconds(),
-        router.identity(),
-    ) {
-        Ok(context) => context,
-        Err(error) => {
-            eprintln!(
-                "secS [Manifest]: rejected packet before handler lookup - {}",
-                error.reason_code()
-            );
-            router.record_reject(&packet, error).await;
-            return;
-        }
-    };
+    let signed_context =
+        match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity(
+            &packet,
+            &manifest,
+            router.expected_audience(),
+            current_unix_seconds(),
+            router.identity(),
+            runtime_mode,
+        ) {
+            Ok(context) => context,
+            Err(error) => {
+                eprintln!(
+                    "secS [Manifest]: rejected packet before handler lookup - {}",
+                    error.reason_code()
+                );
+                router.record_reject(&packet, error).await;
+                return;
+            }
+        };
 
     router.route_verified(&signed_context, payload).await;
 }
@@ -216,10 +218,13 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         .await
         .expect("secS gateway: failed to bind TCP listener");
 
+    let local_addr = listener
+        .local_addr()
+        .expect("secS gateway: failed to read bound TCP listener address");
     println!(
         "{} listening on {} with runtime_mode={} receiver_audience={} max_wire_bytes={} read_timeout_ms={} max_in_flight_connections={} allowed_evidence_adapters={}",
         label,
-        config.bind_addr,
+        local_addr,
         config.runtime_mode.label(),
         config.receiver_audience,
         config.max_wire_bytes,

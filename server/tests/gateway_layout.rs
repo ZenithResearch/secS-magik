@@ -514,6 +514,43 @@ async fn production_runtime_bindings_do_not_register_dev_subprocess_handlers_by_
 }
 
 #[tokio::test]
+async fn production_signed_dev_descriptor_rejects_before_handler_execution() {
+    let path = write_key_file([0x66; 32]);
+    let identity = load_node_verifier_identity(&VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(path.clone()),
+        verifier_key_id: None,
+    })
+    .expect("production identity should load from configured key path");
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
+    router.register(0x10, program);
+
+    let signed = signed_context_with_identity(0x10, b"payload", router.identity());
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let receipt: (String, String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE kind = 'reject' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "reject".to_string(),
+            "rejected".to_string(),
+            "prototype_operation_not_production_authorized".to_string(),
+            "dev/bash-echo".to_string()
+        )
+    );
+
+    let _ = fs::remove_file(path);
+}
+
+#[tokio::test]
 async fn gateway_router_revalidates_signed_descriptor_context_before_handler_lookup() {
     let (registered_program, registered_calls, _bytes, _handler_ids) = counting_program();
     let pool = memory_pool().await;
@@ -559,9 +596,9 @@ async fn gateway_router_signs_receipts_with_loaded_production_identity() {
     let (program, _calls, _bytes, _handler_ids) = counting_program();
     let pool = memory_pool().await;
     let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
-    router.register(0x10, program);
+    router.register(0x01, program);
 
-    let signed = signed_context_with_identity(0x10, b"payload", router.identity());
+    let signed = signed_context_with_identity(0x01, b"payload", router.identity());
     router.route_verified(&signed, b"payload".to_vec()).await;
 
     let receipt_rows: Vec<(String, String, String, Vec<u8>)> = sqlx::query_as(

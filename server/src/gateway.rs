@@ -298,6 +298,24 @@ impl ConfigurableRouter {
             return;
         }
 
+        if production_context_uses_dev_descriptor(signed, self.identity.authenticator_kind()) {
+            let reason = VerificationError::PrototypeOperationNotProductionAuthorized.reason_code();
+            self.record_verified_reject_receipt(signed, reason, timestamp)
+                .await;
+            self.record_operation_event(
+                ReceiptEventKind::PacketRejected,
+                signed,
+                timestamp,
+                Some(reason),
+            )
+            .await;
+            eprintln!(
+                "secS [Router]: rejected production signed context for dev/prototype descriptor before handler lookup - {}",
+                reason
+            );
+            return;
+        }
+
         match self
             .ledger
             .reserve_replay(context, &signed.signer_key_id, timestamp)
@@ -579,6 +597,22 @@ fn signed_context_matches_active_manifest(context: &VerifiedCallContext) -> bool
         && context.handler_id.as_deref() == Some(descriptor.handler_id.as_str())
 }
 
+fn production_context_uses_dev_descriptor(
+    signed: &SignedVerifiedCallContext,
+    router_authenticator_kind: AuthenticatorKind,
+) -> bool {
+    if router_authenticator_kind == AuthenticatorKind::LocalDevUntrusted {
+        return false;
+    }
+    let manifest = ReceiverManifest::default_v0();
+    let Ok(descriptor) = manifest.lookup(signed.context.opcode) else {
+        return true;
+    };
+    descriptor.dev_binding
+        || descriptor.handler_id.starts_with("dev/")
+        || descriptor.name.as_str().starts_with("candidate.dev")
+}
+
 fn context_receipt_suffix(context: &VerifiedCallContext) -> String {
     let hash_prefix = context.packet_hash[..8]
         .iter()
@@ -666,7 +700,7 @@ async fn read_one_chunk<R: AsyncRead + Unpin>(
     let Some(stream) = reader.as_mut() else {
         return Ok(0);
     };
-    let mut buffer = vec![0u8; limit.max(1).min(8192)];
+    let mut buffer = vec![0u8; limit.clamp(1, 8192)];
     let read = stream.read(&mut buffer).await?;
     if read == 0 {
         *reader = None;
@@ -804,11 +838,11 @@ impl MachineProgram for LocalRustQueue {
 }
 
 pub fn register_runtime_bindings(router: &mut ConfigurableRouter, runtime_mode: RuntimeMode) {
-    router.register_handler("dev/json-validate", Box::new(LocalRustQueue));
     if matches!(
         runtime_mode,
         RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel
     ) {
+        router.register_handler("dev/json-validate", Box::new(LocalRustQueue));
         register_dev_subprocess_bindings(router);
     }
 }

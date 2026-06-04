@@ -33,6 +33,7 @@ pub struct GatewayRuntimeConfig {
     pub max_in_flight_connections: usize,
     pub allowed_evidence_adapters: Vec<String>,
     pub fixture_only: bool,
+    pub fixture_only_smoke: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -170,6 +171,7 @@ impl GatewayRuntimeConfig {
             std::env::var("SECS_ALLOWED_EVIDENCE_ADAPTERS")
                 .unwrap_or_else(|_| "local_static".to_string()),
         );
+        let fixture_only_smoke = parse_bool_env("SECS_FIXTURE_ONLY_SMOKE");
 
         match runtime_mode {
             RuntimeMode::ProductionVerified => {
@@ -194,6 +196,7 @@ impl GatewayRuntimeConfig {
                     ingress_read_timeout,
                     max_in_flight_connections,
                     allowed_evidence_adapters,
+                    fixture_only_smoke,
                 )
             }
             RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => Ok(Self {
@@ -214,6 +217,7 @@ impl GatewayRuntimeConfig {
                 max_in_flight_connections,
                 allowed_evidence_adapters,
                 fixture_only: true,
+                fixture_only_smoke: true,
             }),
         }
     }
@@ -243,6 +247,7 @@ impl GatewayRuntimeConfig {
             DEFAULT_INGRESS_READ_TIMEOUT,
             DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
             parse_adapter_list(allowed_evidence_adapters.to_string()),
+            false,
         )
     }
 
@@ -264,6 +269,7 @@ impl GatewayRuntimeConfig {
             max_in_flight_connections: DEFAULT_MAX_IN_FLIGHT_CONNECTIONS,
             allowed_evidence_adapters: vec!["local_static".to_string()],
             fixture_only: true,
+            fixture_only_smoke: true,
         }
     }
 
@@ -285,7 +291,12 @@ impl GatewayRuntimeConfig {
         };
         let trust_registry_ready = match self.runtime_mode {
             RuntimeMode::ProductionVerified => {
-                if validate_trust_registry_file(self.trust_registry_path.as_deref()).is_ok() {
+                if validate_trust_registry_file(
+                    self.trust_registry_path.as_deref(),
+                    self.fixture_only_smoke,
+                )
+                .is_ok()
+                {
                     ReadinessStatus::Ready
                 } else {
                     ReadinessStatus::NotReady
@@ -319,6 +330,7 @@ impl GatewayRuntimeConfig {
         ingress_read_timeout: Duration,
         max_in_flight_connections: usize,
         allowed_evidence_adapters: Vec<String>,
+        fixture_only_smoke: bool,
     ) -> Result<Self, RuntimeConfigError> {
         let receiver_audience = receiver_audience
             .filter(|value| !value.trim().is_empty())
@@ -364,6 +376,7 @@ impl GatewayRuntimeConfig {
             max_in_flight_connections,
             allowed_evidence_adapters,
             fixture_only: false,
+            fixture_only_smoke,
         })
     }
 }
@@ -374,7 +387,15 @@ pub fn validate_production_startup_readiness(
     if config.runtime_mode != RuntimeMode::ProductionVerified {
         return Ok(());
     }
-    validate_trust_registry_file(config.trust_registry_path.as_deref()).map_err(|reason| {
+    validate_trust_registry_file(
+        config.trust_registry_path.as_deref(),
+        config.fixture_only_smoke,
+    )
+    .map_err(|reason| StartupReadinessError::TrustRegistryNotReady {
+        path: config.trust_registry_path.clone().unwrap_or_default(),
+        reason,
+    })?;
+    validate_allowed_evidence_adapters(config).map_err(|reason| {
         StartupReadinessError::TrustRegistryNotReady {
             path: config.trust_registry_path.clone().unwrap_or_default(),
             reason,
@@ -391,16 +412,56 @@ async fn sqlite_table_exists(pool: &SqlitePool, table_name: &str) -> Result<bool
     Ok(count.0 > 0)
 }
 
-fn validate_trust_registry_file(path: Option<&Path>) -> Result<(), String> {
+fn validate_trust_registry_file(
+    path: Option<&Path>,
+    allow_fixture_only_smoke: bool,
+) -> Result<(), String> {
     let path = path.ok_or_else(|| "missing path".to_string())?;
     let metadata = std::fs::metadata(path).map_err(|error| error.to_string())?;
     if !metadata.is_file() {
         return Err("path is not a regular file".to_string());
     }
     let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-    serde_json::from_slice::<serde_json::Value>(&bytes)
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+    let value =
+        serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|error| error.to_string())?;
+    let fixture_only = value
+        .get("fixture_only")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let trusted_count = value
+        .get("trusted_verifiers")
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len)
+        + value
+            .get("issuers")
+            .and_then(serde_json::Value::as_array)
+            .map_or(0, Vec::len);
+    if fixture_only && !allow_fixture_only_smoke {
+        return Err(
+            "fixture-only trust registry requires explicit SECS_FIXTURE_ONLY_SMOKE=1".to_string(),
+        );
+    }
+    if trusted_count == 0 && !allow_fixture_only_smoke {
+        return Err(
+            "production trust registry has no trusted verifier or issuer entries".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_allowed_evidence_adapters(config: &GatewayRuntimeConfig) -> Result<(), String> {
+    if config.allowed_evidence_adapters.is_empty() {
+        return Err("SECS_ALLOWED_EVIDENCE_ADAPTERS must list at least one adapter".to_string());
+    }
+    if config
+        .allowed_evidence_adapters
+        .iter()
+        .any(|adapter| adapter == "local_static")
+        && !config.fixture_only_smoke
+    {
+        return Err("local_static evidence adapter is fixture-only and is not allowed in production ingress".to_string());
+    }
+    Ok(())
 }
 
 fn parse_usize_env(
@@ -479,6 +540,13 @@ fn sqlite_path_from_db_url(db_url: &str) -> Option<PathBuf> {
     } else {
         Some(PathBuf::from(path))
     }
+}
+
+fn parse_bool_env(field: &'static str) -> bool {
+    matches!(
+        std::env::var(field).as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+    )
 }
 
 fn parse_adapter_list(value: String) -> Vec<String> {

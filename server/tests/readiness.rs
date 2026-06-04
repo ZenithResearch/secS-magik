@@ -86,10 +86,59 @@ fn production_startup_validation_rejects_nonexistent_nonregular_and_malformed_re
 #[test]
 fn production_startup_validation_accepts_regular_json_registry() {
     let registry = temp_path("trust-registry.json");
-    fs::write(&registry, br#"{"issuers":[]}"#).unwrap();
-    let config = production_config_with_registry(&registry);
+    fs::write(
+        &registry,
+        br#"{"trusted_verifiers":[{"key_id":"verifier:operator"}]}"#,
+    )
+    .unwrap();
+    let config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:0",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry.to_str().unwrap(),
+        "wallet_presentation",
+    )
+    .unwrap();
 
     validate_production_startup_readiness(&config).unwrap();
+
+    let _ = fs::remove_file(registry);
+}
+
+#[test]
+fn production_startup_validation_rejects_empty_fixture_registry_without_smoke_override() {
+    let registry = temp_path("fixture-empty-trust-registry.json");
+    fs::write(
+        &registry,
+        br#"{"fixture_only":true,"trusted_verifiers":[]}"#,
+    )
+    .unwrap();
+    let config = production_config_with_registry(&registry);
+
+    assert!(matches!(
+        validate_production_startup_readiness(&config),
+        Err(StartupReadinessError::TrustRegistryNotReady { .. })
+    ));
+
+    let _ = fs::remove_file(registry);
+}
+
+#[test]
+fn production_startup_validation_rejects_local_static_adapter_without_smoke_override() {
+    let registry = temp_path("operator-trust-registry.json");
+    fs::write(
+        &registry,
+        br#"{"trusted_verifiers":[{"key_id":"verifier:operator"}]}"#,
+    )
+    .unwrap();
+    let config = production_config_with_registry(&registry);
+
+    assert!(matches!(
+        validate_production_startup_readiness(&config),
+        Err(StartupReadinessError::TrustRegistryNotReady { .. })
+    ));
 
     let _ = fs::remove_file(registry);
 }

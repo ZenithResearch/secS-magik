@@ -19,6 +19,7 @@ fn clear_env() {
         "SECS_INGRESS_READ_TIMEOUT_MS",
         "SECS_MAX_IN_FLIGHT_CONNECTIONS",
         "SECS_ALLOWED_EVIDENCE_ADAPTERS",
+        "SECS_FIXTURE_ONLY_SMOKE",
         "SECS_RUNTIME_MODE",
         "SECZ_RUNTIME_MODE",
     ] {
