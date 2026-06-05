@@ -5,6 +5,7 @@ use server::gateway::{
     HandlerOutcome, MachineProgram, SubprocessForwarder,
 };
 use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
+use server::ledger::Ledger;
 use server::manifest::ReceiverManifest;
 use server::runtime_mode::RuntimeMode;
 use server::verifier::{VerificationError, VerifiedCallContext, Verifier};
@@ -667,7 +668,7 @@ async fn gateway_router_rejects_untrusted_signed_context_before_receipts_or_hand
 }
 
 #[tokio::test]
-async fn gateway_router_rejects_replayed_verified_context_before_handler_execution() {
+async fn gateway_router_receipt_chain_rejects_replayed_verified_context_before_handler_execution() {
     let (program, calls, _bytes, _handler_ids) = counting_program();
     let pool = memory_pool().await;
     let mut router = ConfigurableRouter::new(pool.clone());
@@ -730,6 +731,35 @@ async fn gateway_router_rejects_replayed_verified_context_before_handler_executi
     .await
     .unwrap();
     assert_eq!(accepted_execute_count.0, 1);
+
+    let ledger = Ledger::new(pool.clone());
+    let chain = ledger
+        .inspect_receipt_chain_by_context_id(&signed.context.context_id)
+        .await
+        .unwrap();
+    let kinds_and_reasons: Vec<_> = chain
+        .iter()
+        .map(|receipt| {
+            (
+                receipt.kind.as_str(),
+                receipt.decision.as_str(),
+                receipt.reason.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        kinds_and_reasons,
+        vec![
+            ("verify", "accepted", None),
+            ("execute", "accepted", None),
+            ("reject", "rejected", Some("replay_detected")),
+        ]
+    );
+    assert!(chain
+        .iter()
+        .all(|receipt| receipt.context_id.as_deref() == Some(signed.context.context_id.as_str())));
+    assert!(chain.iter().all(|receipt| receipt.redaction_policy
+        == "local_redacted_no_payload_or_private_evidence_by_default"));
 }
 
 #[tokio::test]

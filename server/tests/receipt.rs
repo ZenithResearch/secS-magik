@@ -1,5 +1,7 @@
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use server::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind, ReceiptKind};
+use server::receipt::{
+    AuthenticatorKind, Decision, Receipt, ReceiptEventKind, ReceiptKind, RECEIPT_SCHEMA_VERSION,
+};
 use server::verifier::{VerificationError, VerifiedCallContext, VerifiedSubject};
 
 fn sample_context() -> VerifiedCallContext {
@@ -79,6 +81,8 @@ fn verify_receipt_can_be_created_from_signed_verified_context_and_signed() {
         AuthenticatorKind::Ed25519Verifier
     );
     assert_eq!(receipt.signer_key_id, "verifier:test");
+    assert_eq!(receipt.schema_version, RECEIPT_SCHEMA_VERSION);
+    assert_eq!(receipt.context_id.as_deref(), Some("ctx_receipt_test"));
     assert!(!receipt.signature.is_empty());
 
     let public_key = VerifyingKey::from(&SigningKey::from_bytes(&key));
@@ -103,6 +107,22 @@ fn execution_receipt_references_handler_decision_and_never_payload_content() {
 
     let debug = format!("{receipt:?}");
     assert!(!debug.contains("secret payload"));
+}
+
+#[test]
+fn receipt_schema_version_is_explicit_and_stable_for_migrations() {
+    assert_eq!(RECEIPT_SCHEMA_VERSION, 1);
+
+    let receipt = Receipt::execution(
+        "receipt-exec-versioned",
+        &sample_context(),
+        Decision::Accepted,
+        Some("handler_succeeded"),
+        176,
+    );
+
+    assert_eq!(receipt.schema_version, RECEIPT_SCHEMA_VERSION);
+    assert_eq!(receipt.context_id.as_deref(), Some("ctx_receipt_test"));
 }
 
 #[test]

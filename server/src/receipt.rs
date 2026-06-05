@@ -1,14 +1,16 @@
 //! Signed receipt and audit event boundary.
 //!
 //! Receipts are in-memory typed audit objects in this slice. Persistence is
-//! deliberately deferred to the ledger slice, and payload bytes are not part of
-//! the v0 receipt schema by default.
+//! deliberately delegated to the ledger slice, and payload bytes are not part of
+//! the versioned receipt schema by default.
 
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
 use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
+pub const RECEIPT_SCHEMA_VERSION: u16 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReceiptKind {
@@ -98,7 +100,9 @@ impl ReceiptEventKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Receipt {
+    pub schema_version: u16,
     pub receipt_id: String,
+    pub context_id: Option<String>,
     pub kind: ReceiptKind,
     pub packet_hash: [u8; 32],
     pub session_id: [u8; 16],
@@ -126,7 +130,9 @@ impl Receipt {
         timestamp: u64,
     ) -> Self {
         Self {
+            schema_version: RECEIPT_SCHEMA_VERSION,
             receipt_id: receipt_id.into(),
+            context_id: None,
             kind: ReceiptKind::Reject,
             packet_hash,
             session_id,
@@ -167,7 +173,9 @@ impl Receipt {
     ) -> Self {
         let context = &signed_context.context;
         Self {
+            schema_version: RECEIPT_SCHEMA_VERSION,
             receipt_id: receipt_id.into(),
+            context_id: Some(context.context_id.clone()),
             kind: ReceiptKind::Verify,
             packet_hash: context.packet_hash,
             session_id: context.session_id,
@@ -191,7 +199,9 @@ impl Receipt {
         timestamp: u64,
     ) -> Self {
         Self {
+            schema_version: RECEIPT_SCHEMA_VERSION,
             receipt_id: receipt_id.into(),
+            context_id: Some(context.context_id.clone()),
             kind: ReceiptKind::Reject,
             packet_hash: context.packet_hash,
             session_id: context.session_id,
@@ -216,7 +226,9 @@ impl Receipt {
         timestamp: u64,
     ) -> Self {
         Self {
+            schema_version: RECEIPT_SCHEMA_VERSION,
             receipt_id: receipt_id.into(),
+            context_id: Some(context.context_id.clone()),
             kind: ReceiptKind::Execute,
             packet_hash: context.packet_hash,
             session_id: context.session_id,
