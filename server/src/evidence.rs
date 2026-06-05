@@ -7,10 +7,13 @@
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EvidenceKind {
     PrototypeProofEnvelope,
     LocalStatic,
@@ -115,6 +118,113 @@ pub enum EvidenceResult {
 pub trait EvidenceAdapter {
     fn kind(&self) -> EvidenceKind;
     fn verify(&self, request: &EvidenceRequest) -> EvidenceResult;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrustedIssuerStatus {
+    Active,
+    Revoked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustedIssuerEntry {
+    pub issuer_id: String,
+    pub issuer_key_id: String,
+    pub public_key_bytes: Vec<u8>,
+    pub trust_root_ref: String,
+    pub registry_root_ref: String,
+    pub accepted_evidence: Vec<EvidenceKind>,
+    pub accepted_audiences: Vec<String>,
+    pub accepted_operations: Vec<String>,
+    pub accepted_resources: Vec<String>,
+    pub status: TrustedIssuerStatus,
+    pub not_before: u64,
+    pub not_after: u64,
+    pub registry_status_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustedIssuerRegistry {
+    entries: Vec<TrustedIssuerEntry>,
+}
+
+impl TrustedIssuerRegistry {
+    pub fn new(
+        entries: impl IntoIterator<Item = TrustedIssuerEntry>,
+    ) -> Result<Self, VerificationError> {
+        let entries: Vec<_> = entries.into_iter().collect();
+        let mut ids = BTreeSet::new();
+        let mut key_ids = BTreeSet::new();
+        for entry in &entries {
+            if entry.issuer_id.is_empty()
+                || entry.issuer_key_id.is_empty()
+                || entry.public_key_bytes.len() != 32
+                || entry.trust_root_ref.is_empty()
+                || entry.registry_root_ref.is_empty()
+                || !ids.insert(entry.issuer_id.clone())
+                || !key_ids.insert(entry.issuer_key_id.clone())
+            {
+                return Err(VerificationError::InvalidPresentation);
+            }
+        }
+        Ok(Self { entries })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn lookup_active(
+        &self,
+        issuer_id: &str,
+        issuer_key_id: &str,
+        trust_root_ref: &str,
+        registry_root_ref: &str,
+        evidence_kind: EvidenceKind,
+        audience: &str,
+        operation: &str,
+        resource: &str,
+        validation_time: u64,
+    ) -> Result<&TrustedIssuerEntry, VerificationError> {
+        let entry = self
+            .entries
+            .iter()
+            .find(|entry| entry.issuer_id == issuer_id)
+            .ok_or(VerificationError::UnknownIssuer)?;
+        if entry.issuer_key_id != issuer_key_id {
+            return Err(VerificationError::WrongIssuerKey);
+        }
+        if entry.trust_root_ref != trust_root_ref {
+            return Err(VerificationError::WrongTrustRoot);
+        }
+        if entry.registry_root_ref != registry_root_ref {
+            return Err(VerificationError::WrongRegistryRoot);
+        }
+        if entry.status != TrustedIssuerStatus::Active {
+            return Err(VerificationError::RevokedIssuer);
+        }
+        if validation_time < entry.not_before {
+            return Err(VerificationError::NotYetValidVerifierKey);
+        }
+        if validation_time > entry.not_after {
+            return Err(VerificationError::ExpiredVerifierKey);
+        }
+        if !entry.accepted_evidence.contains(&evidence_kind)
+            || !entry
+                .accepted_audiences
+                .iter()
+                .any(|accepted| accepted == audience)
+            || !entry
+                .accepted_operations
+                .iter()
+                .any(|accepted| accepted == operation)
+            || !entry
+                .accepted_resources
+                .iter()
+                .any(|accepted| accepted == resource)
+        {
+            return Err(VerificationError::InsufficientEvidence);
+        }
+        Ok(entry)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

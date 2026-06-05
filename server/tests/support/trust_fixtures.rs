@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Shared no-real-secret fixtures for Track D wallet, Track E trusted issuer,
 //! and Track I membership-provisioning E2E tests.
 //!
