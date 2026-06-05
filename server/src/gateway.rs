@@ -694,9 +694,9 @@ impl ProcessGroupGuard {
     async fn terminate(&mut self, child: &mut Child) {
         #[cfg(unix)]
         if let Some(pid) = self.pid.take() {
-            kill_process_group(pid, "-TERM").await;
+            signal_process_group(pid, SIGTERM);
             tokio::time::sleep(Duration::from_millis(20)).await;
-            kill_process_group(pid, "-KILL").await;
+            signal_process_group(pid, SIGKILL);
             let _ = child.wait().await;
             return;
         }
@@ -717,23 +717,27 @@ impl Drop for ProcessGroupGuard {
     fn drop(&mut self) {
         #[cfg(unix)]
         if let Some(pid) = self.pid.take() {
-            let _ = std::process::Command::new("kill")
-                .arg("-KILL")
-                .arg(format!("-{pid}"))
-                .status();
+            signal_process_group(pid, SIGKILL);
         }
     }
 }
 
 #[cfg(unix)]
-async fn kill_process_group(pid: u32, signal: &str) {
-    let _ = tokio::process::Command::new("kill")
-        .arg(signal)
-        .arg(format!("-{pid}"))
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await;
+const SIGTERM: i32 = 15;
+#[cfg(unix)]
+const SIGKILL: i32 = 9;
+
+#[cfg(unix)]
+unsafe extern "C" {
+    fn kill(pid: i32, sig: i32) -> i32;
+}
+
+#[cfg(unix)]
+fn signal_process_group(pid: u32, signal: i32) {
+    let Ok(pid) = i32::try_from(pid) else {
+        return;
+    };
+    let _ = unsafe { kill(-pid, signal) };
 }
 
 async fn read_one_chunk<R: AsyncRead + Unpin>(
@@ -753,10 +757,10 @@ async fn read_one_chunk<R: AsyncRead + Unpin>(
 
 async fn wait_for_bounded_subprocess_output(
     mut child: Child,
+    mut guard: ProcessGroupGuard,
     limit: usize,
     timeout_duration: Duration,
 ) -> HandlerOutcome {
-    let mut guard = ProcessGroupGuard::new(&child);
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
     let mut output_bytes = 0usize;
@@ -846,20 +850,39 @@ impl MachineProgram for SubprocessForwarder {
                 return HandlerOutcome::rejected("handler_spawn_failed");
             }
         };
+        let mut guard = ProcessGroupGuard::new(&child);
 
         if let Some(mut stdin) = child.stdin.take() {
-            if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut stdin, payload).await {
-                if e.kind() != std::io::ErrorKind::BrokenPipe {
-                    eprintln!(
-                        "secS [Subprocess]: failed to write payload to stdin - {}",
-                        e
-                    );
-                    return HandlerOutcome::rejected("handler_stdin_failed");
+            match timeout(
+                limits.handler_timeout,
+                tokio::io::AsyncWriteExt::write_all(&mut stdin, payload),
+            )
+            .await
+            {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    if e.kind() != std::io::ErrorKind::BrokenPipe {
+                        eprintln!(
+                            "secS [Subprocess]: failed to write payload to stdin - {}",
+                            e
+                        );
+                        guard.terminate(&mut child).await;
+                        return HandlerOutcome::rejected("handler_stdin_failed");
+                    }
+                }
+                Err(_) => {
+                    guard.terminate(&mut child).await;
+                    return HandlerOutcome::rejected("handler_timeout");
                 }
             }
         }
-        wait_for_bounded_subprocess_output(child, limits.max_output_bytes, limits.handler_timeout)
-            .await
+        wait_for_bounded_subprocess_output(
+            child,
+            guard,
+            limits.max_output_bytes,
+            limits.handler_timeout,
+        )
+        .await
     }
 }
 
