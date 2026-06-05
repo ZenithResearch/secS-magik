@@ -7,7 +7,11 @@
 //! They are deliberately synthetic and must never be treated as production
 //! Castalia/Dregg/Midnight/Cardano authority.
 
-use server::evidence::EvidenceKind;
+use ed25519_dalek::{Signer, SigningKey};
+use server::evidence::{
+    public_key_ref_for_bytes, EvidenceKind, FederatedCredentialFixture, FederatedCredentialStatus,
+    SecsFederatedCredential, TrustedIssuerEntry, TrustedIssuerRegistry, TrustedIssuerStatus,
+};
 use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
 
 pub const MEMBERSHIP_OPCODE: u8 = 0x42;
@@ -48,6 +52,106 @@ pub const NOT_YET_VALID_TIME: u64 = TRUSTED_ISSUED_AT - 1;
 
 pub const ISSUER_FIXTURE_ED25519_SEED: [u8; 32] = [0xE3; 32];
 pub const WRONG_ISSUER_FIXTURE_ED25519_SEED: [u8; 32] = [0xE4; 32];
+
+pub fn issuer_entry() -> TrustedIssuerEntry {
+    let signing_key = SigningKey::from_bytes(&ISSUER_FIXTURE_ED25519_SEED);
+    let public_key_bytes = signing_key.verifying_key().to_bytes().to_vec();
+    TrustedIssuerEntry {
+        issuer_id: TRUSTED_ISSUER_ID.to_string(),
+        issuer_key_id: public_key_ref_for_bytes(&public_key_bytes),
+        public_key_bytes,
+        trust_root_ref: TRUST_ROOT_REF.to_string(),
+        registry_root_ref: REGISTRY_ROOT_REF.to_string(),
+        accepted_evidence: vec![
+            EvidenceKind::MembershipCredential,
+            EvidenceKind::ProvisioningCredential,
+        ],
+        accepted_audiences: vec![TRUSTED_AUDIENCE.to_string()],
+        accepted_operations: vec![
+            MEMBERSHIP_OPERATION.to_string(),
+            PROVISIONING_OPERATION.to_string(),
+        ],
+        accepted_resources: vec![TRUSTED_RESOURCE.to_string()],
+        status: TrustedIssuerStatus::Active,
+        not_before: TRUSTED_NOT_BEFORE,
+        not_after: TRUSTED_NOT_AFTER,
+        registry_status_ref: REGISTRY_STATUS_REF.to_string(),
+    }
+}
+
+pub fn trusted_registry() -> TrustedIssuerRegistry {
+    TrustedIssuerRegistry::new([issuer_entry()]).expect("fixture registry should be valid")
+}
+
+pub fn membership_credential_fixture() -> FederatedCredentialFixture {
+    credential_fixture(
+        MEMBERSHIP_CREDENTIAL_REF,
+        EvidenceKind::MembershipCredential,
+        MEMBERSHIP_OPERATION,
+    )
+}
+
+pub fn provisioning_credential_fixture() -> FederatedCredentialFixture {
+    credential_fixture(
+        PROVISIONING_CREDENTIAL_REF,
+        EvidenceKind::ProvisioningCredential,
+        PROVISIONING_OPERATION,
+    )
+}
+
+pub fn credential_fixture(
+    evidence_ref: &str,
+    kind: EvidenceKind,
+    operation: &str,
+) -> FederatedCredentialFixture {
+    let signing_key = SigningKey::from_bytes(&ISSUER_FIXTURE_ED25519_SEED);
+    let public_key_bytes = signing_key.verifying_key().to_bytes().to_vec();
+    let credential = SecsFederatedCredential {
+        credential_id: evidence_ref.to_string(),
+        kind,
+        subject: TRUSTED_SUBJECT.to_string(),
+        audience: TRUSTED_AUDIENCE.to_string(),
+        origin: Some(TRUSTED_ORIGIN.to_string()),
+        operation: operation.to_string(),
+        resource: TRUSTED_RESOURCE.to_string(),
+        issuer_id: TRUSTED_ISSUER_ID.to_string(),
+        issuer_key_id: public_key_ref_for_bytes(&public_key_bytes),
+        trust_root_ref: TRUST_ROOT_REF.to_string(),
+        registry_root_ref: REGISTRY_ROOT_REF.to_string(),
+        issued_at: TRUSTED_ISSUED_AT,
+        expires_at: TRUSTED_EXPIRES_AT,
+        status: FederatedCredentialStatus::Active,
+        status_ref: CREDENTIAL_STATUS_REF.to_string(),
+        signature_suite: SecsFederatedCredential::ED25519_SIGNATURE_SUITE.to_string(),
+    };
+    let signature = signing_key.sign(&credential.canonical_bytes());
+    FederatedCredentialFixture {
+        evidence_ref: evidence_ref.to_string(),
+        credential: Some(credential),
+        embedded_issuer_public_key_bytes: public_key_bytes,
+        signature_bytes: signature.to_bytes().to_vec(),
+    }
+}
+
+pub fn malformed_credential_fixture() -> FederatedCredentialFixture {
+    FederatedCredentialFixture {
+        evidence_ref: MALFORMED_CREDENTIAL_REF.to_string(),
+        credential: None,
+        embedded_issuer_public_key_bytes: Vec::new(),
+        signature_bytes: Vec::new(),
+    }
+}
+
+pub fn resign_credential(fixture: &mut FederatedCredentialFixture) {
+    let signing_key = SigningKey::from_bytes(&ISSUER_FIXTURE_ED25519_SEED);
+    if let Some(credential) = &fixture.credential {
+        fixture.signature_bytes = signing_key
+            .sign(&credential.canonical_bytes())
+            .to_bytes()
+            .to_vec();
+        fixture.embedded_issuer_public_key_bytes = signing_key.verifying_key().to_bytes().to_vec();
+    }
+}
 
 pub fn membership_descriptor(opcode: u8) -> OperationDescriptor {
     trusted_descriptor(

@@ -5,21 +5,30 @@ mod trust_fixtures;
 mod wallet_fixtures;
 
 use server::evidence::{
-    EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, LocalStaticEvidenceAdapter,
-    LocalStaticGrant, WalletPresentationAdapter,
+    EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, FederatedCredentialAdapter,
+    LocalStaticEvidenceAdapter, LocalStaticGrant, WalletPresentationAdapter,
 };
 use server::verifier::VerificationError;
 use trust_fixtures::{
-    membership_descriptor, MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE, MEMBERSHIP_OPERATION,
-    TRUSTED_AUDIENCE, TRUSTED_ORIGIN, TRUSTED_RESOURCE, TRUSTED_SUBJECT,
+    membership_credential_fixture, membership_descriptor, provisioning_credential_fixture,
+    provisioning_descriptor, trusted_registry, MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE,
+    MEMBERSHIP_OPERATION, PROVISIONING_CREDENTIAL_REF, PROVISIONING_OPCODE, TRUSTED_AUDIENCE,
+    TRUSTED_ORIGIN, TRUSTED_RESOURCE, TRUSTED_SUBJECT, TRUSTED_VALIDATION_TIME,
 };
 use wallet_fixtures::{
     origin_input, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT, WALLET_OPCODE,
 };
 
 fn production_request(evidence_ref: Option<&str>) -> EvidenceRequest {
+    request_for(&membership_descriptor(MEMBERSHIP_OPCODE), evidence_ref)
+}
+
+fn request_for(
+    descriptor: &server::manifest::OperationDescriptor,
+    evidence_ref: Option<&str>,
+) -> EvidenceRequest {
     let mut request = EvidenceRequest::from_descriptor(
-        &membership_descriptor(MEMBERSHIP_OPCODE),
+        descriptor,
         TRUSTED_SUBJECT,
         TRUSTED_AUDIENCE,
         evidence_ref,
@@ -91,4 +100,58 @@ fn track_e_fixture_constants_share_track_d_subject_audience_origin_and_resource(
     assert_eq!(TRUSTED_ORIGIN, wallet_fixtures::WALLET_ORIGIN);
     assert_eq!(TRUSTED_RESOURCE, wallet_fixtures::WALLET_RESOURCE);
     assert!(MEMBERSHIP_CREDENTIAL_REF.starts_with("membership-credential:"));
+}
+
+#[test]
+fn valid_membership_credential_verifies() {
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+
+    match adapter.verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))) {
+        EvidenceResult::Satisfied(summary) => {
+            assert_eq!(summary.kind, EvidenceKind::MembershipCredential);
+            assert_eq!(summary.subject, TRUSTED_SUBJECT);
+            assert!(summary.public_proof);
+            assert!(!summary.local_dev_test_only);
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "credential_kind:membership_credential"));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "proof:redacted_ed25519_signature"));
+        }
+        EvidenceResult::Rejected(error) => {
+            panic!("expected valid membership credential, got {error:?}")
+        }
+    }
+}
+
+#[test]
+fn valid_provisioning_credential_verifies_when_descriptor_permits_it() {
+    let adapter = FederatedCredentialAdapter::new(
+        [provisioning_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+
+    match adapter.verify(&request_for(
+        &provisioning_descriptor(PROVISIONING_OPCODE),
+        Some(PROVISIONING_CREDENTIAL_REF),
+    )) {
+        EvidenceResult::Satisfied(summary) => {
+            assert_eq!(summary.kind, EvidenceKind::ProvisioningCredential);
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "credential_kind:provisioning_credential"));
+        }
+        EvidenceResult::Rejected(error) => {
+            panic!("expected valid provisioning credential, got {error:?}")
+        }
+    }
 }

@@ -227,6 +227,202 @@ impl TrustedIssuerRegistry {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FederatedCredentialStatus {
+    Active,
+    Revoked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecsFederatedCredential {
+    pub credential_id: String,
+    pub kind: EvidenceKind,
+    pub subject: String,
+    pub audience: String,
+    pub origin: Option<String>,
+    pub operation: String,
+    pub resource: String,
+    pub issuer_id: String,
+    pub issuer_key_id: String,
+    pub trust_root_ref: String,
+    pub registry_root_ref: String,
+    pub issued_at: u64,
+    pub expires_at: u64,
+    pub status: FederatedCredentialStatus,
+    pub status_ref: String,
+    pub signature_suite: String,
+}
+
+impl SecsFederatedCredential {
+    pub const VERSION: &'static str = "secs-federated-credential-v1";
+    pub const ED25519_SIGNATURE_SUITE: &'static str = "Ed25519";
+
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        append_line(&mut bytes, Self::VERSION);
+        append_field(&mut bytes, "credential_id", &self.credential_id);
+        append_field(&mut bytes, "kind", self.kind.as_str());
+        append_field(&mut bytes, "subject", &self.subject);
+        append_field(&mut bytes, "audience", &self.audience);
+        append_field(&mut bytes, "origin", self.origin.as_deref().unwrap_or(""));
+        append_field(&mut bytes, "operation", &self.operation);
+        append_field(&mut bytes, "resource", &self.resource);
+        append_field(&mut bytes, "issuer_id", &self.issuer_id);
+        append_field(&mut bytes, "issuer_key_id", &self.issuer_key_id);
+        append_field(&mut bytes, "trust_root_ref", &self.trust_root_ref);
+        append_field(&mut bytes, "registry_root_ref", &self.registry_root_ref);
+        append_field(&mut bytes, "issued_at", &self.issued_at.to_string());
+        append_field(&mut bytes, "expires_at", &self.expires_at.to_string());
+        append_field(&mut bytes, "status", credential_status_name(self.status));
+        append_field(&mut bytes, "status_ref", &self.status_ref);
+        append_field(&mut bytes, "signature_suite", &self.signature_suite);
+        bytes
+    }
+}
+
+fn credential_status_name(status: FederatedCredentialStatus) -> &'static str {
+    match status {
+        FederatedCredentialStatus::Active => "active",
+        FederatedCredentialStatus::Revoked => "revoked",
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FederatedCredentialFixture {
+    pub evidence_ref: String,
+    pub credential: Option<SecsFederatedCredential>,
+    pub embedded_issuer_public_key_bytes: Vec<u8>,
+    pub signature_bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FederatedCredentialAdapter {
+    credentials: Vec<FederatedCredentialFixture>,
+    registry: TrustedIssuerRegistry,
+    validation_time: u64,
+}
+
+impl FederatedCredentialAdapter {
+    pub fn new(
+        credentials: impl IntoIterator<Item = FederatedCredentialFixture>,
+        registry: TrustedIssuerRegistry,
+        validation_time: u64,
+    ) -> Self {
+        Self {
+            credentials: credentials.into_iter().collect(),
+            registry,
+            validation_time,
+        }
+    }
+}
+
+impl EvidenceAdapter for FederatedCredentialAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::MembershipCredential
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        let Some((evidence_ref, fixture)) = request.evidence_refs.iter().find_map(|evidence_ref| {
+            self.credentials
+                .iter()
+                .find(|fixture| &fixture.evidence_ref == evidence_ref)
+                .map(|fixture| (evidence_ref, fixture))
+        }) else {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        };
+        let Some(credential) = &fixture.credential else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        };
+        if !request.accepts(credential.kind) {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        if credential.kind != EvidenceKind::MembershipCredential
+            && credential.kind != EvidenceKind::ProvisioningCredential
+        {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        if credential.subject != request.subject {
+            return EvidenceResult::Rejected(VerificationError::WrongSubject);
+        }
+        if credential.audience != request.audience {
+            return EvidenceResult::Rejected(VerificationError::WrongAudience);
+        }
+        if credential.operation != request.operation {
+            return EvidenceResult::Rejected(VerificationError::WrongOperation);
+        }
+        if request.resource.as_deref().unwrap_or_default() != credential.resource {
+            return EvidenceResult::Rejected(VerificationError::WrongResource);
+        }
+        if let Some(request_origin) = requested_origin(request) {
+            if credential.origin.as_deref() != Some(request_origin) {
+                return EvidenceResult::Rejected(VerificationError::WrongOrigin);
+            }
+        }
+        if credential.signature_suite != SecsFederatedCredential::ED25519_SIGNATURE_SUITE {
+            return EvidenceResult::Rejected(VerificationError::UnsupportedSignatureSuite);
+        }
+        if credential.issued_at > self.validation_time {
+            return EvidenceResult::Rejected(VerificationError::NotYetValidClaim);
+        }
+        if credential.expires_at <= self.validation_time {
+            return EvidenceResult::Rejected(VerificationError::ExpiredClaim);
+        }
+        if credential.status != FederatedCredentialStatus::Active {
+            return EvidenceResult::Rejected(VerificationError::RevokedCredential);
+        }
+        let entry = match self.registry.lookup_active(
+            &credential.issuer_id,
+            &credential.issuer_key_id,
+            &credential.trust_root_ref,
+            &credential.registry_root_ref,
+            credential.kind,
+            &credential.audience,
+            &credential.operation,
+            &credential.resource,
+            self.validation_time,
+        ) {
+            Ok(entry) => entry,
+            Err(err) => return EvidenceResult::Rejected(err),
+        };
+        if fixture.embedded_issuer_public_key_bytes != entry.public_key_bytes {
+            return EvidenceResult::Rejected(VerificationError::WrongIssuerKey);
+        }
+        if !verify_ed25519_signature(
+            &entry.public_key_bytes,
+            &fixture.signature_bytes,
+            &credential.canonical_bytes(),
+        ) {
+            return EvidenceResult::Rejected(VerificationError::InvalidSignature);
+        }
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: credential.kind,
+            subject: credential.subject.clone(),
+            audience: credential.audience.clone(),
+            operation: credential.operation.clone(),
+            resource: Some(credential.resource.clone()),
+            local_dev_test_only: false,
+            public_proof: true,
+            summary_fields: vec![
+                format!("evidence_ref:{evidence_ref}"),
+                format!("credential_id:{}", credential.credential_id),
+                format!("credential_kind:{}", credential.kind.as_str()),
+                format!("issuer_id:{}", credential.issuer_id),
+                format!("issuer_key_id:{}", credential.issuer_key_id),
+                format!("trust_root_ref:{}", credential.trust_root_ref),
+                format!("registry_root_ref:{}", credential.registry_root_ref),
+                format!("status:{}", credential_status_name(credential.status)),
+                format!("status_ref:{}", credential.status_ref),
+                format!("issued_at:{}", credential.issued_at),
+                format!("expires_at:{}", credential.expires_at),
+                format!("signature_suite:{}", credential.signature_suite),
+                "proof:redacted_ed25519_signature".to_string(),
+            ],
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalStaticGrant {
     pub subject: String,
