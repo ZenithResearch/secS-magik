@@ -2,7 +2,7 @@
 
 secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
 
-Status: active prototype being realigned toward the 2026-06-01 objectives spec. Current code preserves the v0 packet shape and `u8` opcode dispatch; exposes client, core, and server crates; hardens the canonical gateway with bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, and bounded handler execution. Wallet cryptographic verification, trusted issuer/root policy, first production-shaped `membership.provision` E2E, production deployment proof, and public auditability remain separate future/next tracks.
+Status: active prototype being realigned toward the 2026-06-01 objectives spec. Current code preserves the v0 packet shape and `u8` opcode dispatch; exposes client, core, and server crates; hardens the canonical gateway with bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, and cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract. Trusted issuer/root policy, first production-shaped `membership.provision` E2E, production deployment proof, and public auditability remain separate future/next tracks.
 
 ## Table of Contents
 
@@ -37,9 +37,9 @@ Use these labels across all docs:
 
 Short current status:
 
-- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, descriptor-bound local handler routing, receiver-local durable replay/session/expiry enforcement within the configured local replay store/scope, typed receipt/event objects, local SQLite receipt/event persistence, redacted local/operator inspection by receipt/context id, own-verifier key lifecycle seam, production-shaped runtime config/readiness, and deterministic `local_static` local-dev-test evidence seam.
-- Partial / prototype: current secS TCP listener/prototype verifier path, `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL envelope checks, wallet presentation shape-only shell, legacy `node_telemetry`, and local/dev handler bindings.
-- Planned next: wallet-core cryptographic verification / shared wallet-core integration, production evidence policy with trusted issuer/root registry, and the first production-shaped `membership.provision` E2E after those authority/evidence gates.
+- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, descriptor-bound local handler routing, receiver-local durable replay/session/expiry enforcement within the configured local replay store/scope, typed receipt/event objects, local SQLite receipt/event persistence, redacted local/operator inspection by receipt/context id, own-verifier key lifecycle seam, production-shaped runtime config/readiness, deterministic `local_static` local-dev-test evidence seam, and cryptographic `wallet_presentation` verification over the temporary minimal-equivalent secS challenge contract.
+- Partial / prototype: current secS TCP listener/prototype verifier path, `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL envelope checks, legacy `node_telemetry`, and local/dev handler bindings.
+- Planned next: replacement/reconciliation of the temporary wallet challenge contract with full Castalia Wallet wallet-core parity, production evidence policy with trusted issuer/root registry, and the first production-shaped `membership.provision` E2E after those authority/evidence gates.
 - Future / optional: external proof, federation receipt, and settlement evidence adapters.
 - Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access, and application membership semantics.
 
@@ -105,7 +105,7 @@ This is local/operator evidence. It is not public chain anchoring, public audita
 | `server/src/bin/secs-gateway.rs` | Canonical current prototype configurable gateway binary on port `9001` unless configured otherwise. | Thin wrapper over library modules. |
 | `server/src/bin/secz.rs` | Compatibility wrapper for the historical secZ-named gateway command. | Kept for current command compatibility, not canonical verifier ownership. |
 | `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics are wired into signed-context creation and receiver-local bounded handler routing; this is not final global opcode ratification. |
-| `server/src/evidence.rs` | Evidence adapter seam. | Defines typed evidence requests/results, deterministic `local_static` local-dev-test adapter, and a shape-only `wallet_presentation` shell; wallet cryptographic verification plus Dregg, Midnight, and Cardano remain future/optional rails. |
+| `server/src/evidence.rs` | Evidence adapter seam. | Defines typed evidence requests/results, deterministic `local_static` local-dev-test adapter, and cryptographic `wallet_presentation` verification using the explicitly temporary minimal-equivalent secS challenge contract; full Castalia Wallet wallet-core import/parity plus Dregg, Midnight, and Cardano remain future/optional rails. |
 | `server/src/receipt.rs` | Typed receipt/event objects. | Defines reject/verify/execute/forward receipt kinds, typed decisions/reasons/authenticator kinds, stable event names, and Ed25519 receipt signing helpers. |
 | `server/src/ledger.rs` | Event/receipt ledger. | Persists events and receipts with runtime SQL; does not store payload content by default. |
 | `docs/` | Specs, plans, status ledgers, and external-language drafts. | Docs must distinguish implemented behavior from target/planned behavior. |
@@ -149,7 +149,7 @@ Current request lifecycle:
 - Treat receiver-local manifests as local opcode-to-operation/handler maps, not global product policy.
 - Mark local/dev evidence and plaintext modes as visibly non-authoritative.
 - Keep current ledger claims bounded to local/operator SQLite evidence.
-- Keep wallet cryptographic verification as Track D and trusted issuer/root policy as Track E.
+- Keep the Track D wallet cryptographic verifier bounded to the temporary minimal-equivalent secS challenge contract until full Castalia Wallet wallet-core parity replaces or reconciles it; trusted issuer/root policy remains Track E.
 - Keep Dregg, Midnight, and Cardano as future adapter/anchor rails, not current runtime dependencies.
 
 ## Packet v0

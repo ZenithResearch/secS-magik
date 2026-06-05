@@ -78,10 +78,11 @@ No tracked `docs/reviews/` directory is present in the current tree. If historic
 - local Hermes/secC/secZ are client-side / outgoing-call surfaces.
 - secS-magik/secS is the verifier and permissioned RPC substrate.
 - receiver-local manifests own opcode-to-handler meaning after verification.
-- `wallet_presentation` is currently a shape-only fail-closed shell; full wallet cryptographic verification remains Track D work.
+- `wallet_presentation` now verifies signed presentation/challenge material cryptographically through the explicitly temporary minimal-equivalent secS challenge contract; full Castalia Wallet wallet-core parity/import remains future reconciliation work.
 - trusted issuer/root policy remains Track E work.
 - the current receipt/event ledger is local/operator SQLite evidence only, not public auditability.
 - Dregg, Midnight, Cardano, and wallet presentation enter through typed evidence adapters or anchors; they do not replace secS verification.
+- Client packaging boundary: browser extension = WASM binding; secZ/secC/local clients = native/client binding or packet/evidence carrier; secS = verifier subset/artifact consumer that consumes signed presentation/challenge plus public verification material, not UI session state.
 
 ## Stale-doc cleanup policy
 

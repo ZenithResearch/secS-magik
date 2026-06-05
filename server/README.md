@@ -2,7 +2,7 @@
 
 `server/` is the secS gateway/verifier substrate crate for secS-magik.
 
-Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, and bounded handler execution. First-prod authority is not complete: wallet cryptographic verification and trusted issuer/root policy remain separate Track D/E work.
+Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, and cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract. First-prod authority is not complete: full Castalia Wallet wallet-core parity/import and trusted issuer/root policy remain separate future/Track E work.
 
 ## Directory map
 
@@ -17,7 +17,7 @@ Status: production-shaped local hardening is implemented for the current prototy
 | `src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle events. |
 | `src/manifest.rs` | Receiver-local operation descriptors, handler IDs, evidence requirements, and opcode governance. |
 | `src/verifier.rs` | Typed verifier errors, prototype envelope checks, and signed verified context helpers. |
-| `src/evidence.rs` | `EvidenceAdapter`, `local_static`, and shape-only `wallet_presentation` shell. |
+| `src/evidence.rs` | `EvidenceAdapter`, `local_static`, and cryptographic `wallet_presentation` verification over the temporary minimal-equivalent secS challenge contract. |
 | `src/identity.rs` | Verifier identity loading, signer key IDs, context/receipt signing, and local public-key registry checks. |
 | `src/receipt.rs` | Receipt/event types, decisions, reason codes, authenticator kinds, and signing helpers. |
 | `src/ledger.rs` | Local SQLite event/receipt/replay persistence and redacted operator inspection. |
@@ -104,6 +104,18 @@ The current ledger is local/operator SQLite evidence:
 
 Do not describe this as public auditability, public anchoring, federation proof, or production settlement evidence.
 
+## Wallet presentation verifier boundary
+
+The current `wallet_presentation` adapter verifies signed presentation/challenge material cryptographically, but it does so with an explicitly temporary minimal-equivalent secS challenge contract in `server/src/evidence.rs`. That contract binds subject, audience, origin, operation, resource, nonce, issued/expires timestamps, signature suite, and public key ref/id while Castalia Wallet wallet-core parity is pending.
+
+Packaging/client-surface boundary:
+
+- Browser extension: owns user-facing wallet UX and should consume wallet semantics through a WASM binding; it is not shipped by `server/`.
+- secZ/secC/local clients: may use native/client bindings or carry packet/evidence bytes; they construct or transport calls and presentations, but they are not verifier authority.
+- secS/server: owns only the verifier subset and artifact-consumer boundary. It consumes signed presentation/challenge bytes and public verification material; it must not depend on UI session state, browser WalletAuth sessions, or extension runtime state.
+
+This is not a full Castalia Wallet wallet-core import, not live Castalia Wallet parity, and not a trusted issuer/root policy.
+
 ## Commands
 
 ```bash
@@ -120,6 +132,8 @@ cargo test -p server --test gateway_layout
 cargo test -p server --test ledger
 cargo test -p server --test receipt
 cargo test -p server --test runtime_config
+cargo test -p server wallet_presentation -- --nocapture
+cargo test -p server wallet_challenge_contract -- --nocapture
 ```
 
 ## Non-goals

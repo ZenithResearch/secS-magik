@@ -168,3 +168,34 @@ fn ready_for_prod_checklist_records_track_c_completion_without_global_overclaim(
         "Track C stop condition must be qualified by receiver-local replay store/scope"
     );
 }
+
+#[test]
+fn track_d_docs_close_wallet_verification_without_full_wallet_core_overclaim() {
+    let client_surfaces = include_str!("../../docs/client-surfaces.md");
+    let server_readme = include_str!("../../server/README.md");
+
+    for required in [
+        "Track D is complete through D4",
+        "temporary minimal-equivalent secS challenge contract",
+        "not a full Castalia Wallet wallet-core import",
+        "Browser extension: owns user-facing wallet UX and should consume wallet semantics through a WASM binding",
+        "secZ/secC/local clients: may use native/client bindings or carry packet/evidence bytes",
+        "secS/server: owns only the verifier subset and artifact-consumer boundary",
+        "signed presentation/challenge bytes plus public verification material",
+        "ShapeValidatedSignatureUnsupported",
+    ] {
+        assert!(
+            READY_FOR_PROD_CHECKLIST.contains(required)
+                || client_surfaces.contains(required)
+                || server_readme.contains(required),
+            "Track D closeout docs should contain bounded wallet packaging/status language: {required}"
+        );
+    }
+
+    assert!(
+        !READY_FOR_PROD_CHECKLIST.contains(
+            "remaining first-prod path still needs Track D wallet cryptographic verification"
+        ),
+        "Track D should no longer be listed as an incomplete remaining first-prod track"
+    );
+}
