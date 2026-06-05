@@ -1,6 +1,6 @@
 # docs/plans
 
-`docs/plans/` contains implementation plans, checklists, and issue-slice control surfaces.
+`docs/plans/` contains implementation plans, checklists, and issue-slice control surfaces. Phase-level GitHub issue specs live under `docs/issues/secs-magik-phases/` so they can be linked directly from GitHub issues and PRs.
 
 Plans are not implementation status. Use [../implementation-status.md](../implementation-status.md) to verify what is solid, partial, planned, future, or out of scope.
 
@@ -23,6 +23,8 @@ Plans are not implementation status. Use [../implementation-status.md](../implem
 ## Current caveats
 
 - Track A docs/control-surface work is complete.
-- Tracks B/C/F/G/H have implementation checkpoints, but current claims remain bounded to the repository status ledger and PR evidence.
-- First-prod still needs wallet cryptographic verification, production trusted issuer/root policy, and a production-shaped `membership.provision` E2E.
+- Tracks B/C/D/F/G/H have implementation checkpoints, but current claims remain bounded to the repository status ledger and PR evidence.
+- Track D wallet cryptographic verification is complete only as a temporary minimal-equivalent secS challenge contract; full Castalia Wallet wallet-core parity remains future reconciliation work.
+- First-prod still needs Track E production trusted issuer/root policy and a production-shaped `membership.provision` E2E.
+- Track E's issue-ready phase spec lives at `docs/issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md`.
 - Local fixture smoke and local SQLite operator evidence are not production deployment or public auditability.
