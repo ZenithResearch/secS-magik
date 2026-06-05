@@ -58,13 +58,22 @@ impl EvidenceRequest {
         audience: &str,
         evidence_ref: Option<&str>,
     ) -> Self {
+        Self::from_descriptor_with_refs(descriptor, subject, audience, evidence_ref.into_iter())
+    }
+
+    pub fn from_descriptor_with_refs<'a>(
+        descriptor: &OperationDescriptor,
+        subject: &str,
+        audience: &str,
+        evidence_refs: impl IntoIterator<Item = &'a str>,
+    ) -> Self {
         Self {
             accepted_evidence: descriptor.accepted_evidence.clone(),
             subject: subject.to_string(),
             audience: audience.to_string(),
             operation: descriptor.name.as_str().to_string(),
             resource: descriptor.payload_schema.clone(),
-            evidence_refs: evidence_ref.into_iter().map(ToString::to_string).collect(),
+            evidence_refs: evidence_refs.into_iter().map(ToString::to_string).collect(),
             public_inputs: vec![
                 format!("opcode:{:02x}", descriptor.opcode),
                 format!("handler_id:{}", descriptor.handler_id),
@@ -423,6 +432,64 @@ impl EvidenceAdapter for FederatedCredentialAdapter {
     }
 }
 
+pub struct CompositeEvidenceAdapter<'a> {
+    adapters: Vec<&'a dyn EvidenceAdapter>,
+}
+
+impl<'a> CompositeEvidenceAdapter<'a> {
+    pub fn new(adapters: impl IntoIterator<Item = &'a dyn EvidenceAdapter>) -> Self {
+        Self {
+            adapters: adapters.into_iter().collect(),
+        }
+    }
+}
+
+impl EvidenceAdapter for CompositeEvidenceAdapter<'_> {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::MembershipCredential
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        let mut summaries = Vec::new();
+        for adapter in &self.adapters {
+            match adapter.verify(request) {
+                EvidenceResult::Satisfied(summary) => summaries.push(summary),
+                EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+                | EvidenceResult::Rejected(VerificationError::InvalidPresentation) => {}
+                EvidenceResult::Rejected(error) => return EvidenceResult::Rejected(error),
+            }
+        }
+
+        for required in &request.accepted_evidence {
+            if !summaries
+                .iter()
+                .any(|summary| summary.kind.as_str() == required)
+            {
+                return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+            }
+        }
+
+        let mut summary_fields = Vec::new();
+        for summary in &summaries {
+            summary_fields.extend(summary.to_context_fields());
+        }
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: summaries
+                .last()
+                .map(|summary| summary.kind)
+                .unwrap_or(EvidenceKind::MembershipCredential),
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.resource.clone(),
+            local_dev_test_only: summaries.iter().any(|summary| summary.local_dev_test_only),
+            public_proof: summaries.iter().all(|summary| summary.public_proof),
+            summary_fields,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalStaticGrant {
     pub subject: String,
@@ -642,13 +709,13 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         if !request.accepts(self.kind()) {
             return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
         }
-        let Some(evidence_ref) = request.evidence_refs.first() else {
-            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
-        };
-        let Some(presentation) = self
-            .fixtures
-            .iter()
-            .find(|fixture| &fixture.evidence_ref == evidence_ref)
+        let Some((evidence_ref, presentation)) =
+            request.evidence_refs.iter().find_map(|evidence_ref| {
+                self.fixtures
+                    .iter()
+                    .find(|fixture| &fixture.evidence_ref == evidence_ref)
+                    .map(|fixture| (evidence_ref, fixture))
+            })
         else {
             return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
         };

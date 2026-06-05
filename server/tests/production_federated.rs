@@ -5,21 +5,23 @@ mod trust_fixtures;
 mod wallet_fixtures;
 
 use server::evidence::{
-    EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, FederatedCredentialAdapter,
-    FederatedCredentialStatus, LocalStaticEvidenceAdapter, LocalStaticGrant, TrustedIssuerRegistry,
-    TrustedIssuerStatus, WalletPresentationAdapter,
+    CompositeEvidenceAdapter, EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult,
+    FederatedCredentialAdapter, FederatedCredentialStatus, LocalStaticEvidenceAdapter,
+    LocalStaticGrant, TrustedIssuerRegistry, TrustedIssuerStatus, WalletPresentationAdapter,
 };
 use server::verifier::VerificationError;
 use trust_fixtures::{
     issuer_entry, malformed_credential_fixture, membership_credential_fixture,
     membership_descriptor, provisioning_credential_fixture, provisioning_descriptor,
-    resign_credential, trusted_registry, MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE,
-    MEMBERSHIP_OPERATION, PROVISIONING_CREDENTIAL_REF, PROVISIONING_OPCODE, TRUSTED_AUDIENCE,
-    TRUSTED_ORIGIN, TRUSTED_RESOURCE, TRUSTED_SUBJECT, TRUSTED_VALIDATION_TIME,
+    resign_credential, trusted_registry, wallet_and_membership_descriptor,
+    MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE, MEMBERSHIP_OPERATION,
+    PROVISIONING_CREDENTIAL_REF, PROVISIONING_OPCODE, TRUSTED_AUDIENCE, TRUSTED_ORIGIN,
+    TRUSTED_RESOURCE, TRUSTED_SUBJECT, TRUSTED_VALIDATION_TIME, WALLET_AND_MEMBERSHIP_OPCODE,
     WRONG_REGISTRY_ROOT_REF, WRONG_TRUST_ROOT_REF,
 };
 use wallet_fixtures::{
-    origin_input, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT, WALLET_OPCODE,
+    origin_input, sign_wallet_fixture, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT,
+    WALLET_OPCODE,
 };
 
 fn production_request(evidence_ref: Option<&str>) -> EvidenceRequest {
@@ -30,11 +32,18 @@ fn request_for(
     descriptor: &server::manifest::OperationDescriptor,
     evidence_ref: Option<&str>,
 ) -> EvidenceRequest {
-    let mut request = EvidenceRequest::from_descriptor(
+    request_with_refs(descriptor, evidence_ref.into_iter())
+}
+
+fn request_with_refs<'a>(
+    descriptor: &server::manifest::OperationDescriptor,
+    evidence_refs: impl IntoIterator<Item = &'a str>,
+) -> EvidenceRequest {
+    let mut request = EvidenceRequest::from_descriptor_with_refs(
         descriptor,
         TRUSTED_SUBJECT,
         TRUSTED_AUDIENCE,
-        evidence_ref,
+        evidence_refs,
     );
     request.public_inputs.push(origin_input(TRUSTED_ORIGIN));
     request
@@ -407,5 +416,111 @@ fn reject_matrix_credential_claim_and_descriptor_policy_fields_fail_closed() {
         )
         .verify(&production_request(Some(PROVISIONING_CREDENTIAL_REF))),
         EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
+}
+
+fn composite_adapter<'a>(
+    wallet: &'a WalletPresentationAdapter,
+    credential: &'a FederatedCredentialAdapter,
+) -> CompositeEvidenceAdapter<'a> {
+    CompositeEvidenceAdapter::new([
+        wallet as &dyn EvidenceAdapter,
+        credential as &dyn EvidenceAdapter,
+    ])
+}
+
+fn membership_wallet_adapter() -> WalletPresentationAdapter {
+    let mut fixture = wallet_fixture();
+    fixture.operation = MEMBERSHIP_OPERATION.to_string();
+    sign_wallet_fixture(&mut fixture);
+    WalletPresentationAdapter::with_validation_time([fixture], WALLET_ISSUED_AT + 60)
+}
+
+#[test]
+fn wallet_and_issuer_composition_requires_both_layers() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+
+    assert_eq!(
+        composite.verify(&request_for(&descriptor, Some(WALLET_EVIDENCE_REF))),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
+    assert_eq!(
+        composite.verify(&request_for(&descriptor, Some(MEMBERSHIP_CREDENTIAL_REF))),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
+
+    match composite.verify(&request_with_refs(
+        &descriptor,
+        [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+    )) {
+        EvidenceResult::Satisfied(summary) => {
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "evidence_kind:wallet_presentation"));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "evidence_kind:membership_credential"));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "credential_kind:membership_credential"));
+        }
+        EvidenceResult::Rejected(error) => {
+            panic!("expected both evidence layers to satisfy, got {error:?}")
+        }
+    }
+}
+
+#[test]
+fn wallet_and_issuer_composition_preserves_layer_specific_failures() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let wallet = membership_wallet_adapter();
+    let mut wrong_root = membership_credential_fixture();
+    wrong_root
+        .credential
+        .as_mut()
+        .expect("credential")
+        .trust_root_ref = WRONG_TRUST_ROOT_REF.to_string();
+    resign_credential(&mut wrong_root);
+    let credential =
+        FederatedCredentialAdapter::new([wrong_root], trusted_registry(), TRUSTED_VALIDATION_TIME);
+    let composite = composite_adapter(&wallet, &credential);
+
+    assert_eq!(
+        composite.verify(&request_with_refs(
+            &descriptor,
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongTrustRoot)
+    );
+
+    let valid_credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &valid_credential);
+    let mut wrong_origin = request_with_refs(
+        &descriptor,
+        [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+    );
+    wrong_origin
+        .public_inputs
+        .retain(|input| !input.starts_with("origin:"));
+    wrong_origin
+        .public_inputs
+        .push(origin_input("https://evil.example"));
+    assert_eq!(
+        composite.verify(&wrong_origin),
+        EvidenceResult::Rejected(VerificationError::WrongOrigin)
     );
 }
