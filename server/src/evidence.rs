@@ -229,6 +229,62 @@ impl WalletPresentationFixture {
     }
 }
 
+/// Temporary secS wallet challenge contract for Track D D1.
+///
+/// This is intentionally a minimal-equivalent secS contract, not a claim that
+/// Castalia Wallet `wallet-core` currently binds every secS-required field.
+/// It exists only until wallet-core canonical challenge parity binds subject,
+/// resource/payload schema, and the wallet public-key reference/id alongside
+/// the existing audience/origin/operation/nonce/time fields.
+///
+/// Canonical bytes are UTF-8, newline-delimited, length-prefixed fields in the
+/// exact order implemented by [`SecsWalletChallenge::canonical_bytes`]. Lengths
+/// are decimal byte lengths of each value, preventing delimiter ambiguity while
+/// keeping the fixture contract inspectable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecsWalletChallenge {
+    pub subject: String,
+    pub audience: String,
+    pub origin: String,
+    pub operation: String,
+    pub resource: String,
+    pub nonce: String,
+    pub issued_at: u64,
+    pub expires_at: u64,
+    pub signature_suite: String,
+    pub public_key_ref: String,
+}
+
+impl SecsWalletChallenge {
+    pub const VERSION: &'static str = "secs-wallet-challenge-v1";
+    pub const ED25519_SIGNATURE_SUITE: &'static str = "Ed25519";
+
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        append_line(&mut bytes, Self::VERSION);
+        append_field(&mut bytes, "subject", &self.subject);
+        append_field(&mut bytes, "audience", &self.audience);
+        append_field(&mut bytes, "origin", &self.origin);
+        append_field(&mut bytes, "operation", &self.operation);
+        append_field(&mut bytes, "resource", &self.resource);
+        append_field(&mut bytes, "nonce", &self.nonce);
+        append_field(&mut bytes, "issued_at", &self.issued_at.to_string());
+        append_field(&mut bytes, "expires_at", &self.expires_at.to_string());
+        append_field(&mut bytes, "signature_suite", &self.signature_suite);
+        append_field(&mut bytes, "public_key_ref", &self.public_key_ref);
+        bytes
+    }
+}
+
+fn append_line(bytes: &mut Vec<u8>, value: &str) {
+    bytes.extend_from_slice(value.as_bytes());
+    bytes.push(b'\n');
+}
+
+fn append_field(bytes: &mut Vec<u8>, name: &str, value: &str) {
+    append_line(bytes, &format!("{name}:{}:{value}", value.len()));
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WalletPresentationAdapter {
     fixtures: Vec<WalletPresentationFixture>,
