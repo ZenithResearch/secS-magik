@@ -45,6 +45,49 @@ fn set_required_production_env() {
 
 #[test]
 #[serial]
+fn local_dev_defaults_bind_loopback_only() {
+    clear_env();
+    std::env::set_var("SECS_RUNTIME_MODE", "local_dev_plaintext");
+
+    let config = GatewayRuntimeConfig::from_env().unwrap();
+
+    assert_eq!(config.bind_addr, "127.0.0.1:9001");
+    assert!(config.fixture_only);
+    clear_env();
+}
+
+#[test]
+fn production_startup_rejects_unknown_evidence_adapter_names() {
+    let registry_path = std::env::temp_dir().join(format!(
+        "secs-magik-trust-registry-{}.json",
+        std::process::id()
+    ));
+    std::fs::write(
+        &registry_path,
+        r#"{"trusted_verifiers":[{"id":"operator"}]}"#,
+    )
+    .expect("trust registry fixture should be writable");
+    let config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        "wallet_presentation,unknown_adapter",
+    )
+    .unwrap();
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+    let _ = std::fs::remove_file(registry_path);
+    assert!(
+        error.to_string().contains("unknown evidence adapter"),
+        "production startup must reject unsupported evidence adapters instead of silently accepting policy typos: {error}"
+    );
+}
+
+#[test]
+#[serial]
 fn production_config_requires_explicit_receiver_audience() {
     clear_env();
     set_required_production_env();

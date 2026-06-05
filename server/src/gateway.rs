@@ -22,8 +22,7 @@ use tokio::process::Child;
 use tokio::time::timeout;
 
 const DESCRIPTOR_CONTEXT_MISMATCH_REASON: &str = "descriptor_context_mismatch";
-
-const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
+const LOCAL_DEV_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandlerOutcome {
@@ -106,7 +105,7 @@ impl ConfigurableRouter {
             limits,
             explicit_test_fixture_identity(
                 LOCAL_PROTOTYPE_SIGNER_ID,
-                PROTOTYPE_RECEIPT_SIGNING_KEY,
+                LOCAL_DEV_RECEIPT_SIGNING_KEY,
             ),
         )
     }

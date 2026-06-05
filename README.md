@@ -223,7 +223,7 @@ The bare command defaults to `production_verified`, which intentionally fails fa
 The historical `secz` binary remains as a compatibility wrapper for the same prototype gateway:
 
 ```bash
-cargo run -p server --bin secz
+SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secz
 ```
 
 Send a packet with a decimal opcode:

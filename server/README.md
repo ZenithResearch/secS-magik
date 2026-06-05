@@ -44,7 +44,7 @@ SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secs-gateway
 Historical compatibility wrapper:
 
 ```bash
-cargo run -p server --bin secz
+SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secz
 ```
 
 Fixture-only production-shaped smoke:

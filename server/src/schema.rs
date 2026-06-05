@@ -87,6 +87,9 @@ pub async fn apply_schema(pool: &SqlitePool, tables: &[RuntimeTable]) -> Result<
         if table.name == "receipts" {
             ensure_receipts_columns(pool).await?;
         }
+        if table.name == "node_telemetry" {
+            ensure_node_telemetry_columns(pool).await?;
+        }
     }
     Ok(())
 }
@@ -104,6 +107,16 @@ async fn ensure_receipts_columns(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         "receipts",
         "context_id",
         "ALTER TABLE receipts ADD COLUMN context_id TEXT",
+    )
+    .await
+}
+
+async fn ensure_node_telemetry_columns(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    ensure_column(
+        pool,
+        "node_telemetry",
+        "operation",
+        "ALTER TABLE node_telemetry ADD COLUMN operation TEXT NOT NULL DEFAULT 'unverified.prototype'",
     )
     .await
 }

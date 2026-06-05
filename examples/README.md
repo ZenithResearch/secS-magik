@@ -21,7 +21,7 @@ The script writes gateway output to `SECZ_HELLO_LOG` or `/tmp/secz-hello-world.l
 Terminal 1:
 
 ```bash
-cargo run -p server --bin secz
+SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secz
 ```
 
 Terminal 2:
@@ -40,5 +40,5 @@ SECS_URL=127.0.0.1:9001 cargo run -p client -- hub 16 "Hello World"
 ## Troubleshooting
 
 - If port `9001` is busy, stop the existing gateway before running the example.
-- If Cargo binary selection is ambiguous, prefer `cargo run -p server --bin secz` and `cargo run -p client -- ...`.
+- If Cargo binary selection is ambiguous, prefer `SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secz` and `cargo run -p client -- ...`.
 - If the command hangs or fails, inspect the log at `SECZ_HELLO_LOG` or `/tmp/secz-hello-world.log`.

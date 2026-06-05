@@ -225,6 +225,71 @@ async fn replay_reservation_allows_same_nonce_same_session_different_opcode() {
 }
 
 #[tokio::test]
+async fn replay_reservation_prune_removes_only_expired_rows() {
+    let ledger = memory_ledger().await;
+    let expired = verified_context([1u8; 16], [2u8; 12], 0x10);
+    let boundary = verified_context([3u8; 16], [4u8; 12], 0x10);
+    let future = verified_context([5u8; 16], [6u8; 12], 0x10);
+
+    for (context, expires_at) in [(&expired, 99), (&boundary, 100), (&future, 101)] {
+        let mut context = context.clone();
+        context.expires_at = expires_at;
+        ledger
+            .reserve_replay(&context, "verifier:local-test", 1)
+            .await
+            .unwrap();
+    }
+
+    let deleted = ledger.prune_expired_replay_reservations(100).await.unwrap();
+
+    assert_eq!(deleted, 1);
+    let rows: Vec<(Vec<u8>, i64)> =
+        sqlx::query_as("SELECT nonce, expires_at FROM replay_reservations ORDER BY expires_at")
+            .fetch_all(ledger.pool())
+            .await
+            .unwrap();
+    assert_eq!(
+        rows,
+        vec![([4u8; 12].to_vec(), 100), ([6u8; 12].to_vec(), 101)]
+    );
+}
+
+#[tokio::test]
+async fn replay_reservation_can_be_reused_after_expiration_prune() {
+    let ledger = memory_ledger().await;
+    let mut context = verified_context([1u8; 16], [2u8; 12], 0x10);
+    context.expires_at = 100;
+
+    assert_eq!(
+        ledger
+            .reserve_replay(&context, "verifier:local-test", 1)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+    assert_eq!(
+        ledger
+            .reserve_replay(&context, "verifier:local-test", 99)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Duplicate
+    );
+    assert_eq!(
+        ledger
+            .reserve_replay(&context, "verifier:local-test", 101)
+            .await
+            .unwrap(),
+        ReplayReservationOutcome::Reserved
+    );
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(ledger.pool())
+        .await
+        .unwrap();
+    assert_eq!(count.0, 1);
+}
+
+#[tokio::test]
 async fn ledger_records_events_without_payload_content() {
     let ledger = memory_ledger().await;
 

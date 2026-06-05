@@ -58,6 +58,20 @@ async fn oversized_wire_frame_rejects_before_packet_decode() {
 }
 
 #[tokio::test]
+async fn valid_packet_with_trailing_bytes_rejects_as_malformed() {
+    let mut bytes = bincode::serialize(&packet(b"payload")).unwrap();
+    bytes.extend_from_slice(b"trailing-smuggled-bytes");
+    let reader = std::io::Cursor::new(bytes);
+
+    let result = read_bounded_wire_packet(reader, 1024, Duration::from_secs(1)).await;
+
+    assert!(
+        matches!(result, Err(IngressReadError::MalformedPacket(_))),
+        "ingress must reject valid packet prefixes with extra trailing bytes so packet hashes/receipts cannot ignore transport bytes"
+    );
+}
+
+#[tokio::test]
 async fn malformed_under_limit_packet_stays_malformed_not_over_limit() {
     let reader = std::io::Cursor::new(vec![1, 2, 3, 4]);
 

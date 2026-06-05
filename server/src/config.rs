@@ -200,7 +200,7 @@ impl GatewayRuntimeConfig {
                 )
             }
             RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => Ok(Self {
-                bind_addr: bind_addr.unwrap_or_else(|| "0.0.0.0:9001".to_string()),
+                bind_addr: bind_addr.unwrap_or_else(|| "127.0.0.1:9001".to_string()),
                 db_url: db_url.unwrap_or_else(|| "sqlite:node_telemetry.db?mode=rwc".to_string()),
                 receiver_audience: receiver_audience
                     .unwrap_or_else(|| DEFAULT_RECEIVER_AUDIENCE.to_string()),
@@ -452,6 +452,16 @@ fn validate_trust_registry_file(
 fn validate_allowed_evidence_adapters(config: &GatewayRuntimeConfig) -> Result<(), String> {
     if config.allowed_evidence_adapters.is_empty() {
         return Err("SECS_ALLOWED_EVIDENCE_ADAPTERS must list at least one adapter".to_string());
+    }
+    for adapter in &config.allowed_evidence_adapters {
+        match adapter.as_str() {
+            "local_static" | "wallet_presentation" => {}
+            _ => {
+                return Err(format!(
+                    "unknown evidence adapter {adapter:?} in SECS_ALLOWED_EVIDENCE_ADAPTERS"
+                ));
+            }
+        }
     }
     if config
         .allowed_evidence_adapters

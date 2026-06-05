@@ -1691,6 +1691,7 @@ dependencies = [
  "bincode",
  "ed25519-dalek",
  "libsec-core",
+ "rand",
  "serde",
  "serde_json",
  "serial_test",

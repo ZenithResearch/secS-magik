@@ -9,6 +9,8 @@ use crate::runtime_mode::RuntimeMode;
 use crate::verifier::{VerificationError, Verifier};
 use bincode::Options;
 use libsec_core::ZenithPacket;
+use rand::rngs::OsRng;
+use rand::Rng;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -19,7 +21,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
-const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
 static PRE_DECODE_REJECT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 pub const DEFAULT_MAX_WIRE_BYTES: usize = 2 * 1024 * 1024;
 pub const DEFAULT_INGRESS_READ_TIMEOUT: Duration = Duration::from_secs(10);
@@ -95,7 +96,6 @@ where
 
     bincode::DefaultOptions::new()
         .with_fixint_encoding()
-        .allow_trailing_bytes()
         .with_limit(max_wire_bytes as u64)
         .deserialize::<ZenithPacket>(&wire_bytes)
         .map(Some)
@@ -307,7 +307,7 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
             panic!("secS gateway: failed to load production verifier identity - {error}")
         }),
         RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => {
-            explicit_test_fixture_identity("verifier:local-prototype", LOCAL_VERIFIER_SECRET_KEY)
+            explicit_test_fixture_identity("verifier:local-prototype", OsRng.gen::<[u8; 32]>())
         }
     };
     let mut router = ConfigurableRouter::with_limits_identity_and_audience(

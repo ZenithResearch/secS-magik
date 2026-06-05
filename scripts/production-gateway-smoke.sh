@@ -19,8 +19,11 @@ TRUST_REGISTRY_PATH="$TMP_DIR/trust-registry.json"
 LEDGER_PATH="$TMP_DIR/ledger.sqlite"
 LOG_PATH="$TMP_DIR/secs-gateway.log"
 
-# Fixture-only Ed25519 secret bytes for local smoke. This is intentionally not a real operator key.
-printf '0909090909090909090909090909090909090909090909090909090909090909' > "$KEY_PATH"
+# Ephemeral fixture-only Ed25519 secret bytes for local smoke. This is intentionally not a real operator key.
+python3 - <<'PY' > "$KEY_PATH"
+import os
+print(os.urandom(32).hex(), end='')
+PY
 chmod 600 "$KEY_PATH"
 printf '{"fixture_only":true,"trusted_verifiers":[]}' > "$TRUST_REGISTRY_PATH"
 

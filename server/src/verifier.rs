@@ -292,10 +292,16 @@ fn verified_context_for_descriptor(
         return Err(VerificationError::InvalidSession);
     }
 
+    let packet_hash = packet_hash(packet)?;
+    let packet_hash_suffix = packet_hash[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+
     Ok(VerifiedCallContext {
         schema_version: 1,
-        context_id: format!("ctx-v1-{now}-{:02x}", packet.opcode),
-        packet_hash: packet_hash(packet)?,
+        context_id: format!("ctx-v1-{now}-{:02x}-{packet_hash_suffix}", packet.opcode),
+        packet_hash,
         session_id: packet.session_id,
         nonce: packet.nonce,
         opcode: packet.opcode,
