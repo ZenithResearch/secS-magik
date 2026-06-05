@@ -6,14 +6,17 @@ mod wallet_fixtures;
 
 use server::evidence::{
     EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, FederatedCredentialAdapter,
-    LocalStaticEvidenceAdapter, LocalStaticGrant, WalletPresentationAdapter,
+    FederatedCredentialStatus, LocalStaticEvidenceAdapter, LocalStaticGrant, TrustedIssuerRegistry,
+    TrustedIssuerStatus, WalletPresentationAdapter,
 };
 use server::verifier::VerificationError;
 use trust_fixtures::{
-    membership_credential_fixture, membership_descriptor, provisioning_credential_fixture,
-    provisioning_descriptor, trusted_registry, MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE,
+    issuer_entry, malformed_credential_fixture, membership_credential_fixture,
+    membership_descriptor, provisioning_credential_fixture, provisioning_descriptor,
+    resign_credential, trusted_registry, MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE,
     MEMBERSHIP_OPERATION, PROVISIONING_CREDENTIAL_REF, PROVISIONING_OPCODE, TRUSTED_AUDIENCE,
     TRUSTED_ORIGIN, TRUSTED_RESOURCE, TRUSTED_SUBJECT, TRUSTED_VALIDATION_TIME,
+    WRONG_REGISTRY_ROOT_REF, WRONG_TRUST_ROOT_REF,
 };
 use wallet_fixtures::{
     origin_input, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT, WALLET_OPCODE,
@@ -154,4 +157,255 @@ fn valid_provisioning_credential_verifies_when_descriptor_permits_it() {
             panic!("expected valid provisioning credential, got {error:?}")
         }
     }
+}
+
+fn assert_credential_rejected(
+    fixture: server::evidence::FederatedCredentialFixture,
+    request: EvidenceRequest,
+    expected: VerificationError,
+) {
+    let adapter =
+        FederatedCredentialAdapter::new([fixture], trusted_registry(), TRUSTED_VALIDATION_TIME);
+    assert_eq!(adapter.verify(&request), EvidenceResult::Rejected(expected));
+}
+
+#[test]
+fn reject_matrix_missing_unknown_malformed_suite_signature_and_embedded_key() {
+    assert_eq!(
+        FederatedCredentialAdapter::new(
+            [membership_credential_fixture()],
+            trusted_registry(),
+            TRUSTED_VALIDATION_TIME,
+        )
+        .verify(&production_request(None)),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
+    assert_eq!(
+        FederatedCredentialAdapter::new(
+            [membership_credential_fixture()],
+            trusted_registry(),
+            TRUSTED_VALIDATION_TIME,
+        )
+        .verify(&production_request(Some("membership-credential:missing"))),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
+    assert_credential_rejected(
+        malformed_credential_fixture(),
+        production_request(Some(trust_fixtures::MALFORMED_CREDENTIAL_REF)),
+        VerificationError::InvalidPresentation,
+    );
+
+    let mut unsupported_suite = membership_credential_fixture();
+    unsupported_suite
+        .credential
+        .as_mut()
+        .expect("credential")
+        .signature_suite = "FixtureSuite-v0".to_string();
+    resign_credential(&mut unsupported_suite);
+    assert_credential_rejected(
+        unsupported_suite,
+        production_request(Some(MEMBERSHIP_CREDENTIAL_REF)),
+        VerificationError::UnsupportedSignatureSuite,
+    );
+
+    let mut wrong_signature = membership_credential_fixture();
+    wrong_signature.signature_bytes[0] ^= 0x01;
+    assert_credential_rejected(
+        wrong_signature,
+        production_request(Some(MEMBERSHIP_CREDENTIAL_REF)),
+        VerificationError::InvalidSignature,
+    );
+
+    let mut wrong_embedded_key = membership_credential_fixture();
+    wrong_embedded_key.embedded_issuer_public_key_bytes = vec![0x99; 32];
+    assert_credential_rejected(
+        wrong_embedded_key,
+        production_request(Some(MEMBERSHIP_CREDENTIAL_REF)),
+        VerificationError::WrongIssuerKey,
+    );
+}
+
+#[test]
+fn reject_matrix_issuer_roots_status_and_validity_fail_closed() {
+    for (fixture, expected) in [
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").issuer_id =
+                    "did:example:missing".to_string();
+                fixture
+            },
+            VerificationError::UnknownIssuer,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture
+                    .credential
+                    .as_mut()
+                    .expect("credential")
+                    .trust_root_ref = WRONG_TRUST_ROOT_REF.to_string();
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::WrongTrustRoot,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture
+                    .credential
+                    .as_mut()
+                    .expect("credential")
+                    .registry_root_ref = WRONG_REGISTRY_ROOT_REF.to_string();
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::WrongRegistryRoot,
+        ),
+    ] {
+        assert_credential_rejected(
+            fixture,
+            production_request(Some(MEMBERSHIP_CREDENTIAL_REF)),
+            expected,
+        );
+    }
+
+    let mut revoked = issuer_entry();
+    revoked.status = TrustedIssuerStatus::Revoked;
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        TrustedIssuerRegistry::new([revoked]).expect("registry"),
+        TRUSTED_VALIDATION_TIME,
+    );
+    assert_eq!(
+        adapter.verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))),
+        EvidenceResult::Rejected(VerificationError::RevokedIssuer)
+    );
+
+    let mut expired = issuer_entry();
+    expired.not_after = TRUSTED_VALIDATION_TIME - 1;
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        TrustedIssuerRegistry::new([expired]).expect("registry"),
+        TRUSTED_VALIDATION_TIME,
+    );
+    assert_eq!(
+        adapter.verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))),
+        EvidenceResult::Rejected(VerificationError::ExpiredVerifierKey)
+    );
+
+    let mut future = issuer_entry();
+    future.not_before = TRUSTED_VALIDATION_TIME + 1;
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        TrustedIssuerRegistry::new([future]).expect("registry"),
+        TRUSTED_VALIDATION_TIME,
+    );
+    assert_eq!(
+        adapter.verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))),
+        EvidenceResult::Rejected(VerificationError::NotYetValidVerifierKey)
+    );
+}
+
+#[test]
+fn reject_matrix_credential_claim_and_descriptor_policy_fields_fail_closed() {
+    for (fixture, expected) in [
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").status =
+                    FederatedCredentialStatus::Revoked;
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::RevokedCredential,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").expires_at =
+                    TRUSTED_VALIDATION_TIME;
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::ExpiredClaim,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").issued_at =
+                    TRUSTED_VALIDATION_TIME + 1;
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::NotYetValidClaim,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").subject =
+                    "did:example:bob#key-1".to_string();
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::WrongSubject,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").audience =
+                    "secS://other".to_string();
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::WrongAudience,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").origin =
+                    Some("https://evil.example".to_string());
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::WrongOrigin,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").operation =
+                    "membership.other".to_string();
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::WrongOperation,
+        ),
+        (
+            {
+                let mut fixture = membership_credential_fixture();
+                fixture.credential.as_mut().expect("credential").resource =
+                    "application/not-json".to_string();
+                resign_credential(&mut fixture);
+                fixture
+            },
+            VerificationError::WrongResource,
+        ),
+    ] {
+        assert_credential_rejected(
+            fixture,
+            production_request(Some(MEMBERSHIP_CREDENTIAL_REF)),
+            expected,
+        );
+    }
+
+    assert_eq!(
+        FederatedCredentialAdapter::new(
+            [provisioning_credential_fixture()],
+            trusted_registry(),
+            TRUSTED_VALIDATION_TIME,
+        )
+        .verify(&production_request(Some(PROVISIONING_CREDENTIAL_REF))),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
 }
