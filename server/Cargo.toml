@@ -14,3 +14,11 @@ sha2.workspace = true
 async-trait = "0.1.89"
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
 serial_test = "3.2"
+
+[[bin]]
+name = "secs-gateway"
+path = "src/bin/secs-gateway.rs"
+
+[[bin]]
+name = "secz"
+path = "src/bin/secz.rs"

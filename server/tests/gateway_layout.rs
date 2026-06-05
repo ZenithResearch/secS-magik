@@ -584,7 +584,7 @@ async fn gateway_router_revalidates_signed_descriptor_context_before_handler_loo
 }
 
 #[tokio::test]
-async fn gateway_router_signs_receipts_with_loaded_production_identity() {
+async fn gateway_router_signs_production_reject_receipts_for_legacy_prototype_evidence() {
     let path = write_key_file([0x45; 32]);
     let identity = load_node_verifier_identity(&VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
@@ -593,7 +593,7 @@ async fn gateway_router_signs_receipts_with_loaded_production_identity() {
     })
     .expect("production identity should load from configured key path");
     let expected_key_id = identity.signer_key_id().to_string();
-    let (program, _calls, _bytes, _handler_ids) = counting_program();
+    let (program, calls, _bytes, _handler_ids) = counting_program();
     let pool = memory_pool().await;
     let mut router = ConfigurableRouter::with_identity(pool.clone(), identity);
     router.register(0x01, program);
@@ -601,24 +601,28 @@ async fn gateway_router_signs_receipts_with_loaded_production_identity() {
     let signed = signed_context_with_identity(0x01, b"payload", router.identity());
     router.route_verified(&signed, b"payload".to_vec()).await;
 
-    let receipt_rows: Vec<(String, String, String, Vec<u8>)> = sqlx::query_as(
-        "SELECT kind, signer_key_id, authenticator_kind, signature FROM receipts ORDER BY timestamp, receipt_id",
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let receipt_rows: Vec<(String, String, String, String, Vec<u8>)> = sqlx::query_as(
+        "SELECT kind, reason, signer_key_id, authenticator_kind, signature FROM receipts ORDER BY timestamp, receipt_id",
     )
     .fetch_all(&pool)
     .await
     .unwrap();
     assert!(receipt_rows.iter().any(|row| {
-        row.0 == "verify"
-            && row.1 == expected_key_id
-            && row.2 == "ed25519_node_and_verifier"
-            && !row.3.is_empty()
+        row.0 == "reject"
+            && row.1 == "prototype_operation_not_production_authorized"
+            && row.2 == expected_key_id
+            && row.3 == "ed25519_node_and_verifier"
+            && !row.4.is_empty()
     }));
-    assert!(receipt_rows.iter().any(|row| {
-        row.0 == "execute"
-            && row.1 == expected_key_id
-            && row.2 == "ed25519_node_and_verifier"
-            && !row.3.is_empty()
-    }));
+    assert!(
+        !receipt_rows.iter().any(|row| row.0 == "verify"),
+        "legacy prototype evidence must not emit production Verify receipts"
+    );
+    assert!(
+        !receipt_rows.iter().any(|row| row.0 == "execute"),
+        "legacy prototype evidence must not reach execution receipts"
+    );
 
     let _ = fs::remove_file(path);
 }
