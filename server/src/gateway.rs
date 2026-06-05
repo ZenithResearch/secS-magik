@@ -753,10 +753,10 @@ async fn read_one_chunk<R: AsyncRead + Unpin>(
 
 async fn wait_for_bounded_subprocess_output(
     mut child: Child,
+    mut guard: ProcessGroupGuard,
     limit: usize,
     timeout_duration: Duration,
 ) -> HandlerOutcome {
-    let mut guard = ProcessGroupGuard::new(&child);
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
     let mut output_bytes = 0usize;
@@ -846,20 +846,39 @@ impl MachineProgram for SubprocessForwarder {
                 return HandlerOutcome::rejected("handler_spawn_failed");
             }
         };
+        let mut guard = ProcessGroupGuard::new(&child);
 
         if let Some(mut stdin) = child.stdin.take() {
-            if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut stdin, payload).await {
-                if e.kind() != std::io::ErrorKind::BrokenPipe {
-                    eprintln!(
-                        "secS [Subprocess]: failed to write payload to stdin - {}",
-                        e
-                    );
-                    return HandlerOutcome::rejected("handler_stdin_failed");
+            match timeout(
+                limits.handler_timeout,
+                tokio::io::AsyncWriteExt::write_all(&mut stdin, payload),
+            )
+            .await
+            {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    if e.kind() != std::io::ErrorKind::BrokenPipe {
+                        eprintln!(
+                            "secS [Subprocess]: failed to write payload to stdin - {}",
+                            e
+                        );
+                        guard.terminate(&mut child).await;
+                        return HandlerOutcome::rejected("handler_stdin_failed");
+                    }
+                }
+                Err(_) => {
+                    guard.terminate(&mut child).await;
+                    return HandlerOutcome::rejected("handler_timeout");
                 }
             }
         }
-        wait_for_bounded_subprocess_output(child, limits.max_output_bytes, limits.handler_timeout)
-            .await
+        wait_for_bounded_subprocess_output(
+            child,
+            guard,
+            limits.max_output_bytes,
+            limits.handler_timeout,
+        )
+        .await
     }
 }
 

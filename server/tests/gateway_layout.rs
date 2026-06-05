@@ -478,6 +478,58 @@ async fn subprocess_forwarder_allows_output_exactly_at_limit() {
 }
 
 #[tokio::test]
+async fn subprocess_forwarder_timeout_during_stdin_write_reaps_process_group() {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let marker = std::env::temp_dir().join(format!("secs-magik-stdin-timeout-marker-{nanos}"));
+    let command = format!("(sleep 0.25; touch {}) & sleep 5", marker.display());
+    let payload = vec![b'x'; 8 * 1024 * 1024];
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::with_limits(
+        pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: payload.len() + 1,
+            max_output_bytes: 1024,
+            handler_timeout: Duration::from_millis(10),
+        },
+    );
+    router.register_handler(
+        "dev/bash-echo",
+        Box::new(SubprocessForwarder {
+            program: "sh".to_string(),
+            args: vec!["-c".to_string(), command],
+        }),
+    );
+
+    router
+        .route_verified(&signed_context(0x10, &payload), payload)
+        .await;
+    tokio::time::sleep(Duration::from_millis(400)).await;
+
+    assert!(
+        !marker.exists(),
+        "timeout during stdin write should kill the subprocess process group before grandchild marker write"
+    );
+    let receipt: (String, String, String) = sqlx::query_as(
+        "SELECT kind, decision, reason FROM receipts WHERE kind = 'execute' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".to_string(),
+            "rejected".to_string(),
+            "handler_timeout".to_string()
+        )
+    );
+    let _ = fs::remove_file(marker);
+}
+
+#[tokio::test]
 async fn subprocess_forwarder_is_killed_when_router_timeout_drops_handler_future() {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
