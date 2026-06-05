@@ -174,10 +174,16 @@ cargo test --workspace
 cargo build --workspace
 ```
 
-Run the canonical current prototype gateway on port `9001`:
+Run the canonical current prototype gateway for local development on port `9001`:
 
 ```bash
-cargo run -p server --bin secs-gateway
+SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secs-gateway
+```
+
+The bare command defaults to `production_verified`, which intentionally fails fast unless the operator provides explicit `SECS_*` runtime limits, verifier key, ledger path, trust registry, receiver audience, and bind address. For a no-real-secret production-shaped fixture smoke, use:
+
+```bash
+./scripts/production-gateway-smoke.sh
 ```
 
 The historical `secz` binary remains as a compatibility wrapper for the same prototype gateway:
