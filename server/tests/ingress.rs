@@ -3,7 +3,9 @@ use server::gateway::{init_telemetry_schema, ConfigurableRouter};
 use server::ingress::{
     handle_gateway_connection_with_limits, read_bounded_wire_packet, IngressReadError,
 };
+use server::ledger::Ledger;
 use server::runtime_mode::RuntimeMode;
+use server::verifier::VerificationError;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::sync::Arc;
 use tokio::io::duplex;
@@ -197,6 +199,99 @@ async fn connection_uses_validated_runtime_mode_not_environment_for_plaintext_pa
 
     std::env::remove_var("SECS_RUNTIME_MODE");
     std::env::remove_var("SECZ_RUNTIME_MODE");
+}
+
+type RejectReceiptRow = (String, String, String, Vec<u8>, Vec<u8>, i64);
+
+#[tokio::test]
+async fn ingress_pre_decode_reject_audit() {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let router = Arc::new(ConfigurableRouter::new(pool.clone()));
+
+    for _ in 0..2 {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router = router.clone();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            handle_gateway_connection_with_limits(
+                router,
+                socket,
+                DEFAULT_TEST_WIRE_LIMIT,
+                Duration::from_secs(1),
+                RuntimeMode::LocalDevPlaintext,
+            )
+            .await;
+        });
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client.write_all(b"not a zenith packet").await.unwrap();
+        client.shutdown().await.unwrap();
+        server.await.unwrap();
+    }
+
+    let reason = VerificationError::MalformedPacket.reason_code();
+    let receipts: Vec<RejectReceiptRow> = sqlx::query_as(
+        "SELECT receipt_id, kind, reason, session_id, nonce, opcode FROM receipts WHERE kind = 'reject' ORDER BY receipt_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(receipts.len(), 2);
+    assert_ne!(receipts[0].0, receipts[1].0);
+    assert_ne!(receipts[0].4, receipts[1].4);
+    for receipt in &receipts {
+        assert_eq!(receipt.1, "reject");
+        assert_eq!(receipt.2, reason);
+        assert_eq!(receipt.3, [0u8; 16].to_vec());
+        assert_eq!(receipt.5, 0);
+        assert!(receipt.0.starts_with("receipt-reject-"));
+        assert!(!receipt.0.contains("not a zenith packet"));
+    }
+
+    let rejected_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'packet_rejected' AND reason = ?",
+    )
+    .bind(reason)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rejected_event_count.0, 2);
+
+    let emitted_event_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'receipt_emitted' AND reason = 'reject'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(emitted_event_count.0, 2);
+
+    for receipt in &receipts {
+        let inspection = Ledger::new(pool.clone())
+            .inspect_receipt_by_id(&receipt.0)
+            .await
+            .unwrap()
+            .expect("pre-decode reject receipt should be inspectable by id");
+        assert_eq!(inspection.kind.as_str(), "reject");
+        assert_eq!(inspection.decision.as_str(), "rejected");
+        assert_eq!(inspection.reason.as_deref(), Some(reason));
+        assert_eq!(
+            inspection.redaction_policy,
+            "local_redacted_no_payload_or_private_evidence_by_default"
+        );
+    }
+
+    let leaked_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE reason LIKE '%not a zenith packet%' OR operation LIKE '%not a zenith packet%'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(leaked_count.0, 0);
 }
 
 const DEFAULT_TEST_WIRE_LIMIT: usize = 2 * 1024 * 1024;

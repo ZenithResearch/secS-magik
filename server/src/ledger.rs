@@ -8,9 +8,9 @@ use crate::receipt::{Receipt, ReceiptEventKind};
 use crate::schema::{apply_schema, LEDGER_TABLES};
 use crate::verifier::VerifiedCallContext;
 use sha2::{Digest, Sha256};
-use std::time::{SystemTime, UNIX_EPOCH};
 use sqlx::Row;
 use sqlx::SqlitePool;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 1;
 pub const LEDGER_REDACTION_POLICY: &str =
@@ -129,10 +129,7 @@ impl Ledger {
     /// Returns the number of rows deleted. This is the explicit cleanup API and is
     /// also invoked from `init_schema` (wall time) and `reserve_replay` (using call time).
     /// Used to implement #57: ensure no unbounded growth of the replay_reservations table.
-    pub async fn prune_expired_replay_reservations(
-        &self,
-        now: u64,
-    ) -> Result<u64, sqlx::Error> {
+    pub async fn prune_expired_replay_reservations(&self, now: u64) -> Result<u64, sqlx::Error> {
         let result = sqlx::query("DELETE FROM replay_reservations WHERE expires_at < ?")
             .bind(now as i64)
             .execute(&self.pool)
@@ -216,6 +213,7 @@ impl Ledger {
     /// Used by record_signed_receipt paths for verify/execute/reject receipts.
     /// Does not wrap handler execution itself (per locked decision).
     /// On failure, caller sees error and can surface incomplete/audit failure.
+    #[allow(clippy::too_many_arguments)]
     pub async fn record_receipt_with_emitted_event(
         &self,
         receipt: &Receipt,

@@ -6,11 +6,12 @@ use crate::identity::{
 use crate::manifest::ReceiverManifest;
 use crate::payload::decrypt_machine_payload;
 use crate::runtime_mode::RuntimeMode;
-use crate::verifier::Verifier;
+use crate::verifier::{VerificationError, Verifier};
 use bincode::Options;
 use libsec_core::ZenithPacket;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -19,6 +20,7 @@ use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
 const LOCAL_VERIFIER_SECRET_KEY: [u8; 32] = [7u8; 32];
+static PRE_DECODE_REJECT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 pub const DEFAULT_MAX_WIRE_BYTES: usize = 2 * 1024 * 1024;
 pub const DEFAULT_INGRESS_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -183,6 +185,7 @@ pub async fn handle_gateway_connection_with_limits(
         Ok(None) => return,
         Err(IngressReadError::MalformedPacket(error)) => {
             eprintln!("secS [Transport]: rejected malformed packet - {}", error);
+            record_pre_decode_reject(&router).await;
             return;
         }
         Err(IngressReadError::WireFrameTooLarge { limit }) => {
@@ -190,6 +193,7 @@ pub async fn handle_gateway_connection_with_limits(
                 "secS [Transport]: rejected oversized wire frame above {} bytes before packet decode",
                 limit
             );
+            record_pre_decode_reject(&router).await;
             return;
         }
         Err(error) => {
@@ -197,6 +201,7 @@ pub async fn handle_gateway_connection_with_limits(
                 "secS [Transport]: failed to read bounded connection - {}",
                 error
             );
+            record_pre_decode_reject(&router).await;
             return;
         }
     };
@@ -243,6 +248,24 @@ pub async fn handle_gateway_connection_with_limits(
         };
 
     router.route_verified(&signed_context, payload).await;
+}
+
+async fn record_pre_decode_reject(router: &ConfigurableRouter) {
+    let sequence = PRE_DECODE_REJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let mut nonce = [0u8; 12];
+    nonce[4..].copy_from_slice(&sequence.to_be_bytes());
+    let packet = ZenithPacket {
+        session_id: [0u8; 16],
+        nonce,
+        opcode: 0,
+        proof: Vec::new(),
+        claim_ttl: 0,
+        encrypted_payload: Vec::new(),
+        mac: [0u8; 16],
+    };
+    router
+        .record_reject(&packet, VerificationError::MalformedPacket)
+        .await;
 }
 
 fn current_unix_seconds() -> u64 {

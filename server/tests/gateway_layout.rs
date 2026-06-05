@@ -4,7 +4,10 @@ use server::gateway::{
     init_telemetry_schema, register_runtime_bindings, ConfigurableRouter, ExecutionLimits,
     HandlerOutcome, MachineProgram, SubprocessForwarder,
 };
-use server::identity::{load_node_verifier_identity, NodeVerifierIdentity, VerifierIdentityConfig};
+use server::identity::{
+    load_node_verifier_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
+    VerificationKeyStatus, VerifierIdentityConfig,
+};
 use server::ledger::Ledger;
 use server::manifest::ReceiverManifest;
 use server::runtime_mode::RuntimeMode;
@@ -881,6 +884,118 @@ async fn gateway_router_wrong_audience_signed_context_records_reject_without_rep
 }
 
 #[tokio::test]
+async fn key_status_reject_audit() {
+    let status_cases = [
+        (
+            VerificationKeyStatus::Revoked,
+            VerificationError::RevokedVerifierKey.reason_code(),
+        ),
+        (
+            VerificationKeyStatus::Expired,
+            VerificationError::ExpiredVerifierKey.reason_code(),
+        ),
+        (
+            VerificationKeyStatus::Unknown,
+            VerificationError::UnknownVerifierKey.reason_code(),
+        ),
+        (
+            VerificationKeyStatus::NotYetValid,
+            VerificationError::NotYetValidVerifierKey.reason_code(),
+        ),
+    ];
+
+    for (status, reason) in status_cases {
+        let (program, calls, _bytes, _handler_ids) = counting_program();
+        let pool = memory_pool().await;
+        let registry =
+            PublicVerifierKeyRegistry::from_keys([ConfigurableRouter::new(pool.clone())
+                .identity()
+                .public_verifier_key()
+                .with_status(status)]);
+        let mut router = ConfigurableRouter::with_verifier_registry(pool.clone(), registry);
+        router.register(0x10, program);
+        let signed = signed_context(0x10, b"payload");
+
+        router.route_verified(&signed, b"payload".to_vec()).await;
+
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "status {status:?}");
+        let reject_receipt: (String, String, String, String) = sqlx::query_as(
+            "SELECT receipt_id, kind, decision, reason FROM receipts WHERE kind = 'reject' ORDER BY timestamp DESC LIMIT 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(reject_receipt.1, "reject", "status {status:?}");
+        assert_eq!(reject_receipt.2, "rejected", "status {status:?}");
+        assert_eq!(reject_receipt.3, reason, "status {status:?}");
+
+        let rejected_event_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM events WHERE event_kind = 'packet_rejected' AND reason = ?",
+        )
+        .bind(reason)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(rejected_event_count.0, 1, "status {status:?}");
+
+        let ledger = Ledger::new(pool.clone());
+        let inspection = ledger
+            .inspect_receipt_by_id(&reject_receipt.0)
+            .await
+            .unwrap()
+            .expect("key-status reject should be inspectable by id");
+        assert_eq!(inspection.kind.as_str(), "reject", "status {status:?}");
+        assert_eq!(
+            inspection.decision.as_str(),
+            "rejected",
+            "status {status:?}"
+        );
+        assert_eq!(
+            inspection.reason.as_deref(),
+            Some(reason),
+            "status {status:?}"
+        );
+
+        let chain = ledger
+            .inspect_receipt_chain_by_context_id(&signed.context.context_id)
+            .await
+            .unwrap();
+        assert_eq!(chain.len(), 1, "status {status:?}");
+        assert_eq!(
+            chain[0].reason.as_deref(),
+            Some(reason),
+            "status {status:?}"
+        );
+
+        let replay_reservation_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(replay_reservation_count.0, 0, "status {status:?}");
+    }
+
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut signed = signed_context(0x10, b"payload");
+    signed.signer_key_id = "verifier:unknown-for-audit".to_string();
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let unknown_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND decision = 'rejected' AND reason = ?",
+    )
+    .bind(VerificationError::UnknownVerifierKey.reason_code())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(unknown_count.0, 1);
+}
+
+#[tokio::test]
 async fn gateway_router_replay_reservation_survives_first_handler_rejection() {
     let calls = Arc::new(AtomicUsize::new(0));
     let pool = memory_pool().await;
@@ -1291,8 +1406,12 @@ async fn gateway_layout_receipt_ids_are_collision_resistant_for_same_opcode_same
     let signed2 = signed_context_with_fields(session2, nonce2, 0x10, b"payload-two");
 
     // Route both (simulating concurrent same-second same-opcode).
-    let _ = router.route_verified(&signed1, b"payload-one".to_vec()).await;
-    let _ = router.route_verified(&signed2, b"payload-two".to_vec()).await;
+    let _ = router
+        .route_verified(&signed1, b"payload-one".to_vec())
+        .await;
+    let _ = router
+        .route_verified(&signed2, b"payload-two".to_vec())
+        .await;
 
     // Should have executed both handlers.
     assert_eq!(calls.load(Ordering::SeqCst), 2);
@@ -1306,12 +1425,20 @@ async fn gateway_layout_receipt_ids_are_collision_resistant_for_same_opcode_same
     .unwrap();
 
     // There should be at least two verify receipts (one per route).
-    assert!(verify_receipts.len() >= 2, "expected at least two verify receipts for concurrent same-opcode");
+    assert!(
+        verify_receipts.len() >= 2,
+        "expected at least two verify receipts for concurrent same-opcode"
+    );
 
     // IDs must be distinct (collision resistant).
     let ids: Vec<_> = verify_receipts.iter().map(|r| r.0.clone()).collect();
     let unique_ids: std::collections::HashSet<_> = ids.iter().cloned().collect();
-    assert_eq!(unique_ids.len(), ids.len(), "receipt IDs collided for same opcode same second: {:?}", ids);
+    assert_eq!(
+        unique_ids.len(),
+        ids.len(),
+        "receipt IDs collided for same opcode same second: {:?}",
+        ids
+    );
 
     // Sanity: all are verify kind.
     for (_id, kind, _op) in &verify_receipts {
@@ -1333,34 +1460,39 @@ async fn ledger_source_exposes_atomic_chain_persistence_or_incomplete_chain_mark
     router.register(0x10, program);
 
     let signed = signed_context(0x10, b"atomic-normal-payload");
-    router.route_verified(&signed, b"atomic-normal-payload".to_vec()).await;
+    router
+        .route_verified(&signed, b"atomic-normal-payload".to_vec())
+        .await;
 
     assert!(calls.load(Ordering::SeqCst) >= 1, "handler should have run");
 
-    let emitted_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM events WHERE event_kind = 'receipt_emitted'"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert!(emitted_count.0 >= 1, "receipt_emitted event must exist for atomic pair");
+    let emitted_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind = 'receipt_emitted'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(
+        emitted_count.0 >= 1,
+        "receipt_emitted event must exist for atomic pair"
+    );
 
-    let verify_receipts: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM receipts WHERE kind = 'verify' AND opcode = 16"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let verify_receipts: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE kind = 'verify' AND opcode = 16")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert!(verify_receipts.0 >= 1);
 
     // Handler lifecycle visible (started before execute, succeeded/failed after)
-    let started_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM events WHERE event_kind = 'handler_started'"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert!(started_count.0 >= 1, "HandlerStarted must be visible for chain completeness");
+    let started_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind = 'handler_started'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(
+        started_count.0 >= 1,
+        "HandlerStarted must be visible for chain completeness"
+    );
 
     // Cancel/incomplete lifecycle injection (simulates shutdown/cancel before full completion)
     // Use 0x01 (valid in default_v0 manifest per manifest.rs) for the cancel program.
@@ -1370,7 +1502,9 @@ async fn ledger_source_exposes_atomic_chain_persistence_or_incomplete_chain_mark
     router2.register(0x01, cancel_program);
 
     let signed_cancel = signed_context(0x01, b"cancel-payload");
-    router2.route_verified(&signed_cancel, b"cancel-payload".to_vec()).await;
+    router2
+        .route_verified(&signed_cancel, b"cancel-payload".to_vec())
+        .await;
 
     assert!(cancel_calls.load(Ordering::SeqCst) >= 1);
 
@@ -1380,7 +1514,10 @@ async fn ledger_source_exposes_atomic_chain_persistence_or_incomplete_chain_mark
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(failed_or_rejected.0 >= 1, "incomplete/cancelled handler must leave visible failed or reject marker in events");
+    assert!(
+        failed_or_rejected.0 >= 1,
+        "incomplete/cancelled handler must leave visible failed or reject marker in events"
+    );
 
     // Sanity: no raw payload leakage in new paths (reuse from other tests)
     let _leaked: (i64,) = sqlx::query_as(
