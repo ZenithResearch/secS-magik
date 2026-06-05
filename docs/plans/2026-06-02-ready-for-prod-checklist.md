@@ -959,6 +959,23 @@ The targeted audit authority/entrypoint/decode hardening slice is complete for i
 | H3 — Receipt schema/versioning | Make receipt schema/version posture explicit for operator inspection and future migrations. | `server/src/receipt.rs`, `server/src/ledger.rs`, docs/status | Schema/version docs hygiene plus targeted receipt/ledger tests | Receipt schema/version is explicit enough for future exports/migrations. | Stop before chain integration tests. | Do not claim public anchoring or Dregg chain semantics. |
 | H4 — Receipt-chain integration tests | Verify request lifecycle writes reject/verify/execute receipts as expected. | ingress/ledger/receipt tests | `cargo test -p server receipt_chain ledger -- --nocapture` | Full local chain is inspectable and reason-coded. | Stop before E2E phase. | Do not anchor to Dregg/public chain unless A9 promotes. |
 
+#### Track H completion checkpoint
+
+Track H is implemented on `phase/track-h-ledger-operator-inspection` as a local receipt/event ledger posture slice.
+
+Implementation evidence:
+
+- `server/src/receipt.rs` defines `RECEIPT_SCHEMA_VERSION = 1`; persisted receipts now carry `schema_version` and optional `context_id` so verified-context receipt chains can be inspected and later migrated/exported.
+- `server/src/schema.rs` centralizes the versioned `receipts` columns and applies lightweight column additions for existing local SQLite ledgers.
+- `server/src/ledger.rs` exposes `inspect_receipt_by_id` and `inspect_receipt_chain_by_context_id`, returning `OperatorReceiptInspection` rows with export schema version, receipt schema version, reason codes, operation/handler metadata, redacted packet/session/nonce hex identifiers, signer metadata, signature presence/length, and signature SHA-256 digest only.
+- `server/tests/ledger.rs`, `server/tests/receipt.rs`, and `server/tests/gateway_layout.rs` cover redacted inspection, explicit schema/version posture, and an inspectable verify/execute/replay-reject lifecycle chain.
+
+Boundaries preserved:
+
+- Exports are local/operator inspection aids, not public auditability.
+- Raw payloads, private evidence, and raw signature bytes are absent from the default inspection surface.
+- Retention is local SQLite database retention until operator rotation/deletion; there is no public anchoring, Dregg chain semantics, or remote retention claim.
+
 ### A8 — Track I issue/commit details: end-to-end production-mode flow
 
 | Issue / commit | Objective | Files | TDD / verification commands | Acceptance criteria | Stop condition | Must not claim |

@@ -31,6 +31,8 @@ pub const RECEIPTS_TABLE: RuntimeTable = RuntimeTable {
     name: "receipts",
     ddl: "CREATE TABLE IF NOT EXISTS receipts (
         receipt_id TEXT PRIMARY KEY,
+        schema_version INTEGER NOT NULL DEFAULT 1,
+        context_id TEXT,
         timestamp INTEGER NOT NULL,
         kind TEXT NOT NULL,
         packet_hash BLOB NOT NULL,
@@ -82,6 +84,41 @@ pub const TELEMETRY_TABLES: &[RuntimeTable] = &[NODE_TELEMETRY_TABLE];
 pub async fn apply_schema(pool: &SqlitePool, tables: &[RuntimeTable]) -> Result<(), sqlx::Error> {
     for table in tables {
         sqlx::query(table.ddl).execute(pool).await?;
+        if table.name == "receipts" {
+            ensure_receipts_columns(pool).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn ensure_receipts_columns(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    ensure_column(
+        pool,
+        "receipts",
+        "schema_version",
+        "ALTER TABLE receipts ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1",
+    )
+    .await?;
+    ensure_column(
+        pool,
+        "receipts",
+        "context_id",
+        "ALTER TABLE receipts ADD COLUMN context_id TEXT",
+    )
+    .await
+}
+
+async fn ensure_column(
+    pool: &SqlitePool,
+    table: &str,
+    column: &str,
+    alter_sql: &str,
+) -> Result<(), sqlx::Error> {
+    let pragma = format!("PRAGMA table_info({table})");
+    let existing: Vec<(i64, String, String, i64, Option<String>, i64)> =
+        sqlx::query_as(&pragma).fetch_all(pool).await?;
+    if !existing.iter().any(|(_, name, _, _, _, _)| name == column) {
+        sqlx::query(alter_sql).execute(pool).await?;
     }
     Ok(())
 }
