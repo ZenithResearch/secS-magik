@@ -120,3 +120,6 @@ Avoid these phrases unless code proves them:
 - “production receipt ledger” or “public auditability” for the current local SQLite receipt/event ledger.
 ## 2026-06-05 H2 update
 - Track H: H2 atomic chains (#25) completed via tx-wrapped record_receipt_with_emitted_event + lifecycle test (commit a07fe2e). See GH #61. All local ledger tests passing. Bounded to operator SQLite only.
+
+## 2026-06-05 H audit visibility update
+- Track H: folded #51/#52 audit visibility completed on branch `phase/track-h-remaining-ledger-posture` at commit 30805bc. Pre-decode malformed ingress now records persistent local/operator reject receipts/events with collision-resistant IDs and operator inspection by receipt id. Signed-context key-status rejects now record inspectable local/operator reject receipts/events for unknown, revoked, expired, and not-yet-valid verifier keys without replay reservations. This remains local SQLite operator evidence only, not public auditability.

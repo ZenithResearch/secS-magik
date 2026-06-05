@@ -1077,3 +1077,6 @@ Later slices should expand this checklist in place:
 Track A is now complete through A9. Preserve the repo workflow pattern going forward: phases are branch/PR boundaries, and issues inside each phase are commit boundaries.
 ## 2026-06-05 secS-magik phase model + H2
 - H2 (#25 atomic/incomplete) landed a07fe2e. Phase issues #61-64 track remaining. Master checklist and vault captures updated. Next: #51/#52 visibility + H4/H5 for #61.
+
+## 2026-06-05 Track H audit visibility
+- Folded #51/#52 audit visibility landed at 30805bc on `phase/track-h-remaining-ledger-posture`: repeated pre-decode malformed ingress rejects persist distinct local/operator reject receipts/events visible by receipt id, and signed-context key-status rejects (unknown/revoked/expired/not-yet-valid verifier keys) persist inspectable local/operator reject receipts/events without replay reservations. Full workspace test/build/fmt/clippy/diff gate passed locally. Remaining for #61 before PR/merge: H4 docs/redaction/schema status sweep and H5 PR/CI/post-merge gate.

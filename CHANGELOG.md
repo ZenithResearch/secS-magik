@@ -3,6 +3,7 @@
 ### Added / Changed (Track H)
 
 - H2: Atomic receipt + event persistence for #25 via `record_receipt_with_emitted_event` (tx-wrapped in ledger). Record paths now surface write failures. New test `ledger_source_exposes_atomic_chain_persistence_or_incomplete_chain_markers` demonstrates atomic pairs and incomplete handler lifecycle visibility (via HandlerStarted/failed events + CancelFlag injection). Commit a07fe2e. (GH #61, closes #25)
+- H audit visibility: pre-decode ingress rejects now persist collision-resistant reject receipts/events visible through operator inspection, and signed-context key-status rejects (unknown/revoked/expired/not-yet-valid verifier keys) now emit inspectable local/operator reject receipts without creating replay reservations. Commit 30805bc. (GH #61; folded #51/#52)
 
 
 # Changelog
