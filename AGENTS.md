@@ -103,7 +103,7 @@ Keep module ownership explicit:
 - `server/src/identity.rs` — Ed25519 key loading, signer key IDs, signature verification helpers, and local public-key registry checks.
 - `server/src/config.rs` — runtime config and readiness inputs.
 - `server/src/manifest.rs` — receiver-local `OperationDescriptor` and opcode range governance.
-- `server/src/evidence.rs` — `EvidenceAdapter` trait, `local_static`, and shape-only `wallet_presentation` shell.
+- `server/src/evidence.rs` — `EvidenceAdapter` trait, `local_static`, and cryptographic `wallet_presentation` proof-of-possession over the temporary secS challenge contract.
 - `server/src/receipt.rs` — signed receipts, decisions, reason codes, authenticator kinds.
 - `server/src/ledger.rs` — local SQLite receipt/event/replay persistence and operator inspection.
 - `server/src/schema.rs` — centralized runtime SQLite schema ontology.

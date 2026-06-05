@@ -6,6 +6,9 @@
 
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use sha2::{Digest, Sha256};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvidenceKind {
@@ -186,12 +189,17 @@ pub struct WalletPresentationFixture {
     pub subject: String,
     pub audience: String,
     pub origin: String,
+    pub operation: String,
+    pub resource: String,
     pub challenge_ref: String,
     pub signature_ref: String,
     pub public_key_ref: String,
     pub replay_nonce_ref: String,
     pub issued_at: u64,
     pub expires_at: u64,
+    pub signature_suite: String,
+    pub public_key_bytes: Vec<u8>,
+    pub signature_bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -221,23 +229,96 @@ impl WalletPresentationFixture {
             && !self.subject.is_empty()
             && !self.audience.is_empty()
             && !self.origin.is_empty()
+            && !self.operation.is_empty()
+            && !self.resource.is_empty()
             && !self.challenge_ref.is_empty()
             && !self.signature_ref.is_empty()
             && !self.public_key_ref.is_empty()
             && !self.replay_nonce_ref.is_empty()
             && self.issued_at < self.expires_at
+            && !self.signature_suite.is_empty()
+            && self.public_key_bytes.len() == 32
+            && self.signature_bytes.len() == 64
     }
+}
+
+/// Temporary secS wallet challenge contract for Track D D1.
+///
+/// This is intentionally a minimal-equivalent secS contract, not a claim that
+/// Castalia Wallet `wallet-core` currently binds every secS-required field.
+/// It exists only until wallet-core canonical challenge parity binds subject,
+/// resource/payload schema, and the wallet public-key reference/id alongside
+/// the existing audience/origin/operation/nonce/time fields.
+///
+/// Canonical bytes are UTF-8, newline-delimited, length-prefixed fields in the
+/// exact order implemented by [`SecsWalletChallenge::canonical_bytes`]. Lengths
+/// are decimal byte lengths of each value, preventing delimiter ambiguity while
+/// keeping the fixture contract inspectable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecsWalletChallenge {
+    pub subject: String,
+    pub audience: String,
+    pub origin: String,
+    pub operation: String,
+    pub resource: String,
+    pub nonce: String,
+    pub issued_at: u64,
+    pub expires_at: u64,
+    pub signature_suite: String,
+    pub public_key_ref: String,
+}
+
+impl SecsWalletChallenge {
+    pub const VERSION: &'static str = "secs-wallet-challenge-v1";
+    pub const ED25519_SIGNATURE_SUITE: &'static str = "Ed25519";
+
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        append_line(&mut bytes, Self::VERSION);
+        append_field(&mut bytes, "subject", &self.subject);
+        append_field(&mut bytes, "audience", &self.audience);
+        append_field(&mut bytes, "origin", &self.origin);
+        append_field(&mut bytes, "operation", &self.operation);
+        append_field(&mut bytes, "resource", &self.resource);
+        append_field(&mut bytes, "nonce", &self.nonce);
+        append_field(&mut bytes, "issued_at", &self.issued_at.to_string());
+        append_field(&mut bytes, "expires_at", &self.expires_at.to_string());
+        append_field(&mut bytes, "signature_suite", &self.signature_suite);
+        append_field(&mut bytes, "public_key_ref", &self.public_key_ref);
+        bytes
+    }
+}
+
+fn append_line(bytes: &mut Vec<u8>, value: &str) {
+    bytes.extend_from_slice(value.as_bytes());
+    bytes.push(b'\n');
+}
+
+fn append_field(bytes: &mut Vec<u8>, name: &str, value: &str) {
+    append_line(bytes, &format!("{name}:{}:{value}", value.len()));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WalletPresentationAdapter {
     fixtures: Vec<WalletPresentationFixture>,
+    validation_time: Option<u64>,
 }
 
 impl WalletPresentationAdapter {
     pub fn new(fixtures: impl IntoIterator<Item = WalletPresentationFixture>) -> Self {
         Self {
             fixtures: fixtures.into_iter().collect(),
+            validation_time: Some(current_unix_time()),
+        }
+    }
+
+    pub fn with_validation_time(
+        fixtures: impl IntoIterator<Item = WalletPresentationFixture>,
+        validation_time: u64,
+    ) -> Self {
+        Self {
+            fixtures: fixtures.into_iter().collect(),
+            validation_time: Some(validation_time),
         }
     }
 }
@@ -267,6 +348,13 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         if presentation.audience != request.audience {
             return EvidenceResult::Rejected(VerificationError::WrongAudience);
         }
+        if presentation.operation != request.operation {
+            return EvidenceResult::Rejected(VerificationError::WrongOperation);
+        }
+        let resource = request.resource.as_deref().unwrap_or_default();
+        if presentation.resource != resource {
+            return EvidenceResult::Rejected(VerificationError::WrongResource);
+        }
         if let Some(request_origin) = requested_origin(request) {
             if request_origin != presentation.origin {
                 return EvidenceResult::Rejected(VerificationError::WrongOrigin);
@@ -277,6 +365,39 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         if !presentation.has_required_shape() {
             return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
         }
+        if presentation.public_key_ref != public_key_ref_for_bytes(&presentation.public_key_bytes) {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+        if presentation.signature_suite != SecsWalletChallenge::ED25519_SIGNATURE_SUITE {
+            return EvidenceResult::Rejected(VerificationError::UnsupportedSignatureSuite);
+        }
+        if let Some(validation_time) = self.validation_time {
+            if presentation.issued_at > validation_time {
+                return EvidenceResult::Rejected(VerificationError::NotYetValidClaim);
+            }
+            if presentation.expires_at <= validation_time {
+                return EvidenceResult::Rejected(VerificationError::ExpiredClaim);
+            }
+        }
+        let challenge = SecsWalletChallenge {
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            origin: presentation.origin.clone(),
+            operation: request.operation.clone(),
+            resource: presentation.resource.clone(),
+            nonce: presentation.replay_nonce_ref.clone(),
+            issued_at: presentation.issued_at,
+            expires_at: presentation.expires_at,
+            signature_suite: presentation.signature_suite.clone(),
+            public_key_ref: presentation.public_key_ref.clone(),
+        };
+        if !verify_ed25519_signature(
+            &presentation.public_key_bytes,
+            &presentation.signature_bytes,
+            &challenge.canonical_bytes(),
+        ) {
+            return EvidenceResult::Rejected(VerificationError::InvalidSignature);
+        }
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
@@ -285,11 +406,8 @@ impl EvidenceAdapter for WalletPresentationAdapter {
             operation: request.operation.clone(),
             resource: request.resource.clone(),
             local_dev_test_only: false,
-            public_proof: false,
+            public_proof: true,
             summary_fields: vec![
-                WalletPresentationShellStatus::ShapeValidatedSignatureUnsupported
-                    .as_summary_field()
-                    .to_string(),
                 format!("evidence_ref:{evidence_ref}"),
                 format!("origin:{}", presentation.origin),
                 format!("challenge_ref:{}", presentation.challenge_ref),
@@ -298,9 +416,44 @@ impl EvidenceAdapter for WalletPresentationAdapter {
                 format!("replay_nonce_ref:{}", presentation.replay_nonce_ref),
                 format!("issued_at:{}", presentation.issued_at),
                 format!("expires_at:{}", presentation.expires_at),
+                format!("signature_suite:{}", presentation.signature_suite),
             ],
         })
     }
+}
+
+pub fn public_key_ref_for_bytes(public_key_bytes: &[u8]) -> String {
+    let digest = Sha256::digest(public_key_bytes);
+    let fingerprint = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("pubkey:sha256:{fingerprint}")
+}
+
+fn current_unix_time() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(u64::MAX)
+}
+
+fn verify_ed25519_signature(
+    public_key_bytes: &[u8],
+    signature_bytes: &[u8],
+    message: &[u8],
+) -> bool {
+    let Ok(public_key_bytes) = <&[u8; 32]>::try_from(public_key_bytes) else {
+        return false;
+    };
+    let Ok(public_key) = VerifyingKey::from_bytes(public_key_bytes) else {
+        return false;
+    };
+    let Ok(signature) = Signature::from_slice(signature_bytes) else {
+        return false;
+    };
+
+    public_key.verify(message, &signature).is_ok()
 }
 
 fn requested_origin(request: &EvidenceRequest) -> Option<&str> {

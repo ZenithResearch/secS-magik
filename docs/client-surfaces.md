@@ -1,6 +1,6 @@
 # Client-side surfaces
 
-Status: solid boundary documentation for Phase 6.1. The shared verifier-free packet builder now lives in `core/src/packet_builder.rs`; future local Hermes/secC/secZ surfaces can use it without becoming verifiers.
+Status: solid boundary documentation for Phase 6.1 plus Track D D4 packaging notes. The shared verifier-free packet builder now lives in `core/src/packet_builder.rs`; future local Hermes/secC/secZ surfaces can use it without becoming verifiers.
 
 secS-magik / secS remains the verifier and permissioned RPC substrate. The client-side surfaces described here construct outbound secS-compatible calls; they do not verify authority, replace receiver-side manifests, or replace secS-magik verification.
 
@@ -22,6 +22,20 @@ secS-magik / secS remains the verifier and permissioned RPC substrate. The clien
    - It is a client-side way to call secS, not a verifier.
 
 Together, local Hermes/secC/secZ are client-side ways to call secS, and none of them replaces secS-magik verification.
+
+## Wallet presentation packaging boundary
+
+Wallet presentation verification is now cryptographic inside secS, but the current challenge contract is explicitly temporary and minimal-equivalent. It is not a full Castalia Wallet wallet-core import and must be replaced or reconciled when wallet-core binds every secS-required challenge field.
+
+Client/package roles:
+
+| Surface | Packaging role | Boundary |
+|---|---|---|
+| Browser extension | WASM binding to wallet semantics/presentation construction. | Owns user-facing wallet UX; does not make secS trust browser UI session state. |
+| secZ/secC/local clients | Native/client binding or packet/evidence carrier. | May construct requests, invoke local wallet bindings, or carry signed presentation/challenge evidence; does not verify authority. |
+| secS/server | Verifier subset and artifact consumer. | Consumes signed presentation/challenge bytes plus public verification material; emits typed evidence results/receipts; does not own extension UI, WalletAuth HTTP sessions, or product login policy. |
+
+The secS verifier boundary is data-oriented: subject, audience, origin, operation, resource, nonce/replay id, issued/expires timestamps, signature suite, public key ref/id, signature bytes, and public key material are verifier inputs. UI session state, app cookies, extension process state, and bearer-login assertions are not verifier inputs.
 
 ## Example flow
 

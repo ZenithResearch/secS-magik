@@ -55,7 +55,7 @@ secS-magik/
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
 │       ├── payload.rs               # tunnel key parsing and runtime-mode payload decryption
 │       ├── manifest.rs              # receiver-local OperationDescriptor and opcode governance
-│       ├── evidence.rs              # EvidenceAdapter trait, local_static, wallet_presentation shell
+│       ├── evidence.rs              # EvidenceAdapter trait, local_static, wallet_presentation crypto seam
 │       ├── receipt.rs               # signed receipt/event types and reason/authenticator metadata
 │       ├── ledger.rs                # local SQLite event/receipt/replay persistence and inspection
 │       ├── schema.rs                # centralized runtime SQLite schema ontology
@@ -94,7 +94,7 @@ secS-magik/
 | `server/src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle receipt/event emission. | Packet decode or payload decryption policy; durable distributed broker semantics; arbitrary shell authority. |
 | `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
 | `server/src/manifest.rs` | Receiver-local operation descriptors, handler IDs, evidence requirements, and opcode governance. | Client-only packet construction; global product policy; final global opcode ratification. |
-| `server/src/evidence.rs` | `EvidenceAdapter` trait, `local_static` local-dev-test adapter, and shape-only `wallet_presentation` shell. | Mandatory external runtime dependencies or production wallet/Dregg/Midnight/Cardano authority claims. |
+| `server/src/evidence.rs` | `EvidenceAdapter` trait, `local_static` local-dev-test adapter, and cryptographic `wallet_presentation` proof-of-possession over the temporary secS challenge contract. | Mandatory external runtime dependencies, full Castalia Wallet wallet-core parity claims, trusted issuer/root policy, or production Dregg/Midnight/Cardano authority claims. |
 | `server/src/receipt.rs` | In-memory signed receipt and event types: typed reject/verify/execute/forward receipts, decisions, authenticator kinds, stable event names, and Ed25519 receipt helpers. | Payload content logging and durable persistence by default. |
 | `server/src/ledger.rs` | Local SQLite event/receipt/replay storage and redacted operator inspection using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained; payload content persistence by default; public-chain anchoring. |
 | `server/src/runtime_mode.rs` | Explicit local/dev/production mode selection. | Silent plaintext fallback. |

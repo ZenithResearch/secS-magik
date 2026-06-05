@@ -7,7 +7,7 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: Track A is now complete through A9 as a docs/control-surface phase. A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model complete; A6 production policy matrix complete; A7 first membership-provisioning E2E shape complete; A8 issue-ready phase/branch/PR checklist complete; A9 future-rail defer/promote decision complete. Dregg, Midnight, and Cardano can no longer enter first-prod implementation silently. This status is not a claim that Tracks B–I runtime work has been implemented.
+Status: Track A is complete through A9 as a docs/control-surface phase. Track D is complete through D4 on `phase/track-d-wallet-core-crypto`: wallet presentation verification is cryptographic through an explicitly temporary minimal-equivalent secS challenge contract, not a full Castalia Wallet wallet-core import/parity. A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model complete; A6 production policy matrix complete; A7 first membership-provisioning E2E shape complete; A8 issue-ready phase/branch/PR checklist complete; A9 future-rail defer/promote decision complete. Dregg, Midnight, and Cardano are deferred from first-prod implementation unless a later issue explicitly promotes them.
 
 ## A0 — Production target
 
@@ -20,7 +20,7 @@ First-prod readiness requires all three Track A rails:
 secS-magik is ready for first prod only when one Hub can run a production-shaped secS verifier service that:
 
 - rejects insecure/local-dev authority in production mode;
-- verifies wallet-core-defined presentations for app/user subjects;
+- verifies temporary minimal-equivalent secS wallet presentations for app/user subjects until wallet-core parity is reconciled;
 - evaluates federated evidence from another Hub/Castalia-style authority through the narrowed A5 first path — signed membership/provisioning credentials, receiver-held trusted issuer/root metadata, and status checks — while preserving future Dregg anchor/root seams behind A9;
 - signs and persists operator-visible receipts/contexts;
 - executes only bounded descriptor-authorized handlers;
@@ -31,7 +31,7 @@ secS-magik is ready for first prod only when one Hub can run a production-shaped
 | Rail | Required for first prod? | Meaning | First proof |
 |---|---:|---|---|
 | Local single-node production-shaped deployment | Yes | One Hub/secS instance can run with production config, explicit keys, fail-closed runtime mode, bounded handlers, redacted ledger, and documented smoke commands. | Local production-mode smoke with signed context, receipt chain, and no local-dev evidence satisfying authority. |
-| Castalia Wallet-backed app/user auth | Yes | Browser/app user presents wallet-core-defined challenge/signature evidence; secS verifies the same canonical wallet-core semantics used by the extension/secZ/secC. | Wallet presentation cryptographic happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
+| Castalia Wallet-backed app/user auth | Yes | Browser/app user presents signed challenge evidence through the temporary minimal-equivalent secS wallet-presentation contract; full wallet-core parity remains future reconciliation. | Wallet presentation cryptographic happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
 | Cross-Hub/federated evidence | Yes | Hub A can evaluate evidence produced/signed/anchored/revoked/vouched for by Hub B, Castalia, or Dregg-shaped authority while still applying Hub A local manifest policy. | Fixture federation evidence adapter or policy path that accepts a trusted issuer/root and rejects untrusted/revoked/stale evidence. |
 
 ## A0 — Not enough for prod
@@ -41,7 +41,7 @@ Local smoke readiness alone is not enough for first prod.
 The current implemented surfaces prove important substrate behavior, but they do not by themselves satisfy the production target:
 
 - `local_static` evidence is a deterministic local/dev/test scaffold. It must not satisfy production authority.
-- `wallet_presentation` is currently a typed fail-closed shell. It does not yet prove production wallet crypto.
+- `wallet_presentation` now verifies signed presentation/challenge material cryptographically through the explicitly temporary minimal-equivalent secS challenge contract. It does not prove full Castalia Wallet wallet-core parity, production deployment, or trusted issuer/root policy.
 - The local SQLite receipt/event ledger is local audit evidence. It is not public auditability or cross-Hub federation by itself.
 - Dregg, Midnight, and Cardano are not current runtime dependencies in this repo. They enter only through future adapter/evidence/anchor semantics unless explicitly promoted by a later slice.
 - Matrix room/message federation is not the cross-Hub/federated evidence rail.
@@ -52,7 +52,7 @@ The current implemented surfaces prove important substrate behavior, but they do
 Use these phrases until code proves stronger claims:
 
 - local production-shaped deployment;
-- wallet-core-defined presentation;
+- temporary minimal-equivalent secS wallet presentation until wallet-core parity is reconciled;
 - typed fail-closed wallet shell;
 - cross-Hub/federated evidence rail;
 - fixture trusted issuer/root;
@@ -96,13 +96,13 @@ Completed / solid enough to build on:
 | Signed `VerifiedCallContext` and receipts | Solid / implemented locally | Current code can sign/verify local Ed25519 contexts/receipts and persist receipt metadata. | Do not claim production identity discovery, key rotation, or public auditability yet. |
 | Receipt/event ledger | Solid / implemented as local SQLite ledger | Verify/reject/execute records can be persisted without raw payload content by default. | Do not claim public audit proof or cross-Hub receipt trust from local SQLite alone. |
 | `EvidenceAdapter` and `local_static` | Solid / implemented as local-dev-test seam | Descriptor evidence requirements can flow through an adapter into signed contexts/receipts. | `local_static` cannot satisfy production authority. |
-| `wallet_presentation` adapter shell | Partial / prototype | Shape validation and fail-closed status handling exist for wallet-presentation evidence. | Do not claim production wallet cryptographic verification. |
+| `wallet_presentation` adapter | Solid / implemented as temporary minimal-equivalent secS contract | Cryptographic signature verification, challenge field binding, and fail-closed reject handling exist for wallet-presentation evidence. | Do not claim full Castalia Wallet wallet-core import/parity, production deployment, or trusted issuer/root policy. |
 | Verified-context handler routing | Solid / implemented as receiver-local bounded routing after Track F | Handlers consume `VerifiedCallContext`, select by descriptor `handler_id`, enforce local limits, and emit execution receipts for bounded outcomes. | Do not claim durable/distributed broker semantics or broad shell authority. |
 
 Remaining first-prod gaps carried forward into A2–A9:
 
 - production identity/key lifecycle and public-key discovery;
-- wallet-core-backed cryptographic verification path;
+- temporary minimal-equivalent secS wallet cryptographic verification path, with full wallet-core parity still to reconcile before any full wallet-core claim;
 - cross-Hub/federated evidence object model, trusted issuer/root representation, and revocation/staleness semantics;
 - production policy matrix proving `local_static`/dev evidence cannot satisfy production descriptors;
 - first membership-provisioning E2E operation and failure matrix;
@@ -119,7 +119,7 @@ A2 turns the A0 production target into working ownership boundaries. These bound
 | Rail | Owned by secS-magik? | Required for first prod? | Scope in this repo | First-prod proof target |
 |---|---:|---:|---|---|
 | Local production-shaped secS service | Yes | Yes | Runtime mode enforcement, explicit operator/verifier config, bounded handler routing, signed contexts/receipts, redacted local ledger, and documented smoke commands. | Production-mode local smoke rejects local/dev evidence and produces signed verify/execute receipts. |
-| Wallet-core-backed user/app auth evidence | Partly | Yes | secS verifies or consumes canonical Castalia Wallet evidence for a descriptor. Wallet UI/session UX stays outside this repo. | Wallet presentation happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
+| Wallet-core-backed user/app auth evidence | Partly | Yes | secS currently verifies a temporary minimal-equivalent secS wallet-presentation contract for a descriptor; canonical Castalia Wallet wallet-core evidence remains future reconciliation. Wallet UI/session UX stays outside this repo. | Wallet presentation happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
 | Cross-Hub/federated evidence evaluation | Yes at verifier/evidence boundary | Yes | Typed evidence adapter/model for trusted issuer/root, remote receipt/capability/credential/revocation/root evidence, and receiver-local policy enforcement. | Fixture trusted issuer/root accepts valid evidence and rejects untrusted, revoked, stale, malformed, wrong-audience, or wrong-operation evidence. |
 | Signed receipt/context identity | Yes | Yes | Signer identity, key id, signed `VerifiedCallContext`, signed receipts, and local/operator-visible provenance. | Tamper, wrong key, expired context, and untrusted/revoked issuer checks are named and later tested. |
 | Descriptor-bound bounded execution | Yes | Yes | Receiver-local manifest policy binds opcode/operation/evidence to bounded handler execution after verification. | Handlers run only from verified context; oversized payload, unavailable handler, and descriptor mismatch fail closed. |
@@ -156,7 +156,7 @@ secS-magik does not own:
 Use these phrases:
 
 - `local production-shaped secS service` for the local deployment target;
-- `wallet-core-backed evidence` or `wallet-core-defined presentation` for app/user auth evidence;
+- `temporary minimal-equivalent secS wallet presentation` for current app/user auth evidence, or `wallet-core-backed evidence` / `wallet-core-defined presentation` after wallet-core parity is reconciled;
 - `cross-Hub/federated evidence evaluation` for the receiver-side verifier rail;
 - `fixture trusted issuer/root` for first local federation proofs that do not yet run live Dregg;
 - `trust_root_ref` / `registry_root_ref` for future-compatible root semantics, with Dregg as a future subtype only;
@@ -323,7 +323,7 @@ Expected secS-magik paths for later implementation issues:
 
 | Path | Expected role |
 |---|---|
-| `server/src/evidence.rs` | Extend `wallet_presentation` adapter from shape-only fail-closed shell into wallet-core-backed verification call. |
+| `server/src/evidence.rs` | Current implementation extends `wallet_presentation` from shape-only fail-closed shell into cryptographic verification over the temporary minimal-equivalent secS contract; later work should replace/reconcile it with wallet-core parity. |
 | `server/tests/wallet_presentation.rs` | Add cryptographic happy-path and reject tests. |
 | `server/src/receipt.rs` | Ensure wallet verification result summaries enter signed receipts without raw private evidence by default. |
 | `server/src/verifier.rs` | Ensure accepted wallet evidence can contribute to signed `VerifiedCallContext`. |
@@ -556,7 +556,7 @@ Rules:
 
 - `local_static`, plaintext, and fixture-only local evidence are allowed only for local/dev descriptors in local/dev runtime modes.
 - `production_verified` must fail closed if the descriptor requires wallet or federated evidence and the supplied adapter evidence is local/dev/static, missing, malformed, stale, revoked, or not bound to the requested subject/audience/operation.
-- Wallet-presentation acceptance requires wallet-core-backed cryptographic verification. The current shape-only shell must remain fail-closed for production acceptance.
+- Wallet-presentation acceptance now requires cryptographic verification over the temporary minimal-equivalent secS challenge contract. Shape-only evidence and `ShapeValidatedSignatureUnsupported` remain fail-closed; full wallet-core parity remains future reconciliation work.
 - Federated evidence acceptance uses A5's narrowed first path: `membership_credential` / `provisioning_credential`, receiver-held `TrustedIssuerEntry`, and `registry_status` / `revocation_status`.
 - Valid evidence may satisfy descriptor evidence requirements, but receiver-local manifest policy still makes the final local authorization decision.
 
@@ -568,8 +568,8 @@ Rules:
 | `local_dev_plaintext` or `local_dev_tunnel` | production descriptor | plaintext tunnel or `local_static` fixture | Reject; local/dev runtime cannot satisfy production authority. | `local_dev_runtime_rejects_production_descriptor` |
 | `production_verified` | any production descriptor | missing evidence / plaintext-only packet | Reject before handler execution with typed missing/unsupported evidence reason. | `production_verified_missing_evidence_rejects_before_handler` |
 | `production_verified` | wallet presentation | `local_static` | Reject; local static evidence is disallowed for wallet-auth production descriptors. | `production_wallet_descriptor_rejects_local_static` |
-| `production_verified` | wallet presentation | current shape-only `wallet_presentation` shell with unsupported crypto status | Reject/fail closed until wallet-core cryptographic verification exists. | `production_wallet_shape_only_shell_fails_closed` |
-| `production_verified` | wallet presentation | wallet-core cryptographic presentation with valid signature, subject, audience, origin, operation, replay nonce, and expiry | Accept only if descriptor permits wallet evidence and receiver-local policy passes. | `production_wallet_core_presentation_accepts_when_policy_matches` |
+| `production_verified` | wallet presentation | shape-only `wallet_presentation` evidence with `ShapeValidatedSignatureUnsupported` / unsupported crypto status | Reject/fail closed; shape-only evidence cannot satisfy wallet authority. | `production_wallet_shape_only_shell_fails_closed` |
+| `production_verified` | wallet presentation | temporary minimal-equivalent secS cryptographic presentation with valid signature, subject, audience, origin, operation, resource, replay nonce, public key ref/id, and expiry | Accept only if descriptor permits wallet evidence and receiver-local policy passes; do not call this full wallet-core parity. | `production_wallet_core_presentation_accepts_when_policy_matches` |
 | `production_verified` | wallet presentation | wrong signature/key/subject/audience/origin/operation/replay/expiry | Reject with typed reason; emit reject receipt without handler execution. | `production_wallet_presentation_reject_matrix` |
 | `production_verified` | federated evidence | untrusted `membership_credential` / `provisioning_credential` issuer or caller-supplied embedded key/root | Reject `untrusted_issuer`; embedded keys/roots do not create authority. | `production_federated_untrusted_issuer_rejects` |
 | `production_verified` | federated evidence | trusted issuer but revoked, expired, unknown, not-yet-valid, or stale issuer/key/credential status | Reject `revoked_issuer`, `expired_issuer`, `revoked_evidence`, `expired_evidence`, or stale/status-specific reason. | `production_federated_status_reject_matrix` |
@@ -584,7 +584,7 @@ Rules:
 The test targets above are future code test names or semantic test descriptions. They should be implemented as focused tests in the later issue that touches the corresponding verifier/evidence/descriptor path, likely across:
 
 - `server/tests/evidence.rs` or future production evidence tests for adapter policy;
-- `server/tests/wallet_presentation.rs` for wallet-core-backed acceptance/rejects;
+- `server/tests/wallet_presentation.rs` for temporary minimal-equivalent secS wallet acceptance/rejects;
 - future federated evidence tests once A5 objects are implemented;
 - ingress/router tests proving rejects happen before handler execution and receipts are emitted.
 
@@ -592,7 +592,7 @@ Do not overfit future tests to exact prose from this checklist. The contract to 
 
 ### A6 — Acceptance
 
-A6 acceptance is met because this checklist now names a runtime mode × descriptor evidence × adapter/evidence matrix, every row has a concrete future test target, `local_static` is explicitly local/dev/test-only, wallet shape-only evidence fails closed in production, federated rows use the narrowed A5 first-path objects, and forbidden first-path claims are bounded so demoted Dregg/capability/proof/root candidates cannot satisfy production authority without A9 promotion.
+A6 acceptance is met because this checklist now names a runtime mode × descriptor evidence × adapter/evidence matrix, every row has a concrete future test target, `local_static` is explicitly local/dev/test-only, wallet shape-only evidence fails closed in production, cryptographic wallet presentation is bounded to the temporary minimal-equivalent secS contract until wallet-core parity is reconciled, federated rows use the narrowed A5 first-path objects, and forbidden first-path claims are bounded so demoted Dregg/capability/proof/root candidates cannot satisfy production authority without A9 promotion.
 
 ## A7 — First membership-provisioning E2E shape
 
@@ -648,7 +648,7 @@ Fixture rules:
 | Case | Expected result | Required future test target |
 |---|---|---|
 | missing wallet presentation | reject before handler execution with typed missing-wallet evidence reason and reject receipt | `membership_provision_missing_wallet_presentation_rejects` |
-| wallet presentation shape-only / unsupported crypto | reject/fail closed in production until wallet-core crypto exists | `membership_provision_wallet_shape_only_fails_closed` |
+| wallet presentation shape-only / unsupported crypto | reject/fail closed; only cryptographic presentation over the temporary minimal-equivalent secS contract can satisfy the current wallet verifier | `membership_provision_wallet_shape_only_fails_closed` |
 | invalid wallet signature or wrong key | reject before handler execution | `membership_provision_invalid_wallet_signature_rejects` |
 | wrong wallet subject | reject; subject must match descriptor/request/evidence binding | `membership_provision_wrong_wallet_subject_rejects` |
 | wrong audience or origin | reject with typed audience/origin reason | `membership_provision_wrong_audience_or_origin_rejects` |
@@ -710,7 +710,7 @@ Boundary rule:
 | Track A — production-readiness reconciliation | `phase/track-a-ready-for-prod` | `docs: define secS ready-for-prod implementation train` | A0 through A9, one commit per slice | `git diff --check -- CHANGELOG.md README.md AGENTS.md docs/` plus targeted `rg` checks for A0–A9 acceptance terms | Merge only after A9 explicitly defers or promotes Dregg/Midnight/Cardano and the checklist no longer contains unresolved Track A decisions. |
 | Track B — production identity and key lifecycle | `phase/track-b-identity-key-lifecycle` | `feat(server): add production verifier identity lifecycle` | B1 key config/loading; B2 key id/public registry; B3 signed-context/receipt production posture; B4 rotation/revocation tests/docs | `cargo test -p server identity receipt verifier -- --nocapture`; `cargo test --workspace`; `cargo build --workspace`; `cargo fmt --all -- --check`; strict Clippy if available | Stop when operator-visible key path, key ids, signatures, wrong-key/tamper tests, local/dev non-authoritative labels, and B4 unknown/revoked/expired/not-yet-valid own-verifier lifecycle checks are complete without hidden long-lived key generation. |
 | Track C — replay, session, and expiry enforcement | `phase/track-c-replay-session-expiry` | `feat(server): enforce replay session and expiry policy` | C1 replay store interface; C2 descriptor TTL/session/audience binding; C3 reject receipts for replay/expiry/session failures; C4 docs/status acceptance; review-fix commits may extend test coverage without widening the runtime scope | `cargo test -p server --test ledger replay -- --nocapture`; `cargo test -p server --test gateway_layout replay -- --nocapture`; `cargo test -p server --test verifier_context -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when production packets cannot execute twice within the configured receiver-local replay store/scope, stale/overlong claims reject before handlers, receipt reasons are stable, and pre-verification/signature failures do not consume replay slots. |
-| Track D — wallet cryptographic verification / shared wallet core | `phase/track-d-wallet-core-crypto` | `feat(server): verify wallet-core presentations cryptographically` | D1 wallet-core challenge/signature contract; D2 secS verifier integration; D3 wallet reject matrix; D4 client/browser/native packaging notes | `cargo test -p server wallet_presentation -- --nocapture`; wallet-core native/WASM gate if dependency is added; workspace tests/build/fmt/Clippy | Stop when `wallet_presentation` has a successful cryptographic path and wrong signature/key/subject/audience/origin/replay/expiry reject without duplicating wallet-core semantics in secS. |
+| Track D — wallet cryptographic verification / shared wallet core | `phase/track-d-wallet-core-crypto` | `feat(server): verify wallet presentations cryptographically` | Complete through D4: D0 baseline; D1 temporary minimal-equivalent secS challenge contract; D2 secS verifier integration; D3 wallet reject matrix; D4 client/browser/native packaging notes | `cargo test -p server wallet_presentation -- --nocapture`; `cargo test -p server wallet_challenge_contract -- --nocapture`; `cargo test -p server --test ready_for_prod_docs -- --nocapture`; docs `rg`; `cargo fmt --all -- --check`; `git diff --check` | Complete when `wallet_presentation` has a successful cryptographic path and wrong signature/key/subject/audience/origin/operation/resource/replay/expiry/future-issued/malformed/missing evidence reject over the temporary contract, with docs explicitly saying this is not a full wallet-core import/parity. |
 | Track E — production evidence policy and first federated evidence path | `phase/track-e-production-evidence-policy` | `feat(server): enforce production evidence policy and trusted issuer credentials` | E1 descriptor runtime evidence policy; E2 `TrustedIssuerEntry` registry; E3 membership/provisioning credential verifier; E4 A6 production policy matrix tests | `cargo test -p server evidence production_federated production_wallet -- --nocapture`; workspace tests/build/fmt/Clippy | Stop when `local_static` cannot satisfy production descriptors and trusted active membership/provisioning credentials can satisfy only permitted operations after receiver-local policy. |
 | Track F — bounded execution broker | `phase/track-f-bounded-execution-broker` | `feat(server): execute verified operations through bounded handlers` | F1 descriptor-bound handler registry; F2 timeout/payload/output limits; F3 execution receipts for all outcomes; F4 gate dev subprocess path; review hardening for streaming output cap, process-group timeout cleanup, signed-context descriptor revalidation, and max in-flight connection cap | `cargo test -p server --test gateway_layout -- --nocapture`; `cargo test -p server`; workspace tests/build/fmt/Clippy | Stop when no broad shell authority is reachable by default, handler selection is descriptor-bound, subprocess output and runtime tasks are bounded, and every routed success/failure emits an execution receipt. |
 | Track G — ingress/service runtime hardening | `phase/track-g-service-runtime-hardening` | `feat(server): harden production service runtime and smokes` | G1 canonical production binary/config; G2 startup fail-fast checks; G3 health/readiness or CLI checks; G4 local production smoke script; review hardening for config-bound runtime mode, explicit production bind/DB/ledger/limits, trust registry readiness, fixture-only smoke gating, and live binary smoke | `cargo test --workspace`; `cargo build --workspace`; `scripts/production-gateway-smoke.sh`; `git diff --check` | Stop when an operator can run a documented local `production_verified` fixture smoke without insecure default config, local/dev authority, or secret/payload leaks. |
@@ -727,7 +727,7 @@ Track A is the current checklist branch. It remains docs/design work until A9 is
 | A1 — Reconcile repo status | Align status ledger and checklist through Issue 4.2. | `docs/implementation-status.md`, checklist, `CHANGELOG.md` | `rg "wallet_presentation|local_static|federated|Dregg|planned|production" docs/implementation-status.md docs/plans/2026-06-02-ready-for-prod-checklist.md` | Solid/partial/planned/future surfaces are not contradictory. | Stop before new runtime claims. | Do not mark wallet crypto/federation/runtime hardening implemented. |
 | A2 — Rail taxonomy and non-goals | Separate secS-magik work from Wallet, Dregg, Matrix, Gallery, Hub app policy, Midnight, and Cardano. | checklist, `CHANGELOG.md` | `rg "Required rails|Non-goals|Matrix|Dregg consensus|Wallet|Language discipline" docs/plans/2026-06-02-ready-for-prod-checklist.md` | Required/deferred/non-goal rails are readable by future agents. | Stop after taxonomy. | Do not smuggle product policy or external rails into secS scope. |
 | A3 — Identity/key lifecycle gate | Select first signer/key posture and future tests. | checklist, `CHANGELOG.md` | `rg "node_verifier_key|Ed25519|signer_key_id|authenticator_kind|revoked|wrong key|rotation" docs/plans/2026-06-02-ready-for-prod-checklist.md` | First key model, config path, key id, discovery path, revocation/rotation posture, and tests are explicit. | Stop before coding identity. | Do not claim production key rotation/discovery exists. |
-| A4 — Wallet-core integration gate | Select direct minimal wallet-core verifier API first and bound fallback artifact path. | checklist, `CHANGELOG.md` | `rg "direct minimal Castalia Wallet Rust core verifier API|signed/traceable artifact|duplicate secS wallet verifier|WASM|native" docs/plans/2026-06-02-ready-for-prod-checklist.md` | secS does not invent wallet semantics; packaging implications are named. | Stop before adding dependencies. | Do not treat shape-only wallet shell as production auth. |
+| A4 — Wallet-core integration gate | Select direct minimal wallet-core verifier API first and bound fallback artifact path; Track D later used a temporary minimal-equivalent secS contract because inspected wallet-core parity was incomplete. | checklist, `CHANGELOG.md` | `rg "direct minimal Castalia Wallet Rust core verifier API|signed/traceable artifact|duplicate secS wallet verifier|WASM|native|temporary minimal-equivalent" docs/plans/2026-06-02-ready-for-prod-checklist.md` | secS does not claim full wallet-core parity; packaging implications are named. | Stop before adding dependencies. | Do not treat shape-only wallet shell as production auth or the temporary contract as full wallet-core integration. |
 | A5 — Federated evidence model gate | Define first federated objects, trusted issuer/root registry, status, expiry/replay, and typed failures. | checklist, `CHANGELOG.md` | `rg "membership_credential|provisioning_credential|TrustedIssuerEntry|registry_status|revocation_status|untrusted_issuer|wrong_audience|wrong_operation|wrong_subject" docs/plans/2026-06-02-ready-for-prod-checklist.md` | First path uses credentials + static trust registry/status; demoted candidates are future. | Stop before policy matrix. | Do not call static status Dregg validation or cryptographic revocation proof. |
 | A6 — Production policy matrix | Convert A0/A2/A5 into accept/reject rows with future test targets. | checklist, `CHANGELOG.md` | `rg "production_verified|local_static|wallet presentation|membership_credential|provisioning_credential|TrustedIssuerEntry|revocation_status|future test target" docs/plans/2026-06-02-ready-for-prod-checklist.md` | Every row has a future test target; local/dev evidence cannot satisfy production. | Stop after matrix. | Do not let local_static/plaintext/caller roots satisfy production authority. |
 | A7 — First E2E shape | Select `membership.provision`, fixture contract, happy path, failure matrix, and runbook outline. | checklist, `CHANGELOG.md` | `rg "membership.provision|fixture_membership_provisioner|membership_provision_.*rejects|receipt|ledger|packet echo" docs/plans/2026-06-02-ready-for-prod-checklist.md` | The E2E proves fixture provisioning plus receipts/ledger, not packet echo. | Stop after E2E contract. | Do not require real secrets or live Dregg/Midnight/Cardano. |
@@ -904,12 +904,52 @@ C4 remains bounded: Track C is not distributed/global/cross-Hub/cluster-wide rep
 
 ### A8 — Track D issue/commit details: wallet cryptographic verification / shared wallet core
 
+Track D branch: `phase/track-d-wallet-core-crypto`.
+Primary issue: #34, phase issue: #62.
+
+Hardened start-of-phase finding (2026-06-05): the inspected Castalia Wallet Rust core at `/Users/bananawalnut/repos/castalia-wallet/crates/castalia-wallet-core` exposes `verify_presentation`, `verify_signature`, and `canonical_challenge_bytes`, but its current challenge bytes bind `audience`, `domain`, `expiresAt`, `issuedAt`, `nonce`, `operation`, `origin`, and `version` only. They do not yet bind secS-required `subject`, `resource` / payload schema, or `public_key_ref` as first-class challenge fields. Therefore Track D must either (a) land an upstream wallet-core change before importing it, or (b) implement an explicitly temporary secS minimal-equivalent challenge contract/wrapper that binds the full secS list. If (b), docs and code must name it temporary and must not claim full Castalia Wallet integration.
+
 | Issue / commit | Objective | Files | TDD / verification commands | Acceptance criteria | Stop condition | Must not claim |
 |---|---|---|---|---|---|---|
-| D1 — Wallet-core challenge/signature contract | Import or document the minimal Castalia Wallet Rust core verifier API and canonical challenge schema. | `Cargo.toml`, `server/src/evidence.rs`, wallet integration docs | RED compile/test against desired wallet-core verifier API; wallet-core gate if dependency added | Challenge binds subject, audience, origin, operation, resource, nonce, issued/expires, signature suite, and public key ref. | Stop before secS-specific policy acceptance. | Do not duplicate wallet semantics independently in secS. |
-| D2 — Cryptographic wallet presentation verification | Replace unsupported shell acceptance with wallet-core-backed positive verification path. | `server/src/evidence.rs`, `server/tests/wallet_presentation.rs` | RED valid fixture rejected; GREEN targeted wallet tests | Valid fixture presentation verifies cryptographically and emits evidence summary. | Stop when shape-only unsupported status remains fail-closed unless crypto passes. | Do not commit real wallet private keys. |
-| D3 — Wallet reject matrix | Add wrong signature/key/subject/audience/origin/operation/replay/expiry tests. | wallet tests, verifier/evidence code | `cargo test -p server wallet_presentation -- --nocapture` | Each failure rejects distinctly enough for debugging/policy. | Stop before federated credentials. | Do not treat browser WalletAuth HTTP session as secS wallet presentation. |
-| D4 — Packaging and client-surface notes | Document native/WASM/browser/secC/secZ packaging boundary for wallet-core use. | `docs/client-surfaces.md`, README/status docs | docs `rg` + `git diff --check` | Browser extension = WASM binding, secZ/secC = native/client binding, secS = verifier subset/artifact consumer. | Stop when docs are consumer-oriented. | Do not make packaging notes into runtime implementation claims. |
+| D0 — Branch/spec baseline and shared fixture helpers | Start from clean `main`, record the wallet-core inspection finding, create shared D/E/I fixture constants/helpers, and add RED baseline tests for crypto-required wallet evidence. | `server/tests/wallet_presentation.rs`, `server/tests/evidence.rs`, docs/status/checklist/capture | `cargo test -p server wallet_presentation -- --nocapture`; initial RED tests may be ignored only with a named blocker before D1 | Branch is clean; Track D spec and issue surfaces reflect the wallet-core binding gap; literals for subject/audience/origin/operation/resource/timestamps/nonces start moving into shared helpers before new matrix tests proliferate. | Stop before implementation if wallet-core binding ambiguity is not resolved. | Do not begin D1 from scattered literals or an unrecorded wallet-core assumption. |
+| D1 — Wallet-core challenge/signature contract | Import wallet-core only if it binds the full secS challenge, otherwise implement and document a temporary minimal-equivalent secS challenge contract. | `Cargo.toml`, `server/src/evidence.rs`, wallet integration docs | RED compile/test against desired wallet-core verifier API or RED minimal-contract challenge tests; `cargo test -p server wallet_challenge_contract -- --nocapture` | Challenge bytes bind subject, audience, origin, operation, resource, nonce, issued/expires, signature suite, and public key ref/id; exact byte layout/order is tested and documented. | Stop before positive evidence acceptance. | Do not duplicate wallet semantics independently in secS without marking the contract temporary/minimal. |
+| D2 — Cryptographic wallet presentation verification | Replace unsupported shell acceptance with a positive cryptographic verification path over the D1 contract. | `server/src/evidence.rs`, `server/tests/wallet_presentation.rs` | RED valid fixture rejected; GREEN `cargo test -p server wallet_presentation valid_fixture_verifies_cryptographically -- --nocapture` | Valid fixture presentation verifies cryptographically and emits safe evidence summary. Shape-only unsupported status remains fail-closed unless crypto passes. | Stop when positive path is crypto-backed and secret-safe. | Do not commit real wallet private keys; do not leak raw private keys/signatures in summaries/logs/receipts. |
+| D3 — Wallet reject matrix | Add exhaustive wrong signature/key/subject/audience/origin/operation/resource/replay/expiry/future-issued/malformed/missing-evidence tests. | wallet tests, verifier/evidence code | `cargo test -p server wallet_presentation -- --nocapture`; targeted reason-code checks | Each failure rejects distinctly enough for debugging/policy; changing any contextual challenge field invalidates the signature or maps to the right typed reject; shared fixture helpers are used exclusively. | Stop before federated credentials. | Do not treat browser WalletAuth HTTP session as secS wallet presentation; do not bypass crypto with shape-only status. |
+| D4 — Packaging and client-surface notes + phase close | Document native/WASM/browser/secC/secZ packaging boundary and update status/changelog/checklist/capture surfaces. | `docs/client-surfaces.md`, README/status docs, `CHANGELOG.md`, capture surfaces | docs `rg`, `git diff --check`, full workspace gate and PR CI | Browser extension = WASM binding, secZ/secC = native/client binding, secS = verifier subset/artifact consumer; status surfaces name whether this is wallet-core import or temporary minimal equivalent. | Stop when docs are consumer-oriented and post-merge main CI passes. | Do not make packaging notes into runtime implementation claims; do not claim production deployment/public auditability/Dregg authority. |
+
+#### D1 completion checkpoint
+
+D1 defines an explicitly temporary secS wallet challenge contract in `server/src/evidence.rs` because the hardened start-of-phase wallet-core finding showed current wallet-core challenge bytes do not bind every secS-required field. The contract is minimal-equivalent pending Castalia Wallet wallet-core parity and must be replaced or reconciled before secS claims full wallet-core integration. Its canonical byte contract binds subject, audience, origin, operation, resource, nonce, issued/expires timestamps, signature suite, and public key ref/id with exact layout/order covered by `server/tests/wallet_challenge_contract.rs`. D1 does not wire adapter success, does not add a wallet-core dependency, and does not make `wallet_presentation` cryptographic acceptance production-ready.
+
+#### Track D completion checkpoint
+
+Track D is complete through D4 as a bounded wallet-presentation verifier slice. The implemented verifier is cryptographic for signed presentation/challenge evidence over the explicitly temporary minimal-equivalent secS challenge contract in `server/src/evidence.rs`; it is not a full Castalia Wallet wallet-core import and must be replaced or reconciled when wallet-core challenge parity binds the secS-required fields directly.
+
+Implementation evidence:
+
+- D1 canonical challenge bytes bind subject, audience, origin, operation, resource, nonce, issued/expires timestamps, signature suite, and public key ref/id with exact order covered by `server/tests/wallet_challenge_contract.rs`.
+- D2 accepts the valid no-real-secret fixture cryptographically and emits safe public evidence summary fields without `ShapeValidatedSignatureUnsupported`.
+- D3 rejects wrong signature, wrong key, wrong subject, wrong audience, wrong origin, wrong operation, wrong resource, changed replay nonce, expired challenge, future-issued challenge, malformed bytes, unsupported signature suite, missing evidence, and unknown evidence refs with typed fail-closed results.
+- D4 documents the packaging/client-surface boundary: browser extension = WASM binding, secZ/secC/local clients = native/client binding or packet/evidence carrier, and secS = verifier subset/artifact consumer.
+
+Verifier-consumer boundary:
+
+- secS consumes signed presentation/challenge bytes plus public verification material.
+- secS does not consume UI session state, app cookies, extension runtime state, or browser WalletAuth sessions as verifier authority.
+- secZ/secC/local clients may construct or transport presentation evidence, but they do not decide authority.
+
+Verification evidence:
+
+```bash
+cargo test -p server wallet_presentation -- --nocapture
+cargo test -p server wallet_challenge_contract -- --nocapture
+cargo test -p server --test ready_for_prod_docs -- --nocapture
+rg "wallet|temporary minimal|verifier subset|ShapeValidatedSignatureUnsupported" docs/ README.md server/README.md --files-with-matches
+cargo fmt --all -- --check
+git diff --check README.md CHANGELOG.md docs/ server/
+```
+
+Track D remains bounded: it does not claim production deployment, public auditability, live Castalia Wallet parity, full wallet-core integration, Dregg/Midnight/Cardano authority, trusted issuer/root policy, or the first production-shaped `membership.provision` E2E.
 
 ### A8 — Track E issue/commit details: production evidence policy and first federated evidence path
 
@@ -987,7 +1027,7 @@ Boundaries preserved:
 
 ### A8 — Remaining future issues to pick
 
-Track B, Track C, Track F, Track G, and Track H now have completion checkpoints in this checklist. The remaining first-prod path still needs Track D wallet cryptographic verification / shared wallet core, Track E production evidence policy and trusted issuer credential checks, and Track I production-shaped `membership.provision` E2E. Pick the next issue from the earliest incomplete dependency in that D/E/I chain unless a later decision explicitly changes the first-prod authority model.
+Track B, Track C, Track D, Track F, Track G, and Track H now have completion checkpoints in this checklist. The remaining first-prod path still needs Track E production evidence policy and trusted issuer credential checks, replacement/reconciliation of Track D's temporary wallet challenge contract with full Castalia Wallet wallet-core parity before any full-wallet-core claim, and Track I production-shaped `membership.provision` E2E. Pick the next issue from the earliest incomplete dependency in that E/I chain unless a later decision explicitly changes the first-prod authority model.
 
 ### A8 — Acceptance
 
