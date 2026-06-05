@@ -187,12 +187,15 @@ pub struct WalletPresentationFixture {
     pub subject: String,
     pub audience: String,
     pub origin: String,
+    pub operation: String,
+    pub resource: String,
     pub challenge_ref: String,
     pub signature_ref: String,
     pub public_key_ref: String,
     pub replay_nonce_ref: String,
     pub issued_at: u64,
     pub expires_at: u64,
+    pub signature_suite: String,
     pub public_key_bytes: Vec<u8>,
     pub signature_bytes: Vec<u8>,
 }
@@ -224,11 +227,14 @@ impl WalletPresentationFixture {
             && !self.subject.is_empty()
             && !self.audience.is_empty()
             && !self.origin.is_empty()
+            && !self.operation.is_empty()
+            && !self.resource.is_empty()
             && !self.challenge_ref.is_empty()
             && !self.signature_ref.is_empty()
             && !self.public_key_ref.is_empty()
             && !self.replay_nonce_ref.is_empty()
             && self.issued_at < self.expires_at
+            && !self.signature_suite.is_empty()
             && self.public_key_bytes.len() == 32
             && self.signature_bytes.len() == 64
     }
@@ -293,12 +299,24 @@ fn append_field(bytes: &mut Vec<u8>, name: &str, value: &str) {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WalletPresentationAdapter {
     fixtures: Vec<WalletPresentationFixture>,
+    validation_time: Option<u64>,
 }
 
 impl WalletPresentationAdapter {
     pub fn new(fixtures: impl IntoIterator<Item = WalletPresentationFixture>) -> Self {
         Self {
             fixtures: fixtures.into_iter().collect(),
+            validation_time: None,
+        }
+    }
+
+    pub fn with_validation_time(
+        fixtures: impl IntoIterator<Item = WalletPresentationFixture>,
+        validation_time: u64,
+    ) -> Self {
+        Self {
+            fixtures: fixtures.into_iter().collect(),
+            validation_time: Some(validation_time),
         }
     }
 }
@@ -328,6 +346,13 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         if presentation.audience != request.audience {
             return EvidenceResult::Rejected(VerificationError::WrongAudience);
         }
+        if presentation.operation != request.operation {
+            return EvidenceResult::Rejected(VerificationError::WrongOperation);
+        }
+        let resource = request.resource.as_deref().unwrap_or_default();
+        if presentation.resource != resource {
+            return EvidenceResult::Rejected(VerificationError::WrongResource);
+        }
         if let Some(request_origin) = requested_origin(request) {
             if request_origin != presentation.origin {
                 return EvidenceResult::Rejected(VerificationError::WrongOrigin);
@@ -338,17 +363,27 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         if !presentation.has_required_shape() {
             return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
         }
-        let resource = request.resource.as_deref().unwrap_or_default();
+        if presentation.signature_suite != SecsWalletChallenge::ED25519_SIGNATURE_SUITE {
+            return EvidenceResult::Rejected(VerificationError::UnsupportedSignatureSuite);
+        }
+        if let Some(validation_time) = self.validation_time {
+            if presentation.issued_at > validation_time {
+                return EvidenceResult::Rejected(VerificationError::NotYetValidClaim);
+            }
+            if presentation.expires_at <= validation_time {
+                return EvidenceResult::Rejected(VerificationError::ExpiredClaim);
+            }
+        }
         let challenge = SecsWalletChallenge {
             subject: request.subject.clone(),
             audience: request.audience.clone(),
             origin: presentation.origin.clone(),
             operation: request.operation.clone(),
-            resource: resource.to_string(),
+            resource: presentation.resource.clone(),
             nonce: presentation.replay_nonce_ref.clone(),
             issued_at: presentation.issued_at,
             expires_at: presentation.expires_at,
-            signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
+            signature_suite: presentation.signature_suite.clone(),
             public_key_ref: presentation.public_key_ref.clone(),
         };
         if !verify_ed25519_signature(
@@ -356,7 +391,7 @@ impl EvidenceAdapter for WalletPresentationAdapter {
             &presentation.signature_bytes,
             &challenge.canonical_bytes(),
         ) {
-            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+            return EvidenceResult::Rejected(VerificationError::InvalidSignature);
         }
 
         EvidenceResult::Satisfied(EvidenceSummary {
@@ -376,10 +411,7 @@ impl EvidenceAdapter for WalletPresentationAdapter {
                 format!("replay_nonce_ref:{}", presentation.replay_nonce_ref),
                 format!("issued_at:{}", presentation.issued_at),
                 format!("expires_at:{}", presentation.expires_at),
-                format!(
-                    "signature_suite:{}",
-                    SecsWalletChallenge::ED25519_SIGNATURE_SUITE
-                ),
+                format!("signature_suite:{}", presentation.signature_suite),
             ],
         })
     }

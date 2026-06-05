@@ -8,14 +8,25 @@ use server::evidence::{
 use server::verifier::VerificationError;
 use wallet_fixtures::{
     expires_at_summary_field, incomplete_wallet_fixture, issued_at_summary_field, origin_input,
-    origin_summary_field, replay_nonce_summary_field, wallet_descriptor, wallet_fixture,
-    wallet_request_with_origin, wallet_request_with_ref, WALLET_AUDIENCE, WALLET_EVIDENCE_REF,
-    WALLET_INCOMPLETE_EVIDENCE_REF, WALLET_OPCODE, WALLET_ORIGIN, WALLET_OTHER_AUDIENCE,
-    WALLET_SUBJECT, WALLET_WRONG_ORIGIN,
+    origin_summary_field, replay_nonce_summary_field, sign_wallet_fixture, wallet_descriptor,
+    wallet_fixture, wallet_request_with_origin, wallet_request_with_ref, WALLET_AUDIENCE,
+    WALLET_EVIDENCE_REF, WALLET_EXPIRES_AT, WALLET_INCOMPLETE_EVIDENCE_REF, WALLET_ISSUED_AT,
+    WALLET_OPCODE, WALLET_OPERATION, WALLET_ORIGIN, WALLET_OTHER_AUDIENCE, WALLET_REPLAY_NONCE_REF,
+    WALLET_RESOURCE, WALLET_SUBJECT, WALLET_WRONG_ORIGIN,
 };
 
 fn adapter() -> WalletPresentationAdapter {
     WalletPresentationAdapter::new([wallet_fixture()])
+}
+
+fn fixed_time_adapter(
+    fixture: server::evidence::WalletPresentationFixture,
+) -> WalletPresentationAdapter {
+    WalletPresentationAdapter::with_validation_time([fixture], WALLET_ISSUED_AT + 60)
+}
+
+fn assert_rejected(result: EvidenceResult, expected: VerificationError) {
+    assert_eq!(result, EvidenceResult::Rejected(expected));
 }
 
 #[test]
@@ -159,4 +170,197 @@ fn wallet_presentation_shape_only_fixture_fails_closed_without_crypto() {
         shape_only.verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
         EvidenceResult::Rejected(VerificationError::InvalidPresentation)
     );
+}
+
+#[test]
+fn wallet_presentation_rejects_missing_and_unknown_evidence_ref() {
+    assert_rejected(
+        adapter().verify(&wallet_request_with_origin(None)),
+        VerificationError::InvalidPresentation,
+    );
+    assert_rejected(
+        adapter().verify(&wallet_request_with_origin(Some(
+            "wallet-presentation:not-found",
+        ))),
+        VerificationError::InvalidPresentation,
+    );
+}
+
+#[test]
+fn wallet_presentation_rejects_wrong_signature_and_wrong_public_key() {
+    let mut wrong_signature = wallet_fixture();
+    wrong_signature.signature_bytes[0] ^= 0x01;
+    assert_rejected(
+        WalletPresentationAdapter::new([wrong_signature])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::InvalidSignature,
+    );
+
+    let mut wrong_public_key = wallet_fixture();
+    wrong_public_key.public_key_bytes = vec![0x11; 32];
+    assert_rejected(
+        WalletPresentationAdapter::new([wrong_public_key])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::InvalidSignature,
+    );
+}
+
+#[test]
+fn wallet_presentation_rejects_wrong_subject_audience_origin_operation_and_resource() {
+    let wrong_subject = EvidenceRequest::from_descriptor(
+        &wallet_descriptor(WALLET_OPCODE),
+        "did:example:bob#key-1",
+        WALLET_AUDIENCE,
+        Some(WALLET_EVIDENCE_REF),
+    );
+    assert_rejected(
+        adapter().verify(&wrong_subject),
+        VerificationError::WrongSubject,
+    );
+
+    let wrong_audience = EvidenceRequest::from_descriptor(
+        &wallet_descriptor(WALLET_OPCODE),
+        WALLET_SUBJECT,
+        WALLET_OTHER_AUDIENCE,
+        Some(WALLET_EVIDENCE_REF),
+    );
+    assert_rejected(
+        adapter().verify(&wrong_audience),
+        VerificationError::WrongAudience,
+    );
+
+    let mut wrong_origin = wallet_request_with_ref(Some(WALLET_EVIDENCE_REF));
+    wrong_origin
+        .public_inputs
+        .push(origin_input(WALLET_WRONG_ORIGIN));
+    assert_rejected(
+        adapter().verify(&wrong_origin),
+        VerificationError::WrongOrigin,
+    );
+
+    let mut wrong_operation = wallet_request_with_origin(Some(WALLET_EVIDENCE_REF));
+    wrong_operation.operation = format!("{WALLET_OPERATION}.rotated");
+    assert_rejected(
+        adapter().verify(&wrong_operation),
+        VerificationError::WrongOperation,
+    );
+    assert_eq!(
+        VerificationError::WrongOperation.reason_code(),
+        "wrong_operation"
+    );
+
+    let mut wrong_resource = wallet_request_with_origin(Some(WALLET_EVIDENCE_REF));
+    wrong_resource.resource = Some("application/cbor".to_string());
+    assert_rejected(
+        adapter().verify(&wrong_resource),
+        VerificationError::WrongResource,
+    );
+    assert_eq!(
+        VerificationError::WrongResource.reason_code(),
+        "wrong_resource"
+    );
+}
+
+#[test]
+fn wallet_presentation_rejects_changed_challenge_fields_bound_by_signature() {
+    let mut changed_nonce = wallet_fixture();
+    changed_nonce.replay_nonce_ref = format!("{WALLET_REPLAY_NONCE_REF}-replayed");
+    assert_rejected(
+        WalletPresentationAdapter::new([changed_nonce])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::InvalidSignature,
+    );
+
+    let mut changed_resource = wallet_fixture();
+    changed_resource.resource = "application/cbor".to_string();
+    assert_rejected(
+        WalletPresentationAdapter::new([changed_resource])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::WrongResource,
+    );
+
+    let mut changed_operation = wallet_fixture();
+    changed_operation.operation = format!("{WALLET_OPERATION}.rotated");
+    assert_rejected(
+        WalletPresentationAdapter::new([changed_operation])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::WrongOperation,
+    );
+}
+
+#[test]
+fn wallet_presentation_rejects_expired_and_not_yet_valid_challenges_deterministically() {
+    let mut expired = wallet_fixture();
+    expired.issued_at = WALLET_ISSUED_AT - 600;
+    expired.expires_at = WALLET_ISSUED_AT + 59;
+    sign_wallet_fixture(&mut expired);
+    assert_rejected(
+        fixed_time_adapter(expired).verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::ExpiredClaim,
+    );
+
+    let mut future_issued = wallet_fixture();
+    future_issued.issued_at = WALLET_ISSUED_AT + 61;
+    future_issued.expires_at = WALLET_EXPIRES_AT;
+    sign_wallet_fixture(&mut future_issued);
+    assert_rejected(
+        fixed_time_adapter(future_issued)
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::NotYetValidClaim,
+    );
+    assert_eq!(
+        VerificationError::NotYetValidClaim.reason_code(),
+        "not_yet_valid_claim"
+    );
+}
+
+#[test]
+fn wallet_presentation_rejects_malformed_bytes_and_unsupported_signature_suite() {
+    let mut malformed_public_key = wallet_fixture();
+    malformed_public_key.public_key_bytes.truncate(31);
+    assert_rejected(
+        WalletPresentationAdapter::new([malformed_public_key])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::InvalidPresentation,
+    );
+
+    let mut malformed_signature = wallet_fixture();
+    malformed_signature.signature_bytes.truncate(63);
+    assert_rejected(
+        WalletPresentationAdapter::new([malformed_signature])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::InvalidPresentation,
+    );
+
+    let mut unsupported_suite = wallet_fixture();
+    unsupported_suite.signature_suite = "Ed25519ph".to_string();
+    assert_rejected(
+        WalletPresentationAdapter::new([unsupported_suite])
+            .verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        VerificationError::UnsupportedSignatureSuite,
+    );
+    assert_eq!(
+        VerificationError::UnsupportedSignatureSuite.reason_code(),
+        "unsupported_signature_suite"
+    );
+}
+
+#[test]
+fn wallet_presentation_valid_summary_redacts_signature_and_private_key_material() {
+    let EvidenceResult::Satisfied(summary) =
+        adapter().verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF)))
+    else {
+        panic!("expected valid wallet presentation");
+    };
+
+    assert_eq!(summary.resource.as_deref(), Some(WALLET_RESOURCE));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == &format!("replay_nonce_ref:{WALLET_REPLAY_NONCE_REF}")));
+    assert!(!summary.summary_fields.iter().any(|field| {
+        field.contains("signature_bytes")
+            || field.contains("private_key")
+            || field.contains("public_key_bytes")
+    }));
 }

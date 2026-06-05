@@ -71,12 +71,15 @@ pub fn wallet_fixture() -> WalletPresentationFixture {
         subject: WALLET_SUBJECT.to_string(),
         audience: WALLET_AUDIENCE.to_string(),
         origin: WALLET_ORIGIN.to_string(),
+        operation: WALLET_OPERATION.to_string(),
+        resource: WALLET_RESOURCE.to_string(),
         challenge_ref: WALLET_CHALLENGE_REF.to_string(),
         signature_ref: WALLET_SIGNATURE_REF.to_string(),
         public_key_ref: WALLET_PUBLIC_KEY_REF.to_string(),
         replay_nonce_ref: WALLET_REPLAY_NONCE_REF.to_string(),
         issued_at: WALLET_ISSUED_AT,
         expires_at: WALLET_EXPIRES_AT,
+        signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
         public_key_bytes: signing_key.verifying_key().to_bytes().to_vec(),
         signature_bytes: signature.to_bytes().to_vec(),
     }
@@ -94,6 +97,30 @@ pub fn wallet_challenge() -> SecsWalletChallenge {
         expires_at: WALLET_EXPIRES_AT,
         signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
         public_key_ref: WALLET_PUBLIC_KEY_REF.to_string(),
+    }
+}
+
+pub fn sign_wallet_fixture(fixture: &mut WalletPresentationFixture) {
+    let signing_key = SigningKey::from_bytes(&WALLET_FIXTURE_ED25519_SEED);
+    fixture.public_key_bytes = signing_key.verifying_key().to_bytes().to_vec();
+    fixture.signature_bytes = signing_key
+        .sign(&wallet_challenge_for_fixture(fixture).canonical_bytes())
+        .to_bytes()
+        .to_vec();
+}
+
+fn wallet_challenge_for_fixture(fixture: &WalletPresentationFixture) -> SecsWalletChallenge {
+    SecsWalletChallenge {
+        subject: fixture.subject.clone(),
+        audience: fixture.audience.clone(),
+        origin: fixture.origin.clone(),
+        operation: fixture.operation.clone(),
+        resource: fixture.resource.clone(),
+        nonce: fixture.replay_nonce_ref.clone(),
+        issued_at: fixture.issued_at,
+        expires_at: fixture.expires_at,
+        signature_suite: fixture.signature_suite.clone(),
+        public_key_ref: fixture.public_key_ref.clone(),
     }
 }
 
