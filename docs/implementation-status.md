@@ -118,3 +118,5 @@ Avoid these phrases unless code proves them:
 - “WalletAuth is part of secS-magik”;
 - “manifest is the firewall” without caveating that current bindings are prototype hardcoded registrations;
 - “production receipt ledger” or “public auditability” for the current local SQLite receipt/event ledger.
+## 2026-06-05 H2 update
+- Track H: H2 atomic chains (#25) completed via tx-wrapped record_receipt_with_emitted_event + lifecycle test (commit a07fe2e). See GH #61. All local ledger tests passing. Bounded to operator SQLite only.

@@ -1,3 +1,10 @@
+## Unreleased
+
+### Added / Changed (Track H)
+
+- H2: Atomic receipt + event persistence for #25 via `record_receipt_with_emitted_event` (tx-wrapped in ledger). Record paths now surface write failures. New test `ledger_source_exposes_atomic_chain_persistence_or_incomplete_chain_markers` demonstrates atomic pairs and incomplete handler lifecycle visibility (via HandlerStarted/failed events + CancelFlag injection). Commit a07fe2e. (GH #61, closes #25)
+
+
 # Changelog
 
 All notable changes to this project are documented here.
