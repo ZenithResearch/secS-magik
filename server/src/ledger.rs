@@ -8,6 +8,7 @@ use crate::receipt::{Receipt, ReceiptEventKind};
 use crate::schema::{apply_schema, LEDGER_TABLES};
 use crate::verifier::VerifiedCallContext;
 use sha2::{Digest, Sha256};
+use std::time::{SystemTime, UNIX_EPOCH};
 use sqlx::Row;
 use sqlx::SqlitePool;
 
@@ -65,7 +66,20 @@ impl Ledger {
     }
 
     pub async fn init_schema(&self) -> Result<(), sqlx::Error> {
-        apply_schema(&self.pool, LEDGER_TABLES).await
+        apply_schema(&self.pool, LEDGER_TABLES).await?;
+        // Prune expired replay reservations on schema init (e.g. at startup / process
+        // restart). Uses wall-clock time so that any reservations whose claims expired
+        // before this restart are removed. This is one of the documented trigger points
+        // for #57 retention. Tests that rely on small historical timestamps insert
+        // *after* the final init_schema call (or use explicit prune with controlled
+        // `now`); re-calling init_schema in a retention test after inserting past data
+        // will trigger prune using real now.
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = self.prune_expired_replay_reservations(now).await;
+        Ok(())
     }
 
     pub async fn reserve_replay(
@@ -74,6 +88,11 @@ impl Ledger {
         signer_key_id: &str,
         reserved_at: u64,
     ) -> Result<ReplayReservationOutcome, sqlx::Error> {
+        // Prune using the reservation's `reserved_at` as the cutoff (as-of time).
+        // This is the primary "on reserve" trigger point for bounding replay
+        // reservations. Errors in prune are ignored (non-fatal cleanup); a failing
+        // prune should not block a legitimate new reservation.
+        let _ = self.prune_expired_replay_reservations(reserved_at).await;
         let result = sqlx::query(
             "INSERT OR IGNORE INTO replay_reservations (
                 reserved_at,
@@ -104,6 +123,21 @@ impl Ledger {
         } else {
             Ok(ReplayReservationOutcome::Reserved)
         }
+    }
+
+    /// Prune (DELETE) any replay reservations whose `expires_at` is strictly before `now`.
+    /// Returns the number of rows deleted. This is the explicit cleanup API and is
+    /// also invoked from `init_schema` (wall time) and `reserve_replay` (using call time).
+    /// Used to implement #57: ensure no unbounded growth of the replay_reservations table.
+    pub async fn prune_expired_replay_reservations(
+        &self,
+        now: u64,
+    ) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM replay_reservations WHERE expires_at < ?")
+            .bind(now as i64)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
     }
 
     #[allow(clippy::too_many_arguments)]

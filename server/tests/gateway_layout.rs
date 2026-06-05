@@ -1231,3 +1231,52 @@ async fn gateway_router_rejects_timed_out_handlers_and_records_failure_without_p
     assert_eq!(leaked_event_count.0, 0);
     assert_eq!(leaked_receipt_count.0, 0);
 }
+
+/// H1 test for #21: receipt IDs must be collision-resistant for same opcode in same second (concurrent routes).
+#[tokio::test]
+async fn gateway_layout_receipt_ids_are_collision_resistant_for_same_opcode_same_second_routes() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+
+    // Two different contexts (different session/nonce) for same opcode.
+    // Use same issued_at to simulate same-second.
+    let now = current_test_time();
+    // Use explicit different session/nonce to ensure different replay scope and different context_id.
+    // Use non-zero values that are known to work in other tests (avoid all-zero or reserved).
+    let session1 = [3u8; 16];
+    let nonce1 = [4u8; 12];
+    let session2 = [5u8; 16];
+    let nonce2 = [6u8; 12];
+    let signed1 = signed_context_with_fields(session1, nonce1, 0x10, b"payload-one");
+    let signed2 = signed_context_with_fields(session2, nonce2, 0x10, b"payload-two");
+
+    // Route both (simulating concurrent same-second same-opcode).
+    let _ = router.route_verified(&signed1, b"payload-one".to_vec()).await;
+    let _ = router.route_verified(&signed2, b"payload-two".to_vec()).await;
+
+    // Should have executed both handlers.
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    // Query verify receipts for this opcode.
+    let verify_receipts: Vec<(String, String, i64)> = sqlx::query_as(
+        "SELECT receipt_id, kind, opcode FROM receipts WHERE kind = 'verify' AND opcode = 16 ORDER BY timestamp, receipt_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    // There should be at least two verify receipts (one per route).
+    assert!(verify_receipts.len() >= 2, "expected at least two verify receipts for concurrent same-opcode");
+
+    // IDs must be distinct (collision resistant).
+    let ids: Vec<_> = verify_receipts.iter().map(|r| r.0.clone()).collect();
+    let unique_ids: std::collections::HashSet<_> = ids.iter().cloned().collect();
+    assert_eq!(unique_ids.len(), ids.len(), "receipt IDs collided for same opcode same second: {:?}", ids);
+
+    // Sanity: all are verify kind.
+    for (id, kind, _op) in &verify_receipts {
+        assert_eq!(kind, "verify");
+    }
+}
