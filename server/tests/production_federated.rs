@@ -524,3 +524,70 @@ fn wallet_and_issuer_composition_preserves_layer_specific_failures() {
         EvidenceResult::Rejected(VerificationError::WrongOrigin)
     );
 }
+
+#[test]
+fn valid_evidence_policy_accepts_only_when_descriptor_allows_it() {
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+
+    assert!(matches!(
+        adapter.verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))),
+        EvidenceResult::Satisfied(_)
+    ));
+}
+
+#[test]
+fn valid_evidence_local_policy_rejects_disallowed_descriptor_operation_scope_and_audience() {
+    let mut wrong_operation_descriptor = membership_descriptor(MEMBERSHIP_OPCODE);
+    wrong_operation_descriptor.name =
+        server::manifest::OperationName::new("membership.not-permitted");
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    assert_eq!(
+        adapter.verify(&request_for(
+            &wrong_operation_descriptor,
+            Some(MEMBERSHIP_CREDENTIAL_REF),
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongOperation)
+    );
+
+    let mut wrong_resource_descriptor = membership_descriptor(MEMBERSHIP_OPCODE);
+    wrong_resource_descriptor.payload_schema = Some("application/not-json".to_string());
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    assert_eq!(
+        adapter.verify(&request_for(
+            &wrong_resource_descriptor,
+            Some(MEMBERSHIP_CREDENTIAL_REF),
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongResource)
+    );
+
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let mut wrong_audience = EvidenceRequest::from_descriptor(
+        &membership_descriptor(MEMBERSHIP_OPCODE),
+        TRUSTED_SUBJECT,
+        "secS://other-target",
+        Some(MEMBERSHIP_CREDENTIAL_REF),
+    );
+    wrong_audience
+        .public_inputs
+        .push(origin_input(TRUSTED_ORIGIN));
+    assert_eq!(
+        adapter.verify(&wrong_audience),
+        EvidenceResult::Rejected(VerificationError::WrongAudience)
+    );
+}
