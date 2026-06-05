@@ -1,3 +1,4 @@
+const README: &str = include_str!("../../README.md");
 const READY_FOR_PROD_CHECKLIST: &str =
     include_str!("../../docs/plans/2026-06-02-ready-for-prod-checklist.md");
 const IMPLEMENTATION_STATUS: &str = include_str!("../../docs/implementation-status.md");
@@ -21,6 +22,21 @@ fn ready_for_prod_checklist_uses_real_workspace_package_names() {
     assert!(
         READY_FOR_PROD_CHECKLIST.contains("cargo test -p server"),
         "checklist should retain executable server package test commands"
+    );
+}
+
+#[test]
+fn readme_gateway_quickstart_does_not_suggest_bare_production_config() {
+    assert!(
+        !README
+            .lines()
+            .any(|line| line.trim() == "cargo run -p server --bin secs-gateway"),
+        "README must not suggest bare secs-gateway startup because default production_verified intentionally requires explicit SECS_* limits and operator config"
+    );
+    assert!(
+        README.contains("SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secs-gateway")
+            || README.contains("./scripts/production-gateway-smoke.sh"),
+        "README should give either an explicit local-dev command or the fixture-only production smoke script"
     );
 }
 
