@@ -7,6 +7,7 @@ use crate::manifest::ReceiverManifest;
 use crate::payload::decrypt_machine_payload;
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::Verifier;
+use bincode::Options;
 use libsec_core::ZenithPacket;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::fmt;
@@ -25,7 +26,14 @@ pub const DEFAULT_INGRESS_READ_TIMEOUT: Duration = Duration::from_secs(10);
 pub enum IngressReadError {
     Transport(std::io::Error),
     ReadTimeout,
-    WireFrameTooLarge { limit: usize },
+    WireFrameTooLarge {
+        limit: usize,
+    },
+    LogicalFrameTooLarge {
+        field: &'static str,
+        declared_len: u64,
+        limit: usize,
+    },
     MalformedPacket(Box<bincode::ErrorKind>),
 }
 
@@ -40,6 +48,14 @@ impl fmt::Display for IngressReadError {
                     "wire frame exceeded configured limit of {limit} bytes"
                 )
             }
+            Self::LogicalFrameTooLarge {
+                field,
+                declared_len,
+                limit,
+            } => write!(
+                formatter,
+                "packet field {field} declared {declared_len} bytes, exceeding configured logical limit of {limit} bytes"
+            ),
             Self::MalformedPacket(error) => write!(formatter, "malformed packet: {error}"),
         }
     }
@@ -73,9 +89,75 @@ where
         });
     }
 
-    bincode::deserialize::<ZenithPacket>(&wire_bytes)
+    reject_huge_declared_vec_lengths(&wire_bytes, max_wire_bytes)?;
+
+    bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .allow_trailing_bytes()
+        .with_limit(max_wire_bytes as u64)
+        .deserialize::<ZenithPacket>(&wire_bytes)
         .map(Some)
         .map_err(IngressReadError::MalformedPacket)
+}
+
+fn reject_huge_declared_vec_lengths(
+    wire_bytes: &[u8],
+    max_wire_bytes: usize,
+) -> Result<(), IngressReadError> {
+    const SESSION_ID_BYTES: usize = 16;
+    const NONCE_BYTES: usize = 12;
+    const OPCODE_BYTES: usize = 1;
+    const U64_BYTES: usize = 8;
+    const PROOF_LEN_OFFSET: usize = SESSION_ID_BYTES + NONCE_BYTES + OPCODE_BYTES;
+
+    let Some(proof_len) = read_le_u64(wire_bytes, PROOF_LEN_OFFSET) else {
+        return Ok(());
+    };
+    reject_declared_len("proof", proof_len, max_wire_bytes)?;
+
+    let proof_len_usize =
+        usize::try_from(proof_len).map_err(|_| IngressReadError::LogicalFrameTooLarge {
+            field: "proof",
+            declared_len: proof_len,
+            limit: max_wire_bytes,
+        })?;
+    let payload_len_offset = PROOF_LEN_OFFSET
+        .checked_add(U64_BYTES)
+        .and_then(|offset| offset.checked_add(proof_len_usize))
+        .and_then(|offset| offset.checked_add(U64_BYTES));
+    let Some(payload_len_offset) = payload_len_offset else {
+        return Err(IngressReadError::LogicalFrameTooLarge {
+            field: "proof",
+            declared_len: proof_len,
+            limit: max_wire_bytes,
+        });
+    };
+
+    if let Some(payload_len) = read_le_u64(wire_bytes, payload_len_offset) {
+        reject_declared_len("encrypted_payload", payload_len, max_wire_bytes)?;
+    }
+
+    Ok(())
+}
+
+fn read_le_u64(bytes: &[u8], offset: usize) -> Option<u64> {
+    let len_bytes: [u8; 8] = bytes.get(offset..offset.checked_add(8)?)?.try_into().ok()?;
+    Some(u64::from_le_bytes(len_bytes))
+}
+
+fn reject_declared_len(
+    field: &'static str,
+    declared_len: u64,
+    max_wire_bytes: usize,
+) -> Result<(), IngressReadError> {
+    if declared_len > max_wire_bytes as u64 {
+        return Err(IngressReadError::LogicalFrameTooLarge {
+            field,
+            declared_len,
+            limit: max_wire_bytes,
+        });
+    }
+    Ok(())
 }
 
 pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, socket: TcpStream) {

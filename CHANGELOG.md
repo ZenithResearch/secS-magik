@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Closed the targeted audit authority/entrypoint/decode hardening gaps — production runtime now rejects legacy prototype-proof descriptors, the bypassable legacy `server` TCP binary/direct dispatch path is retired, and ingress prechecks logical packet `Vec` lengths before bincode decode.
 - Moved local SQLite DDL into a named runtime schema ontology and centralized prototype receiver constants/replay reason strings so Track C does not leave table definitions or default audience values embedded in ledger/gateway/verifier methods.
 - Completed Track G ingress/service runtime hardening — bounds gateway wire reads before packet deserialization, makes production receiver/runtime config explicit, adds config/ledger/trust readiness checks, and provides a fixture-only production-shaped smoke script without claiming full DoS resistance or production deployment.
 - Completed Track F bounded execution broker hardening — descriptor `handler_id` now selects handlers, payload/output/timeout limits emit typed execution receipts for every handler outcome, dev subprocess stdout/stderr are captured for output accounting, timed-out subprocess futures drop with child cleanup, and production runtime bindings no longer expose dev subprocess handlers by default.

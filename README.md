@@ -75,8 +75,7 @@ Important boundaries:
 | `core/` | Shared packet and verifier-free core primitives. | Owns the v0 packet shape and constants; should not own product policy or receiver-local dispatch semantics. |
 | `client/` | CLI packet sender; current secC-like client surface. | Builds and sends packets; does not verify inbound authority. |
 | `docs/client-surfaces.md` | Client-side local Hermes/secC/secZ boundary. | Documents outgoing packet construction surfaces; none replaces secS-magik verification. |
-| `server/src/lib.rs` | Current TCP node loop and shared server library surface. | To evolve into secS verifier substrate modules. |
-| `server/src/main.rs` | Current basic secS daemon binary on port `9000`. | Prototype ingress; not yet the full verifier pipeline. |
+| `server/src/lib.rs` | Shared server library modules. | Exposes verifier/gateway/ingress/ledger modules; the legacy direct TCP node loop has been retired so it cannot bypass verifier/replay/receipt boundaries. |
 | `server/src/ingress.rs` | Prototype TCP ingress and gateway connection handling. | Owns packet decode/prototype verification/decrypt handoff for the current gateway. |
 | `server/src/gateway.rs` | Configurable router, prototype telemetry schema, and prototype machine-program bindings. | Shared gateway library code; binary wrappers should stay thin. |
 | `server/src/payload.rs` | Tunnel-key parsing and runtime-mode payload decryption. | Payload handling policy separated from binary entrypoints. |
@@ -113,7 +112,7 @@ pub struct ZenithPacket {
 Rules:
 
 - Preserve `opcode: u8`.
-- Preserve current bincode round-trip compatibility.
+- Preserve current bincode round-trip compatibility while using bounded ingress decode for externally supplied frames.
 - The CLI parses opcodes as decimal `u8`; use `16`, not `0x10`.
 - Current prototype proof bytes are not real ZK verification. Treat them as a `PrototypeProofEnvelope` until replaced by typed verification stages.
 - `encrypted_payload` remains opaque to secS except for cryptographic/tunnel verification and handler handoff rules.
@@ -173,12 +172,6 @@ Build and test the workspace:
 ```bash
 cargo test --workspace
 cargo build --workspace
-```
-
-Run the current secS prototype on port `9000`:
-
-```bash
-cargo run -p server --bin server
 ```
 
 Run the canonical current prototype gateway on port `9001`:

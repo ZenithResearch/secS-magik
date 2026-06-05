@@ -64,6 +64,61 @@ async fn malformed_under_limit_packet_stays_malformed_not_over_limit() {
     assert!(matches!(result, Err(IngressReadError::MalformedPacket(_))));
 }
 
+fn packet_prefix_with_declared_proof_len(proof_len: u64) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&[1u8; 16]);
+    bytes.extend_from_slice(&[2u8; 12]);
+    bytes.push(0x10);
+    bytes.extend_from_slice(&proof_len.to_le_bytes());
+    bytes
+}
+
+fn packet_prefix_with_declared_payload_len(payload_len: u64) -> Vec<u8> {
+    let mut bytes = packet_prefix_with_declared_proof_len(1);
+    bytes.push(1);
+    bytes.extend_from_slice(&300u64.to_le_bytes());
+    bytes.extend_from_slice(&payload_len.to_le_bytes());
+    bytes
+}
+
+#[tokio::test]
+async fn ingress_decode_rejects_huge_declared_proof_vec_length_with_size_limit() {
+    let reader = std::io::Cursor::new(packet_prefix_with_declared_proof_len(u64::MAX));
+
+    let result = read_bounded_wire_packet(reader, 128, Duration::from_secs(1)).await;
+
+    let Err(IngressReadError::LogicalFrameTooLarge {
+        field,
+        declared_len,
+        limit,
+    }) = result
+    else {
+        panic!("huge declared proof length should be a bounded logical-frame error");
+    };
+    assert_eq!(field, "proof");
+    assert_eq!(declared_len, u64::MAX);
+    assert_eq!(limit, 128);
+}
+
+#[tokio::test]
+async fn ingress_decode_rejects_huge_declared_payload_vec_length_with_size_limit() {
+    let reader = std::io::Cursor::new(packet_prefix_with_declared_payload_len(u64::MAX));
+
+    let result = read_bounded_wire_packet(reader, 128, Duration::from_secs(1)).await;
+
+    let Err(IngressReadError::LogicalFrameTooLarge {
+        field,
+        declared_len,
+        limit,
+    }) = result
+    else {
+        panic!("huge declared payload length should be a bounded logical-frame error");
+    };
+    assert_eq!(field, "encrypted_payload");
+    assert_eq!(declared_len, u64::MAX);
+    assert_eq!(limit, 128);
+}
+
 #[tokio::test]
 async fn empty_ingress_stream_exits_quietly() {
     let reader = std::io::Cursor::new(Vec::<u8>::new());

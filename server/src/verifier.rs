@@ -1,6 +1,6 @@
 use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
 use crate::identity::NodeVerifierIdentity;
-use crate::manifest::{OperationDescriptor, ReceiverManifest, ReplayScope};
+use crate::manifest::{OperationDescriptor, ReceiverManifest, ReplayScope, TargetKind};
 use crate::ontology::PROTOTYPE_LOCAL_SUBJECT;
 pub use crate::receipt::AuthenticatorKind;
 use crate::runtime_mode::RuntimeMode;
@@ -266,6 +266,11 @@ fn reject_non_production_descriptor(
     if descriptor.dev_binding
         || descriptor.handler_id.starts_with("dev/")
         || descriptor.name.as_str().starts_with("candidate.dev")
+        || (descriptor.target_kind == TargetKind::LegacyCoreExample
+            && descriptor
+                .accepted_evidence
+                .iter()
+                .any(|evidence| evidence == "prototype-proof-envelope"))
     {
         return Err(VerificationError::PrototypeOperationNotProductionAuthorized);
     }

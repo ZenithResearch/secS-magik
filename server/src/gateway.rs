@@ -611,6 +611,11 @@ fn production_context_uses_dev_descriptor(
     descriptor.dev_binding
         || descriptor.handler_id.starts_with("dev/")
         || descriptor.name.as_str().starts_with("candidate.dev")
+        || (descriptor.target_kind == crate::manifest::TargetKind::LegacyCoreExample
+            && descriptor
+                .accepted_evidence
+                .iter()
+                .any(|evidence| evidence == "prototype-proof-envelope"))
 }
 
 fn context_receipt_suffix(context: &VerifiedCallContext) -> String {
