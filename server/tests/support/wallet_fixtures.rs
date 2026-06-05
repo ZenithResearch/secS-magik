@@ -1,4 +1,5 @@
-use server::evidence::{EvidenceRequest, WalletPresentationFixture};
+use ed25519_dalek::{Signer, SigningKey};
+use server::evidence::{EvidenceRequest, SecsWalletChallenge, WalletPresentationFixture};
 use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
 
 pub const WALLET_OPCODE: u8 = 0x41;
@@ -18,6 +19,10 @@ pub const WALLET_REPLAY_NONCE_REF: &str = "nonce:wallet-present-0001";
 pub const WALLET_SESSION_REF: &str = "session:wallet-present-local";
 pub const WALLET_ISSUED_AT: u64 = 1_717_000_000;
 pub const WALLET_EXPIRES_AT: u64 = 1_717_000_300;
+
+// Deterministic fixture-only Ed25519 seed for tests. This is intentionally
+// synthetic, local test material and must never be used as a real wallet key.
+const WALLET_FIXTURE_ED25519_SEED: [u8; 32] = [0xD2; 32];
 
 pub fn wallet_descriptor(opcode: u8) -> OperationDescriptor {
     OperationDescriptor {
@@ -57,6 +62,10 @@ pub fn wallet_request_with_origin(evidence_ref: Option<&str>) -> EvidenceRequest
 }
 
 pub fn wallet_fixture() -> WalletPresentationFixture {
+    let signing_key = SigningKey::from_bytes(&WALLET_FIXTURE_ED25519_SEED);
+    let challenge = wallet_challenge();
+    let signature = signing_key.sign(&challenge.canonical_bytes());
+
     WalletPresentationFixture {
         evidence_ref: WALLET_EVIDENCE_REF.to_string(),
         subject: WALLET_SUBJECT.to_string(),
@@ -68,6 +77,23 @@ pub fn wallet_fixture() -> WalletPresentationFixture {
         replay_nonce_ref: WALLET_REPLAY_NONCE_REF.to_string(),
         issued_at: WALLET_ISSUED_AT,
         expires_at: WALLET_EXPIRES_AT,
+        public_key_bytes: signing_key.verifying_key().to_bytes().to_vec(),
+        signature_bytes: signature.to_bytes().to_vec(),
+    }
+}
+
+pub fn wallet_challenge() -> SecsWalletChallenge {
+    SecsWalletChallenge {
+        subject: WALLET_SUBJECT.to_string(),
+        audience: WALLET_AUDIENCE.to_string(),
+        origin: WALLET_ORIGIN.to_string(),
+        operation: WALLET_OPERATION.to_string(),
+        resource: WALLET_RESOURCE.to_string(),
+        nonce: WALLET_REPLAY_NONCE_REF.to_string(),
+        issued_at: WALLET_ISSUED_AT,
+        expires_at: WALLET_EXPIRES_AT,
+        signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
+        public_key_ref: WALLET_PUBLIC_KEY_REF.to_string(),
     }
 }
 

@@ -6,6 +6,7 @@
 
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvidenceKind {
@@ -192,6 +193,8 @@ pub struct WalletPresentationFixture {
     pub replay_nonce_ref: String,
     pub issued_at: u64,
     pub expires_at: u64,
+    pub public_key_bytes: Vec<u8>,
+    pub signature_bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -226,6 +229,8 @@ impl WalletPresentationFixture {
             && !self.public_key_ref.is_empty()
             && !self.replay_nonce_ref.is_empty()
             && self.issued_at < self.expires_at
+            && self.public_key_bytes.len() == 32
+            && self.signature_bytes.len() == 64
     }
 }
 
@@ -333,6 +338,26 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         if !presentation.has_required_shape() {
             return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
         }
+        let resource = request.resource.as_deref().unwrap_or_default();
+        let challenge = SecsWalletChallenge {
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            origin: presentation.origin.clone(),
+            operation: request.operation.clone(),
+            resource: resource.to_string(),
+            nonce: presentation.replay_nonce_ref.clone(),
+            issued_at: presentation.issued_at,
+            expires_at: presentation.expires_at,
+            signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
+            public_key_ref: presentation.public_key_ref.clone(),
+        };
+        if !verify_ed25519_signature(
+            &presentation.public_key_bytes,
+            &presentation.signature_bytes,
+            &challenge.canonical_bytes(),
+        ) {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
@@ -341,11 +366,8 @@ impl EvidenceAdapter for WalletPresentationAdapter {
             operation: request.operation.clone(),
             resource: request.resource.clone(),
             local_dev_test_only: false,
-            public_proof: false,
+            public_proof: true,
             summary_fields: vec![
-                WalletPresentationShellStatus::ShapeValidatedSignatureUnsupported
-                    .as_summary_field()
-                    .to_string(),
                 format!("evidence_ref:{evidence_ref}"),
                 format!("origin:{}", presentation.origin),
                 format!("challenge_ref:{}", presentation.challenge_ref),
@@ -354,9 +376,31 @@ impl EvidenceAdapter for WalletPresentationAdapter {
                 format!("replay_nonce_ref:{}", presentation.replay_nonce_ref),
                 format!("issued_at:{}", presentation.issued_at),
                 format!("expires_at:{}", presentation.expires_at),
+                format!(
+                    "signature_suite:{}",
+                    SecsWalletChallenge::ED25519_SIGNATURE_SUITE
+                ),
             ],
         })
     }
+}
+
+fn verify_ed25519_signature(
+    public_key_bytes: &[u8],
+    signature_bytes: &[u8],
+    message: &[u8],
+) -> bool {
+    let Ok(public_key_bytes) = <&[u8; 32]>::try_from(public_key_bytes) else {
+        return false;
+    };
+    let Ok(public_key) = VerifyingKey::from_bytes(public_key_bytes) else {
+        return false;
+    };
+    let Ok(signature) = Signature::from_slice(signature_bytes) else {
+        return false;
+    };
+
+    public_key.verify(message, &signature).is_ok()
 }
 
 fn requested_origin(request: &EvidenceRequest) -> Option<&str> {

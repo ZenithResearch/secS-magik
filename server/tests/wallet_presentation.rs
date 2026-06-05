@@ -55,15 +55,15 @@ fn wallet_presentation_wrong_audience_and_wrong_origin_are_distinguishable() {
 }
 
 #[test]
-fn wallet_presentation_shell_accepts_fixture_shape_without_claiming_public_proof() {
+fn wallet_presentation_accepts_valid_cryptographic_fixture_as_public_proof() {
     match adapter().verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))) {
         EvidenceResult::Satisfied(summary) => {
             assert_eq!(summary.kind, EvidenceKind::WalletPresentation);
             assert_eq!(summary.subject, WALLET_SUBJECT);
             assert_eq!(summary.audience, WALLET_AUDIENCE);
             assert!(!summary.local_dev_test_only);
-            assert!(!summary.public_proof);
-            assert!(summary.summary_fields.iter().any(|field| {
+            assert!(summary.public_proof);
+            assert!(!summary.summary_fields.iter().any(|field| {
                 field
                     == WalletPresentationShellStatus::ShapeValidatedSignatureUnsupported
                         .as_summary_field()
@@ -84,9 +84,17 @@ fn wallet_presentation_shell_accepts_fixture_shape_without_claiming_public_proof
                 .summary_fields
                 .iter()
                 .any(|field| field == &expires_at_summary_field()));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "signature_suite:Ed25519"));
+            assert!(!summary
+                .summary_fields
+                .iter()
+                .any(|field| field.contains("signature_bytes") || field.contains("private_key")));
         }
         EvidenceResult::Rejected(error) => {
-            panic!("expected shell-shaped wallet evidence, got {error:?}")
+            panic!("expected cryptographically verified wallet evidence, got {error:?}")
         }
     }
 }
@@ -103,7 +111,6 @@ fn wallet_presentation_incomplete_fixture_fails_closed_with_invalid_presentation
 }
 
 #[test]
-#[ignore = "RED Track D D1/D2: unignore once wallet-core cryptographic verification returns a public proof"]
 fn wallet_presentation_valid_fixture_verifies_cryptographically() {
     match adapter().verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))) {
         EvidenceResult::Satisfied(summary) => {
@@ -121,7 +128,6 @@ fn wallet_presentation_valid_fixture_verifies_cryptographically() {
 }
 
 #[test]
-#[ignore = "RED Track D D1/D2: unignore when canonical challenge contract binds secS wallet proof fields"]
 fn wallet_presentation_challenge_contract_requires_public_proof_without_shell_status() {
     let result = adapter().verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF)));
 
@@ -141,4 +147,16 @@ fn wallet_presentation_challenge_contract_requires_public_proof_without_shell_st
         field
             == WalletPresentationShellStatus::ShapeValidatedSignatureUnsupported.as_summary_field()
     }));
+}
+
+#[test]
+fn wallet_presentation_shape_only_fixture_fails_closed_without_crypto() {
+    let mut shape_only = wallet_fixture();
+    shape_only.signature_bytes.clear();
+    let shape_only = WalletPresentationAdapter::new([shape_only]);
+
+    assert_eq!(
+        shape_only.verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))),
+        EvidenceResult::Rejected(VerificationError::InvalidPresentation)
+    );
 }
