@@ -7,6 +7,8 @@
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use sha2::{Digest, Sha256};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvidenceKind {
@@ -306,7 +308,7 @@ impl WalletPresentationAdapter {
     pub fn new(fixtures: impl IntoIterator<Item = WalletPresentationFixture>) -> Self {
         Self {
             fixtures: fixtures.into_iter().collect(),
-            validation_time: None,
+            validation_time: Some(current_unix_time()),
         }
     }
 
@@ -363,6 +365,9 @@ impl EvidenceAdapter for WalletPresentationAdapter {
         if !presentation.has_required_shape() {
             return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
         }
+        if presentation.public_key_ref != public_key_ref_for_bytes(&presentation.public_key_bytes) {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
         if presentation.signature_suite != SecsWalletChallenge::ED25519_SIGNATURE_SUITE {
             return EvidenceResult::Rejected(VerificationError::UnsupportedSignatureSuite);
         }
@@ -415,6 +420,22 @@ impl EvidenceAdapter for WalletPresentationAdapter {
             ],
         })
     }
+}
+
+pub fn public_key_ref_for_bytes(public_key_bytes: &[u8]) -> String {
+    let digest = Sha256::digest(public_key_bytes);
+    let fingerprint = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("pubkey:sha256:{fingerprint}")
+}
+
+fn current_unix_time() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(u64::MAX)
 }
 
 fn verify_ed25519_signature(

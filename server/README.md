@@ -106,7 +106,7 @@ Do not describe this as public auditability, public anchoring, federation proof,
 
 ## Wallet presentation verifier boundary
 
-The current `wallet_presentation` adapter verifies signed presentation/challenge material cryptographically, but it does so with an explicitly temporary minimal-equivalent secS challenge contract in `server/src/evidence.rs`. That contract binds subject, audience, origin, operation, resource, nonce, issued/expires timestamps, signature suite, and public key ref/id while Castalia Wallet wallet-core parity is pending.
+The current `wallet_presentation` adapter verifies signed presentation/challenge material cryptographically, but it does so with an explicitly temporary minimal-equivalent secS challenge contract in `server/src/evidence.rs`. That contract binds subject, audience, origin, operation, resource, nonce, issued/expires timestamps, signature suite, and a deterministic public-key fingerprint reference while Castalia Wallet wallet-core parity is pending. This is proof-of-possession for the claimed subject key in the presentation; it does not establish receiver trust, issuer/root/registry authority, or full wallet-core parity.
 
 Packaging/client-surface boundary:
 
@@ -114,7 +114,7 @@ Packaging/client-surface boundary:
 - secZ/secC/local clients: may use native/client bindings or carry packet/evidence bytes; they construct or transport calls and presentations, but they are not verifier authority.
 - secS/server: owns only the verifier subset and artifact-consumer boundary. It consumes signed presentation/challenge bytes and public verification material; it must not depend on UI session state, browser WalletAuth sessions, or extension runtime state.
 
-This is not a full Castalia Wallet wallet-core import, not live Castalia Wallet parity, and not a trusted issuer/root policy.
+This is not a full Castalia Wallet wallet-core import, not live Castalia Wallet parity, and not trusted issuer/root/registry policy.
 
 ## Commands
 

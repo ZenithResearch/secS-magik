@@ -182,6 +182,8 @@ fn track_d_docs_close_wallet_verification_without_full_wallet_core_overclaim() {
         "secZ/secC/local clients: may use native/client bindings or carry packet/evidence bytes",
         "secS/server: owns only the verifier subset and artifact-consumer boundary",
         "signed presentation/challenge bytes plus public verification material",
+        "proof-of-possession for the claimed subject key",
+        "not trusted issuer/root/registry policy",
         "ShapeValidatedSignatureUnsupported",
     ] {
         assert!(

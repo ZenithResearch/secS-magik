@@ -20,7 +20,7 @@ First-prod readiness requires all three Track A rails:
 secS-magik is ready for first prod only when one Hub can run a production-shaped secS verifier service that:
 
 - rejects insecure/local-dev authority in production mode;
-- verifies wallet-core-defined presentations for app/user subjects;
+- verifies temporary minimal-equivalent secS wallet presentations for app/user subjects until wallet-core parity is reconciled;
 - evaluates federated evidence from another Hub/Castalia-style authority through the narrowed A5 first path — signed membership/provisioning credentials, receiver-held trusted issuer/root metadata, and status checks — while preserving future Dregg anchor/root seams behind A9;
 - signs and persists operator-visible receipts/contexts;
 - executes only bounded descriptor-authorized handlers;
@@ -31,7 +31,7 @@ secS-magik is ready for first prod only when one Hub can run a production-shaped
 | Rail | Required for first prod? | Meaning | First proof |
 |---|---:|---|---|
 | Local single-node production-shaped deployment | Yes | One Hub/secS instance can run with production config, explicit keys, fail-closed runtime mode, bounded handlers, redacted ledger, and documented smoke commands. | Local production-mode smoke with signed context, receipt chain, and no local-dev evidence satisfying authority. |
-| Castalia Wallet-backed app/user auth | Yes | Browser/app user presents wallet-core-defined challenge/signature evidence; secS verifies the same canonical wallet-core semantics used by the extension/secZ/secC. | Wallet presentation cryptographic happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
+| Castalia Wallet-backed app/user auth | Yes | Browser/app user presents signed challenge evidence through the temporary minimal-equivalent secS wallet-presentation contract; full wallet-core parity remains future reconciliation. | Wallet presentation cryptographic happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
 | Cross-Hub/federated evidence | Yes | Hub A can evaluate evidence produced/signed/anchored/revoked/vouched for by Hub B, Castalia, or Dregg-shaped authority while still applying Hub A local manifest policy. | Fixture federation evidence adapter or policy path that accepts a trusted issuer/root and rejects untrusted/revoked/stale evidence. |
 
 ## A0 — Not enough for prod
@@ -52,7 +52,7 @@ The current implemented surfaces prove important substrate behavior, but they do
 Use these phrases until code proves stronger claims:
 
 - local production-shaped deployment;
-- wallet-core-defined presentation;
+- temporary minimal-equivalent secS wallet presentation until wallet-core parity is reconciled;
 - typed fail-closed wallet shell;
 - cross-Hub/federated evidence rail;
 - fixture trusted issuer/root;
@@ -119,7 +119,7 @@ A2 turns the A0 production target into working ownership boundaries. These bound
 | Rail | Owned by secS-magik? | Required for first prod? | Scope in this repo | First-prod proof target |
 |---|---:|---:|---|---|
 | Local production-shaped secS service | Yes | Yes | Runtime mode enforcement, explicit operator/verifier config, bounded handler routing, signed contexts/receipts, redacted local ledger, and documented smoke commands. | Production-mode local smoke rejects local/dev evidence and produces signed verify/execute receipts. |
-| Wallet-core-backed user/app auth evidence | Partly | Yes | secS verifies or consumes canonical Castalia Wallet evidence for a descriptor. Wallet UI/session UX stays outside this repo. | Wallet presentation happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
+| Wallet-core-backed user/app auth evidence | Partly | Yes | secS currently verifies a temporary minimal-equivalent secS wallet-presentation contract for a descriptor; canonical Castalia Wallet wallet-core evidence remains future reconciliation. Wallet UI/session UX stays outside this repo. | Wallet presentation happy path plus wrong signature/key/subject/audience/origin/replay/expiry rejects. |
 | Cross-Hub/federated evidence evaluation | Yes at verifier/evidence boundary | Yes | Typed evidence adapter/model for trusted issuer/root, remote receipt/capability/credential/revocation/root evidence, and receiver-local policy enforcement. | Fixture trusted issuer/root accepts valid evidence and rejects untrusted, revoked, stale, malformed, wrong-audience, or wrong-operation evidence. |
 | Signed receipt/context identity | Yes | Yes | Signer identity, key id, signed `VerifiedCallContext`, signed receipts, and local/operator-visible provenance. | Tamper, wrong key, expired context, and untrusted/revoked issuer checks are named and later tested. |
 | Descriptor-bound bounded execution | Yes | Yes | Receiver-local manifest policy binds opcode/operation/evidence to bounded handler execution after verification. | Handlers run only from verified context; oversized payload, unavailable handler, and descriptor mismatch fail closed. |

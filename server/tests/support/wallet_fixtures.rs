@@ -1,5 +1,7 @@
 use ed25519_dalek::{Signer, SigningKey};
-use server::evidence::{EvidenceRequest, SecsWalletChallenge, WalletPresentationFixture};
+use server::evidence::{
+    public_key_ref_for_bytes, EvidenceRequest, SecsWalletChallenge, WalletPresentationFixture,
+};
 use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
 
 pub const WALLET_OPCODE: u8 = 0x41;
@@ -14,7 +16,6 @@ pub const WALLET_EVIDENCE_REF: &str = "wallet-presentation:alice-local";
 pub const WALLET_INCOMPLETE_EVIDENCE_REF: &str = "wallet-presentation:missing-shape";
 pub const WALLET_CHALLENGE_REF: &str = "challenge:phase4-test";
 pub const WALLET_SIGNATURE_REF: &str = "signature:fixture-only";
-pub const WALLET_PUBLIC_KEY_REF: &str = "pubkey:fixture-only";
 pub const WALLET_REPLAY_NONCE_REF: &str = "nonce:wallet-present-0001";
 pub const WALLET_SESSION_REF: &str = "session:wallet-present-local";
 pub const WALLET_ISSUED_AT: u64 = 1_717_000_000;
@@ -63,6 +64,7 @@ pub fn wallet_request_with_origin(evidence_ref: Option<&str>) -> EvidenceRequest
 
 pub fn wallet_fixture() -> WalletPresentationFixture {
     let signing_key = SigningKey::from_bytes(&WALLET_FIXTURE_ED25519_SEED);
+    let public_key_bytes = signing_key.verifying_key().to_bytes().to_vec();
     let challenge = wallet_challenge();
     let signature = signing_key.sign(&challenge.canonical_bytes());
 
@@ -75,12 +77,12 @@ pub fn wallet_fixture() -> WalletPresentationFixture {
         resource: WALLET_RESOURCE.to_string(),
         challenge_ref: WALLET_CHALLENGE_REF.to_string(),
         signature_ref: WALLET_SIGNATURE_REF.to_string(),
-        public_key_ref: WALLET_PUBLIC_KEY_REF.to_string(),
+        public_key_ref: wallet_public_key_ref(),
         replay_nonce_ref: WALLET_REPLAY_NONCE_REF.to_string(),
         issued_at: WALLET_ISSUED_AT,
         expires_at: WALLET_EXPIRES_AT,
         signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
-        public_key_bytes: signing_key.verifying_key().to_bytes().to_vec(),
+        public_key_bytes,
         signature_bytes: signature.to_bytes().to_vec(),
     }
 }
@@ -96,7 +98,7 @@ pub fn wallet_challenge() -> SecsWalletChallenge {
         issued_at: WALLET_ISSUED_AT,
         expires_at: WALLET_EXPIRES_AT,
         signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
-        public_key_ref: WALLET_PUBLIC_KEY_REF.to_string(),
+        public_key_ref: wallet_public_key_ref(),
     }
 }
 
@@ -107,6 +109,11 @@ pub fn sign_wallet_fixture(fixture: &mut WalletPresentationFixture) {
         .sign(&wallet_challenge_for_fixture(fixture).canonical_bytes())
         .to_bytes()
         .to_vec();
+}
+
+pub fn wallet_public_key_ref() -> String {
+    let signing_key = SigningKey::from_bytes(&WALLET_FIXTURE_ED25519_SEED);
+    public_key_ref_for_bytes(&signing_key.verifying_key().to_bytes())
 }
 
 fn wallet_challenge_for_fixture(fixture: &WalletPresentationFixture) -> SecsWalletChallenge {

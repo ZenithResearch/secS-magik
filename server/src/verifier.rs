@@ -240,9 +240,38 @@ impl Verifier {
         signer_key_id: &str,
         secret_key: &[u8; 32],
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        Self::verify_manifest_operation_with_evidence_inputs_and_sign(
+            packet,
+            manifest,
+            audience,
+            subject,
+            evidence_ref,
+            [],
+            adapter,
+            now,
+            signer_key_id,
+            secret_key,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_manifest_operation_with_evidence_inputs_and_sign(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        subject: &str,
+        evidence_ref: Option<&str>,
+        public_inputs: impl IntoIterator<Item = String>,
+        adapter: &dyn EvidenceAdapter,
+        now: u64,
+        signer_key_id: &str,
+        secret_key: &[u8; 32],
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
-        let request = EvidenceRequest::from_descriptor(descriptor, subject, audience, evidence_ref);
+        let mut request =
+            EvidenceRequest::from_descriptor(descriptor, subject, audience, evidence_ref);
+        request.public_inputs.extend(public_inputs);
         let evidence_summary = match adapter.verify(&request) {
             EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
             EvidenceResult::Rejected(error) => return Err(error),

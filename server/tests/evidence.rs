@@ -1,13 +1,21 @@
+#[allow(dead_code)]
+#[path = "support/wallet_fixtures.rs"]
+mod wallet_fixtures;
+
 use libsec_core::ZenithPacket;
 use server::evidence::{
     EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, LocalStaticEvidenceAdapter,
-    LocalStaticGrant,
+    LocalStaticGrant, WalletPresentationAdapter,
 };
 use server::manifest::{
     OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
 };
 use server::receipt::Receipt;
 use server::verifier::{VerificationError, Verifier};
+use wallet_fixtures::{
+    origin_input, wallet_descriptor, wallet_fixture, WALLET_AUDIENCE, WALLET_EVIDENCE_REF,
+    WALLET_ISSUED_AT, WALLET_OPCODE, WALLET_ORIGIN, WALLET_SUBJECT,
+};
 
 fn evidence_descriptor(opcode: u8) -> OperationDescriptor {
     OperationDescriptor {
@@ -191,4 +199,58 @@ fn verifier_rejects_missing_local_static_evidence_before_signing_context() {
     .expect_err("missing local_static evidence should fail closed");
 
     assert_eq!(error, VerificationError::InsufficientEvidence);
+}
+
+#[test]
+fn verifier_signed_context_can_pass_wallet_public_inputs_for_origin_bound_evidence() {
+    let manifest = ReceiverManifest::new([wallet_descriptor(WALLET_OPCODE)]);
+    let packet = packet(WALLET_OPCODE);
+    let adapter =
+        WalletPresentationAdapter::with_validation_time([wallet_fixture()], WALLET_ISSUED_AT + 60);
+
+    assert_eq!(
+        Verifier::verify_manifest_operation_with_evidence_and_sign(
+            &packet,
+            &manifest,
+            WALLET_AUDIENCE,
+            WALLET_SUBJECT,
+            Some(WALLET_EVIDENCE_REF),
+            &adapter,
+            1_700_000_000,
+            "secs-verifier-test-key",
+            &[7u8; 32],
+        )
+        .expect_err("legacy evidence API does not supply wallet origin"),
+        VerificationError::InvalidPresentation
+    );
+
+    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+        &packet,
+        &manifest,
+        WALLET_AUDIENCE,
+        WALLET_SUBJECT,
+        Some(WALLET_EVIDENCE_REF),
+        [origin_input(WALLET_ORIGIN)],
+        &adapter,
+        1_700_000_000,
+        "secs-verifier-test-key",
+        &[7u8; 32],
+    )
+    .expect("wallet evidence with explicit origin public input should produce signed context");
+
+    assert!(signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field == "evidence_kind:wallet_presentation"));
+    assert!(signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field == &origin_input(WALLET_ORIGIN)));
+    assert!(signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field == "public_proof:true"));
 }

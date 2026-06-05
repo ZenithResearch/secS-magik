@@ -4,8 +4,8 @@ mod wallet_fixtures;
 
 use server::evidence::SecsWalletChallenge;
 use wallet_fixtures::{
-    WALLET_AUDIENCE, WALLET_EXPIRES_AT, WALLET_ISSUED_AT, WALLET_OPERATION, WALLET_ORIGIN,
-    WALLET_PUBLIC_KEY_REF, WALLET_REPLAY_NONCE_REF, WALLET_RESOURCE, WALLET_SUBJECT,
+    wallet_public_key_ref, WALLET_AUDIENCE, WALLET_EXPIRES_AT, WALLET_ISSUED_AT, WALLET_OPERATION,
+    WALLET_ORIGIN, WALLET_REPLAY_NONCE_REF, WALLET_RESOURCE, WALLET_SUBJECT,
 };
 
 fn wallet_challenge_contract_fixture() -> SecsWalletChallenge {
@@ -19,7 +19,7 @@ fn wallet_challenge_contract_fixture() -> SecsWalletChallenge {
         issued_at: WALLET_ISSUED_AT,
         expires_at: WALLET_EXPIRES_AT,
         signature_suite: SecsWalletChallenge::ED25519_SIGNATURE_SUITE.to_string(),
-        public_key_ref: WALLET_PUBLIC_KEY_REF.to_string(),
+        public_key_ref: wallet_public_key_ref(),
     }
 }
 
@@ -29,18 +29,22 @@ fn wallet_challenge_contract_canonical_bytes_have_exact_layout_and_order() {
 
     assert_eq!(
         String::from_utf8(challenge.canonical_bytes()).expect("canonical bytes are UTF-8"),
-        concat!(
-            "secs-wallet-challenge-v1\n",
-            "subject:23:did:example:alice#key-1\n",
-            "audience:17:secS://local-test\n",
-            "origin:25:https://gallery.localhost\n",
-            "operation:24:candidate.wallet.present\n",
-            "resource:16:application/json\n",
-            "nonce:25:nonce:wallet-present-0001\n",
-            "issued_at:10:1717000000\n",
-            "expires_at:10:1717000300\n",
-            "signature_suite:7:Ed25519\n",
-            "public_key_ref:19:pubkey:fixture-only\n",
+        format!(
+            concat!(
+                "secs-wallet-challenge-v1\n",
+                "subject:23:did:example:alice#key-1\n",
+                "audience:17:secS://local-test\n",
+                "origin:25:https://gallery.localhost\n",
+                "operation:24:candidate.wallet.present\n",
+                "resource:16:application/json\n",
+                "nonce:25:nonce:wallet-present-0001\n",
+                "issued_at:10:1717000000\n",
+                "expires_at:10:1717000300\n",
+                "signature_suite:7:Ed25519\n",
+                "public_key_ref:{}:{}\n"
+            ),
+            wallet_public_key_ref().len(),
+            wallet_public_key_ref()
         )
     );
 }
