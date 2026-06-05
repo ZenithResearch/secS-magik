@@ -17,7 +17,7 @@ server/
   secS verifier/RPC substrate, receiver manifests, signed contexts, receipts, evidence adapters, and bounded execution
 
 docs/
-  source-of-truth specs, current plans, historical reviews, and public messaging drafts
+  source-of-truth specs, current plans, current status, specs, plans, and public messaging drafts
 ```
 
 Do not organize the repo as though secZ is the server-side verifier. secZ is a client-side / outgoing-call vocabulary surface in the corrected architecture. The existing `server/src/bin/secz.rs` file is now a thin compatibility wrapper. Canonical reusable gateway behavior lives in library modules and the canonical prototype binary is `server/src/bin/secs-gateway.rs`.
@@ -48,29 +48,36 @@ secS-magik/
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs                   # server module exports and shared server entry points
-│       ├── main.rs                  # current secS prototype binary on port 9000
+│       ├── config.rs                # typed runtime config/readiness inputs
+│       ├── identity.rs              # verifier identity, key IDs, local public-key registry seam
 │       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
-│       ├── ingress.rs               # prototype TCP ingress and verifier/payload handoff
-│       ├── gateway.rs               # configurable router, telemetry schema, prototype bindings
+│       ├── ingress.rs               # bounded prototype TCP ingress and verifier/payload handoff
+│       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
 │       ├── payload.rs               # tunnel key parsing and runtime-mode payload decryption
-│       ├── manifest.rs              # receiver-local OperationDescriptor and opcode governance placeholder
-│       ├── evidence.rs              # EvidenceAdapter placeholder; local_static adapter first later
-│       ├── receipt.rs               # Receipt/decision placeholder
-│       ├── ledger.rs                # SQLite event/receipt persistence placeholder
+│       ├── manifest.rs              # receiver-local OperationDescriptor and opcode governance
+│       ├── evidence.rs              # EvidenceAdapter trait, local_static, wallet_presentation shell
+│       ├── receipt.rs               # signed receipt/event types and reason/authenticator metadata
+│       ├── ledger.rs                # local SQLite event/receipt/replay persistence and inspection
+│       ├── schema.rs                # centralized runtime SQLite schema ontology
+│       ├── ontology.rs              # shared prototype receiver/audience/reason constants
 │       ├── runtime_mode.rs          # local_dev_plaintext / local_dev_tunnel / production_verified
-│       ├── session.rs               # existing session store until superseded by verifier/session binding
+│       ├── session.rs               # local in-memory session utility
 │       └── bin/
 │           ├── secs-gateway.rs      # canonical prototype gateway wrapper
 │           └── secz.rs              # historical compatibility wrapper
 └── docs/
-    ├── README.md                    # docs index, once docs grow beyond a few files
+    ├── README.md                    # docs index
+    ├── implementation-status.md     # current status ledger
     ├── repository-schema.md         # this file
+    ├── client-surfaces.md           # client-side/outgoing-call boundary
     ├── specs/
+    │   ├── README.md
     │   └── 2026-06-01-secs-magik-objectives-spec.md
     ├── plans/
-    │   └── 2026-06-01-secs-magik-implementation-issue-slices.md
-    ├── reviews/
-    │   └── 2026-04-30-secs-daemon-code-review.md
+    │   ├── README.md
+    │   ├── 2026-06-01-implementation-progress-checklist.md
+    │   ├── 2026-06-01-secs-magik-implementation-issue-slices.md
+    │   └── 2026-06-02-ready-for-prod-checklist.md
     └── announcement-thread.md       # public-language draft with prototype caveats
 ```
 
@@ -84,13 +91,17 @@ secS-magik/
 | `client/src/main.rs` | CLI packet sending; current secC-like outgoing path. | Server-side verification, receiver-local operation authority. |
 | `server/src/verifier.rs` | Typed verifier errors, prototype envelope check, signed context helpers. | Product policy, app login, settlement, arbitrary handler execution. |
 | `server/src/ingress.rs` | Prototype TCP ingress and verifier/payload handoff. | Receiver-local manifest semantics or handler implementation details. |
-| `server/src/gateway.rs` | Configurable router, telemetry schema, prototype machine-program bindings. | Packet verification or payload decryption policy. |
+| `server/src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle receipt/event emission. | Packet decode or payload decryption policy; durable distributed broker semantics; arbitrary shell authority. |
 | `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
-| `server/src/manifest.rs` | Placeholder home for receiver-local operation descriptors and opcode governance. | Client-only packet construction; global product policy. |
-| `server/src/evidence.rs` | Placeholder home for evidence adapters. | Mandatory external runtime dependencies. |
+| `server/src/manifest.rs` | Receiver-local operation descriptors, handler IDs, evidence requirements, and opcode governance. | Client-only packet construction; global product policy; final global opcode ratification. |
+| `server/src/evidence.rs` | `EvidenceAdapter` trait, `local_static` local-dev-test adapter, and shape-only `wallet_presentation` shell. | Mandatory external runtime dependencies or production wallet/Dregg/Midnight/Cardano authority claims. |
 | `server/src/receipt.rs` | In-memory signed receipt and event types: typed reject/verify/execute/forward receipts, decisions, authenticator kinds, stable event names, and Ed25519 receipt helpers. | Payload content logging and durable persistence by default. |
-| `server/src/ledger.rs` | SQLite event/receipt storage using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained; payload content persistence by default. |
+| `server/src/ledger.rs` | Local SQLite event/receipt/replay storage and redacted operator inspection using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained; payload content persistence by default; public-chain anchoring. |
 | `server/src/runtime_mode.rs` | Explicit local/dev/production mode selection. | Silent plaintext fallback. |
+| `server/src/config.rs` | Typed gateway runtime config and readiness inputs. | Hidden production defaults or fixture-only smoke config masquerading as deployed production. |
+| `server/src/identity.rs` | Verifier identity loading, signer key IDs, receipt/context signing, and local public-key registry checks. | Live federation discovery or complete trusted issuer/root policy. |
+| `server/src/schema.rs` | Central runtime SQLite schema definitions and lightweight local ledger migrations. | Public-chain anchoring or remote retention. |
+| `server/src/ontology.rs` | Shared prototype receiver/audience/reason constants. | Product authority or live trust registry semantics. |
 | `server/src/bin/secs-gateway.rs` | Canonical prototype gateway command. | Reusable gateway logic. |
 | `server/src/bin/secz.rs` | Compatibility wrapper for the historical command name. | Final verifier semantics or generic interface claims. |
 
@@ -111,7 +122,6 @@ secS-magik/
 | `docs/repository-schema.md` | File-system/schema target for implementation agents. | Update before moving modules or adding new doc classes. |
 | `docs/specs/` | Current architecture/specification docs. | Current source-of-truth specs only. |
 | `docs/plans/` | Implementation plans/issue slices. | Reviewable plans; do not mix with historical audits. |
-| `docs/reviews/` | Code reviews and audits. | Historical evidence; do not rewrite as if current architecture. Add supersession notes if needed. |
 | `docs/announcement-thread.md` | External narrative draft. | Must not claim production-secure/ZK behavior before verifier proof exists. |
 | `AGENTS.md` | Agent rules. | Keep aligned with current boundaries; stale rules are dangerous. |
 | `CHANGELOG.md` | Commit reasoning. | Required when committing changes. |
@@ -123,12 +133,12 @@ Current files that need boundary care:
 - `server/src/bin/secz.rs` is now a thin compatibility wrapper. Prototype proof/TTL checks live in `server/src/verifier.rs`, payload handling in `server/src/payload.rs`, connection handling in `server/src/ingress.rs`, and telemetry/routing in `server/src/gateway.rs`.
 - `README.md` previously described Dregg as the direct implementation path and Wallet as living inside secS-magik implementations. Current boundary: Dregg/Midnight/Cardano are optional evidence/anchor rails; WalletAuth and browser app sessions are separate from internal secS RPC.
 - `docs/announcement-thread.md` previously used strong ZK/security language. It should remain a vision/draft with prototype caveats until signed contexts, receipts, evidence adapters, and verifier checks exist.
-- `docs/reviews/2026-04-30-secs-daemon-code-review.md`, if tracked, should remain historical audit evidence. Do not edit its findings into current guidance except by adding a short supersession note.
+- Historical review files, if reintroduced under `docs/reviews/`, should remain audit evidence. Do not edit old findings into current guidance except by adding a short supersession note that points readers to `docs/implementation-status.md`.
 
 ## Verification checklist for docs realignment
 
 ```bash
-git diff --check -- README.md AGENTS.md docs/announcement-thread.md docs/repository-schema.md docs/specs/2026-06-01-secs-magik-objectives-spec.md
+git diff --check -- CHANGELOG.md README.md AGENTS.md docs/
 cargo test --workspace
 ```
 

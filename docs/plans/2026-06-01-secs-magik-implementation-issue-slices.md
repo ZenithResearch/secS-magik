@@ -9,12 +9,12 @@ domain: [planning, projects, architecture]
 axes: [analytical]
 status: review implementation surface
 source: [[2026-06-01-secs-magik-objectives-spec]]
-repo: /Users/bananawalnut/repos/secS-magik @ 8523167
+repo: /Users/bananawalnut/repos/secS-magik @ 8523167 historical import baseline; see ../implementation-status.md for current status
 ---
 
 # secS-magik implementation issue slices
 
-Repo-local copy imported from Claude Hub capture on 2026-06-01. Use this after the README/docs boundary realignment is accepted. This is a planned implementation sequence, not a record of completed code. For current implementation status, see `../implementation-status.md`.
+Repo-local copy imported from Claude Hub capture on 2026-06-01. This is a historical issue-slice plan; many early slices have since landed. For current implemented/partial/planned status, see `../implementation-status.md`.
 
 ## Summary
 
@@ -32,7 +32,7 @@ The implementation posture is compatibility-first:
 
 ## Current repo baseline
 
-Repository inspected: `/Users/bananawalnut/repos/secS-magik` at `8523167` on `main`.
+Historical baseline inspected at import time: `/Users/bananawalnut/repos/secS-magik` at `8523167` on `main`. This is not the current HEAD/status snapshot.
 
 Observed relevant files:
 
@@ -40,9 +40,7 @@ Observed relevant files:
 - `core/src/lib.rs` — defines `ZenithPacket`, `SessionHandshake`, `OPCODE_GENERATE`, `OPCODE_CHAT`, and packet serialization tests.
 - `core/src/tunnel.rs` — tunnel crypto helpers used by the server gateway.
 - `core/src/zk.rs` — current ZK/proof-adjacent core surface.
-- `server/src/lib.rs` — TCP node loop, deserializes `ZenithPacket`, prints proof validation message, forwards `opcode` and `encrypted_payload` to `PayloadRouter`.
-- `server/src/main.rs` — basic secS router for `OPCODE_GENERATE`, `OPCODE_CHAT`, `0x10`, `0x20`, unknown opcode.
-- `server/src/bin/secz.rs` — current configurable gateway prototype: ad hoc `validate_zk_proof`, plaintext fallback, tunnel decrypt, SQLite `node_telemetry`, opcode-to-program map, subprocess/native handler examples.
+- Historical note: at the import baseline, `server/src/lib.rs`, `server/src/main.rs`, and `server/src/bin/secz.rs` still carried direct TCP/prototype gateway responsibilities. Current HEAD has retired `server/src/main.rs`, moved reusable ingress/gateway/payload logic into library modules, and keeps `server/src/bin/secz.rs` as a compatibility wrapper. See `../implementation-status.md`.
 - `client/src/main.rs` — client sender surface.
 - `hub/src/dispatcher.rs`, `hub/src/lib.rs` — untracked adjacent hub surface; do not depend on it in the first implementation sequence unless deliberately promoted into the workspace.
 

@@ -82,7 +82,7 @@ Rules:
 - Keep `opcode: u8`.
 - Preserve bincode round-trip compatibility for v0.
 - The CLI parses hub opcodes as decimal `u8`; use `16`, not `0x10`, unless hex parsing is explicitly added.
-- Current prototype proof bytes are not real ZK verification. Label them `PrototypeProofEnvelope` until the typed verifier exists.
+- Current prototype proof bytes are not real ZK verification. Label them `PrototypeProofEnvelope` until a real proof adapter with defined statements/public inputs exists.
 - `encrypted_payload` remains opaque to secS except for cryptographic/tunnel verification and handler handoff rules.
 
 ### Opcode governance
@@ -93,20 +93,22 @@ Rules:
 | `0x0B`–`0x3F` | Castalia-standard candidate | Portable Castalia operation names/evidence expectations after ratification. Current `0x10`/`0x20`/`0x30` are candidates/dev bindings only. |
 | `0x40`–`0xFF` | Operator-defined | Receiver/operator local handlers declared by the manifest. |
 
-## Target implementation modules
+## Current implementation modules
 
-The next implementation pass should move toward this module ownership:
+Keep module ownership explicit:
 
 - `core/src/lib.rs` — `ZenithPacket` v0, constants, exports.
 - `core/src/packet_builder.rs` — verifier-free packet construction helper.
-- `server/src/verifier.rs` — typed verifier pipeline and `VerificationError`.
-- `server/src/context.rs` — `VerifiedCallContext` / `SignedVerifiedCallContext`, if split from verifier.
-- `server/src/identity.rs` — Ed25519 key loading, signer key IDs, signature verification helpers.
+- `server/src/verifier.rs` — typed verifier errors, prototype envelope checks, and signed context helpers.
+- `server/src/identity.rs` — Ed25519 key loading, signer key IDs, signature verification helpers, and local public-key registry checks.
+- `server/src/config.rs` — runtime config and readiness inputs.
 - `server/src/manifest.rs` — receiver-local `OperationDescriptor` and opcode range governance.
-- `server/src/evidence.rs` — `EvidenceAdapter` trait; `local_static` first, then wallet presentation.
+- `server/src/evidence.rs` — `EvidenceAdapter` trait, `local_static`, and shape-only `wallet_presentation` shell.
 - `server/src/receipt.rs` — signed receipts, decisions, reason codes, authenticator kinds.
-- `server/src/ledger.rs` — SQLite receipt/event persistence with runtime SQL.
-- `server/src/execution.rs` — bounded handler execution after verified context.
+- `server/src/ledger.rs` — local SQLite receipt/event/replay persistence and operator inspection.
+- `server/src/schema.rs` — centralized runtime SQLite schema ontology.
+- `server/src/ontology.rs` — shared prototype receiver/audience/reason constants.
+- `server/src/gateway.rs` — receiver-local bounded handler routing after verified context.
 - `server/src/runtime_mode.rs` — explicit `local_dev_plaintext`, `local_dev_tunnel`, `production_verified` modes.
 
 ## Development Guidelines

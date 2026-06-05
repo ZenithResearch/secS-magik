@@ -985,9 +985,9 @@ Boundaries preserved:
 | I3 — A7 failure matrix | Implement failure tests named in A7 for missing/wrong/replayed/expired wallet and federated evidence, descriptor mismatch, handler unavailable, oversized payload, redaction leaks. | integration tests plus modules touched by failures | `cargo test -p server membership_provision -- --nocapture`; workspace gate | Every A7 failure either has a passing test or is explicitly carried as a named blocker with reason. | Stop after matrix is green. | Do not hide replay-store gaps. |
 | I4 — Runbook and expected outputs | Document exact local command, fixture setup, expected receipts, and ledger inspection. | `docs/runbooks/` or `docs/plans/`, README pointer, status docs | `rg "membership.provision|verify receipt|execution receipt|ledger inspection|no real secrets" docs/`; `git diff --check` | Operator can run the flow locally and know what success/failure looks like. | Stop when docs match the actual test command. | Do not describe fixture evidence as live Dregg/Castalia/Cardano authority. |
 
-### A8 — First future issue to pick
+### A8 — Remaining future issues to pick
 
-After A9 closes Track A, the first implementation issue should be **B1 — Explicit node/verifier key config** on `phase/track-b-identity-key-lifecycle`, unless A9 promotes a future rail that must change identity/trust first. B1 is the right first issue because Track D/E/I production evidence depends on stable signer identity, key ids, and non-authoritative local/dev labeling.
+Track B, Track C, Track F, Track G, and Track H now have completion checkpoints in this checklist. The remaining first-prod path still needs Track D wallet cryptographic verification / shared wallet core, Track E production evidence policy and trusted issuer credential checks, and Track I production-shaped `membership.provision` E2E. Pick the next issue from the earliest incomplete dependency in that D/E/I chain unless a later decision explicitly changes the first-prod authority model.
 
 ### A8 — Acceptance
 
@@ -1075,8 +1075,7 @@ Later slices should expand this checklist in place:
 - A9 — Dregg/Midnight/Cardano defer-or-promote decision — complete.
 
 Track A is now complete through A9. Preserve the repo workflow pattern going forward: phases are branch/PR boundaries, and issues inside each phase are commit boundaries.
-## 2026-06-05 secS-magik phase model + H2
-- H2 (#25 atomic/incomplete) landed a07fe2e. Phase issues #61-64 track remaining. Master checklist and vault captures updated. Next: #51/#52 visibility + H4/H5 for #61.
+## 2026-06-05 Track H PR readiness and documentation navigation
 
-## 2026-06-05 Track H audit visibility
-- Folded #51/#52 audit visibility landed at 30805bc on `phase/track-h-remaining-ledger-posture`: repeated pre-decode malformed ingress rejects persist distinct local/operator reject receipts/events visible by receipt id, and signed-context key-status rejects (unknown/revoked/expired/not-yet-valid verifier keys) persist inspectable local/operator reject receipts/events without replay reservations. Full workspace test/build/fmt/clippy/diff gate passed locally. Remaining for #61 before PR/merge: H4 docs/redaction/schema status sweep and H5 PR/CI/post-merge gate.
+- Track H #61 is implemented through PR #65 / commit 7742ce9: H1 collision-resistant receipt IDs, #57 replay reservation pruning, H2 atomic receipt/event persistence, folded #51/#52 audit visibility, and H4 redaction/schema/docs/status sweep are complete. The full local gate passed on PR #65 before this documentation navigation pass. Remaining action is approval to merge PR #65, then watch post-merge main CI and close folded issues.
+- Documentation navigation now follows a README-as-map pattern: the root README links to child READMEs for `core/`, `client/`, `server/`, `docs/`, `docs/specs/`, `docs/plans/`, `examples/`, and `scripts/`, and stale historical-plan language is explicitly caveated.

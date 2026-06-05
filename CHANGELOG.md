@@ -1,11 +1,3 @@
-## Unreleased
-
-### Added / Changed (Track H)
-
-- H2: Atomic receipt + event persistence for #25 via `record_receipt_with_emitted_event` (tx-wrapped in ledger). Record paths now surface write failures. New test `ledger_source_exposes_atomic_chain_persistence_or_incomplete_chain_markers` demonstrates atomic pairs and incomplete handler lifecycle visibility (via HandlerStarted/failed events + CancelFlag injection). Commit a07fe2e. (GH #61, closes #25)
-- H audit visibility: pre-decode ingress rejects now persist collision-resistant reject receipts/events visible through operator inspection, and signed-context key-status rejects (unknown/revoked/expired/not-yet-valid verifier keys) now emit inspectable local/operator reject receipts without creating replay reservations. Commit 30805bc. (GH #61; folded #51/#52)
-
-
 # Changelog
 
 All notable changes to this project are documented here.
@@ -15,6 +7,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Improved documentation navigability with a root README table of contents, xAI-style overview/architecture/components/how-it-works/design-decision sections, child README links for every top-level directory, new complete README files for `core/`, `client/`, `server/`, `docs/specs/`, `docs/plans/`, `examples/`, and `scripts/`, and stale-doc cleanup for historical plan/schema/changelog surfaces.
+- Completed Track H H2 atomic receipt/event persistence for #25 — `record_receipt_with_emitted_event` now writes receipt+event pairs transactionally, record paths surface write failures, and lifecycle tests cover atomic pairs plus incomplete handler lifecycle visibility. (GH #61, closes #25; commit a07fe2e)
+- Completed Track H audit visibility hardening — pre-decode ingress rejects persist collision-resistant local/operator reject receipts/events, and signed-context key-status rejects for unknown/revoked/expired/not-yet-valid verifier keys emit inspectable local/operator reject receipts without replay reservations. (GH #61; folded #51/#52; commit 30805bc)
 - Clarified the gateway quickstart so local development uses explicit `SECS_RUNTIME_MODE=local_dev_plaintext` and bare `secs-gateway` startup is not confused with fixture-free `production_verified` config.
 - Closed the targeted audit authority/entrypoint/decode hardening gaps — production runtime now rejects legacy prototype-proof descriptors, the bypassable legacy `server` TCP binary/direct dispatch path is retired, and ingress prechecks logical packet `Vec` lengths before bincode decode.
 - Moved local SQLite DDL into a named runtime schema ontology and centralized prototype receiver constants/replay reason strings so Track C does not leave table definitions or default audience values embedded in ledger/gateway/verifier methods.
