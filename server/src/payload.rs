@@ -14,8 +14,8 @@ pub fn decrypt_machine_payload(
 }
 
 pub fn load_tunnel_key() -> Option<[u8; 32]> {
-    std::env::var("SECZ_TUNNEL_KEY_HEX")
-        .or_else(|_| std::env::var("SECS_TUNNEL_KEY_HEX"))
+    std::env::var("SECS_TUNNEL_KEY_HEX")
+        .or_else(|_| std::env::var("SECZ_TUNNEL_KEY_HEX"))
         .ok()
         .and_then(|hex| parse_hex_32(&hex))
 }
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     #[serial]
-    fn load_tunnel_key_prefers_secz_key_over_secs_key() {
+    fn load_tunnel_key_prefers_canonical_secs_key_over_legacy_secz_key() {
         std::env::set_var(
             "SECZ_TUNNEL_KEY_HEX",
             "0101010101010101010101010101010101010101010101010101010101010101",
@@ -110,7 +110,7 @@ mod tests {
             "0202020202020202020202020202020202020202020202020202020202020202",
         );
 
-        assert_eq!(load_tunnel_key().unwrap(), [1u8; 32]);
+        assert_eq!(load_tunnel_key().unwrap(), [2u8; 32]);
 
         std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");

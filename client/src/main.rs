@@ -8,6 +8,8 @@ use rand::Rng;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
+const DEFAULT_CLAIM_TTL_SECONDS: u64 = 300;
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -31,15 +33,18 @@ fn load_or_create_identity() -> SigningKey {
 
 fn build_packet(identity: &SigningKey, opcode: u8, payload: Vec<u8>) -> ZenithPacket {
     let proof = generate_proof(identity, &payload);
+    let session_id = OsRng.gen::<[u8; 16]>();
+    let nonce = OsRng.gen::<[u8; 12]>();
+    let mac = OsRng.gen::<[u8; 16]>();
 
     PacketBuilder::new()
-        .session_id([0xFF; 16])
-        .nonce([0u8; 12])
+        .session_id(session_id)
+        .nonce(nonce)
         .opcode(opcode)
         .proof(proof)
-        .claim_ttl(3600)
+        .claim_ttl(DEFAULT_CLAIM_TTL_SECONDS)
         .encrypted_payload(payload)
-        .mac([0u8; 16])
+        .mac(mac)
         .build()
 }
 
@@ -95,16 +100,28 @@ mod tests {
     }
 
     #[test]
-    fn build_packet_sets_canonical_envelope_fields() {
+    fn build_packet_sets_canonical_envelope_fields_without_fixture_identifiers() {
         let identity = fixed_identity();
         let packet = build_packet(&identity, 0x10, b"Hello World".to_vec());
 
-        assert_eq!(packet.session_id, [0xFF; 16]);
-        assert_eq!(packet.nonce, [0u8; 12]);
+        assert_ne!(packet.session_id, [0xFF; 16]);
+        assert_ne!(packet.session_id, [0u8; 16]);
+        assert_ne!(packet.nonce, [0u8; 12]);
         assert_eq!(packet.opcode, 0x10);
-        assert_eq!(packet.claim_ttl, 3600);
+        assert_eq!(packet.claim_ttl, DEFAULT_CLAIM_TTL_SECONDS);
         assert_eq!(packet.encrypted_payload, b"Hello World");
-        assert_eq!(packet.mac, [0u8; 16]);
+        assert_ne!(packet.mac, [0u8; 16]);
+    }
+
+    #[test]
+    fn build_packet_generates_unique_replay_fields_per_packet() {
+        let identity = fixed_identity();
+        let first = build_packet(&identity, 0x10, b"Hello World".to_vec());
+        let second = build_packet(&identity, 0x10, b"Hello World".to_vec());
+
+        assert_ne!(first.session_id, second.session_id);
+        assert_ne!(first.nonce, second.nonce);
+        assert_ne!(first.mac, second.mac);
     }
 
     #[test]

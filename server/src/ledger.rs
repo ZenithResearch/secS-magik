@@ -10,6 +10,7 @@ use crate::verifier::VerifiedCallContext;
 use sha2::{Digest, Sha256};
 use sqlx::Row;
 use sqlx::SqlitePool;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 1;
 pub const LEDGER_REDACTION_POLICY: &str =
@@ -65,7 +66,20 @@ impl Ledger {
     }
 
     pub async fn init_schema(&self) -> Result<(), sqlx::Error> {
-        apply_schema(&self.pool, LEDGER_TABLES).await
+        apply_schema(&self.pool, LEDGER_TABLES).await?;
+        // Prune expired replay reservations on schema init (e.g. at startup / process
+        // restart). Uses wall-clock time so that any reservations whose claims expired
+        // before this restart are removed. This is one of the documented trigger points
+        // for #57 retention. Tests that rely on small historical timestamps insert
+        // *after* the final init_schema call (or use explicit prune with controlled
+        // `now`); re-calling init_schema in a retention test after inserting past data
+        // will trigger prune using real now.
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = self.prune_expired_replay_reservations(now).await;
+        Ok(())
     }
 
     pub async fn reserve_replay(
@@ -74,6 +88,11 @@ impl Ledger {
         signer_key_id: &str,
         reserved_at: u64,
     ) -> Result<ReplayReservationOutcome, sqlx::Error> {
+        // Prune using the reservation's `reserved_at` as the cutoff (as-of time).
+        // This is the primary "on reserve" trigger point for bounding replay
+        // reservations. Errors in prune are ignored (non-fatal cleanup); a failing
+        // prune should not block a legitimate new reservation.
+        let _ = self.prune_expired_replay_reservations(reserved_at).await;
         let result = sqlx::query(
             "INSERT OR IGNORE INTO replay_reservations (
                 reserved_at,
@@ -104,6 +123,18 @@ impl Ledger {
         } else {
             Ok(ReplayReservationOutcome::Reserved)
         }
+    }
+
+    /// Prune (DELETE) any replay reservations whose `expires_at` is strictly before `now`.
+    /// Returns the number of rows deleted. This is the explicit cleanup API and is
+    /// also invoked from `init_schema` (wall time) and `reserve_replay` (using call time).
+    /// Used to implement #57: ensure no unbounded growth of the replay_reservations table.
+    pub async fn prune_expired_replay_reservations(&self, now: u64) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM replay_reservations WHERE expires_at < ?")
+            .bind(now as i64)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -175,6 +206,71 @@ impl Ledger {
         .execute(&self.pool)
         .await
         .map(|_| ())
+    }
+
+    /// Atomic (tx-wrapped) persist of a signed receipt + its ReceiptEmitted (or equivalent) event.
+    /// Implements core of #25: receipt + event groups are atomic (both or neither on error).
+    /// Used by record_signed_receipt paths for verify/execute/reject receipts.
+    /// Does not wrap handler execution itself (per locked decision).
+    /// On failure, caller sees error and can surface incomplete/audit failure.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn record_receipt_with_emitted_event(
+        &self,
+        receipt: &Receipt,
+        event_kind: ReceiptEventKind,
+        packet_hash: Option<[u8; 32]>,
+        opcode: Option<u8>,
+        operation: Option<&str>,
+        handler_id: Option<&str>,
+        reason: Option<&str>,
+        timestamp: u64,
+    ) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        // Receipt insert (dupe of record_receipt query for tx; keeps record_receipt available for other uses)
+        sqlx::query(
+            "INSERT INTO receipts (
+                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, signature
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&receipt.receipt_id)
+        .bind(i64::from(receipt.schema_version))
+        .bind(receipt.context_id.as_deref())
+        .bind(receipt.timestamp as i64)
+        .bind(receipt.kind.as_str())
+        .bind(receipt.packet_hash.to_vec())
+        .bind(receipt.session_id.to_vec())
+        .bind(receipt.nonce.to_vec())
+        .bind(i64::from(receipt.opcode))
+        .bind(receipt.operation.as_deref())
+        .bind(receipt.decision.as_str())
+        .bind(receipt.reason.as_deref())
+        .bind(receipt.handler_id.as_deref())
+        .bind(receipt.authenticator_kind.as_str())
+        .bind(&receipt.signer_key_id)
+        .bind(&receipt.signature)
+        .execute(&mut *tx)
+        .await?;
+
+        // Event insert
+        let ph = packet_hash.map(|h| h.to_vec());
+        sqlx::query(
+            "INSERT INTO events (
+                timestamp, event_kind, packet_hash, opcode, operation, handler_id, reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(timestamp as i64)
+        .bind(event_kind.as_str())
+        .bind(ph)
+        .bind(opcode.map(i64::from))
+        .bind(operation)
+        .bind(handler_id)
+        .bind(reason)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
     }
 
     pub async fn inspect_receipt_by_id(

@@ -13,6 +13,7 @@ use crate::schema::{apply_schema, TELEMETRY_TABLES};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -21,8 +22,7 @@ use tokio::process::Child;
 use tokio::time::timeout;
 
 const DESCRIPTOR_CONTEXT_MISMATCH_REASON: &str = "descriptor_context_mismatch";
-
-const PROTOTYPE_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
+const LOCAL_DEV_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandlerOutcome {
@@ -105,7 +105,7 @@ impl ConfigurableRouter {
             limits,
             explicit_test_fixture_identity(
                 LOCAL_PROTOTYPE_SIGNER_ID,
-                PROTOTYPE_RECEIPT_SIGNING_KEY,
+                LOCAL_DEV_RECEIPT_SIGNING_KEY,
             ),
         )
     }
@@ -143,6 +143,15 @@ impl ConfigurableRouter {
             verifier_keys,
             expected_audience: expected_audience.into(),
         }
+    }
+
+    pub fn with_verifier_registry(
+        pool: SqlitePool,
+        verifier_keys: PublicVerifierKeyRegistry,
+    ) -> Self {
+        let mut router = Self::new(pool);
+        router.verifier_keys = verifier_keys;
+        router
     }
 
     pub fn expected_audience(&self) -> &str {
@@ -219,7 +228,11 @@ impl ConfigurableRouter {
     pub async fn record_reject(&self, packet: &ZenithPacket, error: VerificationError) {
         let timestamp = current_unix_seconds();
         let receipt = Receipt::reject_from_packet(
-            format!("receipt-reject-{timestamp}-{:02x}", packet.opcode),
+            format!(
+                "receipt-reject-{timestamp}-{:02x}-{}",
+                packet.opcode,
+                packet_receipt_suffix(packet)
+            ),
             packet,
             error,
             timestamp,
@@ -253,6 +266,11 @@ impl ConfigurableRouter {
             AuthenticatorKind::LocalDevUntrusted => {
                 self.verifier_keys
                     .verify_signed_context(signed, &self.expected_audience, timestamp)
+            }
+            _ if signed.authenticator_kind == AuthenticatorKind::LocalDevUntrusted
+                || signed.signer_key_id == LOCAL_PROTOTYPE_SIGNER_ID =>
+            {
+                Err(VerificationError::UntrustedVerifierKey)
             }
             _ => self.verifier_keys.verify_production_signed_context(
                 signed,
@@ -521,13 +539,12 @@ impl ConfigurableRouter {
                 return;
             }
         };
-        if let Err(e) = self.ledger.record_receipt(&signed).await {
-            eprintln!("secS [Ledger]: failed to write receipt - {}", e);
-            return;
-        }
+        // Use atomic tx-wrapped receipt + ReceiptEmitted for #25 atomic chain persistence.
+        // Failure here surfaces as audit failure (no silent split); incomplete marker can be added in future H4/H5 if needed.
         if let Err(e) = self
             .ledger
-            .record_event(
+            .record_receipt_with_emitted_event(
+                &signed,
                 ReceiptEventKind::ReceiptEmitted,
                 Some(signed.packet_hash),
                 Some(signed.opcode),
@@ -538,7 +555,10 @@ impl ConfigurableRouter {
             )
             .await
         {
-            eprintln!("secS [Ledger]: failed to write receipt event - {}", e);
+            eprintln!(
+                "secS [Ledger]: failed to write receipt+event atomically - {}",
+                e
+            );
         }
     }
 
@@ -585,6 +605,10 @@ fn should_emit_signed_context_reject(error: &VerificationError) -> bool {
         VerificationError::ExpiredClaim
             | VerificationError::WrongAudience
             | VerificationError::InvalidSignature
+            | VerificationError::UnknownVerifierKey
+            | VerificationError::RevokedVerifierKey
+            | VerificationError::ExpiredVerifierKey
+            | VerificationError::NotYetValidVerifierKey
     )
 }
 
@@ -624,6 +648,20 @@ fn context_receipt_suffix(context: &VerifiedCallContext) -> String {
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     format!("{}-{hash_prefix}", context.context_id)
+}
+
+fn packet_receipt_suffix(packet: &ZenithPacket) -> String {
+    let bytes = bincode::serialize(packet).unwrap_or_default();
+    let digest: [u8; 32] = Sha256::digest(bytes).into();
+    let hash_prefix = digest[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let nonce_suffix = packet.nonce[4..]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("{nonce_suffix}-{hash_prefix}")
 }
 
 pub struct SubprocessForwarder {

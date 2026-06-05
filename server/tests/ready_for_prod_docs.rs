@@ -41,6 +41,27 @@ fn readme_gateway_quickstart_does_not_suggest_bare_production_config() {
 }
 
 #[test]
+fn docs_do_not_suggest_bare_secz_startup_without_local_dev_mode() {
+    for (name, text) in [
+        ("README.md", README),
+        ("server/README.md", include_str!("../../server/README.md")),
+        (
+            "examples/README.md",
+            include_str!("../../examples/README.md"),
+        ),
+    ] {
+        for line in text.lines().map(str::trim) {
+            let bare_secz =
+                line == "cargo run -p server --bin secz" || line == "cargo run --bin secz";
+            assert!(
+                !bare_secz || line.contains("SECS_RUNTIME_MODE=local_dev_plaintext"),
+                "{name} must not suggest bare secz startup because the compatibility wrapper is a local/dev surface and should be explicit"
+            );
+        }
+    }
+}
+
+#[test]
 fn implementation_status_reconciles_track_a_through_a9_without_runtime_overclaim() {
     assert!(
         IMPLEMENTATION_STATUS.contains("Ready-for-prod checklist A0–A9"),

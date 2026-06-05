@@ -2,19 +2,28 @@
 
 secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
 
-Status: active prototype being realigned toward the 2026-06-01 objectives spec. The current code preserves the v0 packet shape and `u8` opcode dispatch, and Phase 1 has added typed verifier/context primitives. Phase 0.1 has moved reusable gateway/payload/ingress code out of binary entrypoints. A receiver-local manifest descriptor layer now exists, the prototype gateway signs manifest-aware verified contexts before routing, enforces receiver-local durable replay/session/expiry checks within the configured local replay store/scope, bounds ingress wire reads before packet deserialization, requires explicit production receiver/runtime config for the canonical gateway, exposes local readiness checks for config/ledger/trust-registry state, and persists typed receipt/event objects to a local SQLite ledger. Evidence adapters beyond the current local/static and shape-only shells and the full production verifier pipeline are still implementation work; the production-shaped smoke is local fixture-only, not a production deployment.
+Status: active prototype being realigned toward the 2026-06-01 objectives spec. Current code preserves the v0 packet shape and `u8` opcode dispatch; exposes client, core, and server crates; hardens the canonical gateway with bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, and bounded handler execution. Wallet cryptographic verification, trusted issuer/root policy, first production-shaped `membership.provision` E2E, production deployment proof, and public auditability remain separate future/next tracks.
 
-Current source of truth:
+## Table of Contents
 
-- `docs/implementation-status.md` — status ledger: implemented vs partial vs planned vs future vs out-of-scope.
-- `docs/repository-schema.md` — objective file-system schema and repository boundary map.
-- `docs/client-surfaces.md` — client-side local Hermes/secC/secZ packet-construction boundary.
-- `docs/specs/2026-06-01-secs-magik-objectives-spec.md` — current architecture/objectives spec.
-- `docs/plans/2026-06-01-implementation-progress-checklist.md` — running checklist for CI alignment and phase/issue progress.
-- `docs/announcement-thread.md` — public-language draft, intentionally caveated until verifier work lands.
+- [Status / Updates](#status--updates)
+- [Overview](#overview)
+- [Current Boundary](#current-boundary)
+- [System Architecture](#system-architecture)
+- [Components / Repository Map](#components--repository-map)
+- [Directory READMEs / Wiki Map](#directory-readmes--wiki-map)
+- [How It Works](#how-it-works)
+- [Key Design Decisions](#key-design-decisions)
+- [Packet v0](#packet-v0)
+- [Opcode Governance](#opcode-governance)
+- [Running Locally](#running-locally)
+- [Testing and Verification](#testing-and-verification)
+- [Documentation Map](#documentation-map)
+- [Current Non-Goals](#current-non-goals)
+- [Operational Boundaries](#operational-boundaries)
+- [License](#license)
 
-
-## Status Taxonomy
+## Status / Updates
 
 Use these labels across all docs:
 
@@ -28,11 +37,18 @@ Use these labels across all docs:
 
 Short current status:
 
-- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, receiver-local durable replay/session/expiry enforcement within the configured local replay store/scope, typed receipt/event objects, local SQLite receipt/event persistence, and the deterministic `local_static` evidence seam.
-- Partial/prototype: current `secS` TCP listener, secS prototype gateway with `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL check, manifest-aware signed context routing, legacy `node_telemetry`, and hardcoded handler registration.
-- Planned next: wallet-core cryptographic verification / shared wallet-core integration, production evidence policy with trusted issuer/root registry, and the remaining production-shaped runtime hardening tracks.
-- Future/optional: external proof, federation receipt, and settlement evidence adapters.
-- Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access.
+- Solid: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, descriptor-bound local handler routing, receiver-local durable replay/session/expiry enforcement within the configured local replay store/scope, typed receipt/event objects, local SQLite receipt/event persistence, redacted local/operator inspection by receipt/context id, own-verifier key lifecycle seam, production-shaped runtime config/readiness, and deterministic `local_static` local-dev-test evidence seam.
+- Partial / prototype: current secS TCP listener/prototype verifier path, `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL envelope checks, wallet presentation shape-only shell, legacy `node_telemetry`, and local/dev handler bindings.
+- Planned next: wallet-core cryptographic verification / shared wallet-core integration, production evidence policy with trusted issuer/root registry, and the first production-shaped `membership.provision` E2E after those authority/evidence gates.
+- Future / optional: external proof, federation receipt, and settlement evidence adapters.
+- Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access, and application membership semantics.
+
+## Overview
+
+- What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, bounds ingress wire reads before packet deserialization, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, enforces descriptor max TTL/session validity and receiver-local replay reservation before handler execution, routes verified bounded opcodes to configured local machine programs, persists typed receipt/event records to local SQLite without storing payload content by default, and exposes redacted local/operator receipt inspection.
+- What it is becoming: a typed secS verifier pipeline with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
+- Who it is for: developers and operators building owned machine-call rails instead of broad bearer-token APIs.
+- Primary stack: Rust workspace with `core`, `client`, and `server`; Tokio TCP; bincode packet serialization; optional ChaCha20Poly1305 tunnel decryption; SQLite through SQLx runtime queries.
 
 ## Current Boundary
 
@@ -59,14 +75,25 @@ Important boundaries:
 - External proof, federation, and settlement systems enter through typed evidence adapters or anchors; they do not replace the secS verifier boundary.
 - Browser/app login is separate from secS internal RPC.
 
-## At a Glance
+## System Architecture
 
-- What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, enforces descriptor max TTL/session validity and receiver-local replay reservation before handler execution, persists typed receipt/event records to local SQLite without storing payload content by default, preserves legacy `node_telemetry`, and routes verified bounded opcodes to configured machine programs.
-- What it is becoming: a typed secS verifier pipeline with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
-- Who it is for: developers and operators building owned machine-call rails instead of broad bearer-token APIs.
-- Primary stack: Rust workspace with `core`, `client`, and `server`; Tokio TCP; bincode packet serialization; optional ChaCha20Poly1305 tunnel decryption; SQLite through SQLx runtime queries.
+```text
+client / local tool / service
+  -> ZenithPacket v0
+  -> bounded TCP ingress
+  -> frame/decode/prototype envelope/runtime checks
+  -> receiver-local descriptor lookup
+  -> signed VerifiedCallContext or reject receipt
+  -> receiver-local replay/session/expiry gate
+  -> bounded local handler routing
+  -> signed receipt + event pair
+  -> local SQLite operator ledger
+  -> redacted operator inspection/export
+```
 
-## Repository Map
+This is local/operator evidence. It is not public chain anchoring, public auditability, or production deployment proof.
+
+## Components / Repository Map
 
 | Path | Responsibility | Boundary |
 |---|---|---|
@@ -74,24 +101,56 @@ Important boundaries:
 | `Cargo.toml` | Workspace definition. | Current members: `core`, `client`, `server`. |
 | `core/` | Shared packet and verifier-free core primitives. | Owns the v0 packet shape and constants; should not own product policy or receiver-local dispatch semantics. |
 | `client/` | CLI packet sender; current secC-like client surface. | Builds and sends packets; does not verify inbound authority. |
-| `docs/client-surfaces.md` | Client-side local Hermes/secC/secZ boundary. | Documents outgoing packet construction surfaces; none replaces secS-magik verification. |
-| `server/src/lib.rs` | Shared server library modules. | Exposes verifier/gateway/ingress/ledger modules; the legacy direct TCP node loop has been retired so it cannot bypass verifier/replay/receipt boundaries. |
-| `server/src/ingress.rs` | Prototype TCP ingress and gateway connection handling. | Owns packet decode/prototype verification/decrypt handoff for the current gateway. |
-| `server/src/gateway.rs` | Configurable router, prototype telemetry schema, and prototype machine-program bindings. | Shared gateway library code; binary wrappers should stay thin. |
-| `server/src/payload.rs` | Tunnel-key parsing and runtime-mode payload decryption. | Payload handling policy separated from binary entrypoints. |
-| `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics exist; execution wiring lands in a later issue. |
-| `server/src/evidence.rs` | Evidence adapter seam. | Defines typed evidence requests/results and deterministic `local_static` local-dev-test adapter; Dregg, Midnight, Cardano, and wallet presentation stay optional/future adapters. |
+| `server/` | secS prototype gateway/verifier substrate. | Owns current ingress, verifier helpers, manifests, evidence seam, receipts, local ledger, runtime config, and bounded local routing. |
+| `server/src/bin/secs-gateway.rs` | Canonical current prototype configurable gateway binary on port `9001` unless configured otherwise. | Thin wrapper over library modules. |
+| `server/src/bin/secz.rs` | Compatibility wrapper for the historical secZ-named gateway command. | Kept for current command compatibility, not canonical verifier ownership. |
+| `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics are wired into signed-context creation and receiver-local bounded handler routing; this is not final global opcode ratification. |
+| `server/src/evidence.rs` | Evidence adapter seam. | Defines typed evidence requests/results, deterministic `local_static` local-dev-test adapter, and a shape-only `wallet_presentation` shell; wallet cryptographic verification plus Dregg, Midnight, and Cardano remain future/optional rails. |
 | `server/src/receipt.rs` | Typed receipt/event objects. | Defines reject/verify/execute/forward receipt kinds, typed decisions/reasons/authenticator kinds, stable event names, and Ed25519 receipt signing helpers. |
 | `server/src/ledger.rs` | Event/receipt ledger. | Persists events and receipts with runtime SQL; does not store payload content by default. |
-| `server/src/bin/secs-gateway.rs` | Canonical current prototype configurable gateway binary on port `9001`. | Thin wrapper over library modules. |
-| `server/src/bin/secz.rs` | Compatibility wrapper for the historical secZ-named gateway command. | Kept for current command compatibility, not as canonical verifier ownership. |
-| `docs/repository-schema.md` | Objective file-system schema. | Defines where verifier, manifest, receipts, evidence, docs, and client surfaces should live. |
-| `docs/specs/` | Current architecture/objective specs. | Reviewable source of truth for implementation. |
-| `docs/reviews/` | Historical/current code reviews if tracked. | Evidence and provenance for architecture and implementation reviews. |
-| `docs/announcement-thread.md` | Draft external messaging. | Public-language sketch for verifier/signature/receipt claims as they land. |
+| `docs/` | Specs, plans, status ledgers, and external-language drafts. | Docs must distinguish implemented behavior from target/planned behavior. |
 | `AGENTS.md` | Contributor/agent rules. | Internal editing conventions for future automated work. |
 
 Untracked local directories such as `hub/`, `ops/`, or `docs/reviews/` in a working checkout are not part of the current Cargo workspace unless deliberately added and documented.
+
+## Directory READMEs / Wiki Map
+
+Each repository directory owns its local map. Start here, then follow the child README for depth:
+
+| Directory | README | Purpose |
+|---|---|---|
+| `core/` | [core/README.md](core/README.md) | Shared verifier-free packet and crypto primitives. |
+| `client/` | [client/README.md](client/README.md) | CLI / secC-like outgoing packet sender. |
+| `server/` | [server/README.md](server/README.md) | secS gateway/verifier substrate, manifests, receipts, local ledger, runtime modes, and bounded routing. |
+| `docs/` | [docs/README.md](docs/README.md) | Documentation index and status/spec/plan navigation. |
+| `docs/specs/` | [docs/specs/README.md](docs/specs/README.md) | Current architecture/objective specifications. |
+| `docs/plans/` | [docs/plans/README.md](docs/plans/README.md) | Implementation plans, checklists, and issue-slice control surfaces. |
+| `examples/` | [examples/README.md](examples/README.md) | Runnable local examples and demos. |
+| `scripts/` | [scripts/README.md](scripts/README.md) | Smoke and local verification helper scripts. |
+
+## How It Works
+
+Current request lifecycle:
+
+1. A client constructs a `ZenithPacket` v0.
+2. The gateway accepts bounded TCP input and rejects oversize/malformed frames before unsafe decode behavior.
+3. Prototype envelope, TTL, runtime-mode payload, and descriptor checks run.
+4. The gateway creates a signed verified context or a typed reject receipt.
+5. Receiver-local replay/session/expiry checks run before handler execution.
+6. The receiver-local manifest selects the local handler by descriptor metadata.
+7. Bounded handler routing enforces payload, output, timeout, and production/dev binding limits.
+8. Receipts and events are persisted to local SQLite, with receipt+event pairs written atomically where required.
+9. Operators inspect redacted local receipt/event chains by receipt id, context id, packet hash, or related tuple depending on the helper/test surface.
+
+## Key Design Decisions
+
+- Preserve the v0 packet shape and `u8` opcode compatibility until an explicit versioned migration is approved.
+- Keep client packet construction separate from server-side authority verification.
+- Treat receiver-local manifests as local opcode-to-operation/handler maps, not global product policy.
+- Mark local/dev evidence and plaintext modes as visibly non-authoritative.
+- Keep current ledger claims bounded to local/operator SQLite evidence.
+- Keep wallet cryptographic verification as Track D and trusted issuer/root policy as Track E.
+- Keep Dregg, Midnight, and Cardano as future adapter/anchor rails, not current runtime dependencies.
 
 ## Packet v0
 
@@ -114,7 +173,7 @@ Rules:
 - Preserve `opcode: u8`.
 - Preserve current bincode round-trip compatibility while using bounded ingress decode for externally supplied frames.
 - The CLI parses opcodes as decimal `u8`; use `16`, not `0x10`.
-- Current prototype proof bytes are not real ZK verification. Treat them as a `PrototypeProofEnvelope` until replaced by typed verification stages.
+- Current prototype proof bytes are not real ZK verification. Treat them as a `PrototypeProofEnvelope` until replaced by a proof adapter with defined statements and public inputs.
 - `encrypted_payload` remains opaque to secS except for cryptographic/tunnel verification and handler handoff rules.
 
 ## Opcode Governance
@@ -140,31 +199,6 @@ Current prototype/dev bindings:
 
 These `0x10`/`0x20`/`0x30` bindings are portable candidates or dev bindings, not final ratified global semantics.
 
-## Target Verifier Pipeline
-
-The target secS verifier path is:
-
-```text
-RawBytes
-  -> FrameBoundsCheck
-  -> PacketDecode
-  -> PacketShapeCheck
-  -> VersionCompatibilityCheck
-  -> SessionBindingCheck
-  -> NonceReplayCheck
-  -> ExpiryCheck
-  -> MacOrTunnelCheck
-  -> PresentationProofCheck
-  -> AudienceOriginEndpointCheck
-  -> OperationDescriptorLookup
-  -> CredentialEvidenceCheck
-  -> CapabilityCaveatCheck
-  -> RevocationEvidenceCheck
-  -> SignedVerifiedCallContext | RejectReceipt
-```
-
-The target handoff object is a signed serialized `VerifiedCallContext`, not a raw trust assumption. The target audit object is a signed receipt. Production-shaped verification should use portable public-key signatures, not shared-secret MACs as the main trust path.
-
 ## Running Locally
 
 Build and test the workspace:
@@ -189,7 +223,7 @@ The bare command defaults to `production_verified`, which intentionally fails fa
 The historical `secz` binary remains as a compatibility wrapper for the same prototype gateway:
 
 ```bash
-cargo run -p server --bin secz
+SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secz
 ```
 
 Send a packet with a decimal opcode:
@@ -221,6 +255,17 @@ done
 
 If telemetry or ledger code is added, keep SQL runtime-checkable unless the repo also commits and maintains the required SQLx offline cache.
 
+## Documentation Map
+
+Current source of truth:
+
+- [docs/implementation-status.md](docs/implementation-status.md) — status ledger: implemented vs partial vs planned vs future vs out-of-scope.
+- [docs/repository-schema.md](docs/repository-schema.md) — objective file-system schema and repository boundary map.
+- [docs/client-surfaces.md](docs/client-surfaces.md) — client-side local Hermes/secC/secZ packet-construction boundary.
+- [docs/specs/2026-06-01-secs-magik-objectives-spec.md](docs/specs/2026-06-01-secs-magik-objectives-spec.md) — current architecture/objectives spec.
+- [docs/plans/2026-06-02-ready-for-prod-checklist.md](docs/plans/2026-06-02-ready-for-prod-checklist.md) — current ready-for-prod track checklist and completion checkpoints.
+- [docs/announcement-thread.md](docs/announcement-thread.md) — public-language draft, intentionally caveated until verifier work lands.
+
 ## Current Non-Goals
 
 This repo does not own:
@@ -236,8 +281,8 @@ This repo does not own:
 
 ## Operational Boundaries
 
-The public API boundary is the packet/verifier/manifest/receipt path. Application policy, login UX, consensus, settlement, and orchestration systems should integrate through explicit adapters or client surfaces rather than becoming core verifier logic.
+The verifier-facing protocol boundary is the packet/verifier/manifest/receipt path. Application policy, login UX, consensus, settlement, and orchestration systems should integrate through explicit adapters or client surfaces rather than becoming core verifier logic.
 
 ## License
 
-See `LICENSE`.
+See [LICENSE](LICENSE).

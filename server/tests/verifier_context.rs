@@ -267,6 +267,43 @@ fn verifier_signs_manifest_described_context_before_execution() {
 }
 
 #[test]
+fn signed_context_id_distinguishes_same_opcode_same_second_packets() {
+    let first = prototype_packet(vec![1], 300);
+    let mut second = prototype_packet(vec![1], 300);
+    second.nonce = [9u8; 12];
+    second.session_id = [8u8; 16];
+    let manifest = ReceiverManifest::default_v0();
+
+    let first_signed = Verifier::verify_manifest_operation_and_sign(
+        &first,
+        &manifest,
+        "secS://receiver-a",
+        1_000,
+        "verifier:local-test",
+        &[7u8; 32],
+    )
+    .unwrap();
+    let second_signed = Verifier::verify_manifest_operation_and_sign(
+        &second,
+        &manifest,
+        "secS://receiver-a",
+        1_000,
+        "verifier:local-test",
+        &[7u8; 32],
+    )
+    .unwrap();
+
+    assert_ne!(
+        first_signed.context.context_id, second_signed.context.context_id,
+        "context ids must include packet-specific entropy so operator inspection cannot conflate same-opcode/same-second calls"
+    );
+    assert_ne!(
+        first_signed.context.packet_hash,
+        second_signed.context.packet_hash
+    );
+}
+
+#[test]
 fn verifier_signs_manifest_context_with_loaded_production_identity() {
     let path = write_key_file([0x44; 32]);
     let identity = load_node_verifier_identity(&VerifierIdentityConfig {
