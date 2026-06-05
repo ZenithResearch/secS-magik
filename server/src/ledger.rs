@@ -211,6 +211,70 @@ impl Ledger {
         .map(|_| ())
     }
 
+    /// Atomic (tx-wrapped) persist of a signed receipt + its ReceiptEmitted (or equivalent) event.
+    /// Implements core of #25: receipt + event groups are atomic (both or neither on error).
+    /// Used by record_signed_receipt paths for verify/execute/reject receipts.
+    /// Does not wrap handler execution itself (per locked decision).
+    /// On failure, caller sees error and can surface incomplete/audit failure.
+    pub async fn record_receipt_with_emitted_event(
+        &self,
+        receipt: &Receipt,
+        event_kind: ReceiptEventKind,
+        packet_hash: Option<[u8; 32]>,
+        opcode: Option<u8>,
+        operation: Option<&str>,
+        handler_id: Option<&str>,
+        reason: Option<&str>,
+        timestamp: u64,
+    ) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        // Receipt insert (dupe of record_receipt query for tx; keeps record_receipt available for other uses)
+        sqlx::query(
+            "INSERT INTO receipts (
+                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, signature
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&receipt.receipt_id)
+        .bind(i64::from(receipt.schema_version))
+        .bind(receipt.context_id.as_deref())
+        .bind(receipt.timestamp as i64)
+        .bind(receipt.kind.as_str())
+        .bind(receipt.packet_hash.to_vec())
+        .bind(receipt.session_id.to_vec())
+        .bind(receipt.nonce.to_vec())
+        .bind(i64::from(receipt.opcode))
+        .bind(receipt.operation.as_deref())
+        .bind(receipt.decision.as_str())
+        .bind(receipt.reason.as_deref())
+        .bind(receipt.handler_id.as_deref())
+        .bind(receipt.authenticator_kind.as_str())
+        .bind(&receipt.signer_key_id)
+        .bind(&receipt.signature)
+        .execute(&mut *tx)
+        .await?;
+
+        // Event insert
+        let ph = packet_hash.map(|h| h.to_vec());
+        sqlx::query(
+            "INSERT INTO events (
+                timestamp, event_kind, packet_hash, opcode, operation, handler_id, reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(timestamp as i64)
+        .bind(event_kind.as_str())
+        .bind(ph)
+        .bind(opcode.map(i64::from))
+        .bind(operation)
+        .bind(handler_id)
+        .bind(reason)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
     pub async fn inspect_receipt_by_id(
         &self,
         receipt_id: &str,

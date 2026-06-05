@@ -521,24 +521,20 @@ impl ConfigurableRouter {
                 return;
             }
         };
-        if let Err(e) = self.ledger.record_receipt(&signed).await {
-            eprintln!("secS [Ledger]: failed to write receipt - {}", e);
+        // Use atomic tx-wrapped receipt + ReceiptEmitted for #25 atomic chain persistence.
+        // Failure here surfaces as audit failure (no silent split); incomplete marker can be added in future H4/H5 if needed.
+        if let Err(e) = self.ledger.record_receipt_with_emitted_event(
+            &signed,
+            ReceiptEventKind::ReceiptEmitted,
+            Some(signed.packet_hash),
+            Some(signed.opcode),
+            signed.operation.as_deref(),
+            signed.handler_id.as_deref(),
+            Some(signed.kind.as_str()),
+            signed.timestamp,
+        ).await {
+            eprintln!("secS [Ledger]: failed to write receipt+event atomically - {}", e);
             return;
-        }
-        if let Err(e) = self
-            .ledger
-            .record_event(
-                ReceiptEventKind::ReceiptEmitted,
-                Some(signed.packet_hash),
-                Some(signed.opcode),
-                signed.operation.as_deref(),
-                signed.handler_id.as_deref(),
-                Some(signed.kind.as_str()),
-                signed.timestamp,
-            )
-            .await
-        {
-            eprintln!("secS [Ledger]: failed to write receipt event - {}", e);
         }
     }
 
