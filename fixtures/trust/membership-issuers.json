@@ -1,0 +1,17 @@
+[
+  {
+    "issuer_id": "did:example:gallery-issuer",
+    "issuer_key_id": "pubkey:sha256:72cd6e8422c407fb6d098690f1130b7ded7ec2f7f5e1d30bd9d521f015363793",
+    "public_key_bytes": [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    "trust_root_ref": "trust-root:fixture-castalia-gallery",
+    "registry_root_ref": "registry-root:fixture-castalia",
+    "accepted_evidence": ["membership_credential", "provisioning_credential"],
+    "accepted_audiences": ["secS://local-test"],
+    "accepted_operations": ["membership.provision", "membership.provision.delegated"],
+    "accepted_resources": ["application/json"],
+    "status": "active",
+    "not_before": 1716999900,
+    "not_after": 1717000600,
+    "registry_status_ref": "registry-status:active-fixture"
+  }
+]

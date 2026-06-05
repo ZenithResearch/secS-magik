@@ -128,3 +128,50 @@ fn trusted_issuer_registry_rejects_unknown_wrong_root_and_status() {
         VerificationError::RevokedIssuer
     );
 }
+
+#[test]
+fn registry_loader_accepts_valid_fixture_file() {
+    let registry = TrustedIssuerRegistry::from_json_str(include_str!(
+        "../../fixtures/trust/membership-issuers.json"
+    ))
+    .expect("fixture trust registry should parse");
+    let key_id = "pubkey:sha256:72cd6e8422c407fb6d098690f1130b7ded7ec2f7f5e1d30bd9d521f015363793";
+    registry
+        .lookup_active(
+            TRUSTED_ISSUER_ID,
+            key_id,
+            TRUST_ROOT_REF,
+            REGISTRY_ROOT_REF,
+            EvidenceKind::MembershipCredential,
+            TRUSTED_AUDIENCE,
+            MEMBERSHIP_OPERATION,
+            TRUSTED_RESOURCE,
+            TRUSTED_NOT_BEFORE + 1,
+        )
+        .expect("fixture registry entry should be policy-usable");
+}
+
+#[test]
+fn registry_loader_fails_closed_for_missing_empty_malformed_and_duplicate_inputs() {
+    assert_eq!(
+        TrustedIssuerRegistry::from_json_file("fixtures/trust/missing.json")
+            .expect_err("missing registry should reject"),
+        VerificationError::InvalidPresentation
+    );
+    assert_eq!(
+        TrustedIssuerRegistry::from_json_str("").expect_err("empty registry should reject"),
+        VerificationError::InvalidPresentation
+    );
+    assert_eq!(
+        TrustedIssuerRegistry::from_json_str("not json")
+            .expect_err("malformed registry should reject"),
+        VerificationError::InvalidPresentation
+    );
+
+    let entry = issuer_entry();
+    assert_eq!(
+        TrustedIssuerRegistry::new([entry.clone(), entry])
+            .expect_err("duplicate issuer/key should reject"),
+        VerificationError::InvalidPresentation
+    );
+}

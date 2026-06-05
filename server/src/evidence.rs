@@ -10,18 +10,28 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use std::fs;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceKind {
+    #[serde(rename = "prototype-proof-envelope")]
     PrototypeProofEnvelope,
+    #[serde(rename = "local_static")]
     LocalStatic,
+    #[serde(rename = "wallet_presentation")]
     WalletPresentation,
+    #[serde(rename = "membership_credential")]
     MembershipCredential,
+    #[serde(rename = "provisioning_credential")]
     ProvisioningCredential,
+    #[serde(rename = "midnight_proof")]
     MidnightProof,
+    #[serde(rename = "dregg_receipt")]
     DreggReceipt,
+    #[serde(rename = "cardano_settlement")]
     CardanoSettlement,
 }
 
@@ -159,6 +169,20 @@ pub struct TrustedIssuerRegistry {
 }
 
 impl TrustedIssuerRegistry {
+    pub fn from_json_str(json: &str) -> Result<Self, VerificationError> {
+        if json.trim().is_empty() {
+            return Err(VerificationError::InvalidPresentation);
+        }
+        let entries: Vec<TrustedIssuerEntry> =
+            serde_json::from_str(json).map_err(|_| VerificationError::InvalidPresentation)?;
+        Self::new(entries)
+    }
+
+    pub fn from_json_file(path: impl AsRef<Path>) -> Result<Self, VerificationError> {
+        let json = fs::read_to_string(path).map_err(|_| VerificationError::InvalidPresentation)?;
+        Self::from_json_str(&json)
+    }
+
     pub fn new(
         entries: impl IntoIterator<Item = TrustedIssuerEntry>,
     ) -> Result<Self, VerificationError> {
