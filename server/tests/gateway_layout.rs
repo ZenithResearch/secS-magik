@@ -121,11 +121,15 @@ fn counting_cancel_program(cancel: Arc<AtomicBool>) -> (Box<CancelFlagProgram>, 
     let calls = Arc::new(AtomicUsize::new(0));
     (
         Box::new(CancelFlagProgram {
-            calls: Arc::clone(&calls),
+            calls: calls.clone(),
             cancel,
         }),
         calls,
     )
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
 async fn memory_pool() -> SqlitePool {
@@ -478,13 +482,17 @@ async fn subprocess_forwarder_allows_output_exactly_at_limit() {
 }
 
 #[tokio::test]
+#[cfg(unix)]
 async fn subprocess_forwarder_timeout_during_stdin_write_reaps_process_group() {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock should be after unix epoch")
         .as_nanos();
     let marker = std::env::temp_dir().join(format!("secs-magik-stdin-timeout-marker-{nanos}"));
-    let command = format!("(sleep 0.25; touch {}) & sleep 5", marker.display());
+    let command = format!(
+        "(sleep 0.25; touch {}) & sleep 5",
+        shell_single_quote(&marker.to_string_lossy())
+    );
     let payload = vec![b'x'; 8 * 1024 * 1024];
     let pool = memory_pool().await;
     let mut router = ConfigurableRouter::with_limits(
