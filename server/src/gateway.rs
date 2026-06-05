@@ -694,9 +694,9 @@ impl ProcessGroupGuard {
     async fn terminate(&mut self, child: &mut Child) {
         #[cfg(unix)]
         if let Some(pid) = self.pid.take() {
-            kill_process_group(pid, "-TERM").await;
+            signal_process_group(pid, SIGTERM);
             tokio::time::sleep(Duration::from_millis(20)).await;
-            kill_process_group(pid, "-KILL").await;
+            signal_process_group(pid, SIGKILL);
             let _ = child.wait().await;
             return;
         }
@@ -717,23 +717,27 @@ impl Drop for ProcessGroupGuard {
     fn drop(&mut self) {
         #[cfg(unix)]
         if let Some(pid) = self.pid.take() {
-            let _ = std::process::Command::new("kill")
-                .arg("-KILL")
-                .arg(format!("-{pid}"))
-                .status();
+            signal_process_group(pid, SIGKILL);
         }
     }
 }
 
 #[cfg(unix)]
-async fn kill_process_group(pid: u32, signal: &str) {
-    let _ = tokio::process::Command::new("kill")
-        .arg(signal)
-        .arg(format!("-{pid}"))
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await;
+const SIGTERM: i32 = 15;
+#[cfg(unix)]
+const SIGKILL: i32 = 9;
+
+#[cfg(unix)]
+unsafe extern "C" {
+    fn kill(pid: i32, sig: i32) -> i32;
+}
+
+#[cfg(unix)]
+fn signal_process_group(pid: u32, signal: i32) {
+    let Ok(pid) = i32::try_from(pid) else {
+        return;
+    };
+    let _ = unsafe { kill(-pid, signal) };
 }
 
 async fn read_one_chunk<R: AsyncRead + Unpin>(
