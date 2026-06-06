@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use ed25519_dalek::{Signer, SigningKey};
 use server::evidence::{
     public_key_ref_for_bytes, EvidenceRequest, SecsWalletChallenge, WalletPresentationFixture,

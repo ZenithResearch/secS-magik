@@ -125,12 +125,12 @@ Acceptance:
 
 ### E1 — Add typed evidence kinds and production policy descriptors
 
-- [ ] Extend `EvidenceKind` with first-path credential kinds: `MembershipCredential` and `ProvisioningCredential`.
-- [ ] Add stable `as_str()` values: `membership_credential` and `provisioning_credential`.
-- [ ] Add or extend descriptor/policy types so production descriptors can declare allowed evidence kinds separately from local/dev descriptors.
-- [ ] Add a fixture production descriptor for `membership.provision` or a narrowly named Track E test descriptor that requires membership/provisioning evidence and rejects local/dev evidence.
-- [ ] Add RED tests proving `local_static`, plaintext/prototype, and wallet-only evidence cannot satisfy a production descriptor.
-- [ ] Keep local/dev descriptors working with explicit local/dev modes or clearly named local/dev constructors.
+- [x] Extend `EvidenceKind` with first-path credential kinds: `MembershipCredential` and `ProvisioningCredential`.
+- [x] Add stable `as_str()` values: `membership_credential` and `provisioning_credential`.
+- [x] Add or extend descriptor/policy types so production descriptors can declare allowed evidence kinds separately from local/dev descriptors.
+- [x] Add a fixture production descriptor for `membership.provision` or a narrowly named Track E test descriptor that requires membership/provisioning evidence and rejects local/dev evidence.
+- [x] Add RED tests proving `local_static`, plaintext/prototype, and wallet-only evidence cannot satisfy a production descriptor.
+- [x] Keep local/dev descriptors working with explicit local/dev modes or clearly named local/dev constructors.
 
 Targeted verification:
 
@@ -141,19 +141,19 @@ cargo test -p server evidence production_policy_rejects_wallet_only_authority --
 
 Acceptance:
 
-- [ ] `local_static` cannot satisfy production descriptors.
-- [ ] Prototype/plaintext evidence cannot satisfy production descriptors.
-- [ ] Wallet presentation proof alone cannot satisfy trusted issuer/root policy.
-- [ ] Local/dev fixtures remain explicitly local/dev only.
-- [ ] Evidence kinds are typed; no new free-form evidence-kind string drift.
+- [x] `local_static` cannot satisfy production descriptors.
+- [x] Prototype/plaintext evidence cannot satisfy production descriptors.
+- [x] Wallet presentation proof alone cannot satisfy trusted issuer/root policy.
+- [x] Local/dev fixtures remain explicitly local/dev only.
+- [x] Evidence kinds are typed; no new free-form evidence-kind string drift.
 
 ### E2 — Create shared D/E/I fixture constants and helpers
 
-- [ ] Promote or reuse Track D values from `server/tests/support/wallet_fixtures.rs`: subject, audience, origin, operation, resource, timestamps, and nonce/session refs.
-- [ ] Add trust fixture constants for issuer id, issuer key id, trust root ref, registry root ref, credential ids, status ids, accepted credential kinds, accepted audiences, accepted operations, accepted scopes/resources, and validity windows.
-- [ ] Ensure wallet and trusted-issuer tests use the same subject/audience/origin/operation/resource values unless intentionally testing mismatch.
-- [ ] Add helper constructors for valid and mutated credentials so matrix tests do not copy-paste literals.
-- [ ] Document fixture-only key material as no-real-secret test material.
+- [x] Promote or reuse Track D values from `server/tests/support/wallet_fixtures.rs`: subject, audience, origin, operation, resource, timestamps, and nonce/session refs.
+- [x] Add trust fixture constants for issuer id, issuer key id, trust root ref, registry root ref, credential ids, status ids, accepted credential kinds, accepted audiences, accepted operations, accepted scopes/resources, and validity windows.
+- [x] Ensure wallet and trusted-issuer tests use the same subject/audience/origin/operation/resource values unless intentionally testing mismatch.
+- [x] Add helper constructors for valid and mutated credentials so matrix tests do not copy-paste literals.
+- [x] Document fixture-only key material as no-real-secret test material.
 
 Targeted verification:
 
@@ -164,13 +164,13 @@ cargo test -p server production_federated fixture -- --nocapture
 
 Acceptance:
 
-- [ ] No incompatible duplicate spelling of receiver audience, subject, operation, or resource is introduced.
-- [ ] Track I can compose the same fixture scenario without rewriting constants.
-- [ ] Fixture helper names distinguish happy-path, mismatch, revoked, expired, stale, malformed, and untrusted variants.
+- [x] No incompatible duplicate spelling of receiver audience, subject, operation, or resource is introduced.
+- [x] Track I can compose the same fixture scenario without rewriting constants.
+- [x] Fixture helper names distinguish happy-path, mismatch, revoked, expired, stale, malformed, and untrusted variants.
 
 ### E3 — Implement receiver-held trusted issuer/root registry objects
 
-- [ ] Implement `TrustedIssuerEntry` or equivalent with at least:
+- [x] Implement `TrustedIssuerEntry` or equivalent with at least:
   - issuer id;
   - issuer public key / verification key bytes;
   - issuer key id / fingerprint;
@@ -183,12 +183,12 @@ Acceptance:
   - issuer/key status;
   - validity window;
   - revocation/status reference fields if modeled.
-- [ ] Implement a static in-memory registry type or loader-backed fixture registry with explicit receiver-held ownership.
-- [ ] Add lookup by issuer id and key id.
-- [ ] Add status checks for active, unknown, revoked, expired, and not-yet-valid issuer/key states.
-- [ ] Add root/ref checks: wrong `trust_root_ref` and wrong `registry_root_ref` reject.
-- [ ] Reject embedded evidence keys/issuer/root refs unless they match receiver-held registry metadata.
-- [ ] Keep registry parse/load errors fail-closed and redacted.
+- [x] Implement a static in-memory registry type or loader-backed fixture registry with explicit receiver-held ownership.
+- [x] Add lookup by issuer id and key id.
+- [x] Add status checks for active, unknown, revoked, expired, and not-yet-valid issuer/key states.
+- [x] Add root/ref checks: wrong `trust_root_ref` and wrong `registry_root_ref` reject.
+- [x] Reject embedded evidence keys/issuer/root refs unless they match receiver-held registry metadata.
+- [x] Keep registry parse/load errors fail-closed and redacted.
 
 Targeted verification:
 
@@ -199,17 +199,17 @@ cargo test -p server evidence untrusted_embedded_key_rejects -- --nocapture
 
 Acceptance:
 
-- [ ] Receiver-held issuer/root metadata controls trust.
-- [ ] Embedded evidence keys are evidence data only.
-- [ ] Unknown issuer rejects.
-- [ ] Wrong key rejects.
-- [ ] Wrong root/ref rejects.
-- [ ] Revoked/expired/not-yet-valid issuer/key rejects.
-- [ ] Static registry is fixture-backed and explicitly not live Dregg/Castalia discovery.
+- [x] Receiver-held issuer/root metadata controls trust.
+- [x] Embedded evidence keys are evidence data only.
+- [x] Unknown issuer rejects.
+- [x] Wrong key rejects.
+- [x] Wrong root/ref rejects.
+- [x] Revoked/expired/not-yet-valid issuer/key rejects.
+- [x] Static registry is fixture-backed and explicitly not live Dregg/Castalia discovery.
 
 ### E4 — Implement signed membership/provisioning credential fixture shape
 
-- [ ] Define a fixture credential struct or parser for `membership_credential` / `provisioning_credential` with at least:
+- [x] Define a fixture credential struct or parser for `membership_credential` / `provisioning_credential` with at least:
   - credential id;
   - credential kind;
   - subject;
@@ -223,11 +223,11 @@ Acceptance:
   - status or revocation reference;
   - signature suite;
   - signature bytes.
-- [ ] Define canonical bytes for signing that bind every authority-relevant field.
-- [ ] Generate deterministic no-real-secret Ed25519 fixture credentials.
-- [ ] Verify credential signature with the receiver-held issuer key from the registry, not with a caller-provided key alone.
-- [ ] Return a safe `EvidenceSummary` that includes credential kind/id, subject, audience, operation, resource/scope, issuer id, issuer key id, trust/root refs, status/ref, issued/expires metadata, and redacted proof metadata.
-- [ ] Ensure raw private keys, raw signature bytes, raw credential blobs, and raw secret material are absent from summaries/receipts by default.
+- [x] Define canonical bytes for signing that bind every authority-relevant field.
+- [x] Generate deterministic no-real-secret Ed25519 fixture credentials.
+- [x] Verify credential signature with the receiver-held issuer key from the registry, not with a caller-provided key alone.
+- [x] Return a safe `EvidenceSummary` that includes credential kind/id, subject, audience, operation, resource/scope, issuer id, issuer key id, trust/root refs, status/ref, issued/expires metadata, and redacted proof metadata.
+- [x] Ensure raw private keys, raw signature bytes, raw credential blobs, and raw secret material are absent from summaries/receipts by default.
 
 Targeted verification:
 
@@ -238,37 +238,37 @@ cargo test -p server evidence membership_credential -- --nocapture
 
 Acceptance:
 
-- [ ] Valid trusted active membership credential satisfies a permitted descriptor.
-- [ ] Valid trusted active provisioning credential satisfies a permitted descriptor if descriptor permits provisioning credentials.
-- [ ] Signature verification uses receiver-held issuer metadata.
-- [ ] Evidence summary is safe for signed context / receipt use.
+- [x] Valid trusted active membership credential satisfies a permitted descriptor.
+- [x] Valid trusted active provisioning credential satisfies a permitted descriptor if descriptor permits provisioning credentials.
+- [x] Signature verification uses receiver-held issuer metadata.
+- [x] Evidence summary is safe for signed context / receipt use.
 
 ### E5 — Implement credential reject matrix
 
-- [ ] Test missing credential ref rejects.
-- [ ] Test unknown credential ref rejects.
-- [ ] Test malformed credential rejects.
-- [ ] Test unsupported signature suite rejects.
-- [ ] Test wrong signature rejects.
-- [ ] Test wrong issuer key rejects.
-- [ ] Test embedded caller key that does not match registry rejects.
-- [ ] Test unknown issuer rejects.
-- [ ] Test trusted issuer with wrong trust root rejects.
-- [ ] Test trusted issuer with wrong registry root rejects.
-- [ ] Test revoked issuer rejects.
-- [ ] Test expired issuer rejects.
-- [ ] Test not-yet-valid issuer rejects.
-- [ ] Test revoked credential/status rejects.
-- [ ] Test expired credential rejects.
-- [ ] Test not-yet-valid credential rejects if modeled.
-- [ ] Test stale registry/status metadata rejects if modeled.
-- [ ] Test wrong subject rejects.
-- [ ] Test wrong audience rejects.
-- [ ] Test wrong origin rejects if origin is represented in the credential or public inputs.
-- [ ] Test wrong operation rejects.
-- [ ] Test wrong resource/scope rejects.
-- [ ] Test accepted credential kind mismatch rejects: membership descriptor rejects provisioning if not allowed, and provisioning descriptor rejects membership if not allowed.
-- [ ] Test valid credential still fails when receiver-local manifest policy disallows the operation/scope/audience.
+- [x] Test missing credential ref rejects.
+- [x] Test unknown credential ref rejects.
+- [x] Test malformed credential rejects.
+- [x] Test unsupported signature suite rejects.
+- [x] Test wrong signature rejects.
+- [x] Test wrong issuer key rejects.
+- [x] Test embedded caller key that does not match registry rejects.
+- [x] Test unknown issuer rejects.
+- [x] Test trusted issuer with wrong trust root rejects.
+- [x] Test trusted issuer with wrong registry root rejects.
+- [x] Test revoked issuer rejects.
+- [x] Test expired issuer rejects.
+- [x] Test not-yet-valid issuer rejects.
+- [x] Test revoked credential/status rejects.
+- [x] Test expired credential rejects.
+- [x] Test not-yet-valid credential rejects if modeled.
+- [x] Test stale registry/status metadata rejects if modeled.
+- [x] Test wrong subject rejects.
+- [x] Test wrong audience rejects.
+- [x] Test wrong origin rejects if origin is represented in the credential or public inputs.
+- [x] Test wrong operation rejects.
+- [x] Test wrong resource/scope rejects.
+- [x] Test accepted credential kind mismatch rejects: membership descriptor rejects provisioning if not allowed, and provisioning descriptor rejects membership if not allowed.
+- [x] Test valid credential still fails when receiver-local manifest policy disallows the operation/scope/audience.
 
 Targeted verification:
 
@@ -279,17 +279,17 @@ cargo test -p server evidence membership_credential provisioning_credential -- -
 
 Acceptance:
 
-- [ ] Every authority-relevant field has at least one negative test.
-- [ ] Failure reasons are typed/stable enough for debugging and future receipt policy.
-- [ ] No reject case leaks private key, raw signature, raw evidence body, or secret config in panic messages, summaries, docs, or logs.
+- [x] Every authority-relevant field has at least one negative test.
+- [x] Failure reasons are typed/stable enough for debugging and future receipt policy.
+- [x] No reject case leaks private key, raw signature, raw evidence body, or secret config in panic messages, summaries, docs, or logs.
 
 ### E6 — Compose wallet proof-of-possession with issuer/root policy without conflating them
 
-- [ ] Add tests showing valid wallet presentation plus missing/invalid issuer credential rejects production evidence.
-- [ ] Add tests showing valid issuer credential plus missing wallet presentation rejects if the descriptor requires both wallet and federated evidence.
-- [ ] Add tests showing valid wallet subject must match credential subject when both are required.
-- [ ] Add tests showing wallet audience/origin/operation/resource mismatch remains wallet-layer failure, while issuer/root mismatch remains policy-layer failure.
-- [ ] Ensure evidence summaries preserve both proof layers distinctly if both are present.
+- [x] Add tests showing valid wallet presentation plus missing/invalid issuer credential rejects production evidence.
+- [x] Add tests showing valid issuer credential plus missing wallet presentation rejects if the descriptor requires both wallet and federated evidence.
+- [x] Add tests showing valid wallet subject must match credential subject when both are required.
+- [x] Add tests showing wallet audience/origin/operation/resource mismatch remains wallet-layer failure, while issuer/root mismatch remains policy-layer failure.
+- [x] Ensure evidence summaries preserve both proof layers distinctly if both are present.
 
 Targeted verification:
 
@@ -300,19 +300,19 @@ cargo test -p server wallet_presentation -- --nocapture
 
 Acceptance:
 
-- [ ] Wallet proof-of-possession is necessary where required but never sufficient issuer/root authority.
-- [ ] Trusted issuer credential is necessary where required but never replaces wallet possession when descriptor requires both.
-- [ ] Summary/context fields distinguish wallet subject possession from trusted issuer credential authority.
+- [x] Wallet proof-of-possession is necessary where required but never sufficient issuer/root authority.
+- [x] Trusted issuer credential is necessary where required but never replaces wallet possession when descriptor requires both.
+- [x] Summary/context fields distinguish wallet subject possession from trusted issuer credential authority.
 
 ### E7 — Enforce descriptor-local policy before accept
 
-- [ ] Add policy checks for descriptor accepted evidence kinds.
-- [ ] Add policy checks for descriptor operation name.
-- [ ] Add policy checks for descriptor resource/payload schema/scope.
-- [ ] Add policy checks for receiver audience.
-- [ ] Add policy checks for required credentials/capabilities where existing fields are meaningful.
-- [ ] Add a test where a credential is cryptographically valid and registry-trusted but disallowed by the receiver-local descriptor.
-- [ ] Add a test where the same credential is accepted by the descriptor that explicitly allows it.
+- [x] Add policy checks for descriptor accepted evidence kinds.
+- [x] Add policy checks for descriptor operation name.
+- [x] Add policy checks for descriptor resource/payload schema/scope.
+- [x] Add policy checks for receiver audience.
+- [x] Add policy checks for required credentials/capabilities where existing fields are meaningful.
+- [x] Add a test where a credential is cryptographically valid and registry-trusted but disallowed by the receiver-local descriptor.
+- [x] Add a test where the same credential is accepted by the descriptor that explicitly allows it.
 
 Targeted verification:
 
@@ -323,18 +323,18 @@ cargo test -p server production_federated valid_evidence_policy_accepts -- --noc
 
 Acceptance:
 
-- [ ] Trusted foreign evidence never bypasses receiver-local manifest policy.
-- [ ] Descriptor policy is the final local accept gate after crypto/trust checks.
+- [x] Trusted foreign evidence never bypasses receiver-local manifest policy.
+- [x] Descriptor policy is the final local accept gate after crypto/trust checks.
 
 ### E8 — Registry/config file fixture and fail-closed load behavior
 
 Only implement file-backed fixture registry if the chosen registry path needs a real file for Track I. If not, explicitly document why in-memory fixture registry is enough for Track E.
 
-- [ ] If file-backed: add `fixtures/trust/membership-issuers.json` or equivalent with no real secrets.
-- [ ] Add parser/loader tests for valid registry fixture.
-- [ ] Add parser/loader tests for missing path, empty file, malformed JSON, duplicate issuer/key ids, unsupported status, unknown key suite, invalid public key length, and unsafe real-secret-looking content if applicable.
-- [ ] Ensure production startup/readiness still fails closed when trust registry is required but unavailable or invalid.
-- [ ] Redact paths/secrets in errors where appropriate; do not print raw private data.
+- [x] If file-backed: add `fixtures/trust/membership-issuers.json` or equivalent with no real secrets.
+- [x] Add parser/loader tests for valid registry fixture.
+- [x] Add parser/loader tests for missing path, empty file, malformed JSON, duplicate issuer/key ids, unsupported status, unknown key suite, invalid public key length, and unsafe real-secret-looking content if applicable.
+- [x] Ensure production startup/readiness still fails closed when trust registry is required but unavailable or invalid.
+- [x] Redact paths/secrets in errors where appropriate; do not print raw private data.
 
 Targeted verification:
 
@@ -345,18 +345,18 @@ cargo test -p server readiness trust -- --nocapture
 
 Acceptance:
 
-- [ ] Registry readiness means parseable, policy-usable trusted issuer/root metadata, not merely non-empty JSON.
-- [ ] Registry load errors are fail-closed.
-- [ ] Fixture data is clearly no-real-secret.
+- [x] Registry readiness means parseable, policy-usable trusted issuer/root metadata, not merely non-empty JSON.
+- [x] Registry load errors are fail-closed.
+- [x] Fixture data is clearly no-real-secret.
 
 ### E9 — A6 production policy matrix semantic tests
 
-- [ ] Translate every A6 local/dev row into an executable test or explicit deferred marker.
-- [ ] Translate every A6 wallet row into an executable test or explicit Track D boundary marker.
-- [ ] Translate every A6 federated first-path row into an executable test.
-- [ ] Add explicit tests or docs-contract assertions that Dregg/Midnight/Cardano-shaped refs are inert/deferred and cannot satisfy production authority by label alone.
-- [ ] Add a matrix table in the test module or docs with row name, input condition, expected accept/reject reason, and test name.
-- [ ] Ensure no first-path A6 row is only described in prose.
+- [x] Translate every A6 local/dev row into an executable test or explicit deferred marker.
+- [x] Translate every A6 wallet row into an executable test or explicit Track D boundary marker.
+- [x] Translate every A6 federated first-path row into an executable test.
+- [x] Add explicit tests or docs-contract assertions that Dregg/Midnight/Cardano-shaped refs are inert/deferred and cannot satisfy production authority by label alone.
+- [x] Add a matrix table in the test module or docs with row name, input condition, expected accept/reject reason, and test name.
+- [x] Ensure no first-path A6 row is only described in prose.
 
 Targeted verification:
 
@@ -367,16 +367,16 @@ cargo test -p server production_federated policy_matrix -- --nocapture
 
 Acceptance:
 
-- [ ] Matrix is executable for local/dev, wallet, and federated first-path rows.
-- [ ] Deferred Dregg/Midnight/Cardano rows are protected from accidental acceptance.
-- [ ] No A6 first-path row is unaccounted for.
+- [x] Matrix is executable for local/dev, wallet, and federated first-path rows.
+- [x] Deferred Dregg/Midnight/Cardano rows are protected from accidental acceptance.
+- [x] No A6 first-path row is unaccounted for.
 
 ### E10 — Receipts/context summary safety and reason-code stability
 
-- [ ] Verify accepted federated evidence contributes safe summary fields into signed verified context / receipts where applicable.
-- [ ] Verify reject reasons use stable `VerificationError::reason_code()` values or equivalent typed constants.
-- [ ] Add tests that summaries do not include raw private keys, raw credential body, raw signature bytes, bearer tokens, local absolute secret paths, or raw registry secrets.
-- [ ] Confirm ledger/operator inspection can distinguish wallet-layer, issuer-trust-layer, credential-status-layer, and local-policy-layer failures enough for Track I debugging.
+- [x] Verify accepted federated evidence contributes safe summary fields into signed verified context / receipts where applicable.
+- [x] Verify reject reasons use stable `VerificationError::reason_code()` values or equivalent typed constants.
+- [x] Add tests that summaries do not include raw private keys, raw credential body, raw signature bytes, bearer tokens, local absolute secret paths, or raw registry secrets.
+- [x] Confirm ledger/operator inspection can distinguish wallet-layer, issuer-trust-layer, credential-status-layer, and local-policy-layer failures enough for Track I debugging.
 
 Targeted verification:
 
@@ -388,19 +388,19 @@ cargo test -p server ledger operator_inspection -- --nocapture
 
 Acceptance:
 
-- [ ] Accepted/rejected Track E evidence is receipt/context-safe.
-- [ ] Typed reason surfaces do not regress into ad hoc string drift.
-- [ ] Operator can debug policy failures without exposing secrets.
+- [x] Accepted/rejected Track E evidence is receipt/context-safe.
+- [x] Typed reason surfaces do not regress into ad hoc string drift.
+- [x] Operator can debug policy failures without exposing secrets.
 
 ### E11 — Docs, changelog, and status synchronization
 
-- [ ] Update `CHANGELOG.md` under `[Unreleased]` with why Track E changed authority semantics.
-- [ ] Update `docs/implementation-status.md` to mark trusted issuer/root policy as implemented only if E1–E10 pass.
-- [ ] Update `docs/repository-schema.md` for any new `trust.rs`, fixtures, or test helpers.
-- [ ] Update `docs/plans/2026-06-02-ready-for-prod-checklist.md` Track E rows and remaining blockers.
-- [ ] Update `README.md` and `server/README.md` so they stop saying Track E is planned only after merge, but keep boundaries against Dregg/Midnight/Cardano/deployment/public auditability.
-- [ ] Update the PR body with task checkbox status, verification evidence, forbidden claims, and closes lines for #63/#35.
-- [ ] Update the vault master checklist and phase spec after merge evidence exists.
+- [x] Update `CHANGELOG.md` under `[Unreleased]` with why Track E changed authority semantics.
+- [x] Update `docs/implementation-status.md` to mark trusted issuer/root policy as implemented only if E1–E10 pass.
+- [x] Update `docs/repository-schema.md` for any new `trust.rs`, fixtures, or test helpers.
+- [x] Update `docs/plans/2026-06-02-ready-for-prod-checklist.md` Track E rows and remaining blockers.
+- [x] Update `README.md` and `server/README.md` so they stop saying Track E is planned only after merge, but keep boundaries against Dregg/Midnight/Cardano/deployment/public auditability.
+- [ ] Update the PR body with task checkbox status, verification evidence, forbidden claims, and closes lines for #63/#35 (deferred to E12 after push/PR).
+- [ ] Update the vault master checklist and phase spec after merge evidence exists (outside this repo commit).
 
 Docs verification:
 
@@ -412,9 +412,9 @@ git diff --check -- README.md CHANGELOG.md docs/ server/
 
 Acceptance:
 
-- [ ] Docs/status exactly match implemented behavior.
-- [ ] No surface claims live Dregg/Midnight/Cardano/deployment/public auditability.
-- [ ] Master/vault/repo/GitHub issue surfaces can be synchronized after PR merge.
+- [x] Docs/status exactly match implemented behavior.
+- [x] No surface claims live Dregg/Midnight/Cardano/deployment/public auditability.
+- [x] Repo surfaces are synchronized for E11; PR body/GitHub issue body and vault/master checklist remain deferred to E12 / after merge evidence.
 
 ### E12 — Phase gate and post-merge proof
 

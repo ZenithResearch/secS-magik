@@ -512,6 +512,59 @@ async fn operator_can_inspect_reason_coded_reject_by_receipt_id_without_signatur
 }
 
 #[tokio::test]
+async fn operator_inspection_distinguishes_track_e_policy_failure_layers() {
+    let ledger = memory_ledger().await;
+    let packet = packet();
+    let layer_failures = [
+        (
+            "receipt-wallet-layer",
+            VerificationError::WrongOrigin,
+            "wrong_origin",
+        ),
+        (
+            "receipt-issuer-trust-layer",
+            VerificationError::WrongTrustRoot,
+            "wrong_trust_root",
+        ),
+        (
+            "receipt-credential-status-layer",
+            VerificationError::RevokedCredential,
+            "revoked_credential",
+        ),
+        (
+            "receipt-local-policy-layer",
+            VerificationError::WrongResource,
+            "wrong_resource",
+        ),
+    ];
+
+    for (receipt_id, error, _) in &layer_failures {
+        ledger
+            .record_receipt(&Receipt::reject_from_packet(
+                *receipt_id,
+                &packet,
+                error.clone(),
+                1_717_000_000,
+            ))
+            .await
+            .unwrap();
+    }
+
+    for (receipt_id, _, expected_reason) in &layer_failures {
+        let export = ledger
+            .inspect_receipt_by_id(receipt_id)
+            .await
+            .unwrap()
+            .expect("reject receipt is inspectable");
+        assert_eq!(export.kind, "reject");
+        assert_eq!(export.decision, "rejected");
+        assert_eq!(export.reason.as_deref(), Some(*expected_reason));
+        assert!(!export.signature_present);
+        assert_eq!(export.signature_sha256_hex, None);
+    }
+}
+
+#[tokio::test]
 async fn operator_inspection_rejects_invalid_persisted_receipt_metadata() {
     let ledger = memory_ledger().await;
 

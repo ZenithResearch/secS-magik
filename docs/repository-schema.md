@@ -55,7 +55,7 @@ secS-magik/
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
 │       ├── payload.rs               # tunnel key parsing and runtime-mode payload decryption
 │       ├── manifest.rs              # receiver-local OperationDescriptor and opcode governance
-│       ├── evidence.rs              # EvidenceAdapter trait, local_static, wallet_presentation crypto seam
+│       ├── evidence.rs              # EvidenceAdapter trait, local_static, wallet_presentation crypto seam, static trusted issuer/root registry policy
 │       ├── receipt.rs               # signed receipt/event types and reason/authenticator metadata
 │       ├── ledger.rs                # local SQLite event/receipt/replay persistence and inspection
 │       ├── schema.rs                # centralized runtime SQLite schema ontology
@@ -81,6 +81,17 @@ secS-magik/
     └── announcement-thread.md       # public-language draft with prototype caveats
 ```
 
+Current Track E test/fixture surfaces that are intentionally outside the runtime module tree:
+
+```text
+server/tests/production_federated.rs       # signed membership/provisioning credential and policy matrix tests
+server/tests/trust.rs                      # TrustedIssuerEntry / registry loader fail-closed tests
+server/tests/support/trust_fixtures.rs     # no-real-secret issuer/root/credential fixture helpers
+server/tests/support/wallet_fixtures.rs    # shared D/E/I wallet subject/audience/origin/resource fixtures
+```
+
+These fixtures model static receiver-held trust only. They are not live Castalia/Dregg discovery, Midnight/Cardano authority, deployment proof, public auditability, or Track I `membership.provision` E2E proof.
+
 ## Module ownership
 
 | Module/file | Owns | Must not own |
@@ -94,12 +105,12 @@ secS-magik/
 | `server/src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle receipt/event emission. | Packet decode or payload decryption policy; durable distributed broker semantics; arbitrary shell authority. |
 | `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
 | `server/src/manifest.rs` | Receiver-local operation descriptors, handler IDs, evidence requirements, and opcode governance. | Client-only packet construction; global product policy; final global opcode ratification. |
-| `server/src/evidence.rs` | `EvidenceAdapter` trait, `local_static` local-dev-test adapter, and cryptographic `wallet_presentation` proof-of-possession over the temporary secS challenge contract. | Mandatory external runtime dependencies, full Castalia Wallet wallet-core parity claims, trusted issuer/root policy, or production Dregg/Midnight/Cardano authority claims. |
+| `server/src/evidence.rs` | `EvidenceAdapter` trait, `local_static` local-dev-test adapter, cryptographic `wallet_presentation` proof-of-possession over the temporary secS challenge contract, static receiver-held `TrustedIssuerEntry` registry policy, and signed `membership_credential` / `provisioning_credential` verification. | Mandatory external runtime dependencies, full Castalia Wallet wallet-core parity claims, live Castalia/Dregg registry discovery, Midnight/Cardano authority, public auditability, deployment proof, or treating wallet/local/caller-supplied roots as sufficient issuer/root authority. |
 | `server/src/receipt.rs` | In-memory signed receipt and event types: typed reject/verify/execute/forward receipts, decisions, authenticator kinds, stable event names, and Ed25519 receipt helpers. | Payload content logging and durable persistence by default. |
 | `server/src/ledger.rs` | Local SQLite event/receipt/replay storage and redacted operator inspection using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained; payload content persistence by default; public-chain anchoring. |
 | `server/src/runtime_mode.rs` | Explicit local/dev/production mode selection. | Silent plaintext fallback. |
 | `server/src/config.rs` | Typed gateway runtime config and readiness inputs. | Hidden production defaults or fixture-only smoke config masquerading as deployed production. |
-| `server/src/identity.rs` | Verifier identity loading, signer key IDs, receipt/context signing, and local public-key registry checks. | Live federation discovery or complete trusted issuer/root policy. |
+| `server/src/identity.rs` | Verifier identity loading, signer key IDs, receipt/context signing, and local public-key registry checks. | Live federation discovery or issuer/root authority beyond the separate static Track E trusted-issuer fixture policy. |
 | `server/src/schema.rs` | Central runtime SQLite schema definitions and lightweight local ledger migrations. | Public-chain anchoring or remote retention. |
 | `server/src/ontology.rs` | Shared prototype receiver/audience/reason constants. | Product authority or live trust registry semantics. |
 | `server/src/bin/secs-gateway.rs` | Canonical prototype gateway command. | Reusable gateway logic. |
