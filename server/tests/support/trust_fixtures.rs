@@ -170,14 +170,20 @@ pub fn provisioning_descriptor(opcode: u8) -> OperationDescriptor {
 }
 
 pub fn wallet_and_membership_descriptor(opcode: u8) -> OperationDescriptor {
-    trusted_descriptor(
+    let mut descriptor = trusted_descriptor(
         opcode,
         MEMBERSHIP_OPERATION,
         vec![
             EvidenceKind::WalletPresentation.as_str().to_string(),
             EvidenceKind::MembershipCredential.as_str().to_string(),
         ],
-    )
+    );
+    descriptor.required_credentials = vec![
+        "trusted.membership".to_string(),
+        "wallet.presentation".to_string(),
+    ];
+    descriptor.handler_id = "membership/provision".to_string();
+    descriptor
 }
 
 pub fn membership_or_provisioning_descriptor(opcode: u8) -> OperationDescriptor {

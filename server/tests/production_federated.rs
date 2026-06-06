@@ -10,13 +10,13 @@ use server::evidence::{
     FederatedCredentialAdapter, FederatedCredentialStatus, LocalStaticEvidenceAdapter,
     LocalStaticGrant, TrustedIssuerRegistry, TrustedIssuerStatus, WalletPresentationAdapter,
 };
-use server::manifest::{
-    OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
-};
 use server::gateway::{
     init_telemetry_schema, ConfigurableRouter, ExecutionLimits, HandlerOutcome, MachineProgram,
 };
 use server::ledger::Ledger;
+use server::manifest::{
+    OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
+};
 use server::receipt::Receipt;
 use server::runtime_mode::RuntimeMode;
 use server::verifier::{VerificationError, VerifiedCallContext, Verifier};
@@ -69,7 +69,11 @@ impl EvidenceAdapter for AdditionalEvidenceRefsAdapter<'_> {
     fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
         let mut request = request.clone();
         for evidence_ref in &self.extra_refs {
-            if !request.evidence_refs.iter().any(|existing| existing == evidence_ref) {
+            if !request
+                .evidence_refs
+                .iter()
+                .any(|existing| existing == evidence_ref)
+            {
                 request.evidence_refs.push((*evidence_ref).to_string());
             }
         }
