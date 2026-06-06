@@ -1,4 +1,4 @@
-use crate::evidence::{EvidenceAdapter, EvidenceRequest, EvidenceResult};
+use crate::evidence::{EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult};
 use crate::identity::NodeVerifierIdentity;
 use crate::manifest::{OperationDescriptor, ReceiverManifest, ReplayScope, TargetKind};
 use crate::ontology::PROTOTYPE_LOCAL_SUBJECT;
@@ -324,6 +324,26 @@ fn reject_non_production_descriptor(
                 .any(|evidence| evidence == "prototype-proof-envelope"))
     {
         return Err(VerificationError::PrototypeOperationNotProductionAuthorized);
+    }
+    reject_descriptor_only_runtime_evidence_gap(descriptor)?;
+    Ok(())
+}
+
+fn reject_descriptor_only_runtime_evidence_gap(
+    descriptor: &OperationDescriptor,
+) -> Result<(), VerificationError> {
+    if descriptor.opcode == 0x44
+        && descriptor.name.as_str() == "membership.provision"
+        && descriptor
+            .accepted_evidence
+            .iter()
+            .any(|evidence| evidence == EvidenceKind::WalletPresentation.as_str())
+        && descriptor
+            .accepted_evidence
+            .iter()
+            .any(|evidence| evidence == EvidenceKind::MembershipCredential.as_str())
+    {
+        return Err(VerificationError::InsufficientEvidence);
     }
     Ok(())
 }
