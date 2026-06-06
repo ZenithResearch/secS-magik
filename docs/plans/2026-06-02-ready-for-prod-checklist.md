@@ -128,7 +128,7 @@ A2 turns the A0 production target into working ownership boundaries. These bound
 | Signed receipt/context identity | Yes | Yes | Signer identity, key id, signed `VerifiedCallContext`, signed receipts, and local/operator-visible provenance. | Tamper, wrong key, expired context, and untrusted/revoked issuer checks are named and later tested. |
 | Descriptor-bound bounded execution | Yes | Yes | Receiver-local manifest policy binds opcode/operation/evidence to bounded handler execution after verification. | Handlers run only from verified context; oversized payload, unavailable handler, and descriptor mismatch fail closed. |
 | Redacted local ledger and operator inspection | Yes | Yes | Local SQLite receipt/event persistence with payload redaction by default and inspectable decision chain. | Verify/reject/execute receipts are inspectable without storing raw payload/evidence by default. |
-| End-to-end membership-provisioning proof | Yes for secS verifier/runbook path | Yes | A fixture operation proves machine-to-machine membership provisioning through wallet + federated evidence + bounded handler + receipts. | `membership.provision`, `gallery.member.provision`, or `hub.member.provision` runbook/test proves more than packet echo. |
+| End-to-end membership-provisioning proof | Yes for secS verifier/runbook path | Yes | A fixture operation proves machine-to-machine membership provisioning through wallet + federated evidence + bounded handler + receipts. | `membership.provision`, `gallery.member.provision`, or `hub.member.provision` runbook/test proves more than packet echo; #84 pins that fixture smoke/log output or verifier-only acceptance without an accepted execute receipt is non-success. |
 
 ### A2 — Deferred / future rails
 

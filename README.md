@@ -221,6 +221,8 @@ The bare command defaults to `production_verified`, which intentionally fails fa
 ./scripts/production-gateway-smoke.sh
 ```
 
+Fixture smoke output is not `membership.provision` success by itself. For the Track I membership-provisioning contract, success requires an inspectable receipt chain for the same context with both `verify accepted` and `execute accepted`; verifier-only acceptance, handler-unavailable routing, stdout/stderr/log output, or fixture smoke output without an accepted execute receipt remains non-success.
+
 The historical `secz` binary remains as a compatibility wrapper for the same prototype gateway:
 
 ```bash
