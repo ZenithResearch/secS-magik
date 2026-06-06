@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Changed
+- Added Track I local `membership.provision` E2E branch evidence — canonical `0x44` descriptor, wallet + trusted issuer fixture composition, signed context, bounded handler execution, local/operator verify+execute receipt inspection, focused reject matrix, replay/session/TTL guards, and redaction checks. This is pre-merge local production-shaped E2E only; it is not deployment proof, public auditability, live registry discovery, Midnight/Cardano authority, or full wallet-core parity.
+
 
 - Synchronized post-merge Track E status after PR #69: docs now mark trusted issuer/root policy complete on `main` at `baee35b` with post-merge Rust CI run 27050361282, close #35/#63, and track every non-covered PR claim through #70-#75 plus existing #33/#37.
 - Synchronized Track E trusted issuer/root docs and status after E1–E10 — records the local phase-branch authority semantics shift from wallet/local evidence as proof inputs to receiver-held `TrustedIssuerEntry` policy plus signed `membership_credential` / `provisioning_credential` verification, so readers do not mistake wallet proof-of-possession, caller-supplied roots, fixture registry labels, or local/dev evidence for sufficient production authority before PR/main CI and Track I E2E proof.

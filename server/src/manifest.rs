@@ -100,6 +100,7 @@ impl ReceiverManifest {
                 "dev/json-validate",
             ),
             dev_candidate_descriptor(0x30, "candidate.dev.jq_identity", None, "dev/jq-identity"),
+            membership_provision_descriptor(),
         ])
     }
 
@@ -146,5 +147,29 @@ fn dev_candidate_descriptor(
         handler_id: handler_id.to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+    }
+}
+
+fn membership_provision_descriptor() -> OperationDescriptor {
+    const OPCODE: u8 = 0x44;
+    OperationDescriptor {
+        opcode: OPCODE,
+        name: OperationName::new("membership.provision"),
+        payload_schema: Some("application/json".to_string()),
+        target_kind: TargetKind::LocalDevProcess,
+        required_credentials: vec![
+            "trusted.membership".to_string(),
+            "wallet.presentation".to_string(),
+        ],
+        required_capabilities: vec!["membership.provision".to_string()],
+        accepted_evidence: vec![
+            "wallet_presentation".to_string(),
+            "membership_credential".to_string(),
+        ],
+        replay_scope: ReplayScope::SessionOpcodeNonce,
+        max_ttl_seconds: 300,
+        handler_id: "membership/provision".to_string(),
+        dev_binding: false,
+        range: OpcodeRange::classify(OPCODE),
     }
 }

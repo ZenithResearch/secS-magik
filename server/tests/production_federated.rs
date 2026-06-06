@@ -3,18 +3,27 @@ mod trust_fixtures;
 #[path = "support/wallet_fixtures.rs"]
 mod wallet_fixtures;
 
+use async_trait::async_trait;
 use libsec_core::ZenithPacket;
 use server::evidence::{
     CompositeEvidenceAdapter, EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult,
     FederatedCredentialAdapter, FederatedCredentialStatus, LocalStaticEvidenceAdapter,
     LocalStaticGrant, TrustedIssuerRegistry, TrustedIssuerStatus, WalletPresentationAdapter,
 };
+use server::gateway::{
+    init_telemetry_schema, ConfigurableRouter, ExecutionLimits, HandlerOutcome, MachineProgram,
+};
+use server::ledger::Ledger;
 use server::manifest::{
     OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
 };
 use server::receipt::Receipt;
 use server::runtime_mode::RuntimeMode;
-use server::verifier::{VerificationError, Verifier};
+use server::verifier::{VerificationError, VerifiedCallContext, Verifier};
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use trust_fixtures::{
     credential_fixture, issuer_entry, malformed_credential_fixture, membership_credential_fixture,
     membership_descriptor, provisioning_credential_fixture, provisioning_descriptor,
@@ -29,6 +38,48 @@ use wallet_fixtures::{
     origin_input, sign_wallet_fixture, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT,
     WALLET_OPCODE, WALLET_OPERATION,
 };
+
+struct MembershipProvisionProgram {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl MachineProgram for MembershipProvisionProgram {
+    async fn execute(
+        &self,
+        _context: &VerifiedCallContext,
+        _payload: &[u8],
+        _limits: ExecutionLimits,
+    ) -> HandlerOutcome {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        HandlerOutcome::succeeded()
+    }
+}
+
+struct AdditionalEvidenceRefsAdapter<'a> {
+    inner: &'a dyn EvidenceAdapter,
+    extra_refs: Vec<&'a str>,
+}
+
+impl EvidenceAdapter for AdditionalEvidenceRefsAdapter<'_> {
+    fn kind(&self) -> EvidenceKind {
+        self.inner.kind()
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        let mut request = request.clone();
+        for evidence_ref in &self.extra_refs {
+            if !request
+                .evidence_refs
+                .iter()
+                .any(|existing| existing == evidence_ref)
+            {
+                request.evidence_refs.push((*evidence_ref).to_string());
+            }
+        }
+        self.inner.verify(&request)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PolicyMatrixStatus {
@@ -215,6 +266,23 @@ fn production_packet(opcode: u8) -> ZenithPacket {
         encrypted_payload: br#"{"membership":"requested"}"#.to_vec(),
         mac: [3u8; 16],
     }
+}
+
+async fn memory_pool() -> SqlitePool {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    pool
+}
+
+fn current_test_time() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_secs()
 }
 
 fn hex_lower(bytes: &[u8]) -> String {
@@ -1053,6 +1121,554 @@ fn production_federated_policy_matrix_future_root_and_rail_refs_are_inert() {
             VerificationError::InsufficientEvidence,
         );
     }
+}
+
+#[test]
+fn membership_provision_default_manifest_exposes_canonical_descriptor_contract() {
+    let manifest = ReceiverManifest::default_v0();
+    let descriptor = manifest
+        .lookup(WALLET_AND_MEMBERSHIP_OPCODE)
+        .expect("default receiver manifest must expose canonical membership.provision descriptor");
+
+    assert_eq!(descriptor.name.as_str(), MEMBERSHIP_OPERATION);
+    assert_eq!(descriptor.handler_id, "membership/provision");
+    assert!(!descriptor.dev_binding);
+    assert!(descriptor
+        .accepted_evidence
+        .iter()
+        .any(|kind| kind == EvidenceKind::WalletPresentation.as_str()));
+    assert!(descriptor
+        .accepted_evidence
+        .iter()
+        .any(|kind| kind == EvidenceKind::MembershipCredential.as_str()));
+    assert!(!descriptor
+        .accepted_evidence
+        .iter()
+        .any(|kind| kind == EvidenceKind::LocalStatic.as_str()));
+    assert!(!descriptor
+        .accepted_evidence
+        .iter()
+        .any(|kind| kind == EvidenceKind::PrototypeProofEnvelope.as_str()));
+}
+
+#[tokio::test]
+async fn membership_provision_e2e_contract_reaches_verify_execute_and_ledger_inspection() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
+        inner: &composite,
+        extra_refs: vec![MEMBERSHIP_CREDENTIAL_REF],
+    };
+    let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+    let payload = packet.encrypted_payload.clone();
+    let payload_size = payload.len() as i64;
+
+    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        Some(WALLET_EVIDENCE_REF),
+        [origin_input(TRUSTED_ORIGIN)],
+        &multi_ref_adapter,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect("canonical membership.provision packet should verify with wallet PoP and trusted issuer evidence");
+    assert_eq!(signed.context.operation, MEMBERSHIP_OPERATION);
+    assert!(signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field == "evidence_kind:wallet_presentation"));
+    assert!(signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field == "evidence_kind:membership_credential"));
+    assert!(!signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field == "authority:local_dev_test_only"));
+
+    let pool = memory_pool().await;
+    let bootstrap = ConfigurableRouter::new(pool.clone());
+    let identity = bootstrap.identity().clone();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool.clone(),
+        ExecutionLimits::default(),
+        identity,
+        TRUSTED_AUDIENCE,
+    );
+    router.register_handler(
+        descriptor.handler_id.clone(),
+        Box::new(MembershipProvisionProgram {
+            calls: Arc::clone(&calls),
+        }),
+    );
+
+    router.route_verified(&signed, payload).await;
+
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "membership.provision success must execute the production-bound handler, not stop at packet echo or verifier-only acceptance"
+    );
+    let telemetry: (i64, String) = sqlx::query_as(
+        "SELECT payload_size, operation FROM node_telemetry WHERE opcode = ? ORDER BY id DESC LIMIT 1",
+    )
+    .bind(i64::from(WALLET_AND_MEMBERSHIP_OPCODE))
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(telemetry.0, payload_size);
+    assert_eq!(telemetry.1, MEMBERSHIP_OPERATION);
+
+    let ledger = Ledger::new(pool.clone());
+    let chain = ledger
+        .inspect_receipt_chain_by_context_id(&signed.context.context_id)
+        .await
+        .unwrap();
+    let decisions: Vec<_> = chain
+        .iter()
+        .map(|receipt| {
+            (
+                receipt.kind.as_str(),
+                receipt.decision.as_str(),
+                receipt.reason.as_deref(),
+                receipt.operation.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        decisions,
+        vec![
+            ("verify", "accepted", None, Some(MEMBERSHIP_OPERATION)),
+            ("execute", "accepted", None, Some(MEMBERSHIP_OPERATION)),
+        ],
+        "success requires inspectable verify + execute receipts; descriptor mismatch, handler_unavailable, fixture smoke output, or local_static fallback is not success"
+    );
+}
+
+#[test]
+fn membership_provision_contract_rejects_single_layer_and_local_static_success_substitutes() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+
+    assert_eq!(
+        composite.verify(&request_for(&descriptor, Some(WALLET_EVIDENCE_REF))),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence),
+        "wallet proof-of-possession alone is not membership.provision success"
+    );
+    assert_eq!(
+        composite.verify(&request_for(&descriptor, Some(MEMBERSHIP_CREDENTIAL_REF))),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence),
+        "trusted issuer credential alone is not membership.provision success"
+    );
+
+    let local_static = local_static_adapter_for(
+        &descriptor,
+        TRUSTED_SUBJECT,
+        TRUSTED_AUDIENCE,
+        "local-static:membership-provision-fallback",
+    );
+    assert_eq!(
+        local_static.verify(&request_for(
+            &descriptor,
+            Some("local-static:membership-provision-fallback"),
+        )),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence),
+        "local_static fixture fallback must not satisfy membership.provision"
+    );
+}
+
+#[test]
+fn membership_provision_negative_matrix_rejects_at_focused_layers() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+
+    for (case, refs, expected) in [
+        (
+            "missing wallet evidence",
+            vec![MEMBERSHIP_CREDENTIAL_REF],
+            VerificationError::InsufficientEvidence,
+        ),
+        (
+            "missing issuer credential evidence",
+            vec![WALLET_EVIDENCE_REF],
+            VerificationError::InsufficientEvidence,
+        ),
+    ] {
+        assert_eq!(
+            composite.verify(&request_with_refs(&descriptor, refs)),
+            EvidenceResult::Rejected(expected),
+            "{case} must reject before membership.provision success"
+        );
+    }
+
+    let mut mismatched_wallet = wallet_fixture();
+    mismatched_wallet.operation = MEMBERSHIP_OPERATION.to_string();
+    mismatched_wallet.subject = "did:example:bob#key-1".to_string();
+    sign_wallet_fixture(&mut mismatched_wallet);
+    let wallet_subject_mismatch =
+        WalletPresentationAdapter::with_validation_time([mismatched_wallet], WALLET_ISSUED_AT + 60);
+    assert_eq!(
+        composite_adapter(&wallet_subject_mismatch, &credential).verify(&request_with_refs(
+            &descriptor,
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongSubject),
+        "wallet subject mismatch must reject at the wallet layer"
+    );
+
+    let mut mismatched_credential = membership_credential_fixture();
+    mismatched_credential
+        .credential
+        .as_mut()
+        .expect("credential")
+        .subject = "did:example:bob#key-1".to_string();
+    resign_credential(&mut mismatched_credential);
+    let credential_subject_mismatch = FederatedCredentialAdapter::new(
+        [mismatched_credential],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    assert_eq!(
+        composite_adapter(&wallet, &credential_subject_mismatch).verify(&request_with_refs(
+            &descriptor,
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongSubject),
+        "credential subject mismatch must reject at the issuer/root-authority layer"
+    );
+
+    let mut wrong_origin = request_with_refs(
+        &descriptor,
+        [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+    );
+    wrong_origin
+        .public_inputs
+        .retain(|input| !input.starts_with("origin:"));
+    wrong_origin
+        .public_inputs
+        .push(origin_input("https://evil.example"));
+    assert_eq!(
+        composite.verify(&wrong_origin),
+        EvidenceResult::Rejected(VerificationError::WrongOrigin),
+        "wrong origin must be caught by wallet challenge binding before success"
+    );
+
+    let mut wrong_audience_wallet = wallet_fixture();
+    wrong_audience_wallet.operation = MEMBERSHIP_OPERATION.to_string();
+    wrong_audience_wallet.audience = "secS://other-target".to_string();
+    sign_wallet_fixture(&mut wrong_audience_wallet);
+    let wrong_audience_wallet = WalletPresentationAdapter::with_validation_time(
+        [wrong_audience_wallet],
+        WALLET_ISSUED_AT + 60,
+    );
+    let mut wrong_audience_request = EvidenceRequest::from_descriptor_with_refs(
+        &descriptor,
+        TRUSTED_SUBJECT,
+        "secS://other-target",
+        [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+    );
+    wrong_audience_request
+        .public_inputs
+        .push(origin_input(TRUSTED_ORIGIN));
+    assert_eq!(
+        composite_adapter(&wrong_audience_wallet, &credential).verify(&wrong_audience_request),
+        EvidenceResult::Rejected(VerificationError::WrongAudience),
+        "wallet-matched wrong audience must still reject at issuer/root-authority binding"
+    );
+
+    let mut wrong_operation_descriptor = descriptor.clone();
+    wrong_operation_descriptor.name = OperationName::new("membership.not-permitted");
+    let mut wrong_operation_wallet = wallet_fixture();
+    wrong_operation_wallet.operation = wrong_operation_descriptor.name.as_str().to_string();
+    sign_wallet_fixture(&mut wrong_operation_wallet);
+    let wrong_operation_wallet = WalletPresentationAdapter::with_validation_time(
+        [wrong_operation_wallet],
+        WALLET_ISSUED_AT + 60,
+    );
+    assert_eq!(
+        composite_adapter(&wrong_operation_wallet, &credential).verify(&request_with_refs(
+            &wrong_operation_descriptor,
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongOperation),
+        "wallet-matched wrong operation must still reject at issuer/root-authority binding"
+    );
+
+    let mut wrong_resource_descriptor = descriptor.clone();
+    wrong_resource_descriptor.payload_schema = Some("application/not-json".to_string());
+    let mut wrong_resource_wallet = wallet_fixture();
+    wrong_resource_wallet.operation = MEMBERSHIP_OPERATION.to_string();
+    wrong_resource_wallet.resource = "application/not-json".to_string();
+    sign_wallet_fixture(&mut wrong_resource_wallet);
+    let wrong_resource_wallet = WalletPresentationAdapter::with_validation_time(
+        [wrong_resource_wallet],
+        WALLET_ISSUED_AT + 60,
+    );
+    assert_eq!(
+        composite_adapter(&wrong_resource_wallet, &credential).verify(&request_with_refs(
+            &wrong_resource_descriptor,
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongResource),
+        "wallet-matched wrong resource must still reject at issuer/root-authority binding"
+    );
+
+    let mut provisioning_only_policy = descriptor.clone();
+    provisioning_only_policy.accepted_evidence = vec![
+        EvidenceKind::WalletPresentation.as_str().to_string(),
+        EvidenceKind::ProvisioningCredential.as_str().to_string(),
+    ];
+    assert_eq!(
+        composite.verify(&request_with_refs(
+            &provisioning_only_policy,
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        )),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence),
+        "descriptor-local evidence policy must reject an otherwise valid membership credential when provisioning authority is required"
+    );
+}
+
+#[tokio::test]
+async fn membership_provision_rejects_remain_inspectable_and_redacted() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
+    let sensitive_wallet_ref =
+        "/Users/bananawalnut/.secrets/wallet.jwt?Authorization=Bearer raw-wallet-token";
+    let sensitive_credential_ref =
+        "/Users/bananawalnut/.secrets/membership.json?Authorization=Bearer raw-credential-token";
+
+    let mut wallet_fixture = wallet_fixture();
+    wallet_fixture.evidence_ref = sensitive_wallet_ref.to_string();
+    wallet_fixture.operation = MEMBERSHIP_OPERATION.to_string();
+    sign_wallet_fixture(&mut wallet_fixture);
+    let raw_wallet_signature_hex = hex_lower(&wallet_fixture.signature_bytes);
+    let raw_wallet_signature_debug = format!("{:?}", wallet_fixture.signature_bytes);
+    let wallet =
+        WalletPresentationAdapter::with_validation_time([wallet_fixture], WALLET_ISSUED_AT + 60);
+
+    let mut credential_fixture = membership_credential_fixture();
+    credential_fixture.evidence_ref = sensitive_credential_ref.to_string();
+    let credential = credential_fixture.credential.clone().expect("credential");
+    let raw_credential_body = String::from_utf8(credential.canonical_bytes()).unwrap();
+    let raw_credential_signature_hex = hex_lower(&credential_fixture.signature_bytes);
+    let raw_credential_signature_debug = format!("{:?}", credential_fixture.signature_bytes);
+    let raw_private_seed_hex = hex_lower(&ISSUER_FIXTURE_ED25519_SEED);
+    let raw_private_seed_debug = format!("{:?}", ISSUER_FIXTURE_ED25519_SEED);
+    let credential = FederatedCredentialAdapter::new(
+        [credential_fixture],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
+        inner: &composite,
+        extra_refs: vec![sensitive_credential_ref],
+    };
+
+    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+        &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        Some(sensitive_wallet_ref),
+        [origin_input(TRUSTED_ORIGIN)],
+        &multi_ref_adapter,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect("membership.provision with sensitive local refs should verify without leaking them");
+
+    for expected in [
+        "evidence_kind:wallet_presentation",
+        "evidence_kind:membership_credential",
+        "credential_kind:membership_credential",
+        &format!("issuer_id:{TRUSTED_ISSUER_ID}"),
+        &format!("trust_root_ref:{TRUST_ROOT_REF}"),
+        &format!("registry_root_ref:{REGISTRY_ROOT_REF}"),
+        "public_proof:true",
+        "proof:redacted_ed25519_signature",
+    ] {
+        assert!(
+            signed
+                .context
+                .evidence_summary
+                .iter()
+                .any(|field| field == expected),
+            "missing wallet/issuer authority summary field {expected}"
+        );
+    }
+    assert!(signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field.starts_with("evidence_ref_sha256:")));
+
+    let joined_summary = signed.context.evidence_summary.join("\n");
+    for forbidden in [
+        sensitive_wallet_ref,
+        sensitive_credential_ref,
+        "Bearer raw-wallet-token",
+        "Bearer raw-credential-token",
+        "raw-wallet-token",
+        "raw-credential-token",
+        "/Users/bananawalnut/.secrets/wallet.jwt",
+        "/Users/bananawalnut/.secrets/membership.json",
+        &raw_wallet_signature_hex,
+        &raw_wallet_signature_debug,
+        &raw_credential_signature_hex,
+        &raw_credential_signature_debug,
+        &raw_private_seed_hex,
+        &raw_private_seed_debug,
+        raw_credential_body.as_str(),
+        server::evidence::SecsFederatedCredential::VERSION,
+    ] {
+        assert!(
+            !joined_summary.contains(forbidden),
+            "membership.provision summary leaked forbidden material: {forbidden}"
+        );
+    }
+
+    let pool = memory_pool().await;
+    let bootstrap = ConfigurableRouter::new(pool.clone());
+    let identity = bootstrap.identity().clone();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool.clone(),
+        ExecutionLimits::default(),
+        identity,
+        TRUSTED_AUDIENCE,
+    );
+    router.register_handler(
+        descriptor.handler_id.clone(),
+        Box::new(MembershipProvisionProgram {
+            calls: Arc::clone(&calls),
+        }),
+    );
+
+    router
+        .route_verified(&signed, br#"{"membership":"requested"}"#.to_vec())
+        .await;
+    router
+        .route_verified(&signed, br#"{"membership":"requested"}"#.to_vec())
+        .await;
+
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "replayed membership.provision context must not execute handler twice"
+    );
+    let ledger = Ledger::new(pool);
+    let chain = ledger
+        .inspect_receipt_chain_by_context_id(&signed.context.context_id)
+        .await
+        .expect("replay reject remains inspectable by context id");
+    assert!(chain.iter().any(|receipt| {
+        receipt.kind == "verify" && receipt.decision == "accepted" && receipt.reason.is_none()
+    }));
+    assert!(chain.iter().any(|receipt| {
+        receipt.kind == "reject"
+            && receipt.decision == "rejected"
+            && receipt.reason.as_deref() == Some("replay_detected")
+    }));
+    let receipt_debug = format!("{chain:?}");
+    for forbidden in [
+        sensitive_wallet_ref,
+        sensitive_credential_ref,
+        "raw-wallet-token",
+        "raw-credential-token",
+        "/Users/bananawalnut/.secrets",
+        &raw_wallet_signature_hex,
+        &raw_credential_signature_hex,
+        raw_credential_body.as_str(),
+    ] {
+        assert!(
+            !receipt_debug.contains(forbidden),
+            "inspectable reject receipt leaked forbidden material: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn membership_provision_session_and_packet_guards_still_apply_after_evidence() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let manifest = ReceiverManifest::new([descriptor]);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
+        inner: &composite,
+        extra_refs: vec![MEMBERSHIP_CREDENTIAL_REF],
+    };
+
+    let mut invalid_session = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+    invalid_session.session_id = [0u8; 16];
+    assert_eq!(
+        Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+            &invalid_session,
+            &manifest,
+            TRUSTED_AUDIENCE,
+            TRUSTED_SUBJECT,
+            Some(WALLET_EVIDENCE_REF),
+            [origin_input(TRUSTED_ORIGIN)],
+            &multi_ref_adapter,
+            current_test_time(),
+            "verifier:local-prototype",
+            &[7u8; 32],
+        ),
+        Err(VerificationError::InvalidSession),
+        "membership.provision must retain session guard after evidence checks"
+    );
+
+    let mut excessive_ttl = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+    excessive_ttl.claim_ttl = 301;
+    assert_eq!(
+        Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+            &excessive_ttl,
+            &manifest,
+            TRUSTED_AUDIENCE,
+            TRUSTED_SUBJECT,
+            Some(WALLET_EVIDENCE_REF),
+            [origin_input(TRUSTED_ORIGIN)],
+            &multi_ref_adapter,
+            current_test_time(),
+            "verifier:local-prototype",
+            &[7u8; 32],
+        ),
+        Err(VerificationError::ClaimTtlExceedsDescriptorMax),
+        "membership.provision must retain descriptor TTL/nonce replay-scope guardrails"
+    );
 }
 
 #[test]
