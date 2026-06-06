@@ -6,7 +6,7 @@ This directory contains repo-local, issue-ready phase specs for remaining secS-m
 
 | Track | GitHub issue | Local spec | Status |
 |---|---:|---|---|
-| Track E — trusted issuer/root policy | #63 / underlying #35 | [`track-e-trusted-issuer-root-policy.md`](track-e-trusted-issuer-root-policy.md) | next open phase after Track D |
+| Track E — trusted issuer/root policy | #63 / underlying #35 | [`track-e-trusted-issuer-root-policy.md`](track-e-trusted-issuer-root-policy.md) | locally implemented through E11; E12 PR/CI/merge gate pending |
 
 ## Boundary
 

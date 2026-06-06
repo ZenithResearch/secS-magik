@@ -25,7 +25,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | Where should code live? | [repository-schema.md](repository-schema.md) |
 | What is client vs verifier? | [client-surfaces.md](client-surfaces.md) |
 | What is the current production-readiness plan? | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) |
-| What is the next Track E implementation spec? | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) |
+| What is the Track E local phase status? | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) |
 | What was the original issue-slice sequence? | [plans/2026-06-01-secs-magik-implementation-issue-slices.md](plans/2026-06-01-secs-magik-implementation-issue-slices.md) |
 | What is public-language draft material? | [announcement-thread.md](announcement-thread.md) |
 
@@ -38,7 +38,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | [client-surfaces.md](client-surfaces.md) | Current boundary doc | Client-side local Hermes/secC/secZ packet-construction boundary. |
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Architecture/objectives spec. Check status ledger before treating target behavior as implemented. |
 | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) | Current control surface | Ready-for-prod track checklist and completion checkpoints through the current implementation train. |
-| [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Current next-phase spec | Exhaustive Track E trusted issuer/root policy implementation spec linked from GitHub #63. |
+| [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E trusted issuer/root policy implementation spec and E1–E12 checkbox surface; E1–E11 are locally synchronized on the phase branch, E12 remains pending. |
 
 ## Directory READMEs
 
@@ -54,7 +54,7 @@ The root repository also has child READMEs for [../core/](../core/README.md), [.
 | Path | Status | Purpose |
 |---|---|---|
 | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) | Current control surface | Track A-I readiness, completion checkpoints, remaining D/E/I path, and forbidden claims. |
-| [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Current next-phase spec | Track E E0–E12 commit-boundary tasks, phase acceptance criteria, and implementation-test matrix. |
+| [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E E0–E12 commit-boundary tasks, phase acceptance criteria, implementation-test matrix, and local E1–E11 synchronization status. |
 | [plans/2026-06-01-implementation-progress-checklist.md](plans/2026-06-01-implementation-progress-checklist.md) | Historical/current progress ledger | Early issue train and CI alignment notes. |
 | [plans/2026-06-01-secs-magik-implementation-issue-slices.md](plans/2026-06-01-secs-magik-implementation-issue-slices.md) | Historical issue-slice import | Original 2026-06-01 issue-level sequence. Many early slices have since landed. |
 
@@ -82,7 +82,7 @@ No tracked `docs/reviews/` directory is present in the current tree. If historic
 - secS-magik/secS is the verifier and permissioned RPC substrate.
 - receiver-local manifests own opcode-to-handler meaning after verification.
 - `wallet_presentation` now verifies signed presentation/challenge material cryptographically through the explicitly temporary minimal-equivalent secS challenge contract; full Castalia Wallet wallet-core parity/import remains future reconciliation work.
-- trusted issuer/root policy remains Track E work.
+- Track E static trusted issuer/root policy is implemented locally on the phase branch using receiver-held `TrustedIssuerEntry` fixtures and signed membership/provisioning credentials; E12 PR/main CI and Track I E2E remain pending.
 - the current receipt/event ledger is local/operator SQLite evidence only, not public auditability.
 - Dregg, Midnight, Cardano, and wallet presentation enter through typed evidence adapters or anchors; they do not replace secS verification.
 - Client packaging boundary: browser extension = WASM binding; secZ/secC/local clients = native/client binding or packet/evidence carrier; secS = verifier subset/artifact consumer that consumes signed presentation/challenge plus public verification material, not UI session state.

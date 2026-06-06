@@ -2,7 +2,7 @@
 
 `server/` is the secS gateway/verifier substrate crate for secS-magik.
 
-Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, and cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract. First-prod authority is not complete: full Castalia Wallet wallet-core parity/import and trusted issuer/root policy remain separate future/Track E work.
+Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, and Track E static trusted issuer/root policy on the phase branch. First-prod authority is still bounded until PR/main CI and Track I E2E evidence: full Castalia Wallet wallet-core parity/import, live Castalia/Dregg discovery, Midnight/Cardano authority, production deployment proof, and public auditability are not implemented here.
 
 ## Directory map
 
@@ -17,7 +17,7 @@ Status: production-shaped local hardening is implemented for the current prototy
 | `src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle events. |
 | `src/manifest.rs` | Receiver-local operation descriptors, handler IDs, evidence requirements, and opcode governance. |
 | `src/verifier.rs` | Typed verifier errors, prototype envelope checks, and signed verified context helpers. |
-| `src/evidence.rs` | `EvidenceAdapter`, `local_static`, and cryptographic `wallet_presentation` verification over the temporary minimal-equivalent secS challenge contract. |
+| `src/evidence.rs` | `EvidenceAdapter`, `local_static`, cryptographic `wallet_presentation` verification over the temporary minimal-equivalent secS challenge contract, receiver-held `TrustedIssuerEntry` registry policy, and signed `membership_credential` / `provisioning_credential` verification. |
 | `src/identity.rs` | Verifier identity loading, signer key IDs, context/receipt signing, and local public-key registry checks. |
 | `src/receipt.rs` | Receipt/event types, decisions, reason codes, authenticator kinds, and signing helpers. |
 | `src/ledger.rs` | Local SQLite event/receipt/replay persistence and redacted operator inspection. |
@@ -114,7 +114,15 @@ Packaging/client-surface boundary:
 - secZ/secC/local clients: may use native/client bindings or carry packet/evidence bytes; they construct or transport calls and presentations, but they are not verifier authority.
 - secS/server: owns only the verifier subset and artifact-consumer boundary. It consumes signed presentation/challenge bytes and public verification material; it must not depend on UI session state, browser WalletAuth sessions, or extension runtime state.
 
-This is not a full Castalia Wallet wallet-core import, not live Castalia Wallet parity, and not trusted issuer/root/registry policy.
+This is not a full Castalia Wallet wallet-core import and not live Castalia Wallet parity. Track D alone is not trusted issuer/root/registry policy. Wallet proof-of-possession remains necessary where a descriptor requires it, but it is never sufficient issuer/root authority.
+
+## Trusted issuer/root policy boundary
+
+Track E is implemented locally on the phase branch as a static receiver-held fixture policy. `TrustedIssuerEntry` metadata in `server/src/evidence.rs` controls trusted issuer/root acceptance: issuer id, issuer key id, public key, status/validity, accepted evidence kinds, accepted audiences/operations/resources, `trust_root_ref`, and `registry_root_ref` must match the signed credential and descriptor-local policy.
+
+The first-path federated credential verifier accepts signed `membership_credential` / `provisioning_credential` fixtures only when the credential signature verifies against receiver-held issuer metadata, the issuer/key/credential status is active in the fixture registry, subject/audience/operation/resource bindings match, and the receiver-local descriptor allows that evidence kind. `local_static`, plaintext/prototype evidence, wallet-only proof, embedded caller keys, and caller-supplied root refs reject as sufficient production authority.
+
+This is a static fixture registry path only: no live Dregg consensus or Castalia registry discovery, no Midnight proof adapter, no Cardano settlement/finality proof, no production deployment proof, no public auditability, no Track I `membership.provision` E2E success, and no full Castalia Wallet wallet-core parity.
 
 ## Commands
 
@@ -134,6 +142,8 @@ cargo test -p server --test receipt
 cargo test -p server --test runtime_config
 cargo test -p server wallet_presentation -- --nocapture
 cargo test -p server wallet_challenge_contract -- --nocapture
+cargo test -p server production_federated -- --nocapture
+cargo test -p server trust trusted_issuer -- --nocapture
 ```
 
 ## Non-goals
