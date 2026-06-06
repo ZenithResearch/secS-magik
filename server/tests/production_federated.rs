@@ -9,9 +9,11 @@ use server::evidence::{
     FederatedCredentialAdapter, FederatedCredentialStatus, LocalStaticEvidenceAdapter,
     LocalStaticGrant, TrustedIssuerRegistry, TrustedIssuerStatus, WalletPresentationAdapter,
 };
+use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
+use server::runtime_mode::RuntimeMode;
 use server::verifier::VerificationError;
 use trust_fixtures::{
-    issuer_entry, malformed_credential_fixture, membership_credential_fixture,
+    credential_fixture, issuer_entry, malformed_credential_fixture, membership_credential_fixture,
     membership_descriptor, provisioning_credential_fixture, provisioning_descriptor,
     resign_credential, trusted_registry, wallet_and_membership_descriptor,
     MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE, MEMBERSHIP_OPERATION,
@@ -21,8 +23,158 @@ use trust_fixtures::{
 };
 use wallet_fixtures::{
     origin_input, sign_wallet_fixture, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT,
-    WALLET_OPCODE,
+    WALLET_OPCODE, WALLET_OPERATION,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PolicyMatrixStatus {
+    Executable,
+    Deferred,
+}
+
+#[derive(Debug)]
+struct PolicyMatrixRow {
+    row_name: &'static str,
+    input_condition: &'static str,
+    expected_accept_reject_reason: &'static str,
+    test_name: &'static str,
+    status: PolicyMatrixStatus,
+    first_path: bool,
+}
+
+// E9 executable/docs-contract matrix for the A6 production policy rows.
+// Row names mirror the A6 table and add explicit deferred rows for Midnight and
+// Cardano so future labels cannot silently become production authority.
+const A6_POLICY_MATRIX: &[PolicyMatrixRow] = &[
+    PolicyMatrixRow {
+        row_name: "local_dev_descriptor_accepts_local_static_fixture",
+        input_condition: "local_dev_plaintext/local_dev_tunnel + dev descriptor + local_static fixture",
+        expected_accept_reject_reason: "accept only with local_dev_test_only evidence summary",
+        test_name: "production_federated_policy_matrix_local_dev_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "local_dev_runtime_rejects_production_descriptor",
+        input_condition: "local_dev runtime label + production descriptor + local_static fixture",
+        expected_accept_reject_reason: "reject insufficient_evidence; local/dev evidence is not production authority",
+        test_name: "production_federated_policy_matrix_local_dev_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_verified_missing_evidence_rejects_before_handler",
+        input_condition: "production_verified + production descriptor + no evidence refs",
+        expected_accept_reject_reason: "reject insufficient_evidence before handler authority",
+        test_name: "production_federated_policy_matrix_local_dev_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_wallet_descriptor_rejects_local_static",
+        input_condition: "production_verified + wallet descriptor + local_static fixture",
+        expected_accept_reject_reason: "reject insufficient_evidence; wallet proof-of-possession is distinct from local_static",
+        test_name: "production_wallet_policy_matrix_rows_are_executable_or_track_d_boundaries",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_wallet_shape_only_shell_fails_closed",
+        input_condition: "production_verified + wallet descriptor + shape-only wallet_presentation",
+        expected_accept_reject_reason: "reject invalid_presentation; shape-only/unsupported crypto cannot satisfy wallet authority",
+        test_name: "production_wallet_policy_matrix_rows_are_executable_or_track_d_boundaries",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_wallet_core_presentation_accepts_when_policy_matches",
+        input_condition: "production_verified + wallet descriptor + temporary secS challenge with valid signature/bindings",
+        expected_accept_reject_reason: "accept as cryptographic wallet_presentation without claiming full wallet-core parity",
+        test_name: "production_wallet_policy_matrix_rows_are_executable_or_track_d_boundaries",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_wallet_presentation_reject_matrix",
+        input_condition: "production_verified + wallet descriptor + wrong signature/key/subject/audience/origin/operation/replay/expiry",
+        expected_accept_reject_reason: "reject with typed wallet binding/signature/validity reason",
+        test_name: "production_wallet_policy_matrix_rows_are_executable_or_track_d_boundaries",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_federated_untrusted_issuer_rejects",
+        input_condition: "production_verified + federated descriptor + untrusted issuer or caller-supplied key/root",
+        expected_accept_reject_reason: "reject unknown_issuer/wrong_issuer_key/wrong_trust_root/wrong_registry_root",
+        test_name: "production_federated_policy_matrix_first_path_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_federated_status_reject_matrix",
+        input_condition: "production_verified + federated descriptor + revoked/expired/not-yet-valid issuer or credential",
+        expected_accept_reject_reason: "reject revoked_issuer/expired_verifier_key/not_yet_valid_verifier_key/revoked_credential/expired_claim/not_yet_valid_claim",
+        test_name: "production_federated_policy_matrix_first_path_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_federated_binding_reject_matrix",
+        input_condition: "production_verified + federated descriptor + wrong subject/audience/origin/operation/resource or unsupported descriptor evidence kind",
+        expected_accept_reject_reason: "reject wrong_subject/wrong_audience/wrong_origin/wrong_operation/wrong_resource/insufficient_evidence",
+        test_name: "production_federated_policy_matrix_first_path_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_federated_valid_evidence_local_policy_rejects",
+        input_condition: "production_verified + valid credential + receiver-local manifest policy mismatch",
+        expected_accept_reject_reason: "reject wrong_operation/wrong_resource/wrong_audience; foreign evidence never bypasses local policy",
+        test_name: "production_federated_policy_matrix_first_path_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_federated_membership_credential_accepts_when_policy_matches",
+        input_condition: "production_verified + trusted active membership/provisioning credential + descriptor permits it",
+        expected_accept_reject_reason: "accept with redacted public proof summary",
+        test_name: "production_federated_policy_matrix_first_path_rows_are_executable",
+        status: PolicyMatrixStatus::Executable,
+        first_path: true,
+    },
+    PolicyMatrixRow {
+        row_name: "production_membership_root_ref_without_inclusion_proof_rejects",
+        input_condition: "production_verified + membership proof descriptor + membership_root_ref label only",
+        expected_accept_reject_reason: "deferred marker: reject insufficient_evidence; root refs alone are not authorization evidence",
+        test_name: "production_federated_policy_matrix_future_root_and_rail_refs_are_inert",
+        status: PolicyMatrixStatus::Deferred,
+        first_path: false,
+    },
+    PolicyMatrixRow {
+        row_name: "production_dregg_ref_without_promotion_is_not_live_validation",
+        input_condition: "production_verified + Dregg-shaped root/ref while A9 has not promoted live Dregg",
+        expected_accept_reject_reason: "deferred marker: reject insufficient_evidence; label is inert metadata only",
+        test_name: "production_federated_policy_matrix_future_root_and_rail_refs_are_inert",
+        status: PolicyMatrixStatus::Deferred,
+        first_path: false,
+    },
+    PolicyMatrixRow {
+        row_name: "production_midnight_ref_without_promotion_is_not_authority",
+        input_condition: "production_verified + midnight_proof-shaped evidence ref/credential kind",
+        expected_accept_reject_reason: "deferred marker: reject insufficient_evidence; no Midnight proof adapter is promoted",
+        test_name: "production_federated_policy_matrix_future_root_and_rail_refs_are_inert",
+        status: PolicyMatrixStatus::Deferred,
+        first_path: false,
+    },
+    PolicyMatrixRow {
+        row_name: "production_cardano_ref_without_promotion_is_not_authority",
+        input_condition: "production_verified + cardano_settlement-shaped evidence ref/credential kind",
+        expected_accept_reject_reason: "deferred marker: reject insufficient_evidence; no Cardano settlement adapter is promoted",
+        test_name: "production_federated_policy_matrix_future_root_and_rail_refs_are_inert",
+        status: PolicyMatrixStatus::Deferred,
+        first_path: false,
+    },
+];
 
 fn production_request(evidence_ref: Option<&str>) -> EvidenceRequest {
     request_for(&membership_descriptor(MEMBERSHIP_OPCODE), evidence_ref)
@@ -434,6 +586,346 @@ fn membership_wallet_adapter() -> WalletPresentationAdapter {
     fixture.operation = MEMBERSHIP_OPERATION.to_string();
     sign_wallet_fixture(&mut fixture);
     WalletPresentationAdapter::with_validation_time([fixture], WALLET_ISSUED_AT + 60)
+}
+
+fn local_static_descriptor(opcode: u8) -> OperationDescriptor {
+    OperationDescriptor {
+        opcode,
+        name: OperationName::new("candidate.dev.local_static"),
+        payload_schema: Some(TRUSTED_RESOURCE.to_string()),
+        target_kind: TargetKind::LocalDevProcess,
+        required_credentials: vec!["local_static.subject".to_string()],
+        required_capabilities: vec!["dev.execute".to_string()],
+        accepted_evidence: vec![EvidenceKind::LocalStatic.as_str().to_string()],
+        replay_scope: ReplayScope::SessionOpcodeNonce,
+        max_ttl_seconds: 300,
+        handler_id: "dev/local-static".to_string(),
+        dev_binding: true,
+        range: OpcodeRange::classify(opcode),
+    }
+}
+
+fn local_static_adapter_for(
+    descriptor: &OperationDescriptor,
+    subject: &str,
+    audience: &str,
+    evidence_ref: &str,
+) -> LocalStaticEvidenceAdapter {
+    LocalStaticEvidenceAdapter::new([LocalStaticGrant {
+        subject: subject.to_string(),
+        audience: audience.to_string(),
+        operation: descriptor.name.as_str().to_string(),
+        resource: descriptor.payload_schema.clone(),
+        evidence_ref: evidence_ref.to_string(),
+    }])
+}
+
+fn assert_rejected(result: EvidenceResult, expected: VerificationError) {
+    assert_eq!(result, EvidenceResult::Rejected(expected));
+}
+
+fn assert_matrix_row(row_name: &str, expected_status: PolicyMatrixStatus) {
+    let row = A6_POLICY_MATRIX
+        .iter()
+        .find(|row| row.row_name == row_name)
+        .unwrap_or_else(|| panic!("missing A6 policy matrix row {row_name}"));
+    assert_eq!(row.status, expected_status);
+    assert!(!row.input_condition.is_empty());
+    assert!(!row.expected_accept_reject_reason.is_empty());
+    assert!(row.test_name.contains("policy_matrix"));
+}
+
+#[test]
+fn production_federated_policy_matrix_table_accounts_for_a6_rows() {
+    let required_rows = [
+        "local_dev_descriptor_accepts_local_static_fixture",
+        "local_dev_runtime_rejects_production_descriptor",
+        "production_verified_missing_evidence_rejects_before_handler",
+        "production_wallet_descriptor_rejects_local_static",
+        "production_wallet_shape_only_shell_fails_closed",
+        "production_wallet_core_presentation_accepts_when_policy_matches",
+        "production_wallet_presentation_reject_matrix",
+        "production_federated_untrusted_issuer_rejects",
+        "production_federated_status_reject_matrix",
+        "production_federated_binding_reject_matrix",
+        "production_federated_valid_evidence_local_policy_rejects",
+        "production_federated_membership_credential_accepts_when_policy_matches",
+        "production_membership_root_ref_without_inclusion_proof_rejects",
+        "production_dregg_ref_without_promotion_is_not_live_validation",
+        "production_midnight_ref_without_promotion_is_not_authority",
+        "production_cardano_ref_without_promotion_is_not_authority",
+    ];
+
+    assert_eq!(A6_POLICY_MATRIX.len(), required_rows.len());
+    for row_name in required_rows {
+        assert!(
+            A6_POLICY_MATRIX.iter().any(|row| row.row_name == row_name),
+            "missing A6 row {row_name}"
+        );
+    }
+    assert!(A6_POLICY_MATRIX
+        .iter()
+        .filter(|row| row.first_path)
+        .all(|row| row.status == PolicyMatrixStatus::Executable));
+}
+
+#[test]
+fn production_federated_policy_matrix_local_dev_rows_are_executable() {
+    assert_matrix_row(
+        "local_dev_descriptor_accepts_local_static_fixture",
+        PolicyMatrixStatus::Executable,
+    );
+    assert_matrix_row(
+        "local_dev_runtime_rejects_production_descriptor",
+        PolicyMatrixStatus::Executable,
+    );
+    assert_matrix_row(
+        "production_verified_missing_evidence_rejects_before_handler",
+        PolicyMatrixStatus::Executable,
+    );
+    assert_eq!(
+        RuntimeMode::parse("local_dev_plaintext"),
+        Some(RuntimeMode::LocalDevPlaintext)
+    );
+    assert_eq!(
+        RuntimeMode::parse("local_dev_tunnel"),
+        Some(RuntimeMode::LocalDevTunnel)
+    );
+    assert_eq!(
+        RuntimeMode::parse("production_verified"),
+        Some(RuntimeMode::ProductionVerified)
+    );
+
+    let dev_descriptor = local_static_descriptor(0x45);
+    let local_static = local_static_adapter_for(
+        &dev_descriptor,
+        TRUSTED_SUBJECT,
+        TRUSTED_AUDIENCE,
+        "local-static:policy-matrix",
+    );
+    match local_static.verify(&request_for(
+        &dev_descriptor,
+        Some("local-static:policy-matrix"),
+    )) {
+        EvidenceResult::Satisfied(summary) => {
+            assert_eq!(summary.kind, EvidenceKind::LocalStatic);
+            assert!(summary.local_dev_test_only);
+            assert!(!summary.public_proof);
+        }
+        EvidenceResult::Rejected(error) => {
+            panic!("expected dev local_static accept, got {error:?}")
+        }
+    }
+
+    let production_descriptor = membership_descriptor(MEMBERSHIP_OPCODE);
+    assert_rejected(
+        local_static.verify(&request_for(
+            &production_descriptor,
+            Some("local-static:policy-matrix"),
+        )),
+        VerificationError::InsufficientEvidence,
+    );
+    assert_rejected(
+        FederatedCredentialAdapter::new(
+            [membership_credential_fixture()],
+            trusted_registry(),
+            TRUSTED_VALIDATION_TIME,
+        )
+        .verify(&request_for(&production_descriptor, None)),
+        VerificationError::InsufficientEvidence,
+    );
+}
+
+#[test]
+fn production_wallet_policy_matrix_rows_are_executable_or_track_d_boundaries() {
+    for row_name in [
+        "production_wallet_descriptor_rejects_local_static",
+        "production_wallet_shape_only_shell_fails_closed",
+        "production_wallet_core_presentation_accepts_when_policy_matches",
+        "production_wallet_presentation_reject_matrix",
+    ] {
+        assert_matrix_row(row_name, PolicyMatrixStatus::Executable);
+    }
+
+    let wallet_descriptor = wallet_fixtures::wallet_descriptor(WALLET_OPCODE);
+    let local_static = local_static_adapter_for(
+        &wallet_descriptor,
+        TRUSTED_SUBJECT,
+        TRUSTED_AUDIENCE,
+        "local-static:wallet-policy-matrix",
+    );
+    assert_rejected(
+        local_static.verify(&request_for(
+            &wallet_descriptor,
+            Some("local-static:wallet-policy-matrix"),
+        )),
+        VerificationError::InsufficientEvidence,
+    );
+
+    let mut shape_only = wallet_fixture();
+    shape_only.signature_bytes.clear();
+    let wallet_adapter =
+        WalletPresentationAdapter::with_validation_time([shape_only], WALLET_ISSUED_AT + 60);
+    assert_rejected(
+        wallet_adapter.verify(&request_for(&wallet_descriptor, Some(WALLET_EVIDENCE_REF))),
+        VerificationError::InvalidPresentation,
+    );
+
+    let wallet_adapter =
+        WalletPresentationAdapter::with_validation_time([wallet_fixture()], WALLET_ISSUED_AT + 60);
+    match wallet_adapter.verify(&request_for(&wallet_descriptor, Some(WALLET_EVIDENCE_REF))) {
+        EvidenceResult::Satisfied(summary) => {
+            assert_eq!(summary.kind, EvidenceKind::WalletPresentation);
+            assert_eq!(summary.operation, WALLET_OPERATION);
+            assert!(summary.public_proof);
+            assert!(!summary.local_dev_test_only);
+        }
+        EvidenceResult::Rejected(error) => panic!("expected valid wallet accept, got {error:?}"),
+    }
+
+    let mut wrong_signature = wallet_fixture();
+    wrong_signature.signature_bytes[0] ^= 0x01;
+    assert_rejected(
+        WalletPresentationAdapter::with_validation_time([wrong_signature], WALLET_ISSUED_AT + 60)
+            .verify(&request_for(&wallet_descriptor, Some(WALLET_EVIDENCE_REF))),
+        VerificationError::InvalidSignature,
+    );
+}
+
+#[test]
+fn production_federated_policy_matrix_first_path_rows_are_executable() {
+    for row_name in [
+        "production_federated_untrusted_issuer_rejects",
+        "production_federated_status_reject_matrix",
+        "production_federated_binding_reject_matrix",
+        "production_federated_valid_evidence_local_policy_rejects",
+        "production_federated_membership_credential_accepts_when_policy_matches",
+    ] {
+        assert_matrix_row(row_name, PolicyMatrixStatus::Executable);
+    }
+
+    let mut untrusted = membership_credential_fixture();
+    untrusted.credential.as_mut().expect("credential").issuer_id =
+        "did:example:untrusted-policy-matrix".to_string();
+    resign_credential(&mut untrusted);
+    assert_credential_rejected(
+        untrusted,
+        production_request(Some(MEMBERSHIP_CREDENTIAL_REF)),
+        VerificationError::UnknownIssuer,
+    );
+
+    let mut revoked_issuer = issuer_entry();
+    revoked_issuer.status = TrustedIssuerStatus::Revoked;
+    assert_rejected(
+        FederatedCredentialAdapter::new(
+            [membership_credential_fixture()],
+            TrustedIssuerRegistry::new([revoked_issuer]).expect("registry"),
+            TRUSTED_VALIDATION_TIME,
+        )
+        .verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))),
+        VerificationError::RevokedIssuer,
+    );
+
+    let mut wrong_subject = membership_credential_fixture();
+    wrong_subject
+        .credential
+        .as_mut()
+        .expect("credential")
+        .subject = "did:example:bob#key-1".to_string();
+    resign_credential(&mut wrong_subject);
+    assert_credential_rejected(
+        wrong_subject,
+        production_request(Some(MEMBERSHIP_CREDENTIAL_REF)),
+        VerificationError::WrongSubject,
+    );
+
+    let mut wrong_policy = membership_descriptor(MEMBERSHIP_OPCODE);
+    wrong_policy.name = OperationName::new("membership.other");
+    assert_rejected(
+        FederatedCredentialAdapter::new(
+            [membership_credential_fixture()],
+            trusted_registry(),
+            TRUSTED_VALIDATION_TIME,
+        )
+        .verify(&request_for(&wrong_policy, Some(MEMBERSHIP_CREDENTIAL_REF))),
+        VerificationError::WrongOperation,
+    );
+
+    let accepted = FederatedCredentialAdapter::new(
+        [
+            membership_credential_fixture(),
+            provisioning_credential_fixture(),
+        ],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    assert!(matches!(
+        accepted.verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))),
+        EvidenceResult::Satisfied(_)
+    ));
+    assert!(matches!(
+        accepted.verify(&request_for(
+            &provisioning_descriptor(PROVISIONING_OPCODE),
+            Some(PROVISIONING_CREDENTIAL_REF),
+        )),
+        EvidenceResult::Satisfied(_)
+    ));
+}
+
+fn future_rail_descriptor(kind: EvidenceKind) -> OperationDescriptor {
+    OperationDescriptor {
+        accepted_evidence: vec![kind.as_str().to_string()],
+        ..membership_descriptor(MEMBERSHIP_OPCODE)
+    }
+}
+
+#[test]
+fn production_federated_policy_matrix_future_root_and_rail_refs_are_inert() {
+    for row_name in [
+        "production_membership_root_ref_without_inclusion_proof_rejects",
+        "production_dregg_ref_without_promotion_is_not_live_validation",
+        "production_midnight_ref_without_promotion_is_not_authority",
+        "production_cardano_ref_without_promotion_is_not_authority",
+    ] {
+        assert_matrix_row(row_name, PolicyMatrixStatus::Deferred);
+    }
+
+    let adapter = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let mut root_ref_only = request_for(&membership_descriptor(MEMBERSHIP_OPCODE), None);
+    root_ref_only
+        .evidence_refs
+        .push("membership_root_ref:fixture-root-without-inclusion-proof".to_string());
+    assert_rejected(
+        adapter.verify(&root_ref_only),
+        VerificationError::InsufficientEvidence,
+    );
+
+    for (kind, evidence_ref) in [
+        (EvidenceKind::DreggReceipt, "dregg_anchor_ref:fixture-only"),
+        (EvidenceKind::MidnightProof, "midnight_proof:fixture-only"),
+        (
+            EvidenceKind::CardanoSettlement,
+            "cardano_settlement:fixture-only",
+        ),
+    ] {
+        let credential = credential_fixture(evidence_ref, kind, MEMBERSHIP_OPERATION);
+        let adapter = FederatedCredentialAdapter::new(
+            [credential],
+            trusted_registry(),
+            TRUSTED_VALIDATION_TIME,
+        );
+        assert_rejected(
+            adapter.verify(&request_for(
+                &future_rail_descriptor(kind),
+                Some(evidence_ref),
+            )),
+            VerificationError::InsufficientEvidence,
+        );
+    }
 }
 
 #[test]

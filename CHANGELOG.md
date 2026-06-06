@@ -35,6 +35,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added Track E E9 A6 production policy matrix semantic tests — every local/dev, wallet, and federated first-path row now has an executable policy-matrix assertion, while Dregg/Midnight/Cardano-shaped refs remain explicit deferred/inert markers so labels cannot become production authority accidentally.
 - Added repo-local phase issue specs under `docs/issues/secs-magik-phases/`, starting with the exhaustive Track E trusted issuer/root policy spec linked from GH #63 so the next implementation phase has E0–E12 commit-boundary tasks, phase acceptance criteria, and a full implementation-test matrix.
 - Added Track H local receipt-ledger operator inspection — receipts now carry explicit schema version/context id metadata, the SQLite schema records those fields with lightweight upgrade handling, and `Ledger` exposes redacted inspection by receipt id or context id with reason-coded accept/reject/execute chains, identifier hex, signature length/digest, and bounded local-retention/redaction labels without exposing raw payload/private evidence or claiming public anchoring.
 - Added Track C concurrent replay regression coverage — verifies identical simultaneous routes share the local SQLite replay reservation boundary so only one handler invocation can proceed while the duplicate records `replay_detected`.
