@@ -38,6 +38,7 @@ This phase proves a no-real-secret local fixture packet can compose:
 - [x] A valid local fixture packet reaches verify + execute with signed context and local/operator ledger evidence.
 - [x] Operator inspection can retrieve the receipt chain by context id.
 - [x] Negative tests prove packet echo, verifier-only accept, fixture smoke output, and `local_static` fallback are not success.
+- [x] #84 follow-up proof: an evidence-backed `membership.provision` verifier acceptance with no registered `membership/provision` handler records `verify accepted` plus `execute rejected` / `handler_unavailable`; fixture smoke/log output and verifier-only acceptance remain non-success without an accepted execute receipt for the same context.
 - [x] Evidence summaries remain redaction-safe and distinguish wallet proof-of-possession from issuer/root authority.
 - [x] Docs/status/changelog state this is local production-shaped E2E only.
 - [x] Full local gate ran at final PR head.
@@ -79,3 +80,4 @@ This phase is local production-shaped E2E only. Issue #77 preserves that boundar
 - PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9`.
 - Post-merge Rust CI run 27071532041 passed.
 - Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84. #77 is the descriptor-only production runtime fail-closed guard; #78/#79-style follow-ups remain responsible for evidence-aware live ingress/runtime authority.
+- #84 is covered by `membership_provision_verifier_acceptance_without_execute_receipt_is_not_success`, which pins the non-success boundary for smoke/log/verifier-only paths without accepted execute receipts.
