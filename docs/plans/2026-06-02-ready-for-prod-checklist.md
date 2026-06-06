@@ -11,7 +11,7 @@ Status: Track A is complete through A9 as a docs/control-surface phase. Track D 
 
 ## Current merge status after Track E
 
-Track E trusted issuer/root policy is complete on `main`: PR #69 merged at `baee35be4c2ed5ec6c626540b52b86516ee7debd`, post-merge main Rust CI run 27050361282 passed, and issues #35/#63 closed. The next first-prod phase is Track I `membership.provision` E2E (#70). Non-covered PR #69 claims are explicitly tracked by #70 (E2E), #71 (wallet-core parity), #72 (live Castalia registry discovery), #73 (Dregg), #74 (Midnight), #75 (Cardano), #33 (deployment proof), and #37 (public auditability).
+Track E trusted issuer/root policy is complete on `main`: PR #69 merged at `baee35be4c2ed5ec6c626540b52b86516ee7debd`, post-merge main Rust CI run 27050361282 passed, and issues #35/#63 closed. The active first-prod phase is Track I `membership.provision` E2E (#70), pre-merge implemented on `phase/track-i-membership-provision-e2e`. Non-covered PR #69 claims are explicitly tracked by #70 (E2E), #71 (wallet-core parity), #72 (live Castalia registry discovery), #73 (Dregg), #74 (Midnight), #75 (Cardano), #33 (deployment proof), and #37 (public auditability).
 
 ## A0 — Production target
 
@@ -109,7 +109,7 @@ Remaining first-prod gaps carried forward into A2–A9:
 - temporary minimal-equivalent secS wallet cryptographic verification path, with full wallet-core parity still to reconcile before any full wallet-core claim;
 - cross-Hub/federated evidence object model, trusted issuer/root representation, and revocation/staleness semantics;
 - production policy matrix proving `local_static`/dev evidence cannot satisfy production descriptors;
-- first membership-provisioning E2E operation and failure matrix;
+- first membership-provisioning E2E operation and failure matrix (pre-merge implemented on Track I branch; not complete until PR merge + post-merge main CI);
 - phase/branch/PR checklist where phases are PR boundaries and issues are commit boundaries.
 
 A1 stop condition is satisfied when `docs/implementation-status.md` and this checklist agree on the current solid/partial/planned surfaces and preserve caveats for wallet crypto, identity lifecycle, bounded broker, runtime hardening, and federated evidence.
