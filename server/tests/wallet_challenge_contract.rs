@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 #[path = "support/wallet_fixtures.rs"]
 mod wallet_fixtures;
 

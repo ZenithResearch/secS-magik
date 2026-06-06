@@ -68,7 +68,7 @@ impl EvidenceRequest {
         audience: &str,
         evidence_ref: Option<&str>,
     ) -> Self {
-        Self::from_descriptor_with_refs(descriptor, subject, audience, evidence_ref.into_iter())
+        Self::from_descriptor_with_refs(descriptor, subject, audience, evidence_ref)
     }
 
     pub fn from_descriptor_with_refs<'a>(

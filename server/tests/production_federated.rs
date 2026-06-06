@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 #[path = "support/trust_fixtures.rs"]
 mod trust_fixtures;
 #[path = "support/wallet_fixtures.rs"]
@@ -189,7 +188,7 @@ fn request_for(
     descriptor: &server::manifest::OperationDescriptor,
     evidence_ref: Option<&str>,
 ) -> EvidenceRequest {
-    request_with_refs(descriptor, evidence_ref.into_iter())
+    request_with_refs(descriptor, evidence_ref)
 }
 
 fn request_with_refs<'a>(
