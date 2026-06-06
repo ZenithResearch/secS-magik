@@ -2,6 +2,10 @@ const README: &str = include_str!("../../README.md");
 const READY_FOR_PROD_CHECKLIST: &str =
     include_str!("../../docs/plans/2026-06-02-ready-for-prod-checklist.md");
 const IMPLEMENTATION_STATUS: &str = include_str!("../../docs/implementation-status.md");
+const TRACK_I_STATUS: &str = include_str!(
+    "../../docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md"
+);
+const SERVER_README: &str = include_str!("../../server/README.md");
 
 fn detailed_track_h_section() -> &'static str {
     READY_FOR_PROD_CHECKLIST
@@ -200,4 +204,55 @@ fn track_d_docs_close_wallet_verification_without_full_wallet_core_overclaim() {
         ),
         "Track D should no longer be listed as an incomplete remaining first-prod track"
     );
+}
+
+#[test]
+fn membership_provision_runtime_guard_docs_preserve_live_ingress_boundary() {
+    for (name, text) in [
+        ("README.md", README),
+        ("server/README.md", SERVER_README),
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+        (
+            "docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md",
+            TRACK_I_STATUS,
+        ),
+    ] {
+        assert!(
+            text.contains("#77") || text.contains("Issue #77"),
+            "{name} should name the #77 membership.provision runtime evidence guard boundary"
+        );
+        assert!(
+            text.contains("fail-closed") || text.contains("fail closed"),
+            "{name} should describe #77 as a fail-closed runtime guard"
+        );
+        assert!(
+            text.contains("descriptor-only"),
+            "{name} should keep the #77 guard scoped to descriptor-only runtime verification"
+        );
+    }
+
+    for required in [
+        "Complete for local production-shaped E2E",
+        "PR #76",
+        "live runtime ingress still does not verify wallet + issuer evidence",
+        "must not claim active `membership.provision` runtime authority",
+        "#78/#79-style follow-ups",
+        "not production deployment",
+        "not public auditability",
+        "not live Castalia/Dregg discovery",
+        "full Castalia Wallet wallet-core parity",
+    ] {
+        assert!(
+            README.contains(required)
+                || SERVER_README.contains(required)
+                || IMPLEMENTATION_STATUS.contains(required)
+                || READY_FOR_PROD_CHECKLIST.contains(required)
+                || TRACK_I_STATUS.contains(required),
+            "docs should preserve membership.provision runtime guard boundary language: {required}"
+        );
+    }
 }
