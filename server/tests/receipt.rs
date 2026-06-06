@@ -172,3 +172,63 @@ fn receipt_event_names_are_typed_and_stable() {
     assert_eq!(ReceiptEventKind::HandlerFailed.as_str(), "handler_failed");
     assert_eq!(ReceiptEventKind::ReceiptEmitted.as_str(), "receipt_emitted");
 }
+
+#[test]
+fn evidence_reject_reasons_use_stable_verification_error_codes() {
+    let expected_codes = [
+        (VerificationError::WrongOrigin, "wrong_origin"),
+        (VerificationError::WrongTrustRoot, "wrong_trust_root"),
+        (VerificationError::WrongRegistryRoot, "wrong_registry_root"),
+        (VerificationError::UnknownIssuer, "unknown_issuer"),
+        (VerificationError::WrongIssuerKey, "wrong_issuer_key"),
+        (VerificationError::RevokedIssuer, "revoked_issuer"),
+        (
+            VerificationError::ExpiredVerifierKey,
+            "expired_verifier_key",
+        ),
+        (
+            VerificationError::NotYetValidVerifierKey,
+            "not_yet_valid_verifier_key",
+        ),
+        (VerificationError::RevokedCredential, "revoked_credential"),
+        (VerificationError::ExpiredClaim, "expired_claim"),
+        (VerificationError::NotYetValidClaim, "not_yet_valid_claim"),
+        (VerificationError::WrongSubject, "wrong_subject"),
+        (VerificationError::WrongAudience, "wrong_audience"),
+        (VerificationError::WrongOperation, "wrong_operation"),
+        (VerificationError::WrongResource, "wrong_resource"),
+        (
+            VerificationError::InsufficientEvidence,
+            "insufficient_evidence",
+        ),
+        (
+            VerificationError::InvalidPresentation,
+            "invalid_presentation",
+        ),
+        (VerificationError::InvalidSignature, "invalid_signature"),
+        (
+            VerificationError::UnsupportedSignatureSuite,
+            "unsupported_signature_suite",
+        ),
+    ];
+
+    for (error, expected) in expected_codes {
+        let reason_code = error.reason_code();
+        assert_eq!(reason_code, expected);
+        assert!(!reason_code.is_empty());
+        assert!(reason_code
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch == '_'));
+
+        let receipt = Receipt::reject_from_error(
+            format!("receipt-{expected}"),
+            [9u8; 32],
+            [1u8; 16],
+            [2u8; 12],
+            0x42,
+            error,
+            1_717_000_000,
+        );
+        assert_eq!(receipt.reason.as_deref(), Some(expected));
+    }
+}

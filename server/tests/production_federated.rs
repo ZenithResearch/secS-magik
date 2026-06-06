@@ -4,22 +4,27 @@ mod trust_fixtures;
 #[path = "support/wallet_fixtures.rs"]
 mod wallet_fixtures;
 
+use libsec_core::ZenithPacket;
 use server::evidence::{
     CompositeEvidenceAdapter, EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult,
     FederatedCredentialAdapter, FederatedCredentialStatus, LocalStaticEvidenceAdapter,
     LocalStaticGrant, TrustedIssuerRegistry, TrustedIssuerStatus, WalletPresentationAdapter,
 };
-use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
+use server::manifest::{
+    OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
+};
+use server::receipt::Receipt;
 use server::runtime_mode::RuntimeMode;
-use server::verifier::VerificationError;
+use server::verifier::{VerificationError, Verifier};
 use trust_fixtures::{
     credential_fixture, issuer_entry, malformed_credential_fixture, membership_credential_fixture,
     membership_descriptor, provisioning_credential_fixture, provisioning_descriptor,
-    resign_credential, trusted_registry, wallet_and_membership_descriptor,
-    MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE, MEMBERSHIP_OPERATION,
-    PROVISIONING_CREDENTIAL_REF, PROVISIONING_OPCODE, TRUSTED_AUDIENCE, TRUSTED_ORIGIN,
-    TRUSTED_RESOURCE, TRUSTED_SUBJECT, TRUSTED_VALIDATION_TIME, WALLET_AND_MEMBERSHIP_OPCODE,
-    WRONG_REGISTRY_ROOT_REF, WRONG_TRUST_ROOT_REF,
+    resign_credential, trusted_registry, wallet_and_membership_descriptor, CREDENTIAL_STATUS_REF,
+    ISSUER_FIXTURE_ED25519_SEED, MEMBERSHIP_CREDENTIAL_REF, MEMBERSHIP_OPCODE,
+    MEMBERSHIP_OPERATION, PROVISIONING_CREDENTIAL_REF, PROVISIONING_OPCODE, REGISTRY_ROOT_REF,
+    TRUSTED_AUDIENCE, TRUSTED_EXPIRES_AT, TRUSTED_ISSUED_AT, TRUSTED_ISSUER_ID, TRUSTED_ORIGIN,
+    TRUSTED_RESOURCE, TRUSTED_SUBJECT, TRUSTED_VALIDATION_TIME, TRUST_ROOT_REF,
+    WALLET_AND_MEMBERSHIP_OPCODE, WRONG_REGISTRY_ROOT_REF, WRONG_TRUST_ROOT_REF,
 };
 use wallet_fixtures::{
     origin_input, sign_wallet_fixture, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT,
@@ -201,6 +206,28 @@ fn request_with_refs<'a>(
     request
 }
 
+fn production_packet(opcode: u8) -> ZenithPacket {
+    ZenithPacket {
+        session_id: [1u8; 16],
+        nonce: [2u8; 12],
+        opcode,
+        proof: b"prototype-proof-envelope".to_vec(),
+        claim_ttl: 60,
+        encrypted_payload: br#"{"membership":"requested"}"#.to_vec(),
+        mac: [3u8; 16],
+    }
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
 #[test]
 fn evidence_kind_names_include_first_path_federated_credentials() {
     assert_eq!(
@@ -293,6 +320,107 @@ fn valid_membership_credential_verifies() {
             panic!("expected valid membership credential, got {error:?}")
         }
     }
+}
+
+#[test]
+fn evidence_summary_redacts_private_material() {
+    let sensitive_evidence_ref =
+        "/Users/bananawalnut/.secrets/registry.json?Authorization=Bearer raw-registry-secret-token";
+    let mut fixture = membership_credential_fixture();
+    fixture.evidence_ref = sensitive_evidence_ref.to_string();
+    let credential = fixture.credential.clone().expect("credential fixture");
+    let raw_signature_hex = hex_lower(&fixture.signature_bytes);
+    let raw_signature_debug = format!("{:?}", fixture.signature_bytes);
+    let raw_private_seed_hex = hex_lower(&ISSUER_FIXTURE_ED25519_SEED);
+    let raw_private_seed_debug = format!("{:?}", ISSUER_FIXTURE_ED25519_SEED);
+    let raw_credential_body = String::from_utf8(credential.canonical_bytes()).unwrap();
+
+    let adapter =
+        FederatedCredentialAdapter::new([fixture], trusted_registry(), TRUSTED_VALIDATION_TIME);
+    let manifest = ReceiverManifest::new([membership_descriptor(MEMBERSHIP_OPCODE)]);
+    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+        &production_packet(MEMBERSHIP_OPCODE),
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        Some(sensitive_evidence_ref),
+        [origin_input(TRUSTED_ORIGIN)],
+        &adapter,
+        TRUSTED_VALIDATION_TIME,
+        "verifier:e10-fixture",
+        &[7u8; 32],
+    )
+    .expect("accepted federated evidence should produce a signed context");
+    signed
+        .verify_ed25519(&[7u8; 32], TRUSTED_AUDIENCE, TRUSTED_VALIDATION_TIME)
+        .expect("signed context remains verifiable");
+
+    let summary = &signed.context.evidence_summary;
+    for expected in [
+        "evidence_kind:membership_credential",
+        "credential_kind:membership_credential",
+        &format!("credential_id:{MEMBERSHIP_CREDENTIAL_REF}"),
+        &format!("issuer_id:{TRUSTED_ISSUER_ID}"),
+        &format!("trust_root_ref:{TRUST_ROOT_REF}"),
+        &format!("registry_root_ref:{REGISTRY_ROOT_REF}"),
+        &format!("status_ref:{CREDENTIAL_STATUS_REF}"),
+        "status:active",
+        &format!("issued_at:{TRUSTED_ISSUED_AT}"),
+        &format!("expires_at:{TRUSTED_EXPIRES_AT}"),
+        "public_proof:true",
+        "proof:redacted_ed25519_signature",
+    ] {
+        assert!(
+            summary.iter().any(|field| field == expected),
+            "missing safe summary field {expected}"
+        );
+    }
+    assert!(summary
+        .iter()
+        .any(|field| field.starts_with("issuer_key_id:pubkey:sha256:")));
+    assert!(summary
+        .iter()
+        .any(|field| field.starts_with("evidence_ref_sha256:")));
+
+    let joined_summary = summary.join("\n");
+    for forbidden in [
+        sensitive_evidence_ref,
+        "Bearer raw-registry-secret-token",
+        "raw-registry-secret-token",
+        "/Users/bananawalnut/.secrets/registry.json",
+        &raw_signature_hex,
+        &raw_signature_debug,
+        &raw_private_seed_hex,
+        &raw_private_seed_debug,
+        raw_credential_body.as_str(),
+        server::evidence::SecsFederatedCredential::VERSION,
+    ] {
+        assert!(
+            !joined_summary.contains(forbidden),
+            "summary leaked forbidden material: {forbidden}"
+        );
+    }
+
+    let receipt = Receipt::verify_from_signed_context(
+        "receipt-e10-federated",
+        &signed,
+        TRUSTED_VALIDATION_TIME,
+    )
+    .sign_ed25519(
+        "verifier:e10-fixture",
+        &[7u8; 32],
+        server::receipt::AuthenticatorKind::Ed25519Verifier,
+    )
+    .expect("receipt signs");
+    assert_eq!(
+        receipt.context_id.as_deref(),
+        Some(signed.context.context_id.as_str())
+    );
+    assert_eq!(receipt.operation.as_deref(), Some(MEMBERSHIP_OPERATION));
+    let receipt_debug = format!("{receipt:?}");
+    assert!(!receipt_debug.contains("raw-registry-secret-token"));
+    assert!(!receipt_debug.contains("/Users/bananawalnut/.secrets"));
+    assert!(!receipt_debug.contains(server::evidence::SecsFederatedCredential::VERSION));
 }
 
 #[test]

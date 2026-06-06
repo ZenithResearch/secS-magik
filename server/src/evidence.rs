@@ -438,7 +438,7 @@ impl EvidenceAdapter for FederatedCredentialAdapter {
             local_dev_test_only: false,
             public_proof: true,
             summary_fields: vec![
-                format!("evidence_ref:{evidence_ref}"),
+                redacted_reference_field("evidence_ref", evidence_ref),
                 format!("credential_id:{}", credential.credential_id),
                 format!("credential_kind:{}", credential.kind.as_str()),
                 format!("issuer_id:{}", credential.issuer_id),
@@ -578,7 +578,7 @@ impl EvidenceAdapter for LocalStaticEvidenceAdapter {
             public_proof: false,
             summary_fields: vec![
                 "authority:local_dev_test_only".to_string(),
-                format!("evidence_ref:{evidence_ref}"),
+                redacted_reference_field("evidence_ref", evidence_ref),
             ],
         })
     }
@@ -809,7 +809,7 @@ impl EvidenceAdapter for WalletPresentationAdapter {
             local_dev_test_only: false,
             public_proof: true,
             summary_fields: vec![
-                format!("evidence_ref:{evidence_ref}"),
+                redacted_reference_field("evidence_ref", evidence_ref),
                 format!("origin:{}", presentation.origin),
                 format!("challenge_ref:{}", presentation.challenge_ref),
                 format!("signature_ref:{}", presentation.signature_ref),
@@ -825,11 +825,22 @@ impl EvidenceAdapter for WalletPresentationAdapter {
 
 pub fn public_key_ref_for_bytes(public_key_bytes: &[u8]) -> String {
     let digest = Sha256::digest(public_key_bytes);
-    let fingerprint = digest
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    format!("pubkey:sha256:{fingerprint}")
+    format!("pubkey:sha256:{}", hex_lower(&digest))
+}
+
+fn redacted_reference_field(name: &str, value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    format!("{name}_sha256:{}", hex_lower(&digest))
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
 }
 
 fn current_unix_time() -> u64 {
