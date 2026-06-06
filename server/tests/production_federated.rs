@@ -1162,6 +1162,18 @@ fn membership_provision_runtime_rejects_descriptor_only_without_wallet_and_issue
     assert_eq!(descriptor.name.as_str(), MEMBERSHIP_OPERATION);
 
     let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+    let unsigned_result = Verifier::verify_manifest_operation_for_runtime(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        current_test_time(),
+        RuntimeMode::ProductionVerified,
+    );
+    assert!(
+        matches!(unsigned_result, Err(VerificationError::InsufficientEvidence)),
+        "descriptor-only production runtime verification for opcode 0x44 membership.provision must fail before signed context creation; got {unsigned_result:?}"
+    );
+
     let identity = explicit_test_fixture_identity("verifier:runtime-red", [7u8; 32]);
     let result = Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity(
         &packet,
@@ -1176,6 +1188,43 @@ fn membership_provision_runtime_rejects_descriptor_only_without_wallet_and_issue
         matches!(result, Err(VerificationError::InsufficientEvidence)),
         "descriptor-only production runtime verification for opcode 0x44 membership.provision must reject without wallet proof-of-possession and trusted issuer evidence; got {result:?}"
     );
+}
+
+#[test]
+fn membership_provision_descriptor_only_guard_is_production_runtime_only() {
+    let manifest = ReceiverManifest::default_v0();
+    let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+
+    for runtime_mode in [RuntimeMode::LocalDevPlaintext, RuntimeMode::LocalDevTunnel] {
+        let signed = Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity(
+            &packet,
+            &manifest,
+            TRUSTED_AUDIENCE,
+            current_test_time(),
+            &explicit_test_fixture_identity("verifier:runtime-local", [9u8; 32]),
+            runtime_mode,
+        )
+        .expect("local/dev descriptor-only runtime compatibility should not be changed by the production-only membership.provision evidence guard");
+
+        assert_eq!(signed.context.opcode, WALLET_AND_MEMBERSHIP_OPCODE);
+        assert_eq!(signed.context.operation, MEMBERSHIP_OPERATION);
+        assert!(
+            signed
+                .context
+                .evidence_summary
+                .iter()
+                .any(|field| field == EvidenceKind::WalletPresentation.as_str()),
+            "local/dev descriptor summaries should preserve the manifest evidence contract"
+        );
+        assert!(
+            signed
+                .context
+                .evidence_summary
+                .iter()
+                .any(|field| field == EvidenceKind::MembershipCredential.as_str()),
+            "local/dev descriptor summaries should preserve the manifest evidence contract"
+        );
+    }
 }
 
 #[tokio::test]

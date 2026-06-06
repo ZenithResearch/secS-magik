@@ -19,7 +19,7 @@ This phase proves a no-real-secret local fixture packet can compose:
 - Branch: `phase/track-i-membership-provision-e2e`
 - PR: #76 (`feat(server): add production-shaped membership provision E2E`)
 - Merge: PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9` (`5e5bb71`); post-merge main Rust CI run 27071532041 passed.
-- GitHub issue: #70 is closed. Follow-up gaps discovered in post-merge review are tracked separately as #77-#84.
+- GitHub issue: #70 is closed. Follow-up gaps discovered in post-merge review are tracked separately as #77-#84; #77 adds the fail-closed descriptor-only production runtime evidence guard and does not expand the Track I local E2E claim into live runtime authority.
 
 ## Implemented task boundaries
 
@@ -66,7 +66,7 @@ git diff --check -- README.md CHANGELOG.md docs/ server/ core/ client/
 
 ## Bounded claims / forbidden claims
 
-This phase is local production-shaped E2E only. It is not:
+This phase is local production-shaped E2E only. Issue #77 preserves that boundary by rejecting descriptor-only `production_verified` runtime verification for canonical `0x44` `membership.provision` unless the evidence-aware helper path has supplied wallet proof-of-possession plus trusted issuer evidence. Live runtime ingress still does not verify wallet + issuer evidence and must not be claimed as active `membership.provision` runtime authority until later #78/#79-style work lands. It is not:
 
 - production deployment proof;
 - public auditability beyond local SQLite operator inspection;
@@ -78,4 +78,4 @@ This phase is local production-shaped E2E only. It is not:
 
 - PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9`.
 - Post-merge Rust CI run 27071532041 passed.
-- Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84.
+- Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84. #77 is the descriptor-only production runtime fail-closed guard; #78/#79-style follow-ups remain responsible for evidence-aware live ingress/runtime authority.
