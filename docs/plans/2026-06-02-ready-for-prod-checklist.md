@@ -7,7 +7,11 @@ Source captures:
 - Claude Hub capture: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-track-a-ready-for-prod-slices.md`
 - Parent work surface: `/Users/bananawalnut/claude-hub/capture/2026-06-02-secs-magik-ready-for-prod-work-surface.md`
 
-Status: Track A is complete through A9 as a docs/control-surface phase. Track D is complete through D4 on `phase/track-d-wallet-core-crypto`: wallet presentation verification is cryptographic through an explicitly temporary minimal-equivalent secS challenge contract, not a full Castalia Wallet wallet-core import/parity. Track E is implemented locally through E11 on `phase/track-e-production-evidence-policy` after E1–E10 evidence passed, adding static receiver-held trusted issuer/root policy, signed membership/provisioning credential verification, policy-matrix tests, and safe evidence summaries; it is not merged to `main` until PR/main CI pass and does not prove Track I `membership.provision` E2E. A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model complete; A6 production policy matrix complete; A7 first membership-provisioning E2E shape complete; A8 issue-ready phase/branch/PR checklist complete; A9 future-rail defer/promote decision complete. Dregg, Midnight, and Cardano are deferred from first-prod implementation unless a later issue explicitly promotes them.
+Status: Track A is complete through A9 as a docs/control-surface phase. Track D is complete through D4 on `phase/track-d-wallet-core-crypto`: wallet presentation verification is cryptographic through an explicitly temporary minimal-equivalent secS challenge contract, not a full Castalia Wallet wallet-core import/parity. Track E is merged on `main` via PR #69 at `baee35b` with post-merge main Rust CI run 27050361282 passed, adding static receiver-held trusted issuer/root policy, signed membership/provisioning credential verification, policy-matrix tests, and safe evidence summaries; it still does not prove Track I `membership.provision` E2E. A0 production definition locked; A1 repo status reconciled; A2 rail taxonomy and non-goals complete; A3 identity/key lifecycle gate complete; A4 wallet-core integration gate complete; A5 federated evidence model complete; A6 production policy matrix complete; A7 first membership-provisioning E2E shape complete; A8 issue-ready phase/branch/PR checklist complete; A9 future-rail defer/promote decision complete. Dregg, Midnight, and Cardano are deferred from first-prod implementation unless a later issue explicitly promotes them.
+
+## Current merge status after Track E
+
+Track E trusted issuer/root policy is complete on `main`: PR #69 merged at `baee35be4c2ed5ec6c626540b52b86516ee7debd`, post-merge main Rust CI run 27050361282 passed, and issues #35/#63 closed. The next first-prod phase is Track I `membership.provision` E2E (#70). Non-covered PR #69 claims are explicitly tracked by #70 (E2E), #71 (wallet-core parity), #72 (live Castalia registry discovery), #73 (Dregg), #74 (Midnight), #75 (Cardano), #33 (deployment proof), and #37 (public auditability).
 
 ## A0 — Production target
 
@@ -55,7 +59,7 @@ Use these phrases until code proves stronger claims:
 - temporary minimal-equivalent secS wallet presentation until wallet-core parity is reconciled;
 - typed fail-closed wallet shell;
 - cross-Hub/federated evidence rail;
-- fixture trusted issuer/root;
+- static fixture trusted issuer/root policy;
 - generic trust/root ref seam with Dregg as future subtype;
 - production-mode reject path;
 - receiver-local manifest policy.
