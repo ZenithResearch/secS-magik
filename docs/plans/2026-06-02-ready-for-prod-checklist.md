@@ -11,7 +11,7 @@ Status: Track A is complete through A9 as a docs/control-surface phase. Track D 
 
 ## Current merge status after Track E
 
-Track E trusted issuer/root policy is complete on `main`: PR #69 merged at `baee35be4c2ed5ec6c626540b52b86516ee7debd`, post-merge main Rust CI run 27050361282 passed, and issues #35/#63 closed. The active first-prod phase is Track I `membership.provision` E2E (#70), pre-merge implemented on `phase/track-i-membership-provision-e2e`. Non-covered PR #69 claims are explicitly tracked by #70 (E2E), #71 (wallet-core parity), #72 (live Castalia registry discovery), #73 (Dregg), #74 (Midnight), #75 (Cardano), #33 (deployment proof), and #37 (public auditability).
+Track E trusted issuer/root policy is complete on `main`: PR #69 merged at `baee35be4c2ed5ec6c626540b52b86516ee7debd`, post-merge main Rust CI run 27050361282 passed, and issues #35/#63 closed. Track I `membership.provision` E2E (#70) is complete for local production-shaped E2E on `main` via PR #76 at `5e5bb71` with post-merge CI run 27071532041. Non-covered PR #69 claims are explicitly tracked by #70 (E2E), #71 (wallet-core parity), #72 (live Castalia registry discovery), #73 (Dregg), #74 (Midnight), #75 (Cardano), #33 (deployment proof), and #37 (public auditability).
 
 ## A0 — Production target
 
@@ -109,7 +109,7 @@ Remaining first-prod gaps carried forward into A2–A9:
 - temporary minimal-equivalent secS wallet cryptographic verification path, with full wallet-core parity still to reconcile before any full wallet-core claim;
 - cross-Hub/federated evidence object model, trusted issuer/root representation, and revocation/staleness semantics;
 - production policy matrix proving `local_static`/dev evidence cannot satisfy production descriptors;
-- first membership-provisioning E2E operation and failure matrix (pre-merge implemented on Track I branch; not complete until PR merge + post-merge main CI);
+- first membership-provisioning E2E operation and failure matrix (implemented on main through Track I / PR #76; follow-up runtime/live-ingress gaps are tracked separately);
 - phase/branch/PR checklist where phases are PR boundaries and issues are commit boundaries.
 
 A1 stop condition is satisfied when `docs/implementation-status.md` and this checklist agree on the current solid/partial/planned surfaces and preserve caveats for wallet crypto, identity lifecycle, bounded broker, runtime hardening, and federated evidence.
@@ -979,8 +979,8 @@ Track E changed authority semantics by making production evidence acceptance rec
 
 Remaining blockers after E11:
 
-- E12 still needs the broader phase gate, PR update/push/CI evidence, and merge/post-merge evidence before Track E is marked complete on `main`.
-- Track I still needs a production-shaped `membership.provision` E2E success using the static trusted issuer fixture path.
+- Track E E12 is complete on `main` through PR #69 and docs sync.
+- Track I local production-shaped `membership.provision` E2E is complete on `main` through PR #76 at `5e5bb71` with post-merge CI run 27071532041; runtime/live-ingress hardening follow-ups are tracked as #77-#84.
 - Full Castalia Wallet wallet-core parity/replacement of the temporary challenge contract remains future reconciliation.
 - Live Castalia/Dregg discovery, Midnight proof verification, Cardano settlement/finality proof, production deployment proof, and public auditability remain unimplemented and must not be claimed.
 
@@ -1051,7 +1051,7 @@ Boundaries preserved:
 
 ### A8 — Remaining future issues to pick
 
-Track B, Track C, Track D, Track E (locally through E11), Track F, Track G, and Track H now have completion checkpoints in this checklist. Remaining first-prod path blockers are E12 phase gate/PR/main CI evidence and Track I production-shaped `membership.provision` E2E, plus replacement/reconciliation of Track D's temporary wallet challenge contract with full Castalia Wallet wallet-core parity before any full-wallet-core claim. Pick the next issue from the earliest incomplete dependency in that E/I chain unless a later decision explicitly changes the first-prod authority model.
+Track B, Track C, Track D, Track E, Track F, Track G, Track H, and Track I local production-shaped E2E now have completion checkpoints in this checklist. Remaining first-prod path blockers are separate follow-up rails: deployment proof (#33), public auditability (#37), wallet-core parity (#71), live registry discovery (#72), Dregg/Midnight/Cardano rails (#73-#75), and post-merge review hardening #77-#84. Pick the next issue from the earliest incomplete dependency in that E/I chain unless a later decision explicitly changes the first-prod authority model.
 
 ### A8 — Acceptance
 

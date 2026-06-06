@@ -90,7 +90,7 @@ server/tests/support/trust_fixtures.rs     # no-real-secret issuer/root/credenti
 server/tests/support/wallet_fixtures.rs    # shared D/E/I wallet subject/audience/origin/resource fixtures
 ```
 
-These fixtures model static receiver-held trust only. They are not live Castalia/Dregg discovery, Midnight/Cardano authority, deployment proof, public auditability, or Track I `membership.provision` E2E proof.
+These fixtures model static receiver-held trust only. They are not live Castalia/Dregg discovery, Midnight/Cardano authority, deployment proof, public auditability, or full wallet-core parity. Track I local `membership.provision` E2E proof is now covered on `main` by PR #76 using these fixture seams.
 
 ## Module ownership
 

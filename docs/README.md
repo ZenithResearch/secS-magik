@@ -38,7 +38,8 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | [client-surfaces.md](client-surfaces.md) | Current boundary doc | Client-side local Hermes/secC/secZ packet-construction boundary. |
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Architecture/objectives spec. Check status ledger before treating target behavior as implemented. |
 | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) | Current control surface | Ready-for-prod track checklist and completion checkpoints through the current implementation train. |
-| [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E trusted issuer/root policy implementation spec and E1–E12 checkbox surface; E1–E11 are locally synchronized on the phase branch, E12 remains pending. |
+| [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E trusted issuer/root policy implementation spec; Track E is complete on `main` after PR #69. |
+| [issues/secs-magik-phases/track-i-production-membership-provision-e2e.md](issues/secs-magik-phases/track-i-production-membership-provision-e2e.md) | Local phase spec/status | Track I local production-shaped `membership.provision` E2E spec; complete on `main` after PR #76 / post-merge CI run 27071532041. |
 
 ## Directory READMEs
 
@@ -82,7 +83,7 @@ No tracked `docs/reviews/` directory is present in the current tree. If historic
 - secS-magik/secS is the verifier and permissioned RPC substrate.
 - receiver-local manifests own opcode-to-handler meaning after verification.
 - `wallet_presentation` now verifies signed presentation/challenge material cryptographically through the explicitly temporary minimal-equivalent secS challenge contract; full Castalia Wallet wallet-core parity/import remains future reconciliation work.
-- Track E static trusted issuer/root policy is implemented locally on the phase branch using receiver-held `TrustedIssuerEntry` fixtures and signed membership/provisioning credentials; E12 PR/main CI and Track I E2E remain pending.
+- Track E static trusted issuer/root policy is implemented on `main`; Track I local production-shaped `membership.provision` E2E is implemented on `main` via PR #76 at `5e5bb71` with post-merge CI run 27071532041. Follow-up runtime/live-ingress hardening remains tracked separately (#77-#84).
 - the current receipt/event ledger is local/operator SQLite evidence only, not public auditability.
 - Dregg, Midnight, Cardano, and wallet presentation enter through typed evidence adapters or anchors; they do not replace secS verification.
 - Client packaging boundary: browser extension = WASM binding; secZ/secC/local clients = native/client binding or packet/evidence carrier; secS = verifier subset/artifact consumer that consumes signed presentation/challenge plus public verification material, not UI session state.

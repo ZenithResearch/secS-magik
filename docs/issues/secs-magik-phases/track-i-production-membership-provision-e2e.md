@@ -17,10 +17,11 @@ This phase proves a no-real-secret local fixture packet can compose:
 
 - GitHub issue: #70
 - Branch: `phase/track-i-membership-provision-e2e`
-- PR title: `feat(server): add production-shaped membership provision E2E`
-- Status while branch/PR is open: in progress / pre-merge implemented, not complete.
+- PR: #76 (`feat(server): add production-shaped membership provision E2E`)
+- Merge: PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9` (`5e5bb71`); post-merge main Rust CI run 27071532041 passed.
+- GitHub issue: #70 is closed. Follow-up gaps discovered in post-merge review are tracked separately as #77-#84.
 
-## Implemented task boundaries on branch
+## Implemented task boundaries
 
 - I1 — `d670164 test(server): cover membership provision e2e contract`
   - Added RED contract tests for canonical descriptor presence, wallet+issuer evidence composition, verify+execute routing, and local/operator ledger inspection.
@@ -39,21 +40,21 @@ This phase proves a no-real-secret local fixture packet can compose:
 - [x] Negative tests prove packet echo, verifier-only accept, fixture smoke output, and `local_static` fallback are not success.
 - [x] Evidence summaries remain redaction-safe and distinguish wallet proof-of-possession from issuer/root authority.
 - [x] Docs/status/changelog state this is local production-shaped E2E only.
-- [ ] Full local gate is run at final PR head.
-- [ ] GitHub CI is green at final PR head.
-- [ ] User approves merge.
-- [ ] PR merges to `main` and post-merge `main` CI passes.
+- [x] Full local gate ran at final PR head.
+- [x] GitHub CI was green at final PR head.
+- [x] User approved merge by requesting the post-merge checklist.
+- [x] PR #76 merged to `main` and post-merge `main` CI passed.
 
 ## Verification commands
 
-Current targeted evidence on branch:
+Targeted evidence:
 
 ```bash
 cargo test -p server --test production_federated membership_provision -- --nocapture
 cargo test -p server --test production_federated -- --nocapture
 ```
 
-Final PR readiness gate must also run:
+Final PR readiness gate ran before merge:
 
 ```bash
 cargo test --workspace
@@ -72,3 +73,9 @@ This phase is local production-shaped E2E only. It is not:
 - live Castalia/Dregg registry discovery;
 - Midnight or Cardano authority;
 - full Castalia Wallet wallet-core parity.
+
+## Post-merge evidence
+
+- PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9`.
+- Post-merge Rust CI run 27071532041 passed.
+- Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84.

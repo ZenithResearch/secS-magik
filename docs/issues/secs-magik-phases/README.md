@@ -7,13 +7,13 @@ This directory contains repo-local, issue-ready phase specs for secS-magik ready
 | Track | GitHub issue | Local spec | Status |
 |---|---:|---|---|
 | Track E — trusted issuer/root policy | #63 / underlying #35 | [`track-e-trusted-issuer-root-policy.md`](track-e-trusted-issuer-root-policy.md) | complete; PR #69 merged to `main` at `baee35b`, post-merge CI run 27050361282 passed |
-| Track I — production-shaped `membership.provision` E2E | #70 | [`track-i-production-membership-provision-e2e.md`](track-i-production-membership-provision-e2e.md) | in progress on `phase/track-i-membership-provision-e2e`; pre-merge local tests passing, not complete until PR merge + post-merge main CI |
+| Track I — production-shaped `membership.provision` E2E | #70 | [`track-i-production-membership-provision-e2e.md`](track-i-production-membership-provision-e2e.md) | complete for local production-shaped E2E; PR #76 merged to `main` at `5e5bb71`, post-merge CI run 27071532041 passed |
 
 ## Gap / future-rail issues after Track E
 
 | Gap / forbidden claim | GitHub issue | Status |
 |---|---:|---|
-| Production-shaped `membership.provision` E2E | #70 | in progress; branch/PR phase boundary, remains open until merge + post-merge main CI |
+| Production-shaped `membership.provision` E2E | #70 | closed by PR #76 at `5e5bb71` with post-merge CI 27071532041; post-merge review follow-ups are #77-#84 |
 | Full Castalia Wallet wallet-core parity | #71 | open |
 | Live Castalia trusted issuer registry discovery | #72 | open |
 | Dregg capability/proof/revocation authority | #73 | open |

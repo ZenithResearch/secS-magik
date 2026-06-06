@@ -2,7 +2,7 @@
 
 `server/` is the secS gateway/verifier substrate crate for secS-magik.
 
-Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, and Track E static trusted issuer/root policy on the phase branch. First-prod authority is still bounded until PR/main CI and Track I E2E evidence: full Castalia Wallet wallet-core parity/import, live Castalia/Dregg discovery, Midnight/Cardano authority, production deployment proof, and public auditability are not implemented here.
+Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy on `main`, and Track I local production-shaped `membership.provision` E2E on `main` via PR #76 at `5e5bb71`. First-prod authority is still bounded: full Castalia Wallet wallet-core parity/import, live Castalia/Dregg discovery, Midnight/Cardano authority, production deployment proof, and public auditability are not implemented here.
 
 ## Directory map
 
@@ -90,6 +90,7 @@ Do not document real operator keys, bearer tokens, packet captures, production D
 | `0x10` | `16` | Bash echo-pipe prototype/dev binding. |
 | `0x20` | `32` | Native Rust queue-stub prototype/dev binding. |
 | `0x30` | `48` | `jq .` JSON formatter/parser prototype/dev binding. |
+| `0x44` | `68` | `membership.provision` local production-shaped E2E descriptor. Runtime/live-ingress follow-ups remain tracked in #77-#84. |
 
 The client CLI accepts decimal values such as `16`, not `0x10`.
 
@@ -118,11 +119,11 @@ This is not a full Castalia Wallet wallet-core import and not live Castalia Wall
 
 ## Trusted issuer/root policy boundary
 
-Track E is implemented locally on the phase branch as a static receiver-held fixture policy. `TrustedIssuerEntry` metadata in `server/src/evidence.rs` controls trusted issuer/root acceptance: issuer id, issuer key id, public key, status/validity, accepted evidence kinds, accepted audiences/operations/resources, `trust_root_ref`, and `registry_root_ref` must match the signed credential and descriptor-local policy.
+Track E is implemented on `main` as a static receiver-held fixture policy. `TrustedIssuerEntry` metadata in `server/src/evidence.rs` controls trusted issuer/root acceptance: issuer id, issuer key id, public key, status/validity, accepted evidence kinds, accepted audiences/operations/resources, `trust_root_ref`, and `registry_root_ref` must match the signed credential and descriptor-local policy.
 
 The first-path federated credential verifier accepts signed `membership_credential` / `provisioning_credential` fixtures only when the credential signature verifies against receiver-held issuer metadata, the issuer/key/credential status is active in the fixture registry, subject/audience/operation/resource bindings match, and the receiver-local descriptor allows that evidence kind. `local_static`, plaintext/prototype evidence, wallet-only proof, embedded caller keys, and caller-supplied root refs reject as sufficient production authority.
 
-This is a static fixture registry path only: no live Dregg consensus or Castalia registry discovery, no Midnight proof adapter, no Cardano settlement/finality proof, no production deployment proof, no public auditability, no Track I `membership.provision` E2E success, and no full Castalia Wallet wallet-core parity.
+This is a static fixture registry path only: no live Dregg consensus or Castalia registry discovery, no Midnight proof adapter, no Cardano settlement/finality proof, no production deployment proof, no public auditability, and no full Castalia Wallet wallet-core parity. Track I local production-shaped `membership.provision` E2E is implemented on `main`, but live ingress/runtime hardening follow-ups are tracked separately in #77-#84.
 
 ## Commands
 
