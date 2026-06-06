@@ -1336,6 +1336,126 @@ async fn membership_provision_e2e_contract_reaches_verify_execute_and_ledger_ins
     );
 }
 
+#[tokio::test]
+async fn membership_provision_verifier_acceptance_without_execute_receipt_is_not_success() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
+        inner: &composite,
+        extra_refs: vec![MEMBERSHIP_CREDENTIAL_REF],
+    };
+    let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+    let payload = packet.encrypted_payload.clone();
+
+    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        Some(WALLET_EVIDENCE_REF),
+        [origin_input(TRUSTED_ORIGIN)],
+        &multi_ref_adapter,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect("fixture smoke/log output must show real membership.provision verifier acceptance with wallet PoP and trusted issuer evidence before proving verifier-only acceptance is not success");
+    assert_eq!(
+        signed.context.operation, MEMBERSHIP_OPERATION,
+        "fixture smoke/log output must verify the membership.provision operation before proving verifier-only acceptance is not success"
+    );
+    assert!(
+        signed
+            .context
+            .evidence_summary
+            .iter()
+            .any(|field| field == "evidence_kind:wallet_presentation"),
+        "fixture smoke/log output must include wallet_presentation evidence; verifier-only acceptance is not success"
+    );
+    assert!(
+        signed
+            .context
+            .evidence_summary
+            .iter()
+            .any(|field| field == "evidence_kind:membership_credential"),
+        "fixture smoke/log output must include membership_credential evidence; verifier-only acceptance is not success"
+    );
+    assert!(
+        !signed
+            .context
+            .evidence_summary
+            .iter()
+            .any(|field| field == "authority:local_dev_test_only"),
+        "fixture smoke/log output must not rely on local_dev_test_only authority; verifier-only acceptance is not success"
+    );
+
+    let pool = memory_pool().await;
+    let bootstrap = ConfigurableRouter::new(pool.clone());
+    let identity = bootstrap.identity().clone();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool.clone(),
+        ExecutionLimits::default(),
+        identity,
+        TRUSTED_AUDIENCE,
+    );
+    // Intentionally do not register descriptor.handler_id (membership/provision):
+    // this proves verifier acceptance alone is not a successful provision.
+
+    router.route_verified(&signed, payload).await;
+
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "fixture smoke/log output with verifier-only acceptance is not success; no membership.provision handler should run when membership/provision is unregistered"
+    );
+
+    let ledger = Ledger::new(pool.clone());
+    let chain = ledger
+        .inspect_receipt_chain_by_context_id(&signed.context.context_id)
+        .await
+        .unwrap();
+    let decisions: Vec<_> = chain
+        .iter()
+        .map(|receipt| {
+            (
+                receipt.kind.as_str(),
+                receipt.decision.as_str(),
+                receipt.reason.as_deref(),
+                receipt.operation.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        decisions,
+        vec![
+            ("verify", "accepted", None, Some(MEMBERSHIP_OPERATION)),
+            (
+                "execute",
+                "rejected",
+                Some("handler_unavailable"),
+                Some(MEMBERSHIP_OPERATION),
+            ),
+        ],
+        "fixture smoke/log output must record verify accepted plus execute rejected handler_unavailable; verifier-only acceptance is not success"
+    );
+    assert!(
+        !decisions.iter().any(|(kind, decision, _, operation)| {
+            *kind == "execute"
+                && *decision == "accepted"
+                && *operation == Some(MEMBERSHIP_OPERATION)
+        }),
+        "fixture smoke/log output must not contain execute accepted for membership.provision; verifier-only acceptance is not success"
+    );
+}
+
 #[test]
 fn membership_provision_contract_rejects_single_layer_and_local_static_success_substitutes() {
     let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
