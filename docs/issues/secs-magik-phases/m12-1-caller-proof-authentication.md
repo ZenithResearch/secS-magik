@@ -1,6 +1,6 @@
 # M12.1 — feat(verifier): authenticate caller proof-of-origin on ingress
 
-> Parent: [M12 demoable milestone](m12-demoable-milestone.md). Proposed 2026-06-09.
+> Parent: [M12 demoable milestone](m12-demoable-milestone.md) (#88). Filed as GitHub issue #89 (2026-06-09).
 
 ## Objective
 

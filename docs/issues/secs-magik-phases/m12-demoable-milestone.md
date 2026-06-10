@@ -1,8 +1,7 @@
 # Phase M12 — demoable end-to-end secS milestone (authenticated, answerable, inspectable)
 
-> Status: proposed (2026-06-09). Filed as a repo-local spec because the current
-> automation integration is read-only on GitHub issue creation. Promote to a
-> GitHub issue and link the child issues when write access is available.
+> Status: filed (2026-06-09) as GitHub issue #88; child issues #89-#95
+> (see table below).
 
 ## Objective
 
@@ -64,15 +63,15 @@ Per the secS boundary notes and `emberian/dregg`:
 
 ## Child specs (dependency-aware order)
 
-| ID | Spec | Demo role |
-|---|---|---|
-| M12.1 | [`m12-1-caller-proof-authentication.md`](m12-1-caller-proof-authentication.md) | Verify caller proof-of-origin signature on ingress |
-| M12.2 | [`m12-2-caller-decision-response.md`](m12-2-caller-decision-response.md) | Return a signed accept/reject decision to the caller |
-| M12.3 | [`m12-3-dregg-shaped-evidence-adapter.md`](m12-3-dregg-shaped-evidence-adapter.md) | Boundary-preserving Dregg-shaped evidence adapter seam |
-| M12.4 | [`m12-4-tunnel-aead-aad-binding.md`](m12-4-tunnel-aead-aad-binding.md) | Bind tunnel AEAD to session_id + opcode |
-| M12.5 | [`m12-5-failclosed-clock-reads.md`](m12-5-failclosed-clock-reads.md) | Fail-closed clock reads on the verification path |
-| M12.6 | [`m12-6-retire-decorative-mac.md`](m12-6-retire-decorative-mac.md) | Verify, reserve, or remove the `mac` field |
-| M12.7 | [`m12-7-supply-chain-ci-gate.md`](m12-7-supply-chain-ci-gate.md) | Supply-chain audit CI gate + dependency bump |
+| ID | Issue | Spec | Demo role |
+|---|---|---|---|
+| M12.1 | #89 | [`m12-1-caller-proof-authentication.md`](m12-1-caller-proof-authentication.md) | Verify caller proof-of-origin signature on ingress |
+| M12.2 | #90 | [`m12-2-caller-decision-response.md`](m12-2-caller-decision-response.md) | Return a signed accept/reject decision to the caller |
+| M12.3 | #91 | [`m12-3-dregg-shaped-evidence-adapter.md`](m12-3-dregg-shaped-evidence-adapter.md) | Boundary-preserving Dregg-shaped evidence adapter seam |
+| M12.4 | #92 | [`m12-4-tunnel-aead-aad-binding.md`](m12-4-tunnel-aead-aad-binding.md) | Bind tunnel AEAD to session_id + opcode |
+| M12.5 | #93 | [`m12-5-failclosed-clock-reads.md`](m12-5-failclosed-clock-reads.md) | Fail-closed clock reads on the verification path |
+| M12.6 | #94 | [`m12-6-retire-decorative-mac.md`](m12-6-retire-decorative-mac.md) | Verify, reserve, or remove the `mac` field |
+| M12.7 | #95 | [`m12-7-supply-chain-ci-gate.md`](m12-7-supply-chain-ci-gate.md) | Supply-chain audit CI gate + dependency bump |
 
 Suggested sequencing: M12.1 → M12.2 unlock the visible request/response demo;
 M12.3 adds the Castalia-over-Dregg evidence story; M12.4–M12.6 are correctness

@@ -1,6 +1,6 @@
 # M12.2 — feat(gateway): return a signed accept/reject decision to the caller
 
-> Parent: [M12 demoable milestone](m12-demoable-milestone.md). Proposed 2026-06-09.
+> Parent: [M12 demoable milestone](m12-demoable-milestone.md) (#88). Filed as GitHub issue #90 (2026-06-09).
 
 ## Objective
 
