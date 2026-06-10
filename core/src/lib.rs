@@ -12,6 +12,7 @@ pub mod ffi;
 uniffi::setup_scaffolding!();
 pub mod caller_proof;
 pub mod packet_builder;
+pub mod response;
 pub mod tunnel;
 pub mod zk;
 
