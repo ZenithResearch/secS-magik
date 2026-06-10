@@ -10,3 +10,4 @@ clap = { version = "4.4", features = ["derive", "env"] }
 bincode = { workspace = true }
 rand.workspace = true
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
+sha2.workspace = true
