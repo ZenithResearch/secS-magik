@@ -63,14 +63,14 @@ Non-goals:
 
 ## Task list (commit boundaries)
 
-- [ ] M12.4.1 — RED tests: encrypt with AAD = `session||opcode`, decrypt with a
+- [x] M12.4.1 — RED tests: encrypt with AAD = `session||opcode`, decrypt with a
   different `session` or `opcode` fails; correct AAD round-trips; a server-level
   test proves a spliced tunnel packet is rejected and no second replay reservation
   is created.
-- [ ] M12.4.2 — Add AAD params to `encrypt_payload`/`decrypt_payload`.
-- [ ] M12.4.3 — Wire canonical AAD in `server/src/payload.rs` decrypt and client
+- [x] M12.4.2 — Add AAD params to `encrypt_payload`/`decrypt_payload`.
+- [x] M12.4.3 — Wire canonical AAD in `server/src/payload.rs` decrypt and client
   encrypt; update wasm wrappers to compile.
-- [ ] M12.4.4 — Docs/changelog.
+- [x] M12.4.4 — Docs/changelog.
 
 ## Acceptance criteria
 

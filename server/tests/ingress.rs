@@ -309,3 +309,92 @@ async fn ingress_pre_decode_reject_audit() {
 }
 
 const DEFAULT_TEST_WIRE_LIMIT: usize = 2 * 1024 * 1024;
+
+#[tokio::test]
+#[serial_test::serial]
+async fn spliced_tunnel_ciphertext_rejects_and_creates_no_second_replay_reservation() {
+    // M12.4: a captured (nonce, ciphertext) pair re-bound to a different
+    // session_id has a fresh replay key, so without AEAD associated data the
+    // payload decrypts and executes again. With AAD binding the splice must be
+    // rejected as bad_mac before routing, with no second replay reservation.
+    std::env::set_var(
+        "SECS_TUNNEL_KEY_HEX",
+        "0101010101010101010101010101010101010101010101010101010101010101",
+    );
+    std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let router = Arc::new(ConfigurableRouter::new(pool.clone()));
+
+    let key = [1u8; 32];
+    let nonce = [2u8; 12];
+    let ciphertext = libsec_core::tunnel::encrypt_payload(
+        &key,
+        &nonce,
+        b"tunnel payload",
+        &libsec_core::tunnel::packet_aad(&[0xAA; 16], 0x10, 300),
+    );
+
+    let legit = ZenithPacket {
+        session_id: [0xAA; 16],
+        nonce,
+        opcode: 0x10,
+        proof: vec![1],
+        claim_ttl: 300,
+        encrypted_payload: ciphertext.clone(),
+        mac: [0u8; 16],
+    };
+    let spliced = ZenithPacket {
+        session_id: [0xBB; 16],
+        ..legit.clone()
+    };
+
+    for packet in [&legit, &spliced] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router = router.clone();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            handle_gateway_connection_with_limits(
+                router,
+                socket,
+                DEFAULT_TEST_WIRE_LIMIT,
+                Duration::from_secs(1),
+                RuntimeMode::LocalDevTunnel,
+            )
+            .await;
+        });
+        let bytes = bincode::serialize(packet).unwrap();
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client.write_all(&bytes).await.unwrap();
+        client.shutdown().await.unwrap();
+        server.await.unwrap();
+    }
+
+    let reservations: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        reservations.0, 1,
+        "spliced packet must not create a second replay reservation"
+    );
+
+    let bad_mac_rejects: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND reason = ?")
+            .bind(VerificationError::BadMac.reason_code())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        bad_mac_rejects.0, 1,
+        "splice must surface as the existing bad_mac/undecryptable reject"
+    );
+
+    std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+}
