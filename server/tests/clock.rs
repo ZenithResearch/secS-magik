@@ -123,3 +123,53 @@ fn signed_context_with_real_now_still_verifies_after_sentinel_guard() {
         .verify_ed25519(&key, "secS://receiver-a", 150)
         .unwrap();
 }
+
+mod prune_guard {
+    use super::*;
+    use server::ledger::{Ledger, ReplayReservationOutcome};
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    async fn memory_ledger() -> Ledger {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let ledger = Ledger::new(pool);
+        ledger.init_schema().await.unwrap();
+        ledger
+    }
+
+    #[tokio::test]
+    async fn prune_with_clock_failure_sentinel_keeps_live_reservations() {
+        let ledger = memory_ledger().await;
+        let context = sample_context_with_expiry(2_000);
+
+        assert_eq!(
+            ledger
+                .reserve_replay(&context, "verifier:local-test", 1_001)
+                .await
+                .unwrap(),
+            ReplayReservationOutcome::Reserved
+        );
+
+        // Under the sentinel, prune must be a no-op rather than treating every
+        // reservation as expired and deleting live replay protection.
+        assert_eq!(
+            ledger
+                .prune_expired_replay_reservations(CLOCK_READ_FAILURE_SENTINEL)
+                .await
+                .unwrap(),
+            0
+        );
+
+        // The live reservation still guards against replay.
+        assert_eq!(
+            ledger
+                .reserve_replay(&context, "verifier:local-test", 1_002)
+                .await
+                .unwrap(),
+            ReplayReservationOutcome::Duplicate
+        );
+    }
+}
