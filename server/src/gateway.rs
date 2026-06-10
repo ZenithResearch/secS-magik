@@ -91,6 +91,7 @@ pub struct ConfigurableRouter {
     limits: ExecutionLimits,
     identity: NodeVerifierIdentity,
     verifier_keys: PublicVerifierKeyRegistry,
+    caller_keys: Option<crate::caller::CallerKeyRegistry>,
     expected_audience: String,
 }
 
@@ -141,8 +142,20 @@ impl ConfigurableRouter {
             limits,
             identity,
             verifier_keys,
+            caller_keys: None,
             expected_audience: expected_audience.into(),
         }
+    }
+
+    /// Install the receiver-held caller key registry (M12.1). Required for
+    /// `production_verified` runtime verification; optional fixture seam in
+    /// local/dev modes.
+    pub fn set_caller_registry(&mut self, caller_keys: crate::caller::CallerKeyRegistry) {
+        self.caller_keys = Some(caller_keys);
+    }
+
+    pub fn caller_keys(&self) -> Option<&crate::caller::CallerKeyRegistry> {
+        self.caller_keys.as_ref()
     }
 
     pub fn with_verifier_registry(

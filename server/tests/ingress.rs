@@ -398,3 +398,114 @@ async fn spliced_tunnel_ciphertext_rejects_and_creates_no_second_replay_reservat
 
     std::env::remove_var("SECS_TUNNEL_KEY_HEX");
 }
+
+#[tokio::test]
+#[serial_test::serial]
+async fn caller_auth_rejects_emit_inspectable_receipts_without_replay_reservation() {
+    std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+    std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+    use ed25519_dalek::SigningKey;
+    use libsec_core::caller_proof::{
+        caller_canonical_bytes, encode_caller_proof, CALLER_SIGNATURE_LEN,
+    };
+    use server::caller::{CallerKey, CallerKeyRegistry};
+
+    fn caller_packet(signer: &SigningKey, key_id: &str, session_id: [u8; 16]) -> ZenithPacket {
+        let nonce = [0xBB; 12];
+        let opcode = 0x10;
+        let claim_ttl = 300;
+        let payload = b"caller audit payload".to_vec();
+        let canonical = caller_canonical_bytes(&session_id, &nonce, opcode, claim_ttl, &payload);
+        let signature_bytes = libsec_core::zk::generate_proof(signer, &canonical);
+        let mut signature = [0u8; CALLER_SIGNATURE_LEN];
+        signature.copy_from_slice(&signature_bytes);
+        ZenithPacket {
+            session_id,
+            nonce,
+            opcode,
+            proof: encode_caller_proof(key_id, &signature),
+            claim_ttl,
+            encrypted_payload: payload,
+            mac: [0u8; 16],
+        }
+    }
+
+    let registered = SigningKey::from_bytes(&[1u8; 32]);
+    let impostor = SigningKey::from_bytes(&[2u8; 32]);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.set_caller_registry(CallerKeyRegistry::from_keys([CallerKey::active(
+        "caller:audit",
+        "did:example:audit",
+        registered.verifying_key(),
+    )]));
+    let router = Arc::new(router);
+
+    // Forged proof first (impostor signs while claiming the registered id),
+    // then a valid call from the registered caller.
+    let forged = caller_packet(&impostor, "caller:audit", [0xA1; 16]);
+    let valid = caller_packet(&registered, "caller:audit", [0xA2; 16]);
+
+    for packet in [&forged, &valid] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router = router.clone();
+        let server_task = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            handle_gateway_connection_with_limits(
+                router,
+                socket,
+                DEFAULT_TEST_WIRE_LIMIT,
+                Duration::from_secs(1),
+                RuntimeMode::LocalDevPlaintext,
+            )
+            .await;
+        });
+        let bytes = bincode::serialize(packet).unwrap();
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client.write_all(&bytes).await.unwrap();
+        client.shutdown().await.unwrap();
+        server_task.await.unwrap();
+    }
+
+    // The caller-auth reject left an inspectable reject receipt...
+    let rejects: Vec<(String, String)> =
+        sqlx::query_as("SELECT receipt_id, reason FROM receipts WHERE kind = 'reject'")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(rejects.len(), 1, "exactly one caller-auth reject expected");
+    assert_eq!(
+        rejects[0].1,
+        VerificationError::BadCallerProof.reason_code()
+    );
+    let inspection = Ledger::new(pool.clone())
+        .inspect_receipt_by_id(&rejects[0].0)
+        .await
+        .unwrap()
+        .expect("caller-auth reject receipt must be inspectable by id");
+    assert_eq!(inspection.decision.as_str(), "rejected");
+    assert_eq!(
+        inspection.reason.as_deref(),
+        Some(VerificationError::BadCallerProof.reason_code())
+    );
+
+    // ...and created no replay reservation; only the valid call reserved.
+    let reservations: Vec<(Vec<u8>,)> =
+        sqlx::query_as("SELECT session_id FROM replay_reservations")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        reservations.len(),
+        1,
+        "caller-auth rejects must not create replay reservations"
+    );
+    assert_eq!(reservations[0].0, [0xA2; 16].to_vec());
+}

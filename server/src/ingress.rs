@@ -228,13 +228,14 @@ pub async fn handle_gateway_connection_with_limits(
 
     let manifest = ReceiverManifest::default_v0();
     let signed_context =
-        match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity(
+        match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity_and_caller(
             &packet,
             &manifest,
             router.expected_audience(),
             current_unix_seconds(),
             router.identity(),
             runtime_mode,
+            router.caller_keys(),
         ) {
             Ok(context) => context,
             Err(error) => {
@@ -315,6 +316,13 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         identity,
         config.receiver_audience.clone(),
     );
+    if let Some(path) = &config.caller_registry_path {
+        let (caller_keys, _fixture_only) = crate::caller::load_caller_registry_from_path(path)
+            .unwrap_or_else(|error| {
+                panic!("secS gateway: failed to load caller key registry - {error}")
+            });
+        router.set_caller_registry(caller_keys);
+    }
     register_runtime_bindings(&mut router, config.runtime_mode);
 
     let router = Arc::new(router);

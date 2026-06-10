@@ -45,6 +45,12 @@ pub enum VerificationError {
     ExpiredVerifierKey,
     NotYetValidVerifierKey,
     UntrustedVerifierKey,
+    BadCallerProof,
+    UnknownCallerKey,
+    RevokedCallerKey,
+    ExpiredCallerKey,
+    NotYetValidCallerKey,
+    MissingCallerRegistry,
     InternalError,
 }
 
@@ -86,6 +92,12 @@ impl VerificationError {
             Self::ExpiredVerifierKey => "expired_verifier_key",
             Self::NotYetValidVerifierKey => "not_yet_valid_verifier_key",
             Self::UntrustedVerifierKey => "untrusted_verifier_key",
+            Self::BadCallerProof => "bad_caller_proof",
+            Self::UnknownCallerKey => "unknown_caller_key",
+            Self::RevokedCallerKey => "revoked_caller_key",
+            Self::ExpiredCallerKey => "expired_caller_key",
+            Self::NotYetValidCallerKey => "not_yet_valid_caller_key",
+            Self::MissingCallerRegistry => "missing_caller_registry",
             Self::InternalError => "internal_error",
         }
     }
@@ -181,12 +193,34 @@ impl Verifier {
         identity: &NodeVerifierIdentity,
         runtime_mode: RuntimeMode,
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
-        let context = Self::verify_manifest_operation_for_runtime(
+        Self::verify_manifest_operation_and_sign_for_runtime_with_identity_and_caller(
+            packet,
+            manifest,
+            audience,
+            now,
+            identity,
+            runtime_mode,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_manifest_operation_and_sign_for_runtime_with_identity_and_caller(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        identity: &NodeVerifierIdentity,
+        runtime_mode: RuntimeMode,
+        caller_keys: Option<&crate::caller::CallerKeyRegistry>,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let context = Self::verify_manifest_operation_for_runtime_with_caller(
             packet,
             manifest,
             audience,
             now,
             runtime_mode,
+            caller_keys,
         )?;
         identity.sign_context(context)
     }
@@ -208,7 +242,7 @@ impl Verifier {
             packet,
             descriptor,
             audience,
-            PROTOTYPE_LOCAL_SUBJECT,
+            prototype_subject(),
             descriptor_evidence_summary(descriptor),
             now,
         )
@@ -221,17 +255,59 @@ impl Verifier {
         now: u64,
         runtime_mode: RuntimeMode,
     ) -> Result<VerifiedCallContext, VerificationError> {
+        Self::verify_manifest_operation_for_runtime_with_caller(
+            packet,
+            manifest,
+            audience,
+            now,
+            runtime_mode,
+            None,
+        )
+    }
+
+    /// Runtime verification with the receiver-held caller key seam (M12.1).
+    ///
+    /// Caller authentication runs after the descriptor production gates so
+    /// existing descriptor rejects keep their typed reasons, and before
+    /// signed-context creation so the context subject reflects the
+    /// authenticated caller. In `production_verified` a registry is required
+    /// and the proof must verify; local/dev modes verify when a fixture
+    /// registry is supplied and otherwise keep the prototype subject (those
+    /// contexts are already marked LocalDevUntrusted by the dev identity).
+    /// Caller proof-of-origin is necessary, never sufficient: it does not
+    /// satisfy wallet/issuer/Dregg evidence requirements.
+    pub fn verify_manifest_operation_for_runtime_with_caller(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        now: u64,
+        runtime_mode: RuntimeMode,
+        caller_keys: Option<&crate::caller::CallerKeyRegistry>,
+    ) -> Result<VerifiedCallContext, VerificationError> {
         if crate::clock::is_clock_read_failure(now) {
             return Err(VerificationError::ExpiredClaim);
         }
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
         reject_non_production_descriptor(descriptor, runtime_mode)?;
+        let subject = match (runtime_mode, caller_keys) {
+            (_, Some(registry)) => {
+                let caller = crate::caller::verify_caller_proof(packet, registry, now)?;
+                VerifiedSubject {
+                    subject_id: caller.subject_id,
+                    key_id: caller.key_id,
+                }
+            }
+            (RuntimeMode::ProductionVerified, None) => {
+                return Err(VerificationError::MissingCallerRegistry);
+            }
+            (_, None) => prototype_subject(),
+        };
         verified_context_for_descriptor(
             packet,
             descriptor,
             audience,
-            PROTOTYPE_LOCAL_SUBJECT,
+            subject,
             descriptor_evidence_summary(descriptor),
             now,
         )
@@ -302,7 +378,10 @@ impl Verifier {
             packet,
             descriptor,
             audience,
-            subject,
+            VerifiedSubject {
+                subject_id: subject.to_string(),
+                key_id: format!("{subject}#key"),
+            },
             evidence_summary,
             now,
         )?;
@@ -356,11 +435,18 @@ fn reject_descriptor_only_runtime_evidence_gap(
     Ok(())
 }
 
+fn prototype_subject() -> VerifiedSubject {
+    VerifiedSubject {
+        subject_id: PROTOTYPE_LOCAL_SUBJECT.to_string(),
+        key_id: format!("{PROTOTYPE_LOCAL_SUBJECT}#key"),
+    }
+}
+
 fn verified_context_for_descriptor(
     packet: &ZenithPacket,
     descriptor: &crate::manifest::OperationDescriptor,
     audience: &str,
-    subject: &str,
+    subject: VerifiedSubject,
     evidence_summary: Vec<String>,
     now: u64,
 ) -> Result<VerifiedCallContext, VerificationError> {
@@ -385,10 +471,7 @@ fn verified_context_for_descriptor(
         nonce: packet.nonce,
         opcode: packet.opcode,
         operation: descriptor.name.as_str().to_string(),
-        subject: VerifiedSubject {
-            subject_id: subject.to_string(),
-            key_id: format!("{subject}#key"),
-        },
+        subject,
         audience: audience.to_string(),
         evidence_summary,
         capability_result: descriptor.required_capabilities.join(","),
