@@ -5,7 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- M12.7 supply-chain gate (#95): CI now runs `cargo audit` as a dedicated job and fails on known RUSTSEC vulnerabilities; added `SECURITY.md` (reporting path, no-blanket-ignore rule, justified accepted warnings for `bincode 1` wire-format freeze and transitive `paste`) and weekly Dependabot for cargo + github-actions. A clean advisory scan is a dependency-hygiene gate only — not production deployment proof (#33) and not a security audit.
+
 ### Changed
+- Bumped `sqlx` 0.7.4 → 0.8.6 past RUSTSEC-2024-0363 and disabled default features (`runtime-tokio` + `sqlite` only), removing the unused MySQL/Postgres backends and with them the unfixed `rsa` RUSTSEC-2023-0071 advisory; runtime-SQL behavior and the SQLite feature set are unchanged and the full workspace suite passes on the new line. Reconciled `uniffi` to the workspace `0.28` pin in `core` and removed the vestigial `[build-dependencies]` uniffi block (core has no build.rs).
 - Added #84 Track I negative proof: evidence-backed `membership.provision` verifier acceptance without a registered handler now records `verify accepted` plus `execute rejected` / `handler_unavailable`, proving fixture smoke/log output and verifier-only acceptance are not success without an accepted execute receipt for the same context.
 - Completed Track I local `membership.provision` E2E on `main` via PR #76 at `5e5bb71` with post-merge Rust CI run 27071532041 passed — canonical `0x44` descriptor, wallet + trusted issuer fixture composition, signed context, bounded handler execution, local/operator verify+execute receipt inspection, focused reject matrix, replay/session/TTL guards, and redaction checks. This is local production-shaped E2E only; it is not deployment proof, public auditability, live registry discovery, Midnight/Cardano authority, or full wallet-core parity.
 
