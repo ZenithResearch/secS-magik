@@ -9,6 +9,29 @@ This directory contains repo-local, issue-ready phase specs for secS-magik ready
 | Track E — trusted issuer/root policy | #63 / underlying #35 | [`track-e-trusted-issuer-root-policy.md`](track-e-trusted-issuer-root-policy.md) | complete; PR #69 merged to `main` at `baee35b`, post-merge CI run 27050361282 passed |
 | Track I — production-shaped `membership.provision` E2E | #70 | [`track-i-production-membership-provision-e2e.md`](track-i-production-membership-provision-e2e.md) | complete for local production-shaped E2E; PR #76 merged to `main` at `5e5bb71`, post-merge CI run 27071532041 passed |
 
+## Proposed demoable milestone (M12)
+
+These are repo-local proposed specs (2026-06-09) for reaching a demoable
+end-to-end state — authenticated caller, signed decision returned to the caller,
+and a boundary-preserving Castalia-over-Dregg-shaped evidence seam — plus the
+correctness/supply-chain hardening a credible demo needs. They are filed as
+repo-local specs because the current automation integration is read-only on
+GitHub issue creation; promote them to GitHub issues and link numbers when write
+access is available. They are complementary to (not duplicates of) the
+`membership.provision` live-ingress hardening tracked in #78–#83, and they must
+not be used to close the future authority rails #71–#75.
+
+| Spec | Local file | Demo role |
+|---|---|---|
+| M12 (umbrella) | [`m12-demoable-milestone.md`](m12-demoable-milestone.md) | Sequences M12.1–M12.7 and records the demo boundary |
+| M12.1 | [`m12-1-caller-proof-authentication.md`](m12-1-caller-proof-authentication.md) | Verify caller proof-of-origin signature on ingress |
+| M12.2 | [`m12-2-caller-decision-response.md`](m12-2-caller-decision-response.md) | Return a signed accept/reject decision to the caller |
+| M12.3 | [`m12-3-dregg-shaped-evidence-adapter.md`](m12-3-dregg-shaped-evidence-adapter.md) | Dregg-shaped evidence adapter seam (shape + signature only; not #73 authority) |
+| M12.4 | [`m12-4-tunnel-aead-aad-binding.md`](m12-4-tunnel-aead-aad-binding.md) | Bind tunnel AEAD to session_id + opcode |
+| M12.5 | [`m12-5-failclosed-clock-reads.md`](m12-5-failclosed-clock-reads.md) | Fail-closed clock reads on the verification path |
+| M12.6 | [`m12-6-retire-decorative-mac.md`](m12-6-retire-decorative-mac.md) | Verify, reserve, or remove the decorative `mac` field |
+| M12.7 | [`m12-7-supply-chain-ci-gate.md`](m12-7-supply-chain-ci-gate.md) | Supply-chain audit CI gate + dependency bump |
+
 ## Gap / future-rail issues after Track E
 
 | Gap / forbidden claim | GitHub issue | Status |
