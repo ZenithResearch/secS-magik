@@ -1,13 +1,22 @@
 use crate::runtime_mode::RuntimeMode;
-use libsec_core::{tunnel::decrypt_payload, ZenithPacket};
+use libsec_core::{
+    tunnel::{decrypt_payload, packet_aad},
+    ZenithPacket,
+};
 
 pub fn decrypt_machine_payload(
     packet: &ZenithPacket,
     mode: RuntimeMode,
 ) -> Result<Vec<u8>, String> {
     match load_tunnel_key() {
-        Some(key) => decrypt_payload(&key, &packet.nonce, &packet.encrypted_payload, b"")
-            .map_err(|_| "ChaCha20Poly1305 authentication failed".to_string()),
+        Some(key) => {
+            // Bind decryption to the envelope: a captured (nonce, ciphertext)
+            // re-bound to a different session_id/opcode/claim_ttl must fail
+            // authentication instead of bypassing the replay reservation key.
+            let aad = packet_aad(&packet.session_id, packet.opcode, packet.claim_ttl);
+            decrypt_payload(&key, &packet.nonce, &packet.encrypted_payload, &aad)
+                .map_err(|_| "ChaCha20Poly1305 authentication failed".to_string())
+        }
         None if mode.allows_plaintext() => Ok(packet.encrypted_payload.clone()),
         None => Err("missing tunnel key".to_string()),
     }
@@ -138,7 +147,12 @@ mod tests {
             "0101010101010101010101010101010101010101010101010101010101010101",
         );
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");
-        let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload", b"");
+        let ciphertext = encrypt_payload(
+            &[1u8; 32],
+            &[2u8; 12],
+            b"ciphertext payload",
+            &packet_aad(&[0xFF; 16], 0x10, 1),
+        );
         let packet = packet_with(ciphertext);
 
         assert_eq!(
@@ -157,7 +171,12 @@ mod tests {
             "0909090909090909090909090909090909090909090909090909090909090909",
         );
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");
-        let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload", b"");
+        let ciphertext = encrypt_payload(
+            &[1u8; 32],
+            &[2u8; 12],
+            b"ciphertext payload",
+            &packet_aad(&[0xFF; 16], 0x10, 1),
+        );
         let packet = packet_with(ciphertext);
 
         assert!(decrypt_machine_payload(&packet, RuntimeMode::LocalDevTunnel).is_err());

@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "uniffi")]
 pub mod ffi;
+// uniffi 0.28 requires scaffolding setup at the crate root (it references
+// `crate::UniFfiTag`); keep it scoped to the wasm32 surface like `ffi`.
+#[cfg(all(feature = "uniffi", target_arch = "wasm32"))]
+uniffi::setup_scaffolding!();
 pub mod packet_builder;
 pub mod tunnel;
 pub mod zk;

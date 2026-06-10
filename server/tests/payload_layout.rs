@@ -1,4 +1,7 @@
-use libsec_core::{tunnel::encrypt_payload, ZenithPacket};
+use libsec_core::{
+    tunnel::{encrypt_payload, packet_aad},
+    ZenithPacket,
+};
 use serial_test::serial;
 use server::payload::{decrypt_machine_payload, load_tunnel_key, parse_hex_32};
 use server::runtime_mode::RuntimeMode;
@@ -49,7 +52,12 @@ fn payload_library_decrypts_with_configured_tunnel_key() {
         "0101010101010101010101010101010101010101010101010101010101010101",
     );
     std::env::remove_var("SECS_TUNNEL_KEY_HEX");
-    let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload", b"");
+    let ciphertext = encrypt_payload(
+        &[1u8; 32],
+        &[2u8; 12],
+        b"ciphertext payload",
+        &packet_aad(&[0xFF; 16], 0x10, 1),
+    );
     let packet = packet_with(ciphertext);
 
     assert_eq!(
