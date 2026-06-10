@@ -197,6 +197,11 @@ impl Verifier {
         audience: &str,
         now: u64,
     ) -> Result<VerifiedCallContext, VerificationError> {
+        // A clock-read failure must reject before any signed context exists;
+        // a saturated expires_at would otherwise pass plain expiry comparisons.
+        if crate::clock::is_clock_read_failure(now) {
+            return Err(VerificationError::ExpiredClaim);
+        }
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
         verified_context_for_descriptor(
@@ -216,6 +221,9 @@ impl Verifier {
         now: u64,
         runtime_mode: RuntimeMode,
     ) -> Result<VerifiedCallContext, VerificationError> {
+        if crate::clock::is_clock_read_failure(now) {
+            return Err(VerificationError::ExpiredClaim);
+        }
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
         reject_non_production_descriptor(descriptor, runtime_mode)?;
@@ -450,6 +458,12 @@ impl SignedVerifiedCallContext {
     ) -> Result<(), VerificationError> {
         if self.context.audience != expected_audience {
             return Err(VerificationError::WrongAudience);
+        }
+        // Reject the clock-read failure sentinel explicitly: a context created
+        // under a failed clock saturates expires_at to u64::MAX, so the plain
+        // comparison below would treat sentinel-now as not expired.
+        if crate::clock::is_clock_read_failure(now) {
+            return Err(VerificationError::ExpiredClaim);
         }
         if now > self.context.expires_at {
             return Err(VerificationError::ExpiredClaim);

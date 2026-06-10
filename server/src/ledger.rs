@@ -10,7 +10,6 @@ use crate::verifier::VerifiedCallContext;
 use sha2::{Digest, Sha256};
 use sqlx::Row;
 use sqlx::SqlitePool;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 1;
 pub const LEDGER_REDACTION_POLICY: &str =
@@ -74,10 +73,10 @@ impl Ledger {
         // *after* the final init_schema call (or use explicit prune with controlled
         // `now`); re-calling init_schema in a retention test after inserting past data
         // will trigger prune using real now.
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+        // A clock-read failure makes this a safe no-op: the prune guard skips
+        // deletion under the sentinel, and skipping prune never accepts
+        // anything — rows are removed on the next healthy-clock trigger.
+        let now = crate::clock::failclosed_unix_seconds();
         let _ = self.prune_expired_replay_reservations(now).await;
         Ok(())
     }
@@ -130,6 +129,14 @@ impl Ledger {
     /// also invoked from `init_schema` (wall time) and `reserve_replay` (using call time).
     /// Used to implement #57: ensure no unbounded growth of the replay_reservations table.
     pub async fn prune_expired_replay_reservations(&self, now: u64) -> Result<u64, sqlx::Error> {
+        // Under the clock-read failure sentinel every reservation would compare
+        // as expired and live reservations would be mass-deleted, weakening
+        // replay protection (a replayed packet would reserve afresh and execute
+        // again). Skipping prune is the safe no-op; do not rely on the i64 cast
+        // below wrapping the sentinel negative.
+        if crate::clock::is_clock_read_failure(now) {
+            return Ok(0);
+        }
         let result = sqlx::query("DELETE FROM replay_reservations WHERE expires_at < ?")
             .bind(now as i64)
             .execute(&self.pool)

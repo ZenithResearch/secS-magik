@@ -12,7 +12,6 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -844,10 +843,9 @@ fn hex_lower(bytes: &[u8]) -> String {
 }
 
 fn current_unix_time() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(u64::MAX)
+    // Shared fail-closed policy (M12.5): an unreadable clock yields the
+    // sentinel, under which every time-windowed evidence check rejects.
+    crate::clock::failclosed_unix_seconds()
 }
 
 fn verify_ed25519_signature(

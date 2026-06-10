@@ -54,13 +54,13 @@ Non-goals:
 
 ## Task list (commit boundaries)
 
-- [ ] M12.5.1 — RED test: with the failure sentinel, a packet that should be expired
+- [x] M12.5.1 — RED test: with the failure sentinel, a packet that should be expired
   is rejected (today it would route).
-- [ ] M12.5.2 — Introduce a shared fail-closed clock helper; switch gateway and
+- [x] M12.5.2 — Introduce a shared fail-closed clock helper; switch gateway and
   ingress to it.
-- [ ] M12.5.3 — Audit `evidence.rs`/`ledger.rs` for consistency; document the prune
+- [x] M12.5.3 — Audit `evidence.rs`/`ledger.rs` for consistency; document the prune
   fallback.
-- [ ] M12.5.4 — Docs/changelog.
+- [x] M12.5.4 — Docs/changelog.
 
 ## Acceptance criteria
 
