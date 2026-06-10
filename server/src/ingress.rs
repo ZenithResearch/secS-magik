@@ -15,7 +15,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Semaphore;
@@ -269,10 +269,9 @@ async fn record_pre_decode_reject(router: &ConfigurableRouter) {
 }
 
 fn current_unix_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
+    // Fail-closed: a clock-read failure yields the sentinel, which the
+    // verifier and signed-context checks reject as expired (M12.5).
+    crate::clock::failclosed_unix_seconds()
 }
 
 pub async fn run_prototype_gateway(addr: &str, db_url: &str, label: &str) {

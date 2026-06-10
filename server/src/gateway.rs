@@ -16,7 +16,7 @@ use libsec_core::ZenithPacket;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Child;
 use tokio::time::timeout;
@@ -593,10 +593,9 @@ pub async fn init_telemetry_schema(pool: &SqlitePool) -> Result<(), sqlx::Error>
 }
 
 fn current_unix_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
+    // Fail-closed: a clock-read failure yields the sentinel, which the
+    // verifier and signed-context checks reject as expired (M12.5).
+    crate::clock::failclosed_unix_seconds()
 }
 
 fn should_emit_signed_context_reject(error: &VerificationError) -> bool {
