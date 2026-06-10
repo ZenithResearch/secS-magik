@@ -400,7 +400,10 @@ async fn spliced_tunnel_ciphertext_rejects_and_creates_no_second_replay_reservat
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn caller_auth_rejects_emit_inspectable_receipts_without_replay_reservation() {
+    std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+    std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
     use ed25519_dalek::SigningKey;
     use libsec_core::caller_proof::{
         caller_canonical_bytes, encode_caller_proof, CALLER_SIGNATURE_LEN,

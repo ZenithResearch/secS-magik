@@ -84,24 +84,24 @@ Non-goals:
 
 ## Task list (commit boundaries)
 
-- [ ] M12.1.1 — RED tests: a packet with a valid caller signature over canonical
+- [x] M12.1.1 — RED tests: a packet with a valid caller signature over canonical
   bytes from a registered active caller key verifies; forged/absent/wrong-key/
   truncated proof rejects with a typed reason; a captured proof re-bound to a
   different session/opcode rejects.
-- [ ] M12.1.2 — Add `CallerKeyRegistry` (status, validity window, revocation,
+- [x] M12.1.2 — Add `CallerKeyRegistry` (status, validity window, revocation,
   duplicate-id fail-closed) mirroring `PublicVerifierKeyRegistry`; unit tests.
-- [ ] M12.1.3 — Define canonical caller-signed bytes and a
+- [x] M12.1.3 — Define canonical caller-signed bytes and a
   `verify_caller_proof(packet, &registry, now)` step; wire it into the
   `verify_manifest_operation_for_runtime` path before context creation; populate
   the context subject/key id from the authenticated caller, not the hardcoded
   prototype subject.
-- [ ] M12.1.4 — Config: `SECS_CALLER_REGISTRY_PATH`, production-required with the
+- [x] M12.1.4 — Config: `SECS_CALLER_REGISTRY_PATH`, production-required with the
   same fixture-only smoke allowance as the trust registry; startup readiness check.
-- [ ] M12.1.5 — Client: persist a stable caller key (file-backed, owner-private,
+- [x] M12.1.5 — Client: persist a stable caller key (file-backed, owner-private,
   reusing key-file safety helpers) and sign canonical envelope bytes.
-- [ ] M12.1.6 — Audit visibility: caller-auth rejects emit inspectable reject
+- [x] M12.1.6 — Audit visibility: caller-auth rejects emit inspectable reject
   receipts/events (consistent with #51/#52) and do not create replay reservations.
-- [ ] M12.1.7 — Docs/status/changelog; state the boundary explicitly.
+- [x] M12.1.7 — Docs/status/changelog; state the boundary explicitly.
 
 ## Acceptance criteria
 
