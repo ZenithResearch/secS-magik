@@ -10,6 +10,7 @@ pub mod ffi;
 // `crate::UniFfiTag`); keep it scoped to the wasm32 surface like `ffi`.
 #[cfg(all(feature = "uniffi", target_arch = "wasm32"))]
 uniffi::setup_scaffolding!();
+pub mod caller_proof;
 pub mod packet_builder;
 pub mod tunnel;
 pub mod zk;

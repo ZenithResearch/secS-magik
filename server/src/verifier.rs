@@ -45,6 +45,12 @@ pub enum VerificationError {
     ExpiredVerifierKey,
     NotYetValidVerifierKey,
     UntrustedVerifierKey,
+    BadCallerProof,
+    UnknownCallerKey,
+    RevokedCallerKey,
+    ExpiredCallerKey,
+    NotYetValidCallerKey,
+    MissingCallerRegistry,
     InternalError,
 }
 
@@ -86,6 +92,12 @@ impl VerificationError {
             Self::ExpiredVerifierKey => "expired_verifier_key",
             Self::NotYetValidVerifierKey => "not_yet_valid_verifier_key",
             Self::UntrustedVerifierKey => "untrusted_verifier_key",
+            Self::BadCallerProof => "bad_caller_proof",
+            Self::UnknownCallerKey => "unknown_caller_key",
+            Self::RevokedCallerKey => "revoked_caller_key",
+            Self::ExpiredCallerKey => "expired_caller_key",
+            Self::NotYetValidCallerKey => "not_yet_valid_caller_key",
+            Self::MissingCallerRegistry => "missing_caller_registry",
             Self::InternalError => "internal_error",
         }
     }
