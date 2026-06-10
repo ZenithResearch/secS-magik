@@ -12,6 +12,7 @@ fn clear_env() {
         "SECS_VERIFIER_KEY_PATH",
         "SECS_VERIFIER_KEY_ID",
         "SECS_TRUST_REGISTRY_PATH",
+        "SECS_CALLER_REGISTRY_PATH",
         "SECS_MAX_WIRE_BYTES",
         "SECS_MAX_PAYLOAD_BYTES",
         "SECS_MAX_OUTPUT_BYTES",
@@ -35,12 +36,34 @@ fn set_required_production_env() {
     std::env::set_var("SECS_RECEIVER_AUDIENCE", "secS://operator-receiver");
     std::env::set_var("SECS_VERIFIER_KEY_PATH", "/tmp/operator.key");
     std::env::set_var("SECS_TRUST_REGISTRY_PATH", "/tmp/trust-registry.json");
+    std::env::set_var("SECS_CALLER_REGISTRY_PATH", "/tmp/caller-registry.json");
     std::env::set_var("SECS_MAX_WIRE_BYTES", "2097152");
     std::env::set_var("SECS_MAX_PAYLOAD_BYTES", "1048576");
     std::env::set_var("SECS_MAX_OUTPUT_BYTES", "1048576");
     std::env::set_var("SECS_HANDLER_TIMEOUT_MS", "30000");
     std::env::set_var("SECS_INGRESS_READ_TIMEOUT_MS", "10000");
     std::env::set_var("SECS_MAX_IN_FLIGHT_CONNECTIONS", "64");
+}
+
+fn write_valid_caller_registry(name: &str) -> std::path::PathBuf {
+    // SigningKey::from_bytes(&[1u8; 32]).verifying_key() — fixed test key.
+    let public_key_hex = {
+        use ed25519_dalek::SigningKey;
+        let key = SigningKey::from_bytes(&[1u8; 32]).verifying_key();
+        key.as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        format!(
+            r#"{{"callers": [{{"key_id": "caller:test", "subject_id": "did:example:test", "algorithm": "ed25519", "public_key_hex": "{public_key_hex}"}}]}}"#
+        ),
+    )
+    .expect("caller registry fixture should be writable");
+    path
 }
 
 #[test]
@@ -67,6 +90,7 @@ fn production_startup_rejects_unknown_evidence_adapter_names() {
         r#"{"trusted_verifiers":[{"id":"operator"}]}"#,
     )
     .expect("trust registry fixture should be writable");
+    let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-adapters");
     let config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:9009",
         "sqlite:prod.db?mode=rwc",
@@ -74,12 +98,14 @@ fn production_startup_rejects_unknown_evidence_adapter_names() {
         "/tmp/operator.key",
         Some("verifier:operator"),
         registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
         "wallet_presentation,unknown_adapter",
     )
     .unwrap();
 
     let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
     let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
     assert!(
         error.to_string().contains("unknown evidence adapter"),
         "production startup must reject unsupported evidence adapters instead of silently accepting policy typos: {error}"
@@ -212,6 +238,7 @@ fn production_config_accepts_explicit_operator_runtime_fields() {
         "/tmp/operator.key",
         Some("verifier:operator"),
         "/tmp/trust-registry.json",
+        "/tmp/caller-registry.json",
         "local_static,wallet_presentation",
     )
     .unwrap();
@@ -240,6 +267,7 @@ fn production_config_rejects_prototype_receiver_audience() {
         "/tmp/operator.key",
         None,
         "/tmp/trust-registry.json",
+        "/tmp/caller-registry.json",
         "local_static",
     );
 

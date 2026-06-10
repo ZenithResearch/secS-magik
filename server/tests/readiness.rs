@@ -49,6 +49,7 @@ fn production_startup_validation_fails_before_binding_with_missing_trust_registr
         "/tmp/operator.key",
         Some("verifier:operator"),
         "",
+        "/tmp/caller-registry.json",
         "local_static",
     );
 
@@ -91,6 +92,7 @@ fn production_startup_validation_accepts_regular_json_registry() {
         br#"{"trusted_verifiers":[{"key_id":"verifier:operator"}]}"#,
     )
     .unwrap();
+    let caller_registry = write_caller_registry_fixture("caller-registry-valid", false);
     let config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:0",
         "sqlite:prod.db?mode=rwc",
@@ -98,6 +100,7 @@ fn production_startup_validation_accepts_regular_json_registry() {
         "/tmp/operator.key",
         Some("verifier:operator"),
         registry.to_str().unwrap(),
+        caller_registry.to_str().unwrap(),
         "wallet_presentation",
     )
     .unwrap();
@@ -105,6 +108,76 @@ fn production_startup_validation_accepts_regular_json_registry() {
     validate_production_startup_readiness(&config).unwrap();
 
     let _ = fs::remove_file(registry);
+    let _ = fs::remove_file(caller_registry);
+}
+
+#[test]
+fn production_startup_validation_rejects_fixture_only_caller_registry_without_smoke() {
+    let registry = temp_path("trust-registry-for-caller-check.json");
+    fs::write(
+        &registry,
+        br#"{"trusted_verifiers":[{"key_id":"verifier:operator"}]}"#,
+    )
+    .unwrap();
+
+    // Fixture-only caller registry must be refused without the explicit
+    // SECS_FIXTURE_ONLY_SMOKE allowance.
+    let fixture_caller_registry = write_caller_registry_fixture("caller-registry-fixture", true);
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:0",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry.to_str().unwrap(),
+        fixture_caller_registry.to_str().unwrap(),
+        "wallet_presentation",
+    )
+    .unwrap();
+    assert!(matches!(
+        validate_production_startup_readiness(&config),
+        Err(StartupReadinessError::CallerRegistryNotReady { .. })
+    ));
+
+    // Missing and empty caller registries also fail closed.
+    let missing = temp_path("missing-caller-registry.json");
+    config.caller_registry_path = Some(missing);
+    assert!(matches!(
+        validate_production_startup_readiness(&config),
+        Err(StartupReadinessError::CallerRegistryNotReady { .. })
+    ));
+
+    let empty = temp_path("empty-caller-registry.json");
+    fs::write(&empty, br#"{"callers": []}"#).unwrap();
+    config.caller_registry_path = Some(empty.clone());
+    assert!(matches!(
+        validate_production_startup_readiness(&config),
+        Err(StartupReadinessError::CallerRegistryNotReady { .. })
+    ));
+
+    let _ = fs::remove_file(registry);
+    let _ = fs::remove_file(fixture_caller_registry);
+    let _ = fs::remove_file(empty);
+}
+
+fn write_caller_registry_fixture(name: &str, fixture_only: bool) -> std::path::PathBuf {
+    let public_key_hex = {
+        use ed25519_dalek::SigningKey;
+        let key = SigningKey::from_bytes(&[1u8; 32]).verifying_key();
+        key.as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+    let path = temp_path(name);
+    fs::write(
+        &path,
+        format!(
+            r#"{{"fixture_only": {fixture_only}, "callers": [{{"key_id": "caller:test", "subject_id": "did:example:test", "algorithm": "ed25519", "public_key_hex": "{public_key_hex}"}}]}}"#
+        ),
+    )
+    .unwrap();
+    path
 }
 
 #[test]
@@ -151,6 +224,7 @@ fn production_config_with_registry(path: &std::path::Path) -> GatewayRuntimeConf
         "/tmp/operator.key",
         Some("verifier:operator"),
         path.to_str().unwrap(),
+        "/tmp/caller-registry.json",
         "local_static",
     )
     .unwrap()

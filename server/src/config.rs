@@ -25,6 +25,7 @@ pub struct GatewayRuntimeConfig {
     pub verifier_key_id: Option<String>,
     pub ledger_path: Option<PathBuf>,
     pub trust_registry_path: Option<PathBuf>,
+    pub caller_registry_path: Option<PathBuf>,
     pub max_wire_bytes: usize,
     pub max_payload_bytes: usize,
     pub max_output_bytes: usize,
@@ -85,6 +86,7 @@ pub struct GatewayReadiness {
     pub config_loaded: ReadinessStatus,
     pub ledger_ready: ReadinessStatus,
     pub trust_registry_ready: ReadinessStatus,
+    pub caller_registry_ready: ReadinessStatus,
 }
 
 impl GatewayReadiness {
@@ -95,12 +97,17 @@ impl GatewayReadiness {
                 self.trust_registry_ready,
                 ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
             )
+            && matches!(
+                self.caller_registry_ready,
+                ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
+            )
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StartupReadinessError {
     TrustRegistryNotReady { path: PathBuf, reason: String },
+    CallerRegistryNotReady { path: PathBuf, reason: String },
 }
 
 impl fmt::Display for StartupReadinessError {
@@ -110,6 +117,13 @@ impl fmt::Display for StartupReadinessError {
                 write!(
                     formatter,
                     "production trust registry {:?} is not ready: {reason}",
+                    path
+                )
+            }
+            Self::CallerRegistryNotReady { path, reason } => {
+                write!(
+                    formatter,
+                    "production caller registry {:?} is not ready: {reason}",
                     path
                 )
             }
@@ -136,6 +150,7 @@ impl GatewayRuntimeConfig {
         let verifier_key_path = std::env::var_os("SECS_VERIFIER_KEY_PATH").map(PathBuf::from);
         let verifier_key_id = std::env::var("SECS_VERIFIER_KEY_ID").ok();
         let trust_registry_path = std::env::var_os("SECS_TRUST_REGISTRY_PATH").map(PathBuf::from);
+        let caller_registry_path = std::env::var_os("SECS_CALLER_REGISTRY_PATH").map(PathBuf::from);
         let ledger_path = std::env::var_os("SECS_LEDGER_PATH").map(PathBuf::from);
         let max_wire_bytes = parse_usize_env(
             "SECS_MAX_WIRE_BYTES",
@@ -189,6 +204,7 @@ impl GatewayRuntimeConfig {
                     verifier_key_id,
                     Some(required_env_path(ledger_path, "SECS_LEDGER_PATH")?),
                     trust_registry_path,
+                    caller_registry_path,
                     max_wire_bytes,
                     max_payload_bytes,
                     max_output_bytes,
@@ -209,6 +225,7 @@ impl GatewayRuntimeConfig {
                 verifier_key_id,
                 ledger_path,
                 trust_registry_path,
+                caller_registry_path,
                 max_wire_bytes,
                 max_payload_bytes,
                 max_output_bytes,
@@ -223,6 +240,7 @@ impl GatewayRuntimeConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub fn production_for_tests(
         bind_addr: &str,
         db_url: &str,
@@ -230,6 +248,7 @@ impl GatewayRuntimeConfig {
         verifier_key_path: &str,
         verifier_key_id: Option<&str>,
         trust_registry_path: &str,
+        caller_registry_path: &str,
         allowed_evidence_adapters: &str,
     ) -> Result<Self, RuntimeConfigError> {
         Self::production(
@@ -240,6 +259,7 @@ impl GatewayRuntimeConfig {
             verifier_key_id.map(str::to_string),
             sqlite_path_from_db_url(db_url),
             Some(PathBuf::from(trust_registry_path)),
+            Some(PathBuf::from(caller_registry_path)),
             DEFAULT_MAX_WIRE_BYTES,
             1024 * 1024,
             1024 * 1024,
@@ -261,6 +281,7 @@ impl GatewayRuntimeConfig {
             verifier_key_id: None,
             ledger_path: None,
             trust_registry_path: None,
+            caller_registry_path: None,
             max_wire_bytes: DEFAULT_MAX_WIRE_BYTES,
             max_payload_bytes: 1024 * 1024,
             max_output_bytes: 1024 * 1024,
@@ -306,11 +327,29 @@ impl GatewayRuntimeConfig {
                 ReadinessStatus::FixtureOnly
             }
         };
+        let caller_registry_ready = match self.runtime_mode {
+            RuntimeMode::ProductionVerified => {
+                if validate_caller_registry_file(
+                    self.caller_registry_path.as_deref(),
+                    self.fixture_only_smoke,
+                )
+                .is_ok()
+                {
+                    ReadinessStatus::Ready
+                } else {
+                    ReadinessStatus::NotReady
+                }
+            }
+            RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => {
+                ReadinessStatus::FixtureOnly
+            }
+        };
 
         Ok(GatewayReadiness {
             config_loaded: ReadinessStatus::Ready,
             ledger_ready,
             trust_registry_ready,
+            caller_registry_ready,
         })
     }
 
@@ -323,6 +362,7 @@ impl GatewayRuntimeConfig {
         verifier_key_id: Option<String>,
         ledger_path: Option<PathBuf>,
         trust_registry_path: Option<PathBuf>,
+        caller_registry_path: Option<PathBuf>,
         max_wire_bytes: usize,
         max_payload_bytes: usize,
         max_output_bytes: usize,
@@ -358,6 +398,11 @@ impl GatewayRuntimeConfig {
             .ok_or(RuntimeConfigError::MissingProductionField(
                 "SECS_TRUST_REGISTRY_PATH",
             ))?;
+        let caller_registry_path = caller_registry_path
+            .filter(|path| !path.as_os_str().is_empty())
+            .ok_or(RuntimeConfigError::MissingProductionField(
+                "SECS_CALLER_REGISTRY_PATH",
+            ))?;
         validate_limits(max_wire_bytes, max_payload_bytes)?;
         Ok(Self {
             bind_addr,
@@ -368,6 +413,7 @@ impl GatewayRuntimeConfig {
             verifier_key_id,
             ledger_path: Some(ledger_path),
             trust_registry_path: Some(trust_registry_path),
+            caller_registry_path: Some(caller_registry_path),
             max_wire_bytes,
             max_payload_bytes,
             max_output_bytes,
@@ -400,6 +446,14 @@ pub fn validate_production_startup_readiness(
             path: config.trust_registry_path.clone().unwrap_or_default(),
             reason,
         }
+    })?;
+    validate_caller_registry_file(
+        config.caller_registry_path.as_deref(),
+        config.fixture_only_smoke,
+    )
+    .map_err(|reason| StartupReadinessError::CallerRegistryNotReady {
+        path: config.caller_registry_path.clone().unwrap_or_default(),
+        reason,
     })
 }
 
@@ -445,6 +499,28 @@ fn validate_trust_registry_file(
         return Err(
             "production trust registry has no trusted verifier or issuer entries".to_string(),
         );
+    }
+    Ok(())
+}
+
+fn validate_caller_registry_file(
+    path: Option<&Path>,
+    allow_fixture_only_smoke: bool,
+) -> Result<(), String> {
+    let path = path.ok_or_else(|| "missing path".to_string())?;
+    let metadata = std::fs::metadata(path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("path is not a regular file".to_string());
+    }
+    let (registry, fixture_only) =
+        crate::caller::load_caller_registry_from_path(path).map_err(|error| error.to_string())?;
+    if fixture_only && !allow_fixture_only_smoke {
+        return Err(
+            "fixture-only caller registry requires explicit SECS_FIXTURE_ONLY_SMOKE=1".to_string(),
+        );
+    }
+    if registry.is_empty() && !allow_fixture_only_smoke {
+        return Err("production caller registry has no caller entries".to_string());
     }
     Ok(())
 }

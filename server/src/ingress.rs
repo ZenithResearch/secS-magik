@@ -316,6 +316,13 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         identity,
         config.receiver_audience.clone(),
     );
+    if let Some(path) = &config.caller_registry_path {
+        let (caller_keys, _fixture_only) = crate::caller::load_caller_registry_from_path(path)
+            .unwrap_or_else(|error| {
+                panic!("secS gateway: failed to load caller key registry - {error}")
+            });
+        router.set_caller_registry(caller_keys);
+    }
     register_runtime_bindings(&mut router, config.runtime_mode);
 
     let router = Arc::new(router);
