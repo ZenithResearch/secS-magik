@@ -12,6 +12,23 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  supply_chain_audit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    # Fails on any known RUSTSEC vulnerability in Cargo.lock. Unmaintained-crate
+    # advisories surface as warnings; any ignore must live in audit.toml with a
+    # written justification, never a blanket allow.
+    - name: Install cargo-audit
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-audit
+
+    - name: Audit dependency advisories
+      run: cargo audit
+
   build_and_test:
     runs-on: ubuntu-latest
 
