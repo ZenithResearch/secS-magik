@@ -51,12 +51,12 @@ Non-goals:
 
 ## Task list (commit boundaries)
 
-- [ ] M12.7.1 — Add the audit/deny CI step; prove it runs and reports.
-- [ ] M12.7.2 — Bump `sqlx` past RUSTSEC-2024-0363; update `Cargo.lock`; full test
+- [x] M12.7.1 — Add the audit/deny CI step; prove it runs and reports.
+- [x] M12.7.2 — Bump `sqlx` past RUSTSEC-2024-0363; update `Cargo.lock`; full test
   suite green.
-- [ ] M12.7.3 — Reconcile `uniffi` version skew between workspace and `core`.
-- [ ] M12.7.4 — Optional: `SECURITY.md`, Dependabot config.
-- [ ] M12.7.5 — Docs/changelog.
+- [x] M12.7.3 — Reconcile `uniffi` version skew between workspace and `core`.
+- [x] M12.7.4 — Optional: `SECURITY.md`, Dependabot config.
+- [x] M12.7.5 — Docs/changelog.
 
 ## Acceptance criteria
 
