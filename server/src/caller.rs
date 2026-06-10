@@ -228,13 +228,41 @@ fn parse_hex_32(input: &str) -> Option<[u8; 32]> {
 }
 
 /// Verify the packet's caller proof-of-origin against the receiver-held
-/// registry. Implemented in M12.1.3.
+/// registry: decode the versioned proof envelope, look the key id up in the
+/// receiver's registry (the packet never supplies key material), check
+/// status/validity/revocation at `now`, and verify the Ed25519 signature over
+/// the canonical envelope bytes so the proof cannot be re-bound to a
+/// different packet.
 pub fn verify_caller_proof(
-    _packet: &libsec_core::ZenithPacket,
-    _registry: &CallerKeyRegistry,
-    _now: u64,
+    packet: &libsec_core::ZenithPacket,
+    registry: &CallerKeyRegistry,
+    now: u64,
 ) -> Result<AuthenticatedCaller, VerificationError> {
-    Err(VerificationError::InternalError)
+    if crate::clock::is_clock_read_failure(now) {
+        return Err(VerificationError::ExpiredClaim);
+    }
+    let parts = libsec_core::caller_proof::decode_caller_proof(&packet.proof)
+        .ok_or(VerificationError::BadCallerProof)?;
+    let key = registry
+        .get(&parts.key_id)
+        .ok_or(VerificationError::UnknownCallerKey)?;
+    key.ensure_active_at(now)?;
+
+    let canonical = libsec_core::caller_proof::caller_canonical_bytes(
+        &packet.session_id,
+        &packet.nonce,
+        packet.opcode,
+        packet.claim_ttl,
+        &packet.encrypted_payload,
+    );
+    if !libsec_core::zk::verify_proof(&key.public_key, &parts.signature, &canonical) {
+        return Err(VerificationError::BadCallerProof);
+    }
+
+    Ok(AuthenticatedCaller {
+        subject_id: key.subject_id.clone(),
+        key_id: key.key_id.clone(),
+    })
 }
 
 #[cfg(test)]

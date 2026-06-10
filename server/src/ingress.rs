@@ -228,13 +228,14 @@ pub async fn handle_gateway_connection_with_limits(
 
     let manifest = ReceiverManifest::default_v0();
     let signed_context =
-        match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity(
+        match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity_and_caller(
             &packet,
             &manifest,
             router.expected_audience(),
             current_unix_seconds(),
             router.identity(),
             runtime_mode,
+            router.caller_keys(),
         ) {
             Ok(context) => context,
             Err(error) => {

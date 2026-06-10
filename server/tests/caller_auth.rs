@@ -270,3 +270,201 @@ fn clock_failure_sentinel_rejects_caller_verification() {
         VerificationError::ExpiredClaim
     );
 }
+
+mod runtime_wiring {
+    use super::*;
+    use server::manifest::{
+        OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
+    };
+    use server::runtime_mode::RuntimeMode;
+    use server::verifier::Verifier;
+
+    const PRODUCTION_OPCODE: u8 = 0x77;
+    const AUDIENCE: &str = "secS://receiver-production";
+
+    fn production_manifest() -> ReceiverManifest {
+        ReceiverManifest::new([OperationDescriptor {
+            opcode: PRODUCTION_OPCODE,
+            name: OperationName::new("test.production.echo"),
+            payload_schema: None,
+            target_kind: TargetKind::LocalDevProcess,
+            required_credentials: vec![],
+            required_capabilities: vec![],
+            accepted_evidence: vec!["wallet_presentation".to_string()],
+            replay_scope: ReplayScope::SessionOpcodeNonce,
+            max_ttl_seconds: 300,
+            handler_id: "prod/echo".to_string(),
+            dev_binding: false,
+            range: OpcodeRange::classify(PRODUCTION_OPCODE),
+        }])
+    }
+
+    fn signed_packet_for_opcode(signer: &SigningKey, key_id: &str, opcode: u8) -> ZenithPacket {
+        let session_id = [0xAA; 16];
+        let nonce = [0xBB; 12];
+        let claim_ttl = 300;
+        let payload = b"caller bound payload".to_vec();
+
+        let canonical = caller_canonical_bytes(&session_id, &nonce, opcode, claim_ttl, &payload);
+        let signature_bytes = libsec_core::zk::generate_proof(signer, &canonical);
+        let mut signature = [0u8; CALLER_SIGNATURE_LEN];
+        signature.copy_from_slice(&signature_bytes);
+
+        ZenithPacket {
+            session_id,
+            nonce,
+            opcode,
+            proof: encode_caller_proof(key_id, &signature),
+            claim_ttl,
+            encrypted_payload: payload,
+            mac: [0u8; 16],
+        }
+    }
+
+    #[test]
+    fn production_runtime_without_registry_fails_closed() {
+        let packet =
+            signed_packet_for_opcode(&caller_signing_key(1), "caller:alpha", PRODUCTION_OPCODE);
+
+        let result = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &packet,
+            &production_manifest(),
+            AUDIENCE,
+            NOW,
+            RuntimeMode::ProductionVerified,
+            None,
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            VerificationError::MissingCallerRegistry
+        );
+    }
+
+    #[test]
+    fn production_runtime_stamps_authenticated_caller_into_context() {
+        let registry = registry_with_active_caller(1);
+        let packet =
+            signed_packet_for_opcode(&caller_signing_key(1), "caller:alpha", PRODUCTION_OPCODE);
+
+        let context = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &packet,
+            &production_manifest(),
+            AUDIENCE,
+            NOW,
+            RuntimeMode::ProductionVerified,
+            Some(&registry),
+        )
+        .unwrap();
+
+        assert_eq!(context.subject.subject_id, "did:example:alpha");
+        assert_eq!(context.subject.key_id, "caller:alpha");
+    }
+
+    #[test]
+    fn production_runtime_rejects_forged_proof_with_typed_reason() {
+        let registry = registry_with_active_caller(1);
+        let packet =
+            signed_packet_for_opcode(&caller_signing_key(2), "caller:alpha", PRODUCTION_OPCODE);
+
+        let result = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &packet,
+            &production_manifest(),
+            AUDIENCE,
+            NOW,
+            RuntimeMode::ProductionVerified,
+            Some(&registry),
+        );
+
+        assert_eq!(result.unwrap_err(), VerificationError::BadCallerProof);
+    }
+
+    #[test]
+    fn descriptor_production_gates_fire_before_caller_checks() {
+        // Dev descriptor in production rejects on the descriptor gate even
+        // with no registry installed — descriptor rejects keep their reasons.
+        let dev_packet = signed_packet_for_opcode(&caller_signing_key(1), "caller:alpha", 0x10);
+        let result = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &dev_packet,
+            &ReceiverManifest::default_v0(),
+            AUDIENCE,
+            NOW,
+            RuntimeMode::ProductionVerified,
+            None,
+        );
+        assert_eq!(
+            result.unwrap_err(),
+            VerificationError::PrototypeOperationNotProductionAuthorized
+        );
+
+        // A valid caller proof never unlocks the 0x44 descriptor-only
+        // evidence gap: caller auth is necessary, never sufficient.
+        let registry = registry_with_active_caller(1);
+        let membership_packet =
+            signed_packet_for_opcode(&caller_signing_key(1), "caller:alpha", 0x44);
+        let result = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &membership_packet,
+            &ReceiverManifest::default_v0(),
+            AUDIENCE,
+            NOW,
+            RuntimeMode::ProductionVerified,
+            Some(&registry),
+        );
+        assert_eq!(result.unwrap_err(), VerificationError::InsufficientEvidence);
+    }
+
+    #[test]
+    fn local_dev_without_registry_keeps_prototype_subject() {
+        let packet = ZenithPacket {
+            session_id: [0xAA; 16],
+            nonce: [0xBB; 12],
+            opcode: 0x10,
+            proof: vec![1],
+            claim_ttl: 300,
+            encrypted_payload: b"payload".to_vec(),
+            mac: [0u8; 16],
+        };
+
+        let context = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &packet,
+            &ReceiverManifest::default_v0(),
+            "secS://receiver-a",
+            NOW,
+            RuntimeMode::LocalDevPlaintext,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(context.subject.subject_id, "prototype.local-dev.subject");
+    }
+
+    #[test]
+    fn local_dev_with_fixture_registry_verifies_and_stamps_caller() {
+        let registry = registry_with_active_caller(1);
+        let packet = signed_packet_for_opcode(&caller_signing_key(1), "caller:alpha", 0x10);
+
+        let context = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &packet,
+            &ReceiverManifest::default_v0(),
+            "secS://receiver-a",
+            NOW,
+            RuntimeMode::LocalDevPlaintext,
+            Some(&registry),
+        )
+        .unwrap();
+
+        assert_eq!(context.subject.subject_id, "did:example:alpha");
+
+        // And a bad proof under a fixture registry still rejects.
+        let forged = signed_packet_for_opcode(&caller_signing_key(2), "caller:alpha", 0x10);
+        let result = Verifier::verify_manifest_operation_for_runtime_with_caller(
+            &forged,
+            &ReceiverManifest::default_v0(),
+            "secS://receiver-a",
+            NOW,
+            RuntimeMode::LocalDevPlaintext,
+            Some(&registry),
+        );
+        assert_eq!(result.unwrap_err(), VerificationError::BadCallerProof);
+    }
+}
