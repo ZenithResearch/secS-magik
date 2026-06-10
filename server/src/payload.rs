@@ -6,7 +6,7 @@ pub fn decrypt_machine_payload(
     mode: RuntimeMode,
 ) -> Result<Vec<u8>, String> {
     match load_tunnel_key() {
-        Some(key) => decrypt_payload(&key, &packet.nonce, &packet.encrypted_payload)
+        Some(key) => decrypt_payload(&key, &packet.nonce, &packet.encrypted_payload, b"")
             .map_err(|_| "ChaCha20Poly1305 authentication failed".to_string()),
         None if mode.allows_plaintext() => Ok(packet.encrypted_payload.clone()),
         None => Err("missing tunnel key".to_string()),
@@ -138,7 +138,7 @@ mod tests {
             "0101010101010101010101010101010101010101010101010101010101010101",
         );
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");
-        let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload");
+        let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload", b"");
         let packet = packet_with(ciphertext);
 
         assert_eq!(
@@ -157,7 +157,7 @@ mod tests {
             "0909090909090909090909090909090909090909090909090909090909090909",
         );
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");
-        let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload");
+        let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload", b"");
         let packet = packet_with(ciphertext);
 
         assert!(decrypt_machine_payload(&packet, RuntimeMode::LocalDevTunnel).is_err());

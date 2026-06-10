@@ -333,7 +333,7 @@ async fn spliced_tunnel_ciphertext_rejects_and_creates_no_second_replay_reservat
 
     let key = [1u8; 32];
     let nonce = [2u8; 12];
-    let ciphertext = libsec_core::tunnel::encrypt_payload(&key, &nonce, b"tunnel payload");
+    let ciphertext = libsec_core::tunnel::encrypt_payload(&key, &nonce, b"tunnel payload", b"");
 
     let legit = ZenithPacket {
         session_id: [0xAA; 16],

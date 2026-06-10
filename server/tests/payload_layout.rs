@@ -49,7 +49,7 @@ fn payload_library_decrypts_with_configured_tunnel_key() {
         "0101010101010101010101010101010101010101010101010101010101010101",
     );
     std::env::remove_var("SECS_TUNNEL_KEY_HEX");
-    let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload");
+    let ciphertext = encrypt_payload(&[1u8; 32], &[2u8; 12], b"ciphertext payload", b"");
     let packet = packet_with(ciphertext);
 
     assert_eq!(
