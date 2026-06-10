@@ -1,6 +1,6 @@
 # M12.4 — fix(core): bind tunnel AEAD to session_id and opcode via associated data
 
-> Parent: [M12 demoable milestone](m12-demoable-milestone.md). Proposed 2026-06-09.
+> Parent: [M12 demoable milestone](m12-demoable-milestone.md) (#88). Filed as GitHub issue #92 (2026-06-09).
 
 ## Objective
 

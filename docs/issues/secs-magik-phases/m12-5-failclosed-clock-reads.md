@@ -1,6 +1,6 @@
 # M12.5 — fix(server): fail-closed clock reads on the verification hot path
 
-> Parent: [M12 demoable milestone](m12-demoable-milestone.md). Proposed 2026-06-09.
+> Parent: [M12 demoable milestone](m12-demoable-milestone.md) (#88). Filed as GitHub issue #93 (2026-06-09).
 
 ## Objective
 

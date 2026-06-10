@@ -1,6 +1,6 @@
 # M12.7 — chore(ci): supply-chain audit gate and dependency bump
 
-> Parent: [M12 demoable milestone](m12-demoable-milestone.md). Proposed 2026-06-09.
+> Parent: [M12 demoable milestone](m12-demoable-milestone.md) (#88). Filed as GitHub issue #95 (2026-06-09).
 
 ## Objective
 
