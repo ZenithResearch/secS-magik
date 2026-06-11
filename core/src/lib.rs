@@ -63,6 +63,25 @@ mod tests {
     }
 
     #[test]
+    fn reserved_mac_field_keeps_v0_layout_for_any_value() {
+        // Option (b) compatibility pin: zeroed (current clients) and legacy
+        // nonzero mac bytes both round-trip with the unchanged v0 layout, so
+        // receipts/hashes computed over old packets still decode/inspect.
+        for mac in [[0u8; 16], [0xEE; 16]] {
+            let packet = ZenithPacket {
+                mac,
+                ..sample_packet()
+            };
+            let bytes = bincode::serialize(&packet).unwrap();
+            // mac is the final field of the v0 layout: the serialized frame
+            // ends with exactly its 16 bytes.
+            assert_eq!(&bytes[bytes.len() - 16..], &mac);
+            let decoded: ZenithPacket = bincode::deserialize(&bytes).unwrap();
+            assert_eq!(decoded, packet);
+        }
+    }
+
+    #[test]
     fn test_zenith_packet_serialization() {
         let packet = sample_packet();
 
