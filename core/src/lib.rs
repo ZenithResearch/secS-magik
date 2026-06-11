@@ -28,6 +28,12 @@ pub struct ZenithPacket {
     pub proof: Vec<u8>,
     pub claim_ttl: u64,
     pub encrypted_payload: Vec<u8>,
+    /// Reserved (M12.6, option b): kept only for v0 byte-layout
+    /// compatibility. Current clients zero it and the server never reads it.
+    /// It carries **no authentication** — caller authenticity comes from the
+    /// caller proof-of-origin envelope in `proof` (M12.1) and payload
+    /// integrity from tunnel AEAD binding (M12.4). Any future real MAC or
+    /// removal is an explicit, owned wire-format migration.
     pub mac: [u8; 16],
 }
 
