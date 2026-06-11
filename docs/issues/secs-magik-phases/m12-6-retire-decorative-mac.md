@@ -58,11 +58,11 @@ Non-goals:
 
 ## Task list (commit boundaries)
 
-- [ ] M12.6.1 — Decide option (a/b/c) in the PR description with rationale.
-- [ ] M12.6.2 — Implement: client stops emitting random MAC; field is verified,
+- [x] M12.6.1 — Decide option (a/b/c) in the PR description with rationale.
+- [x] M12.6.2 — Implement: client stops emitting random MAC; field is verified,
   reserved+zeroed+documented, or removed-with-migration per the decision.
-- [ ] M12.6.3 — Update packet round-trip / layout / regression tests.
-- [ ] M12.6.4 — Update README Packet v0 section and CHANGELOG.
+- [x] M12.6.3 — Update packet round-trip / layout / regression tests.
+- [x] M12.6.4 — Update README Packet v0 section and CHANGELOG.
 
 ## Acceptance criteria
 
