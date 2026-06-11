@@ -29,6 +29,28 @@ jobs:
     - name: Audit dependency advisories
       run: cargo audit
 
+  wasm_ffi_check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Rust Cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: "secs-magik-wasm"
+
+    # The wasm/uniffi FFI surface is the only consumer of the uniffi
+    # dependency and is invisible to host builds (ffi.rs is wasm32-gated).
+    # Without this lane, uniffi/wasm breakage has no CI signal: the 0.28 bump
+    # broke setup_scaffolding placement silently, and the Dependabot 0.31 bump
+    # was all-green while failing to compile on wasm32 (#111).
+    - name: Install wasm32 target
+      run: rustup target add wasm32-unknown-unknown
+
+    - name: Check wasm32 + uniffi FFI surface
+      run: cargo check -p libsec-core --target wasm32-unknown-unknown --features uniffi
+
   build_and_test:
     runs-on: ubuntu-latest
 
