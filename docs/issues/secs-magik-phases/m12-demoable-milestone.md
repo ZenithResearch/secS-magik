@@ -1,7 +1,9 @@
 # Phase M12 — demoable end-to-end secS milestone (authenticated, answerable, inspectable)
 
-> Status: filed (2026-06-09) as GitHub issue #88; child issues #89-#95
-> (see table below).
+> Status: complete (2026-06-10). All children merged with post-merge main CI
+> green — #89 (PR #104), #90 (PR #105), #91 (PR #106), #92 (PR #103),
+> #93 (PR #102), #94 (PR #107), #95 (PR #97) — and the scripted demo landed
+> as `examples/m12-demo.sh`.
 
 ## Objective
 

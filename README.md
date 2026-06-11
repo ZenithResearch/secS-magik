@@ -12,6 +12,7 @@ Status: active prototype being realigned toward the 2026-06-01 objectives spec. 
 - [System Architecture](#system-architecture)
 - [Components / Repository Map](#components--repository-map)
 - [Directory READMEs / Wiki Map](#directory-readmes--wiki-map)
+- [Demoable Milestone (M12)](#demoable-milestone-m12)
 - [How It Works](#how-it-works)
 - [Key Design Decisions](#key-design-decisions)
 - [Packet v0](#packet-v0)
@@ -127,6 +128,18 @@ Each repository directory owns its local map. Start here, then follow the child 
 | `docs/plans/` | [docs/plans/README.md](docs/plans/README.md) | Implementation plans, checklists, and issue-slice control surfaces. |
 | `examples/` | [examples/README.md](examples/README.md) | Runnable local examples and demos. |
 | `scripts/` | [scripts/README.md](scripts/README.md) | Smoke and local verification helper scripts. |
+
+## Demoable Milestone (M12)
+
+`./examples/m12-demo.sh` demonstrates the end-to-end verifier state against
+the live local gateway: authenticated caller accept (with the signed decision
+returned to the caller), forged-proof and unknown-caller typed rejects,
+replay and expiry rejects, wallet + Dregg-shaped evidence composition at the
+adapter seam, and operator inspection of the verify/execute/reject receipt
+chain. The demo proves local verifier behavior only — not production
+deployment (#33), public auditability (#37), wallet-core parity (#71), live
+registry discovery (#72), or Dregg/Midnight/Cardano authority (#73-#75);
+live evidence-aware ingress remains the #78/#79 rail.
 
 ## How It Works
 
