@@ -461,8 +461,9 @@ mod dregg_shaped {
 
     #[test]
     fn binding_mismatches_reject_with_typed_reasons() {
+        type FixtureBreaker = fn(&mut DreggReceiptFixture);
         let key = author_key();
-        let cases: [(fn(&mut DreggReceiptFixture), VerificationError); 5] = [
+        let cases: [(FixtureBreaker, VerificationError); 5] = [
             (
                 |fixture| fixture.subject = "did:example:mallory".to_string(),
                 VerificationError::WrongSubject,

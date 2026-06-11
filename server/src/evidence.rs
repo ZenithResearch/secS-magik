@@ -936,10 +936,86 @@ impl EvidenceAdapter for DreggShapedEvidenceAdapter {
         EvidenceKind::DreggReceipt
     }
 
-    fn verify(&self, _request: &EvidenceRequest) -> EvidenceResult {
-        // Implemented in M12.3.3; the RED matrix in tests/evidence.rs pins
-        // the required behavior.
-        EvidenceResult::Rejected(VerificationError::InternalError)
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        if !request.accepts(self.kind()) {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        let Some((evidence_ref, receipt)) = request.evidence_refs.iter().find_map(|evidence_ref| {
+            self.fixtures
+                .iter()
+                .find(|fixture| &fixture.evidence_ref == evidence_ref)
+                .map(|fixture| (evidence_ref, fixture))
+        }) else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        };
+        if receipt.subject != request.subject {
+            return EvidenceResult::Rejected(VerificationError::WrongSubject);
+        }
+        if receipt.audience != request.audience {
+            return EvidenceResult::Rejected(VerificationError::WrongAudience);
+        }
+        if receipt.operation != request.operation {
+            return EvidenceResult::Rejected(VerificationError::WrongOperation);
+        }
+        let resource = request.resource.as_deref().unwrap_or_default();
+        if receipt.resource != resource {
+            return EvidenceResult::Rejected(VerificationError::WrongResource);
+        }
+        if let Some(request_origin) = requested_origin(request) {
+            if request_origin != receipt.origin {
+                return EvidenceResult::Rejected(VerificationError::WrongOrigin);
+            }
+        } else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+        if !receipt.has_required_shape() {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+        if receipt.public_key_ref != public_key_ref_for_bytes(&receipt.author_public_key_bytes) {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+        if receipt.signature_suite != SecsWalletChallenge::ED25519_SIGNATURE_SUITE {
+            return EvidenceResult::Rejected(VerificationError::UnsupportedSignatureSuite);
+        }
+        if let Some(validation_time) = self.validation_time {
+            if receipt.issued_at > validation_time {
+                return EvidenceResult::Rejected(VerificationError::NotYetValidClaim);
+            }
+            if receipt.expires_at <= validation_time {
+                return EvidenceResult::Rejected(VerificationError::ExpiredClaim);
+            }
+        }
+        if !verify_ed25519_signature(
+            &receipt.author_public_key_bytes,
+            &receipt.signature_bytes,
+            &receipt.canonical_bytes(),
+        ) {
+            return EvidenceResult::Rejected(VerificationError::InvalidSignature);
+        }
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: self.kind(),
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.resource.clone(),
+            local_dev_test_only: false,
+            // Shape + author-signature only: never a public/consensus proof
+            // claim — Dregg finality/authority remains #73.
+            public_proof: false,
+            summary_fields: vec![
+                format!("shape_contract:{}", DreggReceiptFixture::VERSION),
+                redacted_reference_field("evidence_ref", evidence_ref),
+                redacted_reference_field("strand_ref", &receipt.strand_ref),
+                format!("origin:{}", receipt.origin),
+                format!("receipt_kind:{}", receipt.receipt_kind),
+                format!("sequence:{}", receipt.sequence),
+                format!("public_key_ref:{}", receipt.public_key_ref),
+                format!("issued_at:{}", receipt.issued_at),
+                format!("expires_at:{}", receipt.expires_at),
+                format!("signature_suite:{}", receipt.signature_suite),
+            ],
+        })
     }
 }
 
