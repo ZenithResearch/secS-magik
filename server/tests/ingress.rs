@@ -558,7 +558,9 @@ mod decision_response {
             .await
             .unwrap();
         init_telemetry_schema(&pool).await.unwrap();
-        let router = Arc::new(ConfigurableRouter::new(pool.clone()));
+        let mut router = ConfigurableRouter::new(pool.clone());
+        server::gateway::register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        let router = Arc::new(router);
 
         let frame = call_gateway(
             router,
