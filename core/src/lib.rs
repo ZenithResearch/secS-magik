@@ -28,6 +28,12 @@ pub struct ZenithPacket {
     pub proof: Vec<u8>,
     pub claim_ttl: u64,
     pub encrypted_payload: Vec<u8>,
+    /// Reserved (M12.6, option b): kept only for v0 byte-layout
+    /// compatibility. Current clients zero it and the server never reads it.
+    /// It carries **no authentication** — caller authenticity comes from the
+    /// caller proof-of-origin envelope in `proof` (M12.1) and payload
+    /// integrity from tunnel AEAD binding (M12.4). Any future real MAC or
+    /// removal is an explicit, owned wire-format migration.
     pub mac: [u8; 16],
 }
 
@@ -53,6 +59,25 @@ mod tests {
             claim_ttl: 3600,
             encrypted_payload: vec![0xDD; 128],
             mac: [0xEE; 16],
+        }
+    }
+
+    #[test]
+    fn reserved_mac_field_keeps_v0_layout_for_any_value() {
+        // Option (b) compatibility pin: zeroed (current clients) and legacy
+        // nonzero mac bytes both round-trip with the unchanged v0 layout, so
+        // receipts/hashes computed over old packets still decode/inspect.
+        for mac in [[0u8; 16], [0xEE; 16]] {
+            let packet = ZenithPacket {
+                mac,
+                ..sample_packet()
+            };
+            let bytes = bincode::serialize(&packet).unwrap();
+            // mac is the final field of the v0 layout: the serialized frame
+            // ends with exactly its 16 bytes.
+            assert_eq!(&bytes[bytes.len() - 16..], &mac);
+            let decoded: ZenithPacket = bincode::deserialize(&bytes).unwrap();
+            assert_eq!(decoded, packet);
         }
     }
 

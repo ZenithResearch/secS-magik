@@ -179,7 +179,10 @@ fn load_or_create_identity() -> CallerIdentity {
 fn build_packet(identity: &CallerIdentity, opcode: u8, payload: Vec<u8>) -> ZenithPacket {
     let session_id = OsRng.gen::<[u8; 16]>();
     let nonce = OsRng.gen::<[u8; 12]>();
-    let mac = OsRng.gen::<[u8; 16]>();
+    // The mac field is reserved (M12.6 option b): zeroed, never verified.
+    // Random bytes here were security theater; authentication lives in the
+    // caller proof (M12.1) and tunnel AEAD binding (M12.4).
+    let mac = [0u8; 16];
 
     // Sign the canonical envelope bytes — session, nonce, opcode, TTL, and
     // payload — so the proof cannot be re-bound to a different packet.
@@ -350,7 +353,10 @@ mod tests {
         assert_eq!(packet.opcode, 0x10);
         assert_eq!(packet.claim_ttl, DEFAULT_CLAIM_TTL_SECONDS);
         assert_eq!(packet.encrypted_payload, b"Hello World");
-        assert_ne!(packet.mac, [0u8; 16]);
+        assert_eq!(
+            packet.mac, [0u8; 16],
+            "reserved mac field must be zeroed, not filled with decorative bytes"
+        );
     }
 
     #[test]
@@ -361,7 +367,7 @@ mod tests {
 
         assert_ne!(first.session_id, second.session_id);
         assert_ne!(first.nonce, second.nonce);
-        assert_ne!(first.mac, second.mac);
+        assert_eq!(first.mac, second.mac, "reserved mac field is always zero");
     }
 
     #[test]
