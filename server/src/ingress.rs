@@ -16,7 +16,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
@@ -173,6 +173,36 @@ pub async fn handle_gateway_connection(router: Arc<ConfigurableRouter>, socket: 
     .await;
 }
 
+/// Write the single decision frame to the caller under a bounded timeout.
+/// A slow or disconnected client must never stall the gateway: errors and
+/// timeouts are logged and dropped, and all ledger state was already
+/// persisted before this point.
+async fn write_decision_response(
+    write_half: &mut tokio::net::tcp::OwnedWriteHalf,
+    response: &libsec_core::response::DecisionResponse,
+    write_timeout: Duration,
+) {
+    let bytes = response.encode();
+    debug_assert!(bytes.len() <= libsec_core::response::MAX_DECISION_RESPONSE_BYTES);
+    match timeout(write_timeout, async {
+        write_half.write_all(&bytes).await?;
+        write_half.shutdown().await
+    })
+    .await
+    {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            eprintln!(
+                "secS [Transport]: failed to write decision response - {}",
+                error
+            );
+        }
+        Err(_) => {
+            eprintln!("secS [Transport]: decision response write timed out");
+        }
+    }
+}
+
 pub async fn handle_gateway_connection_with_limits(
     router: Arc<ConfigurableRouter>,
     socket: TcpStream,
@@ -180,12 +210,23 @@ pub async fn handle_gateway_connection_with_limits(
     read_timeout: Duration,
     runtime_mode: RuntimeMode,
 ) {
-    let packet = match read_bounded_wire_packet(socket, max_wire_bytes, read_timeout).await {
+    let (read_half, mut write_half) = socket.into_split();
+    let packet = match read_bounded_wire_packet(read_half, max_wire_bytes, read_timeout).await {
         Ok(Some(packet)) => packet,
         Ok(None) => return,
         Err(IngressReadError::MalformedPacket(error)) => {
             eprintln!("secS [Transport]: rejected malformed packet - {}", error);
-            record_pre_decode_reject(&router).await;
+            let receipt_id = record_pre_decode_reject(&router).await;
+            write_decision_response(
+                &mut write_half,
+                &libsec_core::response::DecisionResponse::rejected(
+                    VerificationError::MalformedPacket.reason_code(),
+                    None,
+                    Some(receipt_id),
+                ),
+                read_timeout,
+            )
+            .await;
             return;
         }
         Err(IngressReadError::WireFrameTooLarge { limit }) => {
@@ -193,7 +234,17 @@ pub async fn handle_gateway_connection_with_limits(
                 "secS [Transport]: rejected oversized wire frame above {} bytes before packet decode",
                 limit
             );
-            record_pre_decode_reject(&router).await;
+            let receipt_id = record_pre_decode_reject(&router).await;
+            write_decision_response(
+                &mut write_half,
+                &libsec_core::response::DecisionResponse::rejected(
+                    VerificationError::MalformedPacket.reason_code(),
+                    None,
+                    Some(receipt_id),
+                ),
+                read_timeout,
+            )
+            .await;
             return;
         }
         Err(error) => {
@@ -201,7 +252,17 @@ pub async fn handle_gateway_connection_with_limits(
                 "secS [Transport]: failed to read bounded connection - {}",
                 error
             );
-            record_pre_decode_reject(&router).await;
+            let receipt_id = record_pre_decode_reject(&router).await;
+            write_decision_response(
+                &mut write_half,
+                &libsec_core::response::DecisionResponse::rejected(
+                    VerificationError::MalformedPacket.reason_code(),
+                    None,
+                    Some(receipt_id),
+                ),
+                read_timeout,
+            )
+            .await;
             return;
         }
     };
@@ -211,7 +272,14 @@ pub async fn handle_gateway_connection_with_limits(
             "secS [Auth]: rejected packet with invalid prototype proof envelope - {}",
             error.reason_code()
         );
-        router.record_reject(&packet, error).await;
+        let reason = error.reason_code();
+        let receipt_id = router.record_reject(&packet, error).await;
+        write_decision_response(
+            &mut write_half,
+            &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+            read_timeout,
+        )
+        .await;
         return;
     }
 
@@ -219,9 +287,19 @@ pub async fn handle_gateway_connection_with_limits(
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
-            router
+            let receipt_id = router
                 .record_reject(&packet, crate::verifier::VerificationError::BadMac)
                 .await;
+            write_decision_response(
+                &mut write_half,
+                &libsec_core::response::DecisionResponse::rejected(
+                    crate::verifier::VerificationError::BadMac.reason_code(),
+                    None,
+                    Some(receipt_id),
+                ),
+                read_timeout,
+            )
+            .await;
             return;
         }
     };
@@ -243,15 +321,27 @@ pub async fn handle_gateway_connection_with_limits(
                     "secS [Manifest]: rejected packet before handler lookup - {}",
                     error.reason_code()
                 );
-                router.record_reject(&packet, error).await;
+                let reason = error.reason_code();
+                let receipt_id = router.record_reject(&packet, error).await;
+                write_decision_response(
+                    &mut write_half,
+                    &libsec_core::response::DecisionResponse::rejected(
+                        reason,
+                        None,
+                        Some(receipt_id),
+                    ),
+                    read_timeout,
+                )
+                .await;
                 return;
             }
         };
 
-    router.route_verified(&signed_context, payload).await;
+    let response = router.route_verified(&signed_context, payload).await;
+    write_decision_response(&mut write_half, &response, read_timeout).await;
 }
 
-async fn record_pre_decode_reject(router: &ConfigurableRouter) {
+async fn record_pre_decode_reject(router: &ConfigurableRouter) -> String {
     let sequence = PRE_DECODE_REJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let mut nonce = [0u8; 12];
     nonce[4..].copy_from_slice(&sequence.to_be_bytes());
@@ -266,7 +356,7 @@ async fn record_pre_decode_reject(router: &ConfigurableRouter) {
     };
     router
         .record_reject(&packet, VerificationError::MalformedPacket)
-        .await;
+        .await
 }
 
 fn current_unix_seconds() -> u64 {

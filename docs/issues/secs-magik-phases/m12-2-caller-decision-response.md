@@ -63,15 +63,15 @@ Non-goals:
 
 ## Task list (commit boundaries)
 
-- [ ] M12.2.1 — RED tests: client receives an accept response with context/receipt
+- [x] M12.2.1 — RED tests: client receives an accept response with context/receipt
   reference for a valid call; client receives a typed reject reason for a bad call.
-- [ ] M12.2.2 — Define versioned `DecisionResponse` in `core`; bincode round-trip
+- [x] M12.2.2 — Define versioned `DecisionResponse` in `core`; bincode round-trip
   tests; explicit schema version.
-- [ ] M12.2.3 — Thread a decision summary out of the gateway route path.
-- [ ] M12.2.4 — Write the response frame from ingress on accept and reject under a
+- [x] M12.2.3 — Thread a decision summary out of the gateway route path.
+- [x] M12.2.4 — Write the response frame from ingress on accept and reject under a
   bounded write timeout; keep all existing reject/receipt behavior.
-- [ ] M12.2.5 — Client reads/prints the response and sets exit code by decision.
-- [ ] M12.2.6 — Docs/status/changelog; update `examples/hello-world.sh` to show the
+- [x] M12.2.5 — Client reads/prints the response and sets exit code by decision.
+- [x] M12.2.6 — Docs/status/changelog; update `examples/hello-world.sh` to show the
   returned decision.
 
 ## Acceptance criteria

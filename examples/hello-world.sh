@@ -43,9 +43,14 @@ if ! grep -q "compatibility gateway listening" "$LOG_FILE" 2>/dev/null; then
   exit 1
 fi
 
-SECS_URL="127.0.0.1:9001" cargo run -p client -- hub 16 "Hello World"
+# The client prints the gateway's returned decision frame
+# (decision=accepted with context/receipt references) and exits non-zero on
+# a rejected decision, so this script fails if the call is not accepted.
+CLIENT_OUTPUT="$(SECS_URL="127.0.0.1:9001" cargo run -p client -- hub 16 "Hello World")"
+echo "$CLIENT_OUTPUT"
 
 sleep 0.5
 cat "$LOG_FILE"
 
 grep -q "invoking verified dev handler" "$LOG_FILE"
+echo "$CLIENT_OUTPUT" | grep -q "decision=accepted"

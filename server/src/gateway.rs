@@ -238,18 +238,14 @@ impl ConfigurableRouter {
         }
     }
 
-    pub async fn record_reject(&self, packet: &ZenithPacket, error: VerificationError) {
+    pub async fn record_reject(&self, packet: &ZenithPacket, error: VerificationError) -> String {
         let timestamp = current_unix_seconds();
-        let receipt = Receipt::reject_from_packet(
-            format!(
-                "receipt-reject-{timestamp}-{:02x}-{}",
-                packet.opcode,
-                packet_receipt_suffix(packet)
-            ),
-            packet,
-            error,
-            timestamp,
+        let receipt_id = format!(
+            "receipt-reject-{timestamp}-{:02x}-{}",
+            packet.opcode,
+            packet_receipt_suffix(packet)
         );
+        let receipt = Receipt::reject_from_packet(receipt_id.clone(), packet, error, timestamp);
         let packet_hash = receipt.packet_hash;
         let reason = receipt.reason.clone();
         self.record_signed_receipt(receipt).await;
@@ -268,9 +264,18 @@ impl ConfigurableRouter {
         {
             eprintln!("secS [Ledger]: failed to write reject event - {}", e);
         }
+        receipt_id
     }
 
-    pub async fn route_verified(&self, signed: &SignedVerifiedCallContext, payload: Vec<u8>) {
+    /// Route a signed context and return the redaction-safe decision
+    /// projection (M12.2) for the caller: decision, typed reason, and the
+    /// ledger references. Never carries payload, evidence, or signature
+    /// bytes.
+    pub async fn route_verified(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        payload: Vec<u8>,
+    ) -> libsec_core::response::DecisionResponse {
         let context = &signed.context;
         let payload_size = payload.len() as i64;
         let timestamp = current_unix_seconds();
@@ -293,9 +298,12 @@ impl ConfigurableRouter {
         };
         if let Err(error) = verification_result {
             let reason = error.reason_code();
+            let mut receipt_id = None;
             if should_emit_signed_context_reject(&error) {
-                self.record_verified_reject_receipt(signed, reason, timestamp)
-                    .await;
+                receipt_id = Some(
+                    self.record_verified_reject_receipt(signed, reason, timestamp)
+                        .await,
+                );
                 self.record_operation_event(
                     ReceiptEventKind::PacketRejected,
                     signed,
@@ -308,12 +316,17 @@ impl ConfigurableRouter {
                 "secS [Router]: rejected signed context before routing - {}",
                 reason
             );
-            return;
+            return libsec_core::response::DecisionResponse::rejected(
+                reason,
+                Some(context.context_id.clone()),
+                receipt_id,
+            );
         }
 
         if !signed_context_matches_active_manifest(context) {
             let reason = DESCRIPTOR_CONTEXT_MISMATCH_REASON;
-            self.record_verified_reject_receipt(signed, reason, timestamp)
+            let receipt_id = self
+                .record_verified_reject_receipt(signed, reason, timestamp)
                 .await;
             self.record_operation_event(
                 ReceiptEventKind::PacketRejected,
@@ -326,12 +339,17 @@ impl ConfigurableRouter {
                 "secS [Router]: rejected signed context that mismatches active descriptor - {}",
                 reason
             );
-            return;
+            return libsec_core::response::DecisionResponse::rejected(
+                reason,
+                Some(context.context_id.clone()),
+                Some(receipt_id),
+            );
         }
 
         if production_context_uses_dev_descriptor(signed, self.identity.authenticator_kind()) {
             let reason = VerificationError::PrototypeOperationNotProductionAuthorized.reason_code();
-            self.record_verified_reject_receipt(signed, reason, timestamp)
+            let receipt_id = self
+                .record_verified_reject_receipt(signed, reason, timestamp)
                 .await;
             self.record_operation_event(
                 ReceiptEventKind::PacketRejected,
@@ -344,7 +362,11 @@ impl ConfigurableRouter {
                 "secS [Router]: rejected production signed context for dev/prototype descriptor before handler lookup - {}",
                 reason
             );
-            return;
+            return libsec_core::response::DecisionResponse::rejected(
+                reason,
+                Some(context.context_id.clone()),
+                Some(receipt_id),
+            );
         }
 
         match self
@@ -355,7 +377,8 @@ impl ConfigurableRouter {
             Ok(ReplayReservationOutcome::Reserved) => {}
             Ok(ReplayReservationOutcome::Duplicate) => {
                 let reason = REPLAY_DETECTED_REASON;
-                self.record_verified_reject_receipt(signed, reason, timestamp)
+                let receipt_id = self
+                    .record_verified_reject_receipt(signed, reason, timestamp)
                     .await;
                 self.record_operation_event(
                     ReceiptEventKind::PacketRejected,
@@ -368,12 +391,17 @@ impl ConfigurableRouter {
                     "secS [Router]: rejected replayed verified context {} before handler execution",
                     context.context_id
                 );
-                return;
+                return libsec_core::response::DecisionResponse::rejected(
+                    reason,
+                    Some(context.context_id.clone()),
+                    Some(receipt_id),
+                );
             }
             Err(e) => {
                 let reason = REPLAY_RESERVATION_FAILED_REASON;
                 eprintln!("secS [Ledger]: failed to reserve replay slot - {}", e);
-                self.record_verified_reject_receipt(signed, reason, timestamp)
+                let receipt_id = self
+                    .record_verified_reject_receipt(signed, reason, timestamp)
                     .await;
                 self.record_operation_event(
                     ReceiptEventKind::PacketRejected,
@@ -382,7 +410,11 @@ impl ConfigurableRouter {
                     Some(reason),
                 )
                 .await;
-                return;
+                return libsec_core::response::DecisionResponse::rejected(
+                    reason,
+                    Some(context.context_id.clone()),
+                    Some(receipt_id),
+                );
             }
         }
 
@@ -398,13 +430,16 @@ impl ConfigurableRouter {
             eprintln!("secS [Telemetry]: failed to write verified log - {}", e);
         }
 
-        self.record_verify_receipt(signed, timestamp).await;
+        // The verify receipt is part of the inspectable chain; the caller
+        // response references the final execute receipt below.
+        let _verify_receipt_id = self.record_verify_receipt(signed, timestamp).await;
         self.record_operation_event(ReceiptEventKind::OperationRouted, signed, timestamp, None)
             .await;
 
         if payload.len() > self.limits.max_payload_bytes {
             let reason = "payload_too_large";
-            self.record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+            let receipt_id = self
+                .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
                 .await;
             self.record_operation_event(
                 ReceiptEventKind::HandlerFailed,
@@ -413,12 +448,17 @@ impl ConfigurableRouter {
                 Some(reason),
             )
             .await;
-            return;
+            return libsec_core::response::DecisionResponse::rejected(
+                reason,
+                Some(context.context_id.clone()),
+                Some(receipt_id),
+            );
         }
 
         let Some(handler_id) = context.handler_id.as_deref() else {
             let reason = "handler_unavailable";
-            self.record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+            let receipt_id = self
+                .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
                 .await;
             self.record_operation_event(
                 ReceiptEventKind::HandlerFailed,
@@ -431,7 +471,11 @@ impl ConfigurableRouter {
                 "secS [Router]: rejected verified operation without descriptor handler {} ({:#04x})",
                 context.operation, context.opcode
             );
-            return;
+            return libsec_core::response::DecisionResponse::rejected(
+                reason,
+                Some(context.context_id.clone()),
+                Some(receipt_id),
+            );
         };
 
         match self.programs.get(handler_id) {
@@ -458,7 +502,8 @@ impl ConfigurableRouter {
                     outcome
                 };
                 let reason = outcome.reason.as_deref();
-                self.record_execution_receipt(signed, outcome.decision, reason, timestamp)
+                let receipt_id = self
+                    .record_execution_receipt(signed, outcome.decision, reason, timestamp)
                     .await;
                 let event_kind = match outcome.decision {
                     Decision::Accepted => ReceiptEventKind::HandlerSucceeded,
@@ -466,10 +511,22 @@ impl ConfigurableRouter {
                 };
                 self.record_operation_event(event_kind, signed, timestamp, reason)
                     .await;
+                match outcome.decision {
+                    Decision::Accepted => libsec_core::response::DecisionResponse::accepted(
+                        Some(context.context_id.clone()),
+                        Some(receipt_id),
+                    ),
+                    Decision::Rejected => libsec_core::response::DecisionResponse::rejected(
+                        outcome.reason.as_deref().unwrap_or("handler_rejected"),
+                        Some(context.context_id.clone()),
+                        Some(receipt_id),
+                    ),
+                }
             }
             None => {
                 let reason = "handler_unavailable";
-                self.record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                let receipt_id = self
+                    .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
                     .await;
                 self.record_operation_event(
                     ReceiptEventKind::HandlerFailed,
@@ -482,6 +539,11 @@ impl ConfigurableRouter {
                     "secS [Router]: rejected verified operation without handler {} ({:#04x})",
                     context.operation, context.opcode
                 );
+                libsec_core::response::DecisionResponse::rejected(
+                    reason,
+                    Some(context.context_id.clone()),
+                    Some(receipt_id),
+                )
             }
         }
     }
@@ -491,33 +553,37 @@ impl ConfigurableRouter {
         signed: &SignedVerifiedCallContext,
         reason: &str,
         timestamp: u64,
-    ) {
+    ) -> String {
+        let receipt_id = format!(
+            "receipt-reject-{timestamp}-{:02x}-{}",
+            signed.context.opcode,
+            context_receipt_suffix(&signed.context)
+        );
         let receipt = Receipt::reject_from_verified_context(
-            format!(
-                "receipt-reject-{timestamp}-{:02x}-{}",
-                signed.context.opcode,
-                context_receipt_suffix(&signed.context)
-            ),
+            receipt_id.clone(),
             &signed.context,
             reason,
             timestamp,
         );
         self.record_signed_receipt(receipt).await;
+        receipt_id
     }
 
-    async fn record_verify_receipt(&self, signed: &SignedVerifiedCallContext, timestamp: u64) {
-        let receipt = Receipt::verify_from_signed_context(
-            format!(
-                "receipt-verify-{timestamp}-{:02x}-{}",
-                signed.context.opcode,
-                context_receipt_suffix(&signed.context)
-            ),
-            signed,
-            timestamp,
+    async fn record_verify_receipt(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        timestamp: u64,
+    ) -> String {
+        let receipt_id = format!(
+            "receipt-verify-{timestamp}-{:02x}-{}",
+            signed.context.opcode,
+            context_receipt_suffix(&signed.context)
         );
+        let receipt = Receipt::verify_from_signed_context(receipt_id.clone(), signed, timestamp);
         self.record_signed_receipt(receipt).await;
         self.record_operation_event(ReceiptEventKind::PacketVerified, signed, timestamp, None)
             .await;
+        receipt_id
     }
 
     async fn record_execution_receipt(
@@ -526,19 +592,21 @@ impl ConfigurableRouter {
         decision: Decision,
         reason: Option<&str>,
         timestamp: u64,
-    ) {
+    ) -> String {
+        let receipt_id = format!(
+            "receipt-execute-{timestamp}-{:02x}-{}",
+            signed.context.opcode,
+            context_receipt_suffix(&signed.context)
+        );
         let receipt = Receipt::execution(
-            format!(
-                "receipt-execute-{timestamp}-{:02x}-{}",
-                signed.context.opcode,
-                context_receipt_suffix(&signed.context)
-            ),
+            receipt_id.clone(),
             &signed.context,
             decision,
             reason,
             timestamp,
         );
         self.record_signed_receipt(receipt).await;
+        receipt_id
     }
 
     async fn record_signed_receipt(&self, receipt: Receipt) {

@@ -509,3 +509,194 @@ async fn caller_auth_rejects_emit_inspectable_receipts_without_replay_reservatio
     );
     assert_eq!(reservations[0].0, [0xA2; 16].to_vec());
 }
+
+mod decision_response {
+    use super::*;
+    use libsec_core::response::{DecisionResponse, MAX_DECISION_RESPONSE_BYTES};
+    use tokio::io::AsyncReadExt;
+
+    async fn call_gateway(router: Arc<ConfigurableRouter>, packet_bytes: Vec<u8>) -> Vec<u8> {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server_task = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            handle_gateway_connection_with_limits(
+                router,
+                socket,
+                DEFAULT_TEST_WIRE_LIMIT,
+                Duration::from_secs(1),
+                RuntimeMode::LocalDevPlaintext,
+            )
+            .await;
+        });
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client.write_all(&packet_bytes).await.unwrap();
+        client.shutdown().await.unwrap();
+
+        let mut frame = Vec::new();
+        timeout(
+            Duration::from_secs(2),
+            client
+                .take((MAX_DECISION_RESPONSE_BYTES + 1) as u64)
+                .read_to_end(&mut frame),
+        )
+        .await
+        .expect("reading the decision response must not hang")
+        .expect("decision response read should succeed");
+        server_task.await.unwrap();
+        frame
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn valid_call_receives_accept_decision_with_ledger_references() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool.clone());
+        server::gateway::register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        let router = Arc::new(router);
+
+        let frame = call_gateway(
+            router,
+            bincode::serialize(&packet(b"decision accept")).unwrap(),
+        )
+        .await;
+
+        assert!(
+            !frame.is_empty(),
+            "gateway must answer the caller with a decision frame"
+        );
+        assert!(frame.len() <= MAX_DECISION_RESPONSE_BYTES);
+        let response = DecisionResponse::decode(&frame)
+            .expect("response frame must decode as a versioned DecisionResponse");
+        assert!(response.is_accepted());
+        assert_eq!(response.reason_code, None);
+
+        // The references must resolve in the operator ledger.
+        let context_id = response.context_id.expect("accept must carry a context id");
+        let receipt_id = response.receipt_id.expect("accept must carry a receipt id");
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT receipt_id FROM receipts WHERE context_id = ?")
+                .bind(&context_id)
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert!(
+            rows.iter().any(|(id,)| id == &receipt_id),
+            "the returned receipt id must be inspectable under the returned context id"
+        );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn rejected_call_receives_typed_reason_matching_persisted_receipt() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let router = Arc::new(ConfigurableRouter::new(pool.clone()));
+
+        // Empty proof rejects at the envelope check with a typed reason.
+        let mut bad = packet(b"decision reject");
+        bad.proof = Vec::new();
+        let frame = call_gateway(router, bincode::serialize(&bad).unwrap()).await;
+
+        let response = DecisionResponse::decode(&frame)
+            .expect("reject must still answer with a decision frame");
+        assert!(!response.is_accepted());
+        let reason = response
+            .reason_code
+            .expect("reject must carry a typed reason");
+        assert_eq!(
+            reason,
+            VerificationError::MissingPrototypeProofEnvelope.reason_code()
+        );
+
+        let persisted: (String,) =
+            sqlx::query_as("SELECT reason FROM receipts WHERE kind = 'reject' LIMIT 1")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(persisted.0, reason);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn pre_decode_reject_still_answers_with_a_typed_reason() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let router = Arc::new(ConfigurableRouter::new(pool));
+
+        let frame = call_gateway(router, b"not a zenith packet".to_vec()).await;
+
+        let response = DecisionResponse::decode(&frame)
+            .expect("pre-decode rejects must still answer with a decision frame");
+        assert!(!response.is_accepted());
+        assert_eq!(
+            response.reason_code.as_deref(),
+            Some(VerificationError::MalformedPacket.reason_code())
+        );
+        assert!(
+            response.receipt_id.is_some(),
+            "pre-decode rejects emit synthetic reject receipts and must reference them"
+        );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn non_reading_client_does_not_stall_the_gateway() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let router = Arc::new(ConfigurableRouter::new(pool));
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server_task = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            handle_gateway_connection_with_limits(
+                router,
+                socket,
+                DEFAULT_TEST_WIRE_LIMIT,
+                Duration::from_secs(1),
+                RuntimeMode::LocalDevPlaintext,
+            )
+            .await;
+        });
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client
+            .write_all(&bincode::serialize(&packet(b"never reads")).unwrap())
+            .await
+            .unwrap();
+        client.shutdown().await.unwrap();
+        // Drop without reading the response: the handler must still finish
+        // within the bounded write window instead of stalling.
+        drop(client);
+
+        timeout(Duration::from_secs(3), server_task)
+            .await
+            .expect("gateway handler must not stall on a non-reading client")
+            .unwrap();
+    }
+}
