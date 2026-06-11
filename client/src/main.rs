@@ -2,13 +2,14 @@ use clap::{Parser, Subcommand};
 use ed25519_dalek::SigningKey;
 use libsec_core::caller_proof::{caller_canonical_bytes, encode_caller_proof};
 use libsec_core::packet_builder::PacketBuilder;
+use libsec_core::response::{DecisionResponse, MAX_DECISION_RESPONSE_BYTES};
 use libsec_core::zk::generate_proof;
 use libsec_core::ZenithPacket;
 use rand::rngs::OsRng;
 use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::path::Path;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 const DEFAULT_CLAIM_TTL_SECONDS: u64 = 300;
@@ -205,12 +206,17 @@ fn build_packet(identity: &CallerIdentity, opcode: u8, payload: Vec<u8>) -> Zeni
         .build()
 }
 
+const DECISION_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Send one packet and read the gateway's decision frame. Returns the decoded
+/// decision, or `None` when the server closed without answering (older
+/// gateways) — the send itself still succeeded in that case.
 async fn dispatch_packet(
     identity: &CallerIdentity,
     server_addr: &str,
     opcode: u8,
     payload: Vec<u8>,
-) {
+) -> Option<DecisionResponse> {
     let packet = build_packet(identity, opcode, payload);
     let bytes = bincode::serialize(&packet).unwrap();
     let mut stream = TcpStream::connect(server_addr)
@@ -218,6 +224,51 @@ async fn dispatch_packet(
         .expect("Failed to connect to Node");
     stream.write_all(&bytes).await.expect("Failed to write");
     stream.flush().await.expect("Failed to flush");
+    // Close our write half so the gateway's read-to-EOF completes, then read
+    // the single bounded decision frame.
+    stream.shutdown().await.expect("Failed to close write half");
+
+    let mut frame = Vec::new();
+    let read = tokio::time::timeout(
+        DECISION_READ_TIMEOUT,
+        stream
+            .take((MAX_DECISION_RESPONSE_BYTES + 1) as u64)
+            .read_to_end(&mut frame),
+    )
+    .await;
+    match read {
+        Ok(Ok(_)) if frame.is_empty() => None,
+        Ok(Ok(_)) => DecisionResponse::decode(&frame),
+        Ok(Err(_)) | Err(_) => None,
+    }
+}
+
+/// Print the decision for humans/scripts and convert it to an exit code:
+/// accept (or no frame from an older gateway) exits 0, reject exits 1.
+fn report_decision(response: Option<DecisionResponse>) -> i32 {
+    match response {
+        Some(response) if response.is_accepted() => {
+            println!(
+                "Client: decision=accepted context={} receipt={}",
+                response.context_id.as_deref().unwrap_or("-"),
+                response.receipt_id.as_deref().unwrap_or("-")
+            );
+            0
+        }
+        Some(response) => {
+            println!(
+                "Client: decision=rejected reason={} context={} receipt={}",
+                response.reason_code.as_deref().unwrap_or("-"),
+                response.context_id.as_deref().unwrap_or("-"),
+                response.receipt_id.as_deref().unwrap_or("-")
+            );
+            1
+        }
+        None => {
+            println!("Client: decision=none (gateway closed without a decision frame)");
+            0
+        }
+    }
 }
 
 #[tokio::main]
@@ -225,27 +276,33 @@ async fn main() {
     let identity = load_or_create_identity();
     let cli = Cli::parse();
 
-    match cli.command {
+    let exit_code = match cli.command {
         Commands::Generate { prompt } => {
             println!(
                 "Client: Preparing Generate command [Caller: {}]",
                 identity.key_id
             );
-            dispatch_packet(&identity, &cli.server, 0x01, prompt.into_bytes()).await;
+            report_decision(
+                dispatch_packet(&identity, &cli.server, 0x01, prompt.into_bytes()).await,
+            )
         }
         Commands::Chat { message } => {
             println!(
                 "Client: Preparing Chat command [Caller: {}]",
                 identity.key_id
             );
-            dispatch_packet(&identity, &cli.server, 0x02, message.into_bytes()).await;
+            report_decision(
+                dispatch_packet(&identity, &cli.server, 0x02, message.into_bytes()).await,
+            )
         }
         Commands::Hub { opcode, payload } => {
             println!(
                 "Client: Preparing Hub M2M command ({:#04x}) [Caller: {}]",
                 opcode, identity.key_id
             );
-            dispatch_packet(&identity, &cli.server, opcode, payload.into_bytes()).await;
+            report_decision(
+                dispatch_packet(&identity, &cli.server, opcode, payload.into_bytes()).await,
+            )
         }
         Commands::Identity => {
             let public_key_hex: String = identity
@@ -259,7 +316,11 @@ async fn main() {
                 "{{\"key_id\": \"{}\", \"subject_id\": \"caller:{}\", \"algorithm\": \"ed25519\", \"public_key_hex\": \"{}\"}}",
                 identity.key_id, identity.key_id, public_key_hex
             );
+            0
         }
+    };
+    if exit_code != 0 {
+        std::process::exit(exit_code);
     }
 }
 
@@ -420,6 +481,27 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn decision_reporting_maps_to_exit_codes() {
+        assert_eq!(
+            report_decision(Some(DecisionResponse::accepted(
+                Some("ctx".to_string()),
+                Some("receipt".to_string())
+            ))),
+            0
+        );
+        assert_eq!(
+            report_decision(Some(DecisionResponse::rejected(
+                "bad_caller_proof",
+                None,
+                Some("receipt".to_string())
+            ))),
+            1
+        );
+        // Older gateways close without a frame: the send still succeeded.
+        assert_eq!(report_decision(None), 0);
     }
 
     #[test]
