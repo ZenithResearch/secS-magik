@@ -253,3 +253,301 @@ fn verifier_signed_context_can_pass_wallet_public_inputs_for_origin_bound_eviden
         .iter()
         .any(|field| field == "public_proof:true"));
 }
+
+mod dregg_shaped {
+    use ed25519_dalek::{Signer, SigningKey};
+    use server::evidence::{
+        public_key_ref_for_bytes, DreggReceiptFixture, DreggShapedEvidenceAdapter, EvidenceAdapter,
+        EvidenceKind, EvidenceRequest, EvidenceResult,
+    };
+    use server::verifier::VerificationError;
+
+    const NOW: u64 = 1_000;
+    const SUBJECT: &str = "did:example:alice";
+    const AUDIENCE: &str = "secS://receiver-a";
+    const ORIGIN: &str = "https://castalia.example";
+    const OPERATION: &str = "queue.enqueue";
+    const RESOURCE: &str = "application/json";
+
+    fn author_key() -> SigningKey {
+        SigningKey::from_bytes(&[5u8; 32])
+    }
+
+    fn signed_fixture() -> DreggReceiptFixture {
+        let key = author_key();
+        let public_key_bytes = key.verifying_key().as_bytes().to_vec();
+        let mut fixture = DreggReceiptFixture {
+            evidence_ref: "dregg:evidence:alpha".to_string(),
+            subject: SUBJECT.to_string(),
+            audience: AUDIENCE.to_string(),
+            origin: ORIGIN.to_string(),
+            operation: OPERATION.to_string(),
+            resource: RESOURCE.to_string(),
+            receipt_kind: DreggReceiptFixture::RECEIPT_KIND.to_string(),
+            strand_ref: "strand:author:42".to_string(),
+            sequence: 42,
+            issued_at: 100,
+            expires_at: 2_000,
+            signature_suite: "Ed25519".to_string(),
+            public_key_ref: public_key_ref_for_bytes(&public_key_bytes),
+            author_public_key_bytes: public_key_bytes,
+            signature_bytes: Vec::new(),
+        };
+        fixture.signature_bytes = key.sign(&fixture.canonical_bytes()).to_bytes().to_vec();
+        fixture
+    }
+
+    fn request_for(fixture: &DreggReceiptFixture) -> EvidenceRequest {
+        EvidenceRequest {
+            accepted_evidence: vec![EvidenceKind::DreggReceipt.as_str().to_string()],
+            subject: SUBJECT.to_string(),
+            audience: AUDIENCE.to_string(),
+            operation: OPERATION.to_string(),
+            resource: Some(RESOURCE.to_string()),
+            evidence_refs: vec![fixture.evidence_ref.clone()],
+            public_inputs: vec![format!("origin:{ORIGIN}")],
+        }
+    }
+
+    fn adapter_with(fixture: DreggReceiptFixture) -> DreggShapedEvidenceAdapter {
+        DreggShapedEvidenceAdapter::with_validation_time([fixture], NOW)
+    }
+
+    fn expect_reject(result: EvidenceResult, expected: VerificationError) {
+        match result {
+            EvidenceResult::Rejected(error) => assert_eq!(error, expected),
+            EvidenceResult::Satisfied(summary) => {
+                panic!("expected {expected:?} reject, got satisfied: {summary:?}")
+            }
+        }
+    }
+
+    #[test]
+    fn valid_dregg_shaped_receipt_with_author_signature_satisfies_adapter() {
+        let fixture = signed_fixture();
+        let request = request_for(&fixture);
+
+        match adapter_with(fixture).verify(&request) {
+            EvidenceResult::Satisfied(summary) => {
+                assert_eq!(summary.kind, EvidenceKind::DreggReceipt);
+                assert_eq!(summary.subject, SUBJECT);
+                assert!(
+                    !summary.public_proof,
+                    "shape+signature evidence must not claim public/consensus proof"
+                );
+            }
+            EvidenceResult::Rejected(error) => {
+                panic!("valid Dregg-shaped fixture must satisfy the adapter, got {error:?}")
+            }
+        }
+    }
+
+    #[test]
+    fn capability_ref_kind_also_satisfies_the_shape_contract() {
+        let key = author_key();
+        let mut fixture = signed_fixture();
+        fixture.receipt_kind = DreggReceiptFixture::CAPABILITY_REF_KIND.to_string();
+        fixture.signature_bytes = key.sign(&fixture.canonical_bytes()).to_bytes().to_vec();
+        let request = request_for(&fixture);
+
+        assert!(matches!(
+            adapter_with(fixture).verify(&request),
+            EvidenceResult::Satisfied(_)
+        ));
+    }
+
+    #[test]
+    fn wrong_author_signature_rejects_with_invalid_signature() {
+        let mut fixture = signed_fixture();
+        let impostor = SigningKey::from_bytes(&[6u8; 32]);
+        fixture.signature_bytes = impostor
+            .sign(&fixture.canonical_bytes())
+            .to_bytes()
+            .to_vec();
+        let request = request_for(&fixture);
+
+        expect_reject(
+            adapter_with(fixture).verify(&request),
+            VerificationError::InvalidSignature,
+        );
+    }
+
+    #[test]
+    fn tampered_canonical_field_rejects_with_invalid_signature() {
+        // Signature was made over sequence 42; presenting sequence 43 changes
+        // the canonical bytes.
+        let mut fixture = signed_fixture();
+        fixture.sequence = 43;
+        let request = request_for(&fixture);
+
+        expect_reject(
+            adapter_with(fixture).verify(&request),
+            VerificationError::InvalidSignature,
+        );
+    }
+
+    #[test]
+    fn mismatched_public_key_ref_rejects_as_invalid_presentation() {
+        let mut fixture = signed_fixture();
+        fixture.public_key_ref = "pubkey:sha256:0000".to_string();
+        let request = request_for(&fixture);
+
+        expect_reject(
+            adapter_with(fixture).verify(&request),
+            VerificationError::InvalidPresentation,
+        );
+    }
+
+    #[test]
+    fn missing_required_fields_reject_as_invalid_presentation() {
+        for breaker in [
+            |fixture: &mut DreggReceiptFixture| fixture.strand_ref = String::new(),
+            |fixture: &mut DreggReceiptFixture| fixture.receipt_kind = "unknown_kind".to_string(),
+            |fixture: &mut DreggReceiptFixture| fixture.author_public_key_bytes = vec![1, 2, 3],
+            |fixture: &mut DreggReceiptFixture| fixture.signature_bytes = vec![0u8; 10],
+            |fixture: &mut DreggReceiptFixture| {
+                fixture.issued_at = 500;
+                fixture.expires_at = 400;
+            },
+        ] {
+            let mut fixture = signed_fixture();
+            breaker(&mut fixture);
+            let request = request_for(&fixture);
+            expect_reject(
+                adapter_with(fixture).verify(&request),
+                VerificationError::InvalidPresentation,
+            );
+        }
+    }
+
+    #[test]
+    fn unsupported_signature_suite_rejects() {
+        let key = author_key();
+        let mut fixture = signed_fixture();
+        fixture.signature_suite = "secp256k1".to_string();
+        fixture.signature_bytes = key.sign(&fixture.canonical_bytes()).to_bytes().to_vec();
+        let request = request_for(&fixture);
+
+        expect_reject(
+            adapter_with(fixture).verify(&request),
+            VerificationError::UnsupportedSignatureSuite,
+        );
+    }
+
+    #[test]
+    fn expired_and_future_receipts_reject_with_typed_time_reasons() {
+        let key = author_key();
+
+        let mut expired = signed_fixture();
+        expired.issued_at = 100;
+        expired.expires_at = NOW;
+        expired.signature_bytes = key.sign(&expired.canonical_bytes()).to_bytes().to_vec();
+        let request = request_for(&expired);
+        expect_reject(
+            adapter_with(expired).verify(&request),
+            VerificationError::ExpiredClaim,
+        );
+
+        let mut future = signed_fixture();
+        future.issued_at = NOW + 10;
+        future.expires_at = NOW + 100;
+        future.signature_bytes = key.sign(&future.canonical_bytes()).to_bytes().to_vec();
+        let request = request_for(&future);
+        expect_reject(
+            adapter_with(future).verify(&request),
+            VerificationError::NotYetValidClaim,
+        );
+    }
+
+    #[test]
+    fn binding_mismatches_reject_with_typed_reasons() {
+        type FixtureBreaker = fn(&mut DreggReceiptFixture);
+        let key = author_key();
+        let cases: [(FixtureBreaker, VerificationError); 5] = [
+            (
+                |fixture| fixture.subject = "did:example:mallory".to_string(),
+                VerificationError::WrongSubject,
+            ),
+            (
+                |fixture| fixture.audience = "secS://receiver-b".to_string(),
+                VerificationError::WrongAudience,
+            ),
+            (
+                |fixture| fixture.operation = "agent.chat".to_string(),
+                VerificationError::WrongOperation,
+            ),
+            (
+                |fixture| fixture.resource = "text/plain".to_string(),
+                VerificationError::WrongResource,
+            ),
+            (
+                |fixture| fixture.origin = "https://evil.example".to_string(),
+                VerificationError::WrongOrigin,
+            ),
+        ];
+        for (breaker, expected) in cases {
+            let mut fixture = signed_fixture();
+            breaker(&mut fixture);
+            fixture.signature_bytes = key.sign(&fixture.canonical_bytes()).to_bytes().to_vec();
+            let request = request_for(&fixture);
+            expect_reject(adapter_with(fixture).verify(&request), expected);
+        }
+    }
+
+    #[test]
+    fn unknown_evidence_ref_rejects_as_invalid_presentation() {
+        let fixture = signed_fixture();
+        let mut request = request_for(&fixture);
+        request.evidence_refs = vec!["dregg:evidence:unknown".to_string()];
+
+        expect_reject(
+            adapter_with(fixture).verify(&request),
+            VerificationError::InvalidPresentation,
+        );
+    }
+
+    #[test]
+    fn descriptor_not_accepting_dregg_receipt_rejects_as_insufficient() {
+        let fixture = signed_fixture();
+        let mut request = request_for(&fixture);
+        request.accepted_evidence = vec!["wallet_presentation".to_string()];
+
+        expect_reject(
+            adapter_with(fixture).verify(&request),
+            VerificationError::InsufficientEvidence,
+        );
+    }
+
+    #[test]
+    fn satisfied_summary_is_redaction_safe() {
+        let fixture = signed_fixture();
+        let raw_key_hex: String = fixture
+            .author_public_key_bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let raw_evidence_ref = fixture.evidence_ref.clone();
+        let raw_strand_ref = fixture.strand_ref.clone();
+        let request = request_for(&fixture);
+
+        let EvidenceResult::Satisfied(summary) = adapter_with(fixture).verify(&request) else {
+            panic!("expected satisfied summary");
+        };
+
+        let joined = summary.to_context_fields().join("|");
+        assert!(
+            !joined.contains(&raw_key_hex),
+            "summary must not leak raw author key bytes"
+        );
+        assert!(
+            !joined.contains(&raw_evidence_ref),
+            "summary must not leak the raw evidence ref"
+        );
+        assert!(
+            !joined.contains(&raw_strand_ref),
+            "summary must not leak the raw strand ref"
+        );
+        assert!(joined.contains("evidence_kind:dregg_receipt"));
+        assert!(joined.contains(&format!("shape_contract:{}", DreggReceiptFixture::VERSION)));
+    }
+}

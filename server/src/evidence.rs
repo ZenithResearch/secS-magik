@@ -822,6 +822,203 @@ impl EvidenceAdapter for WalletPresentationAdapter {
     }
 }
 
+/// Temporary minimal-equivalent **Dregg-shaped** receipt/capability evidence
+/// contract (M12.3).
+///
+/// Mirrors how Track D landed the wallet challenge: a real cryptographic
+/// check over a bounded, inspectable, versioned shape, explicitly labeled as
+/// not the full upstream system. The adapter verifies envelope shape and the
+/// author Ed25519 signature over canonical bytes — and nothing more. It does
+/// **not** reconstruct or verify the Dregg blocklace DAG, `tau` finality,
+/// capability non-amplification, nullifier/no-double-spend, CapTP handoff, or
+/// revocation authority; those remain the #73 authority rail, which this
+/// seam does not close.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggReceiptFixture {
+    pub evidence_ref: String,
+    pub subject: String,
+    pub audience: String,
+    pub origin: String,
+    pub operation: String,
+    pub resource: String,
+    /// "receipt" or "capability_ref" — the two demo-scope presentation kinds.
+    pub receipt_kind: String,
+    /// Opaque reference to the author's strand/entry; never raw Dregg data.
+    pub strand_ref: String,
+    /// Author sequence number (shape only; monotonicity is #73's concern).
+    pub sequence: u64,
+    pub issued_at: u64,
+    pub expires_at: u64,
+    pub signature_suite: String,
+    /// Fingerprint reference that must match `author_public_key_bytes`.
+    pub public_key_ref: String,
+    pub author_public_key_bytes: Vec<u8>,
+    pub signature_bytes: Vec<u8>,
+}
+
+impl DreggReceiptFixture {
+    /// Version tag for the canonical signed bytes. The temporary contract is
+    /// explicit and replaceable: bump on any change, retire when #73 lands.
+    pub const VERSION: &'static str = "secs-dregg-receipt-shape-v1";
+    pub const RECEIPT_KIND: &'static str = "receipt";
+    pub const CAPABILITY_REF_KIND: &'static str = "capability_ref";
+
+    /// Canonical, length-prefixed, newline-delimited bytes the author signs —
+    /// same construction style as [`SecsWalletChallenge::canonical_bytes`].
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        append_line(&mut bytes, Self::VERSION);
+        append_field(&mut bytes, "subject", &self.subject);
+        append_field(&mut bytes, "audience", &self.audience);
+        append_field(&mut bytes, "origin", &self.origin);
+        append_field(&mut bytes, "operation", &self.operation);
+        append_field(&mut bytes, "resource", &self.resource);
+        append_field(&mut bytes, "receipt_kind", &self.receipt_kind);
+        append_field(&mut bytes, "strand_ref", &self.strand_ref);
+        append_field(&mut bytes, "sequence", &self.sequence.to_string());
+        append_field(&mut bytes, "issued_at", &self.issued_at.to_string());
+        append_field(&mut bytes, "expires_at", &self.expires_at.to_string());
+        append_field(&mut bytes, "signature_suite", &self.signature_suite);
+        append_field(&mut bytes, "public_key_ref", &self.public_key_ref);
+        bytes
+    }
+
+    fn has_required_shape(&self) -> bool {
+        !self.evidence_ref.is_empty()
+            && !self.subject.is_empty()
+            && !self.audience.is_empty()
+            && !self.origin.is_empty()
+            && !self.operation.is_empty()
+            && !self.resource.is_empty()
+            && (self.receipt_kind == Self::RECEIPT_KIND
+                || self.receipt_kind == Self::CAPABILITY_REF_KIND)
+            && !self.strand_ref.is_empty()
+            && self.issued_at < self.expires_at
+            && !self.signature_suite.is_empty()
+            && !self.public_key_ref.is_empty()
+            && self.author_public_key_bytes.len() == 32
+            && self.signature_bytes.len() == 64
+    }
+}
+
+/// Adapter for [`EvidenceKind::DreggReceipt`]: shape + author-signature only.
+/// Receiver-held trust — accepted author keys are whatever the receiver
+/// configured as fixtures; bytes the caller embeds are never implicitly
+/// trusted. Dregg-shaped evidence is necessary-where-required, never
+/// sufficient authority on its own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggShapedEvidenceAdapter {
+    fixtures: Vec<DreggReceiptFixture>,
+    validation_time: Option<u64>,
+}
+
+impl DreggShapedEvidenceAdapter {
+    pub fn new(fixtures: impl IntoIterator<Item = DreggReceiptFixture>) -> Self {
+        Self {
+            fixtures: fixtures.into_iter().collect(),
+            validation_time: Some(current_unix_time()),
+        }
+    }
+
+    pub fn with_validation_time(
+        fixtures: impl IntoIterator<Item = DreggReceiptFixture>,
+        validation_time: u64,
+    ) -> Self {
+        Self {
+            fixtures: fixtures.into_iter().collect(),
+            validation_time: Some(validation_time),
+        }
+    }
+}
+
+impl EvidenceAdapter for DreggShapedEvidenceAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::DreggReceipt
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        if !request.accepts(self.kind()) {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        let Some((evidence_ref, receipt)) = request.evidence_refs.iter().find_map(|evidence_ref| {
+            self.fixtures
+                .iter()
+                .find(|fixture| &fixture.evidence_ref == evidence_ref)
+                .map(|fixture| (evidence_ref, fixture))
+        }) else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        };
+        if receipt.subject != request.subject {
+            return EvidenceResult::Rejected(VerificationError::WrongSubject);
+        }
+        if receipt.audience != request.audience {
+            return EvidenceResult::Rejected(VerificationError::WrongAudience);
+        }
+        if receipt.operation != request.operation {
+            return EvidenceResult::Rejected(VerificationError::WrongOperation);
+        }
+        let resource = request.resource.as_deref().unwrap_or_default();
+        if receipt.resource != resource {
+            return EvidenceResult::Rejected(VerificationError::WrongResource);
+        }
+        if let Some(request_origin) = requested_origin(request) {
+            if request_origin != receipt.origin {
+                return EvidenceResult::Rejected(VerificationError::WrongOrigin);
+            }
+        } else {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+        if !receipt.has_required_shape() {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+        if receipt.public_key_ref != public_key_ref_for_bytes(&receipt.author_public_key_bytes) {
+            return EvidenceResult::Rejected(VerificationError::InvalidPresentation);
+        }
+        if receipt.signature_suite != SecsWalletChallenge::ED25519_SIGNATURE_SUITE {
+            return EvidenceResult::Rejected(VerificationError::UnsupportedSignatureSuite);
+        }
+        if let Some(validation_time) = self.validation_time {
+            if receipt.issued_at > validation_time {
+                return EvidenceResult::Rejected(VerificationError::NotYetValidClaim);
+            }
+            if receipt.expires_at <= validation_time {
+                return EvidenceResult::Rejected(VerificationError::ExpiredClaim);
+            }
+        }
+        if !verify_ed25519_signature(
+            &receipt.author_public_key_bytes,
+            &receipt.signature_bytes,
+            &receipt.canonical_bytes(),
+        ) {
+            return EvidenceResult::Rejected(VerificationError::InvalidSignature);
+        }
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: self.kind(),
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.resource.clone(),
+            local_dev_test_only: false,
+            // Shape + author-signature only: never a public/consensus proof
+            // claim — Dregg finality/authority remains #73.
+            public_proof: false,
+            summary_fields: vec![
+                format!("shape_contract:{}", DreggReceiptFixture::VERSION),
+                redacted_reference_field("evidence_ref", evidence_ref),
+                redacted_reference_field("strand_ref", &receipt.strand_ref),
+                format!("origin:{}", receipt.origin),
+                format!("receipt_kind:{}", receipt.receipt_kind),
+                format!("sequence:{}", receipt.sequence),
+                format!("public_key_ref:{}", receipt.public_key_ref),
+                format!("issued_at:{}", receipt.issued_at),
+                format!("expires_at:{}", receipt.expires_at),
+                format!("signature_suite:{}", receipt.signature_suite),
+            ],
+        })
+    }
+}
+
 pub fn public_key_ref_for_bytes(public_key_bytes: &[u8]) -> String {
     let digest = Sha256::digest(public_key_bytes);
     format!("pubkey:sha256:{}", hex_lower(&digest))

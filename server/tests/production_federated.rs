@@ -2022,3 +2022,129 @@ fn valid_evidence_local_policy_rejects_disallowed_descriptor_operation_scope_and
         EvidenceResult::Rejected(VerificationError::WrongAudience)
     );
 }
+
+// --- M12.3.4: wallet + issuer + Dregg-shaped composition ---
+
+fn dregg_membership_fixture() -> server::evidence::DreggReceiptFixture {
+    use ed25519_dalek::{Signer, SigningKey};
+    let key = SigningKey::from_bytes(&[0xD7; 32]);
+    let public_key_bytes = key.verifying_key().as_bytes().to_vec();
+    let mut fixture = server::evidence::DreggReceiptFixture {
+        evidence_ref: "dregg-receipt:alice-membership".to_string(),
+        subject: TRUSTED_SUBJECT.to_string(),
+        audience: TRUSTED_AUDIENCE.to_string(),
+        origin: TRUSTED_ORIGIN.to_string(),
+        operation: MEMBERSHIP_OPERATION.to_string(),
+        resource: TRUSTED_RESOURCE.to_string(),
+        receipt_kind: server::evidence::DreggReceiptFixture::RECEIPT_KIND.to_string(),
+        strand_ref: "strand:gallery-author:7".to_string(),
+        sequence: 7,
+        issued_at: TRUSTED_ISSUED_AT,
+        expires_at: TRUSTED_EXPIRES_AT,
+        signature_suite: "Ed25519".to_string(),
+        public_key_ref: server::evidence::public_key_ref_for_bytes(&public_key_bytes),
+        author_public_key_bytes: public_key_bytes,
+        signature_bytes: Vec::new(),
+    };
+    fixture.signature_bytes = key.sign(&fixture.canonical_bytes()).to_bytes().to_vec();
+    fixture
+}
+
+fn tri_evidence_descriptor(opcode: u8) -> server::manifest::OperationDescriptor {
+    let mut descriptor = wallet_and_membership_descriptor(opcode);
+    descriptor
+        .accepted_evidence
+        .push(EvidenceKind::DreggReceipt.as_str().to_string());
+    descriptor
+}
+
+#[test]
+fn wallet_issuer_and_dregg_shaped_evidence_compose_through_composite_adapter() {
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let dregg = server::evidence::DreggShapedEvidenceAdapter::with_validation_time(
+        [dregg_membership_fixture()],
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = CompositeEvidenceAdapter::new([
+        &wallet as &dyn EvidenceAdapter,
+        &credential as &dyn EvidenceAdapter,
+        &dregg as &dyn EvidenceAdapter,
+    ]);
+
+    let request = request_with_refs(
+        &tri_evidence_descriptor(WALLET_AND_MEMBERSHIP_OPCODE),
+        [
+            WALLET_EVIDENCE_REF,
+            MEMBERSHIP_CREDENTIAL_REF,
+            "dregg-receipt:alice-membership",
+        ],
+    );
+
+    match composite.verify(&request) {
+        EvidenceResult::Satisfied(summary) => {
+            let joined = summary.to_context_fields().join("|");
+            assert!(joined.contains("evidence_kind:wallet_presentation"));
+            assert!(joined.contains("evidence_kind:membership_credential"));
+            assert!(joined.contains("evidence_kind:dregg_receipt"));
+            assert!(
+                !summary.public_proof,
+                "composition including shape-only Dregg evidence must not claim public proof"
+            );
+        }
+        EvidenceResult::Rejected(error) => {
+            panic!("wallet + issuer + dregg composition must satisfy, got {error:?}")
+        }
+    }
+}
+
+#[test]
+fn missing_dregg_evidence_fails_tri_evidence_descriptor_as_insufficient() {
+    // All of a descriptor's accepted kinds remain required: wallet + issuer
+    // alone cannot satisfy a descriptor that also requires dregg_receipt.
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = CompositeEvidenceAdapter::new([
+        &wallet as &dyn EvidenceAdapter,
+        &credential as &dyn EvidenceAdapter,
+    ]);
+
+    let request = request_with_refs(
+        &tri_evidence_descriptor(WALLET_AND_MEMBERSHIP_OPCODE),
+        [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+    );
+
+    assert_rejected(
+        composite.verify(&request),
+        VerificationError::InsufficientEvidence,
+    );
+}
+
+#[test]
+fn standalone_dregg_shaped_evidence_cannot_satisfy_tri_evidence_descriptor() {
+    // Necessary-where-required, never sufficient: Dregg-shaped evidence alone
+    // does not grant a descriptor that requires wallet + issuer evidence too.
+    let dregg = server::evidence::DreggShapedEvidenceAdapter::with_validation_time(
+        [dregg_membership_fixture()],
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = CompositeEvidenceAdapter::new([&dregg as &dyn EvidenceAdapter]);
+
+    let request = request_with_refs(
+        &tri_evidence_descriptor(WALLET_AND_MEMBERSHIP_OPCODE),
+        ["dregg-receipt:alice-membership"],
+    );
+
+    assert_rejected(
+        composite.verify(&request),
+        VerificationError::InsufficientEvidence,
+    );
+}

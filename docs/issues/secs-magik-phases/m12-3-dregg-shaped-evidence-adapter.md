@@ -85,17 +85,17 @@ Non-goals:
 
 ## Task list (commit boundaries)
 
-- [ ] M12.3.1 — RED tests: a valid Dregg-shaped fixture with a correct author
+- [x] M12.3.1 — RED tests: a valid Dregg-shaped fixture with a correct author
   signature satisfies the adapter; wrong signature/key/public-key-ref, missing
   fields, expired/future, wrong subject/audience/operation/resource/origin, and
   unsupported suite each reject with typed reasons.
-- [ ] M12.3.2 — Define `DreggReceiptFixture` + versioned canonical bytes.
-- [ ] M12.3.3 — Implement `DreggShapedEvidenceAdapter` for
+- [x] M12.3.2 — Define `DreggReceiptFixture` + versioned canonical bytes.
+- [x] M12.3.3 — Implement `DreggShapedEvidenceAdapter` for
   `EvidenceKind::DreggReceipt`; redaction-safe summary.
-- [ ] M12.3.4 — Composition test: wallet + issuer + Dregg-shaped evidence through
+- [x] M12.3.4 — Composition test: wallet + issuer + Dregg-shaped evidence through
   `CompositeEvidenceAdapter`; all required kinds enforced.
-- [ ] M12.3.5 — Optional fixture/dev demo descriptor; never weaken existing ones.
-- [ ] M12.3.6 — Docs/status/changelog with the explicit shape-only boundary and the
+- [x] M12.3.5 — Optional fixture/dev demo descriptor; never weaken existing ones.
+- [x] M12.3.6 — Docs/status/changelog with the explicit shape-only boundary and the
   distinction from #73.
 
 ## Acceptance criteria

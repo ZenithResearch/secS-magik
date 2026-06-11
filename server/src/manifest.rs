@@ -128,6 +128,28 @@ fn legacy_descriptor(opcode: u8, name: &str, handler_id: &str) -> OperationDescr
     }
 }
 
+/// Fixture/dev-bounded demo descriptor accepting Dregg-shaped receipt
+/// evidence (M12.3.5). **Not** part of [`ReceiverManifest::default_v0`]: a
+/// demo or test installs it explicitly, and `dev_binding: true` means
+/// `production_verified` rejects it like every other dev descriptor — the
+/// existing descriptors are never weakened by the Dregg-shaped seam.
+pub fn dregg_demo_descriptor(opcode: u8) -> OperationDescriptor {
+    OperationDescriptor {
+        opcode,
+        name: OperationName::new("candidate.dev.dregg_receipt_demo"),
+        payload_schema: Some("application/json".to_string()),
+        target_kind: TargetKind::LocalDevProcess,
+        required_credentials: vec!["prototype.local-dev".to_string()],
+        required_capabilities: vec!["dev.execute".to_string()],
+        accepted_evidence: vec!["dregg_receipt".to_string()],
+        replay_scope: ReplayScope::SessionOpcodeNonce,
+        max_ttl_seconds: 300,
+        handler_id: "dev/bash-echo".to_string(),
+        dev_binding: true,
+        range: OpcodeRange::classify(opcode),
+    }
+}
+
 fn dev_candidate_descriptor(
     opcode: u8,
     name: &str,
