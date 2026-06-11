@@ -14,6 +14,16 @@ use tokio::net::TcpStream;
 
 const DEFAULT_CLAIM_TTL_SECONDS: u64 = 300;
 
+/// Demo/test affordance: claim TTL override in seconds (SECS_CLAIM_TTL).
+/// Lets a demo show the gateway's typed expiry reject live (TTL 0). Invalid
+/// values fall back to the default.
+fn claim_ttl_seconds() -> u64 {
+    std::env::var("SECS_CLAIM_TTL")
+        .ok()
+        .and_then(|value| value.trim().parse().ok())
+        .unwrap_or(DEFAULT_CLAIM_TTL_SECONDS)
+}
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -183,16 +193,11 @@ fn build_packet(identity: &CallerIdentity, opcode: u8, payload: Vec<u8>) -> Zeni
     // Random bytes here were security theater; authentication lives in the
     // caller proof (M12.1) and tunnel AEAD binding (M12.4).
     let mac = [0u8; 16];
+    let claim_ttl = claim_ttl_seconds();
 
     // Sign the canonical envelope bytes — session, nonce, opcode, TTL, and
     // payload — so the proof cannot be re-bound to a different packet.
-    let canonical = caller_canonical_bytes(
-        &session_id,
-        &nonce,
-        opcode,
-        DEFAULT_CLAIM_TTL_SECONDS,
-        &payload,
-    );
+    let canonical = caller_canonical_bytes(&session_id, &nonce, opcode, claim_ttl, &payload);
     let signature_bytes = generate_proof(&identity.signing_key, &canonical);
     let mut signature = [0u8; 64];
     signature.copy_from_slice(&signature_bytes);
@@ -203,7 +208,7 @@ fn build_packet(identity: &CallerIdentity, opcode: u8, payload: Vec<u8>) -> Zeni
         .nonce(nonce)
         .opcode(opcode)
         .proof(proof)
-        .claim_ttl(DEFAULT_CLAIM_TTL_SECONDS)
+        .claim_ttl(claim_ttl)
         .encrypted_payload(payload)
         .mac(mac)
         .build()
@@ -222,6 +227,13 @@ async fn dispatch_packet(
 ) -> Option<DecisionResponse> {
     let packet = build_packet(identity, opcode, payload);
     let bytes = bincode::serialize(&packet).unwrap();
+    // Demo/test affordance: persist the exact wire bytes so a demo can replay
+    // them verbatim and show the gateway's replay rejection.
+    if let Some(path) = std::env::var_os("SECS_SAVE_PACKET_PATH") {
+        if let Err(error) = std::fs::write(&path, &bytes) {
+            eprintln!("Client: failed to save packet bytes to {path:?} - {error}");
+        }
+    }
     let mut stream = TcpStream::connect(server_addr)
         .await
         .expect("Failed to connect to Node");
