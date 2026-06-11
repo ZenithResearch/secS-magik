@@ -72,7 +72,7 @@ Important boundaries:
 - Client surfaces construct outbound packets; they are not the verifier.
 - secS verifies packets and produces typed handoff/audit objects.
 - Receiver-local manifests bind verified operations to local handlers.
-- External proof, federation, and settlement systems enter through typed evidence adapters or anchors; they do not replace the secS verifier boundary.
+- External proof, federation, and settlement systems enter through typed evidence adapters or anchors; they do not replace the secS verifier boundary. The current Dregg-shaped adapter verifies envelope **shape + author signature only** (`secs-dregg-receipt-shape-v1`, a temporary minimal-equivalent contract); it is not Dregg blocklace finality, capability, nullifier, CapTP, or revocation authority — that authority rail remains open (#73).
 - Browser/app login is separate from secS internal RPC.
 
 ## System Architecture
