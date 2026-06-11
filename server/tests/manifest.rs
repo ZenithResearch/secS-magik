@@ -110,3 +110,59 @@ fn descriptor_fields_capture_semantics_above_local_opcode() {
     assert_eq!(descriptor.handler_id, "dev/json-validate");
     assert!(descriptor.dev_binding);
 }
+
+#[test]
+fn dregg_demo_descriptor_is_dev_bounded_and_absent_from_default_manifest() {
+    let descriptor = server::manifest::dregg_demo_descriptor(0x31);
+
+    assert!(
+        descriptor.dev_binding,
+        "demo descriptor must be dev-bounded"
+    );
+    assert_eq!(descriptor.accepted_evidence, vec!["dregg_receipt"]);
+
+    // Never weaken existing descriptors: the default manifest carries no
+    // dregg_receipt acceptance anywhere.
+    let manifest = server::manifest::ReceiverManifest::default_v0();
+    for opcode in [0x01u8, 0x02, 0x10, 0x20, 0x30, 0x44] {
+        let descriptor = manifest.lookup(opcode).unwrap();
+        assert!(
+            !descriptor
+                .accepted_evidence
+                .iter()
+                .any(|kind| kind == "dregg_receipt"),
+            "default descriptor {opcode:#04x} must not accept dregg_receipt"
+        );
+    }
+}
+
+#[test]
+fn dregg_demo_descriptor_rejects_in_production_runtime() {
+    use libsec_core::ZenithPacket;
+    use server::runtime_mode::RuntimeMode;
+    use server::verifier::{VerificationError, Verifier};
+
+    let manifest =
+        server::manifest::ReceiverManifest::new([server::manifest::dregg_demo_descriptor(0x31)]);
+    let packet = ZenithPacket {
+        session_id: [1u8; 16],
+        nonce: [2u8; 12],
+        opcode: 0x31,
+        proof: vec![1],
+        claim_ttl: 300,
+        encrypted_payload: b"demo".to_vec(),
+        mac: [0u8; 16],
+    };
+
+    assert_eq!(
+        Verifier::verify_manifest_operation_for_runtime(
+            &packet,
+            &manifest,
+            "secS://receiver-a",
+            1_000,
+            RuntimeMode::ProductionVerified,
+        )
+        .unwrap_err(),
+        VerificationError::PrototypeOperationNotProductionAuthorized
+    );
+}
