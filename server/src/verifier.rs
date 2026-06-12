@@ -328,21 +328,58 @@ impl Verifier {
 
     #[allow(clippy::too_many_arguments)]
     /// Canonical multi-evidence-ref verification API (#79): all evidence
-    /// refs and public inputs arrive as explicit [`EvidenceInputs`], never
-    /// via adapter mutation. Implemented in 79.3; stub fails closed.
+    /// refs and public inputs arrive as explicit [`EvidenceInputs`] from the
+    /// caller/runtime, never via adapter mutation. Enforces the same
+    /// envelope, descriptor, TTL, session, binding, and Ed25519
+    /// context-signing checks as the single-ref helpers, which now delegate
+    /// here.
     #[allow(clippy::too_many_arguments)]
     pub fn verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
-        _packet: &ZenithPacket,
-        _manifest: &ReceiverManifest,
-        _audience: &str,
-        _subject: &str,
-        _inputs: &crate::evidence::EvidenceInputs,
-        _adapter: &dyn EvidenceAdapter,
-        _now: u64,
-        _signer_key_id: &str,
-        _secret_key: &[u8; 32],
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        subject: &str,
+        inputs: &crate::evidence::EvidenceInputs,
+        adapter: &dyn EvidenceAdapter,
+        now: u64,
+        signer_key_id: &str,
+        secret_key: &[u8; 32],
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
-        Err(VerificationError::InternalError)
+        if crate::clock::is_clock_read_failure(now) {
+            return Err(VerificationError::ExpiredClaim);
+        }
+        Self::verify_prototype_envelope(packet)?;
+        let descriptor = manifest.lookup(packet.opcode)?;
+        let mut request = EvidenceRequest::from_descriptor_with_refs(
+            descriptor,
+            subject,
+            audience,
+            inputs.evidence_refs().iter().map(String::as_str),
+        );
+        request
+            .public_inputs
+            .extend(inputs.public_inputs().iter().cloned());
+        let evidence_summary = match adapter.verify(&request) {
+            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
+            EvidenceResult::Rejected(error) => return Err(error),
+        };
+        let context = verified_context_for_descriptor(
+            packet,
+            descriptor,
+            audience,
+            VerifiedSubject {
+                subject_id: subject.to_string(),
+                key_id: format!("{subject}#key"),
+            },
+            evidence_summary,
+            now,
+        )?;
+
+        context.sign_ed25519(
+            signer_key_id,
+            secret_key,
+            AuthenticatorKind::Ed25519Verifier,
+        )
     }
 
     pub fn verify_manifest_operation_with_evidence_and_sign(
@@ -383,31 +420,19 @@ impl Verifier {
         signer_key_id: &str,
         secret_key: &[u8; 32],
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
-        Self::verify_prototype_envelope(packet)?;
-        let descriptor = manifest.lookup(packet.opcode)?;
-        let mut request =
-            EvidenceRequest::from_descriptor(descriptor, subject, audience, evidence_ref);
-        request.public_inputs.extend(public_inputs);
-        let evidence_summary = match adapter.verify(&request) {
-            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
-            EvidenceResult::Rejected(error) => return Err(error),
-        };
-        let context = verified_context_for_descriptor(
+        // Compatibility wrapper: single optional ref + loose public inputs
+        // normalize into the canonical EvidenceInputs path (#79).
+        let inputs = crate::evidence::EvidenceInputs::new(evidence_ref.into_iter(), public_inputs);
+        Self::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
             packet,
-            descriptor,
+            manifest,
             audience,
-            VerifiedSubject {
-                subject_id: subject.to_string(),
-                key_id: format!("{subject}#key"),
-            },
-            evidence_summary,
+            subject,
+            &inputs,
+            adapter,
             now,
-        )?;
-
-        context.sign_ed25519(
             signer_key_id,
             secret_key,
-            AuthenticatorKind::Ed25519Verifier,
         )
     }
 }
