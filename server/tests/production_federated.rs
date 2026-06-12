@@ -2549,3 +2549,55 @@ fn membership_handler_is_native_and_subprocess_free() {
         );
     }
 }
+
+// --- #80: active default manifest descriptor parity / drift gate ---
+
+#[test]
+fn active_membership_provision_descriptor_contract_is_pinned_field_by_field() {
+    // 80.1/80.5: the exhaustive drift gate. The ACTIVE default-manifest
+    // descriptor is asserted against expected literals, and the Track I
+    // fixture constructor must be identical to it. Any drift in a
+    // routing/authorization-relevant field fails here, not in some
+    // partially-asserted downstream test.
+    let manifest = ReceiverManifest::default_v0();
+    let active = manifest
+        .lookup(WALLET_AND_MEMBERSHIP_OPCODE)
+        .expect("default manifest must expose 0x44");
+
+    assert_eq!(active.opcode, 0x44);
+    assert_eq!(active.name.as_str(), "membership.provision");
+    assert_eq!(active.payload_schema.as_deref(), Some("application/json"));
+    assert_eq!(
+        active.target_kind,
+        server::manifest::TargetKind::LocalDevProcess,
+        "target kind pinned until #82 introduces the production target kind"
+    );
+    assert_eq!(
+        active.required_credentials,
+        vec!["trusted.membership", "wallet.presentation"]
+    );
+    assert_eq!(active.required_capabilities, vec!["membership.provision"]);
+    assert_eq!(
+        active.accepted_evidence,
+        vec!["wallet_presentation", "membership_credential"]
+    );
+    assert_eq!(
+        active.replay_scope,
+        server::manifest::ReplayScope::SessionOpcodeNonce
+    );
+    assert_eq!(active.max_ttl_seconds, 300);
+    assert_eq!(active.handler_id, "membership/provision");
+    assert!(!active.dev_binding);
+    assert_eq!(
+        active.range,
+        server::manifest::OpcodeRange::classify(0x44),
+        "opcode range derives from classification"
+    );
+
+    // Fixture parity: the Track I fixture must BE the canonical descriptor.
+    let fixture = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    assert_eq!(
+        &fixture, active,
+        "Track I fixture descriptor must not drift from the active default-manifest descriptor"
+    );
+}
