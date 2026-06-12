@@ -1589,3 +1589,128 @@ async fn ledger_source_exposes_atomic_chain_persistence_or_incomplete_chain_mark
     // Note: some tests intentionally use reason for size, but private payload should not leak in production paths; this is bounded check
     // For this test we just ensure the mechanism didn't introduce new leaks beyond existing.
 }
+
+// --- #81: descriptor-derived authorization binding against the active manifest ---
+
+async fn assert_no_route_side_effects(
+    pool: &sqlx::SqlitePool,
+    calls: &Arc<AtomicUsize>,
+    case: &str,
+) {
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "{case}: handler must not run"
+    );
+    let telemetry: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM node_telemetry")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(telemetry.0, 0, "{case}: no verified telemetry row");
+    let replays: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(replays.0, 0, "{case}: no replay reservation");
+    let verifies: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE kind = 'verify'")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(verifies.0, 0, "{case}: no accepted verify receipt");
+    let executes: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE kind = 'execute'")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(executes.0, 0, "{case}: no execute receipt");
+    let mismatches: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND reason = 'descriptor_context_mismatch'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        mismatches.0, 1,
+        "{case}: exactly one inspectable descriptor_context_mismatch reject"
+    );
+}
+
+#[tokio::test]
+async fn stale_descriptor_authorization_fields_reject_before_any_route_side_effects() {
+    // #81: a verifier-signed context whose operation and handler id still
+    // match the active descriptor must nevertheless reject when any other
+    // descriptor-derived authorization field is stale relative to the
+    // active manifest.
+    type Mutator = fn(&mut server::manifest::OperationDescriptor);
+    let cases: [(&str, Mutator); 5] = [
+        ("stale required_credentials", |descriptor| {
+            descriptor.required_credentials = vec!["stale.credential".to_string()];
+        }),
+        ("stale required_capabilities", |descriptor| {
+            descriptor.required_capabilities = vec!["stale.capability".to_string()];
+        }),
+        ("stale accepted_evidence", |descriptor| {
+            descriptor
+                .accepted_evidence
+                .push("membership_credential".to_string());
+        }),
+        ("stale payload_schema", |descriptor| {
+            descriptor.payload_schema = Some("text/plain".to_string());
+        }),
+        ("stale target_kind/dev_binding", |descriptor| {
+            descriptor.dev_binding = false;
+            descriptor.target_kind = server::manifest::TargetKind::LegacyCoreExample;
+        }),
+    ];
+
+    for (case, mutate) in cases {
+        let (program, calls, _bytes, _handler_ids) = counting_program();
+        let pool = memory_pool().await;
+        let mut router = ConfigurableRouter::new(pool.clone());
+        router.register(0x10, program);
+
+        let mut descriptor = ReceiverManifest::default_v0().lookup(0x10).unwrap().clone();
+        mutate(&mut descriptor);
+        let variant_manifest = ReceiverManifest::new([descriptor]);
+        let signed = Verifier::verify_manifest_operation_and_sign(
+            &packet(0x10, b"payload"),
+            &variant_manifest,
+            "secS://receiver-a",
+            current_test_time(),
+            "verifier:local-prototype",
+            &[7u8; 32],
+        )
+        .unwrap();
+
+        router.route_verified(&signed, b"payload".to_vec()).await;
+        assert_no_route_side_effects(&pool, &calls, case).await;
+    }
+}
+
+#[tokio::test]
+async fn context_ttl_span_beyond_active_descriptor_max_rejects_before_side_effects() {
+    // #81: the context's expires_at - issued_at span must respect the ACTIVE
+    // descriptor's max_ttl_seconds, even if a stale/looser descriptor signed
+    // the context.
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.register(0x10, program);
+
+    let mut loose = ReceiverManifest::default_v0().lookup(0x10).unwrap().clone();
+    loose.max_ttl_seconds = 10_000;
+    let variant_manifest = ReceiverManifest::new([loose]);
+    let mut overlong = packet(0x10, b"payload");
+    overlong.claim_ttl = 400; // above the active descriptor's 300
+    let signed = Verifier::verify_manifest_operation_and_sign(
+        &overlong,
+        &variant_manifest,
+        "secS://receiver-a",
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .unwrap();
+
+    router.route_verified(&signed, b"payload".to_vec()).await;
+    assert_no_route_side_effects(&pool, &calls, "ttl span beyond active max").await;
+}
