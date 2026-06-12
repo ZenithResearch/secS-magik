@@ -92,3 +92,13 @@ test-only `AdditionalEvidenceRefsAdapter` mutation pattern is removed. This is
 the verifier/caller API only — live runtime ingress remains descriptor-only
 and #77 still blocks `membership.provision` production runtime success until
 #78 lands the activation path.
+
+## #78 status note (2026-06-12)
+
+Runtime posture resolved as an active binding: default runtime bindings now
+register the bounded native `membership/provision` handler in every mode
+(`server/src/membership.rs` holds the decision record). #77's descriptor-only
+guard remains in force and live ingress still carries no evidence refs, so
+runtime `membership.provision` authority is still not claimable; the
+remaining live-wire activation rides on the #79 contract plus future
+ingress wiring.
