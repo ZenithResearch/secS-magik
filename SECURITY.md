@@ -10,6 +10,11 @@ Do not open public issues for unpatched vulnerabilities.
 
 - CI runs `cargo audit` on every PR and push to `main` and **fails on any
   known RUSTSEC vulnerability** in `Cargo.lock`.
+- CI also runs a `wasm_ffi_check` lane (`cargo check -p libsec-core
+  --target wasm32-unknown-unknown --features uniffi`) because the wasm/uniffi
+  FFI surface is cfg-gated out of host builds and dependency bumps to `uniffi`
+  have broken it silently before (#111). Do not merge `uniffi` bumps on green
+  host checks alone.
 - There is no blanket ignore list. If an advisory ever needs to be waived
   (e.g. a transitive advisory with no fixed release), it must be added to
   `audit.toml` with a written justification and a tracking issue.
