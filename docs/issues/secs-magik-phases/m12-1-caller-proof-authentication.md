@@ -136,5 +136,4 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 ## Forbidden claims
 
-Caller proof-of-origin is membership/issuer/root authority; this proves wallet/
-issuer evidence; Dregg authority; or any of #33/#37/#71–#75.
+Caller proof-of-origin is not membership/issuer/root authority; this does not prove wallet/issuer evidence, Dregg authority, or any of #33/#37/#71–#75.

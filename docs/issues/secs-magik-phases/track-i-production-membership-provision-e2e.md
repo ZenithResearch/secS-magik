@@ -19,7 +19,7 @@ This phase proves a no-real-secret local fixture packet can compose:
 - Branch: `phase/track-i-membership-provision-e2e`
 - PR: #76 (`feat(server): add production-shaped membership provision E2E`)
 - Merge: PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9` (`5e5bb71`); post-merge main Rust CI run 27071532041 passed.
-- GitHub issue: #70 is closed. Follow-up gaps discovered in post-merge review are tracked separately as #77-#84; #77 adds the fail-closed descriptor-only production runtime evidence guard and does not expand the Track I local E2E claim into live runtime authority.
+- GitHub issue: #70 is closed. Follow-up gaps discovered in post-merge review are tracked separately as #78-#83; #77 and #84 are already closed as guard/negative-proof slices. #77 adds the fail-closed descriptor-only production runtime evidence guard and does not expand the Track I local E2E claim into live runtime authority.
 
 ## Implemented task boundaries
 
@@ -81,3 +81,14 @@ This phase is local production-shaped E2E only. Issue #77 preserves that boundar
 - Post-merge Rust CI run 27071532041 passed.
 - Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84. #77 is the descriptor-only production runtime fail-closed guard; #78/#79-style follow-ups remain responsible for evidence-aware live ingress/runtime authority.
 - #84 is covered by `membership_provision_verifier_acceptance_without_execute_receipt_is_not_success`, which pins the non-success boundary for smoke/log/verifier-only paths without accepted execute receipts.
+
+
+## #79 status note (2026-06-12)
+
+The canonical multi-evidence-ref contract landed: Track I tests pass wallet +
+membership credential refs directly through
+`verify_manifest_operation_with_evidence_refs_and_inputs_and_sign` and the
+test-only `AdditionalEvidenceRefsAdapter` mutation pattern is removed. This is
+the verifier/caller API only — live runtime ingress remains descriptor-only
+and #77 still blocks `membership.provision` production runtime success until
+#78 lands the activation path.

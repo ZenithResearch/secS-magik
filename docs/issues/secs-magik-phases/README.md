@@ -34,7 +34,7 @@ not be used to close the future authority rails #71–#75.
 
 | Gap / forbidden claim | GitHub issue | Status |
 |---|---:|---|
-| Production-shaped `membership.provision` E2E | #70 | closed by PR #76 at `5e5bb71` with post-merge CI 27071532041; post-merge review follow-ups are #77-#84 |
+| Production-shaped `membership.provision` E2E | #70 | closed by PR #76 at `5e5bb71` with post-merge CI 27071532041; #77/#84 are closed guard/negative-proof slices and remaining post-merge review follow-ups are #78-#83 |
 | Full Castalia Wallet wallet-core parity | #71 | open |
 | Live Castalia trusted issuer registry discovery | #72 | open |
 | Dregg capability/proof/revocation authority | #73 | open |
