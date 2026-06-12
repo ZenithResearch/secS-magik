@@ -382,6 +382,7 @@ impl Verifier {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn verify_manifest_operation_with_evidence_and_sign(
         packet: &ZenithPacket,
         manifest: &ReceiverManifest,
@@ -422,7 +423,7 @@ impl Verifier {
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
         // Compatibility wrapper: single optional ref + loose public inputs
         // normalize into the canonical EvidenceInputs path (#79).
-        let inputs = crate::evidence::EvidenceInputs::new(evidence_ref.into_iter(), public_inputs);
+        let inputs = crate::evidence::EvidenceInputs::new(evidence_ref, public_inputs);
         Self::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
             packet,
             manifest,

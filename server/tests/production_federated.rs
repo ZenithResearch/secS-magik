@@ -57,31 +57,6 @@ impl MachineProgram for MembershipProvisionProgram {
     }
 }
 
-struct AdditionalEvidenceRefsAdapter<'a> {
-    inner: &'a dyn EvidenceAdapter,
-    extra_refs: Vec<&'a str>,
-}
-
-impl EvidenceAdapter for AdditionalEvidenceRefsAdapter<'_> {
-    fn kind(&self) -> EvidenceKind {
-        self.inner.kind()
-    }
-
-    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
-        let mut request = request.clone();
-        for evidence_ref in &self.extra_refs {
-            if !request
-                .evidence_refs
-                .iter()
-                .any(|existing| existing == evidence_ref)
-            {
-                request.evidence_refs.push((*evidence_ref).to_string());
-            }
-        }
-        self.inner.verify(&request)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PolicyMatrixStatus {
     Executable,
@@ -1238,23 +1213,11 @@ async fn membership_provision_e2e_contract_reaches_verify_execute_and_ledger_ins
         TRUSTED_VALIDATION_TIME,
     );
     let composite = composite_adapter(&wallet, &credential);
-    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
-        inner: &composite,
-        extra_refs: vec![MEMBERSHIP_CREDENTIAL_REF],
-    };
     let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     let payload = packet.encrypted_payload.clone();
     let payload_size = payload.len() as i64;
 
-    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
-        &packet,
-        &manifest,
-        TRUSTED_AUDIENCE,
-        TRUSTED_SUBJECT,
-        Some(WALLET_EVIDENCE_REF),
-        [origin_input(TRUSTED_ORIGIN)],
-        &multi_ref_adapter,
-        current_test_time(),
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(        &packet,        &manifest,        TRUSTED_AUDIENCE,        TRUSTED_SUBJECT,        &server::evidence::EvidenceInputs::new(            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],            [origin_input(TRUSTED_ORIGIN)],        ),        &composite,        current_test_time(),
         "verifier:local-prototype",
         &[7u8; 32],
     )
@@ -1347,22 +1310,10 @@ async fn membership_provision_verifier_acceptance_without_execute_receipt_is_not
         TRUSTED_VALIDATION_TIME,
     );
     let composite = composite_adapter(&wallet, &credential);
-    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
-        inner: &composite,
-        extra_refs: vec![MEMBERSHIP_CREDENTIAL_REF],
-    };
     let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     let payload = packet.encrypted_payload.clone();
 
-    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
-        &packet,
-        &manifest,
-        TRUSTED_AUDIENCE,
-        TRUSTED_SUBJECT,
-        Some(WALLET_EVIDENCE_REF),
-        [origin_input(TRUSTED_ORIGIN)],
-        &multi_ref_adapter,
-        current_test_time(),
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(        &packet,        &manifest,        TRUSTED_AUDIENCE,        TRUSTED_SUBJECT,        &server::evidence::EvidenceInputs::new(            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],            [origin_input(TRUSTED_ORIGIN)],        ),        &composite,        current_test_time(),
         "verifier:local-prototype",
         &[7u8; 32],
     )
@@ -1683,19 +1634,17 @@ async fn membership_provision_rejects_remain_inspectable_and_redacted() {
         TRUSTED_VALIDATION_TIME,
     );
     let composite = composite_adapter(&wallet, &credential);
-    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
-        inner: &composite,
-        extra_refs: vec![sensitive_credential_ref],
-    };
 
-    let signed = Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
         &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
         &manifest,
         TRUSTED_AUDIENCE,
         TRUSTED_SUBJECT,
-        Some(sensitive_wallet_ref),
-        [origin_input(TRUSTED_ORIGIN)],
-        &multi_ref_adapter,
+        &server::evidence::EvidenceInputs::new(
+            [sensitive_wallet_ref, sensitive_credential_ref],
+            [origin_input(TRUSTED_ORIGIN)],
+        ),
+        &composite,
         current_test_time(),
         "verifier:local-prototype",
         &[7u8; 32],
@@ -1823,22 +1772,20 @@ fn membership_provision_session_and_packet_guards_still_apply_after_evidence() {
         TRUSTED_VALIDATION_TIME,
     );
     let composite = composite_adapter(&wallet, &credential);
-    let multi_ref_adapter = AdditionalEvidenceRefsAdapter {
-        inner: &composite,
-        extra_refs: vec![MEMBERSHIP_CREDENTIAL_REF],
-    };
 
     let mut invalid_session = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     invalid_session.session_id = [0u8; 16];
     assert_eq!(
-        Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+        Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
             &invalid_session,
             &manifest,
             TRUSTED_AUDIENCE,
             TRUSTED_SUBJECT,
-            Some(WALLET_EVIDENCE_REF),
-            [origin_input(TRUSTED_ORIGIN)],
-            &multi_ref_adapter,
+            &server::evidence::EvidenceInputs::new(
+                [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+                [origin_input(TRUSTED_ORIGIN)],
+            ),
+            &composite,
             current_test_time(),
             "verifier:local-prototype",
             &[7u8; 32],
@@ -1850,14 +1797,16 @@ fn membership_provision_session_and_packet_guards_still_apply_after_evidence() {
     let mut excessive_ttl = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     excessive_ttl.claim_ttl = 301;
     assert_eq!(
-        Verifier::verify_manifest_operation_with_evidence_inputs_and_sign(
+        Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
             &excessive_ttl,
             &manifest,
             TRUSTED_AUDIENCE,
             TRUSTED_SUBJECT,
-            Some(WALLET_EVIDENCE_REF),
-            [origin_input(TRUSTED_ORIGIN)],
-            &multi_ref_adapter,
+            &server::evidence::EvidenceInputs::new(
+                [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+                [origin_input(TRUSTED_ORIGIN)],
+            ),
+            &composite,
             current_test_time(),
             "verifier:local-prototype",
             &[7u8; 32],
