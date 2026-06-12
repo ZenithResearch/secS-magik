@@ -169,20 +169,16 @@ pub fn provisioning_descriptor(opcode: u8) -> OperationDescriptor {
     )
 }
 
+/// Track I fixture for the canonical `0x44 membership.provision`
+/// descriptor. Delegates to the production constructor (#80) so the fixture
+/// IS the active contract; only the opcode may be rebased for tests that
+/// deliberately probe non-canonical opcodes.
 pub fn wallet_and_membership_descriptor(opcode: u8) -> OperationDescriptor {
-    let mut descriptor = trusted_descriptor(
-        opcode,
-        MEMBERSHIP_OPERATION,
-        vec![
-            EvidenceKind::WalletPresentation.as_str().to_string(),
-            EvidenceKind::MembershipCredential.as_str().to_string(),
-        ],
-    );
-    descriptor.required_credentials = vec![
-        "trusted.membership".to_string(),
-        "wallet.presentation".to_string(),
-    ];
-    descriptor.handler_id = "membership/provision".to_string();
+    let mut descriptor = server::manifest::membership_provision_descriptor();
+    if descriptor.opcode != opcode {
+        descriptor.opcode = opcode;
+        descriptor.range = OpcodeRange::classify(opcode);
+    }
     descriptor
 }
 
