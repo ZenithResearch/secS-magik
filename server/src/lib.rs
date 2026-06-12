@@ -7,6 +7,7 @@ pub mod identity;
 pub mod ingress;
 pub mod ledger;
 pub mod manifest;
+pub mod membership;
 pub mod ontology;
 pub mod payload;
 pub mod receipt;
