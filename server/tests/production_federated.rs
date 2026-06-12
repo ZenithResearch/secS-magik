@@ -2334,3 +2334,138 @@ fn canonical_path_rejects_wrong_operation_and_resource_descriptors() {
     );
     assert_eq!(result.unwrap_err(), VerificationError::WrongResource);
 }
+
+// --- #78: membership.provision default runtime binding posture ---
+
+fn evidence_backed_signed_for_default_manifest(
+) -> (server::verifier::SignedVerifiedCallContext, Vec<u8>) {
+    // Sign an evidence-backed context for the ACTIVE default manifest
+    // descriptor with the router's own identity, mirroring the Track I E2E.
+    let manifest = ReceiverManifest::default_v0();
+    let descriptor = manifest
+        .lookup(WALLET_AND_MEMBERSHIP_OPCODE)
+        .expect("default manifest exposes 0x44");
+    assert_eq!(descriptor.handler_id, "membership/provision");
+
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+    let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+    let payload = packet.encrypted_payload.clone();
+
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &server::evidence::EvidenceInputs::new(
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+            [origin_input(TRUSTED_ORIGIN)],
+        ),
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect("evidence-backed signing against the default manifest must verify");
+    (signed, payload)
+}
+
+#[tokio::test]
+async fn default_production_bindings_execute_evidence_backed_membership_provision() {
+    // #78 contract: the active default manifest advertises
+    // handler_id = "membership/provision", so the default runtime bindings
+    // must register a bounded production-shaped handler for it — an
+    // evidence-backed signed context routed through default bindings must
+    // produce verify accepted + execute accepted, with no manual test-only
+    // handler registration.
+    let pool = memory_pool().await;
+    let bootstrap = ConfigurableRouter::new(pool.clone());
+    let identity = bootstrap.identity().clone();
+    let (signed, payload) = evidence_backed_signed_for_default_manifest();
+
+    let mut router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool.clone(),
+        ExecutionLimits::default(),
+        identity,
+        TRUSTED_AUDIENCE,
+    );
+    server::gateway::register_runtime_bindings(&mut router, RuntimeMode::ProductionVerified);
+
+    router.route_verified(&signed, payload).await;
+
+    let execute_rows: Vec<(String, String, Option<String>)> = sqlx::query_as(
+        "SELECT decision, handler_id, reason FROM receipts WHERE kind = 'execute' AND context_id = ?",
+    )
+    .bind(&signed.context.context_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        execute_rows.len(),
+        1,
+        "exactly one handler execution for the verified context"
+    );
+    assert_eq!(
+        execute_rows[0],
+        (
+            "accepted".to_string(),
+            "membership/provision".to_string(),
+            None
+        ),
+        "default production bindings must execute membership/provision for an evidence-backed context; the default manifest/runtime-binding contract mismatch (descriptor advertised, handler unregistered) must be resolved"
+    );
+}
+
+#[tokio::test]
+async fn descriptor_only_guard_and_missing_binding_remain_distinct_failures() {
+    // #77's descriptor-only guard fires BEFORE signed-context creation with
+    // insufficient_evidence; a missing handler binding fires AFTER
+    // verification as an execute reject with handler_unavailable. These are
+    // different boundaries and must stay distinguishable.
+    let descriptor_only = Verifier::verify_manifest_operation_for_runtime(
+        &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
+        &ReceiverManifest::default_v0(),
+        TRUSTED_AUDIENCE,
+        current_test_time(),
+        RuntimeMode::ProductionVerified,
+    );
+    assert_eq!(
+        descriptor_only.unwrap_err(),
+        VerificationError::InsufficientEvidence,
+        "#77 fail-closed descriptor-only guard must remain in force"
+    );
+
+    // Evidence-backed context routed on a router with NO bindings at all:
+    // verify accepted, execute rejected handler_unavailable.
+    let pool = memory_pool().await;
+    let bare = ConfigurableRouter::new(pool.clone());
+    let identity = bare.identity().clone();
+    let (signed, payload) = evidence_backed_signed_for_default_manifest();
+    let router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool.clone(),
+        ExecutionLimits::default(),
+        identity,
+        TRUSTED_AUDIENCE,
+    );
+    router.route_verified(&signed, payload).await;
+
+    let execute_row: (String, Option<String>) = sqlx::query_as(
+        "SELECT decision, reason FROM receipts WHERE kind = 'execute' AND context_id = ?",
+    )
+    .bind(&signed.context.context_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        execute_row,
+        (
+            "rejected".to_string(),
+            Some("handler_unavailable".to_string())
+        )
+    );
+}
