@@ -83,7 +83,7 @@ No tracked `docs/reviews/` directory is present in the current tree. If historic
 - secS-magik/secS is the verifier and permissioned RPC substrate.
 - receiver-local manifests own opcode-to-handler meaning after verification.
 - `wallet_presentation` now verifies signed presentation/challenge material cryptographically through the explicitly temporary minimal-equivalent secS challenge contract; full Castalia Wallet wallet-core parity/import remains future reconciliation work.
-- Track E static trusted issuer/root policy is implemented on `main`; Track I local production-shaped `membership.provision` E2E is implemented on `main` via PR #76 at `5e5bb71` with post-merge CI run 27071532041. Follow-up runtime/live-ingress hardening remains tracked separately (#77-#84).
+- Track E static trusted issuer/root policy is implemented on `main`; Track I local production-shaped `membership.provision` E2E is implemented on `main` via PR #76 at `5e5bb71` with post-merge CI run 27071532041. #77/#84 are closed guard/negative-proof slices; remaining follow-up runtime/live-ingress hardening is tracked separately (#78-#83).
 - the current receipt/event ledger is local/operator SQLite evidence only, not public auditability.
 - Dregg, Midnight, Cardano, and wallet presentation enter through typed evidence adapters or anchors; they do not replace secS verification.
 - Client packaging boundary: browser extension = WASM binding; secZ/secC/local clients = native/client binding or packet/evidence carrier; secS = verifier subset/artifact consumer that consumes signed presentation/challenge plus public verification material, not UI session state.
