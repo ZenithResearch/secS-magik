@@ -986,6 +986,17 @@ impl MachineProgram for LocalRustQueue {
 }
 
 pub fn register_runtime_bindings(router: &mut ConfigurableRouter, runtime_mode: RuntimeMode) {
+    // #78 active-binding posture: the canonical 0x44 descriptor's
+    // membership/provision handler is registered in every runtime mode so
+    // the default manifest and default bindings agree. The binding grants no
+    // authority: descriptor-only production verification still fails closed
+    // (#77) and live ingress carries no evidence refs yet (#79 API-only) —
+    // only evidence-backed verifier-signed contexts can reach it. See
+    // server/src/membership.rs for the full decision record.
+    router.register_handler(
+        crate::membership::MEMBERSHIP_PROVISION_HANDLER_ID,
+        Box::new(crate::membership::MembershipProvisionProgram),
+    );
     if matches!(
         runtime_mode,
         RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel
