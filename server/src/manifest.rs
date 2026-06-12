@@ -172,7 +172,10 @@ fn dev_candidate_descriptor(
     }
 }
 
-fn membership_provision_descriptor() -> OperationDescriptor {
+/// Canonical `0x44 membership.provision` descriptor (#80): the single
+/// constructor shared by `ReceiverManifest::default_v0()` and the Track I
+/// test fixtures, so the active manifest and tests cannot drift apart.
+pub fn membership_provision_descriptor() -> OperationDescriptor {
     const OPCODE: u8 = 0x44;
     OperationDescriptor {
         opcode: OPCODE,
