@@ -1204,8 +1204,13 @@ fn membership_provision_descriptor_only_guard_is_production_runtime_only() {
 
 #[tokio::test]
 async fn membership_provision_e2e_contract_reaches_verify_execute_and_ledger_inspection() {
-    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
-    let manifest = ReceiverManifest::new([descriptor.clone()]);
+    // #80: the happy path exercises the ACTIVE default manifest descriptor,
+    // not an independent fixture copy.
+    let manifest = ReceiverManifest::default_v0();
+    let descriptor = manifest
+        .lookup(WALLET_AND_MEMBERSHIP_OPCODE)
+        .expect("default manifest exposes canonical membership.provision")
+        .clone();
     let wallet = membership_wallet_adapter();
     let credential = FederatedCredentialAdapter::new(
         [membership_credential_fixture()],
