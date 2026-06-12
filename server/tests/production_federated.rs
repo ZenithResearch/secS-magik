@@ -33,11 +33,11 @@ use trust_fixtures::{
     MEMBERSHIP_OPERATION, PROVISIONING_CREDENTIAL_REF, PROVISIONING_OPCODE, REGISTRY_ROOT_REF,
     TRUSTED_AUDIENCE, TRUSTED_EXPIRES_AT, TRUSTED_ISSUED_AT, TRUSTED_ISSUER_ID, TRUSTED_ORIGIN,
     TRUSTED_RESOURCE, TRUSTED_SUBJECT, TRUSTED_VALIDATION_TIME, TRUST_ROOT_REF,
-    WALLET_AND_MEMBERSHIP_OPCODE, WRONG_REGISTRY_ROOT_REF, WRONG_TRUST_ROOT_REF,
+    WALLET_AND_MEMBERSHIP_OPCODE, WRONG_ORIGIN, WRONG_REGISTRY_ROOT_REF, WRONG_TRUST_ROOT_REF,
 };
 use wallet_fixtures::{
     origin_input, sign_wallet_fixture, wallet_fixture, WALLET_EVIDENCE_REF, WALLET_ISSUED_AT,
-    WALLET_OPCODE, WALLET_OPERATION,
+    WALLET_OPCODE, WALLET_OPERATION, WALLET_OTHER_AUDIENCE,
 };
 
 struct MembershipProvisionProgram {
@@ -2177,4 +2177,160 @@ fn canonical_multi_ref_api_deduplicates_refs_without_escalation() {
         canonical_multi_ref_signed(&[WALLET_EVIDENCE_REF, WALLET_EVIDENCE_REF]).unwrap_err(),
         VerificationError::InsufficientEvidence
     );
+}
+
+fn canonical_signed_with(
+    subject: &str,
+    audience: &str,
+    inputs: server::evidence::EvidenceInputs,
+) -> Result<server::verifier::SignedVerifiedCallContext, VerificationError> {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let manifest = ReceiverManifest::new([descriptor]);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+
+    Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
+        &manifest,
+        audience,
+        subject,
+        &inputs,
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+}
+
+#[test]
+fn canonical_path_rejects_binding_mismatches_with_typed_reasons() {
+    let both_refs = || [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF];
+
+    // Wrong origin public input rejects at the wallet binding layer.
+    assert_eq!(
+        canonical_signed_with(
+            TRUSTED_SUBJECT,
+            TRUSTED_AUDIENCE,
+            server::evidence::EvidenceInputs::new(both_refs(), [origin_input(WRONG_ORIGIN)]),
+        )
+        .unwrap_err(),
+        VerificationError::WrongOrigin
+    );
+
+    // Missing origin public input fails closed: the wallet layer rejects the
+    // presentation, and the composite's skip-and-require semantics surface
+    // that as unsatisfied required evidence.
+    assert_eq!(
+        canonical_signed_with(
+            TRUSTED_SUBJECT,
+            TRUSTED_AUDIENCE,
+            server::evidence::EvidenceInputs::new(both_refs(), Vec::<String>::new()),
+        )
+        .unwrap_err(),
+        VerificationError::InsufficientEvidence
+    );
+
+    // Wrong subject rejects when evidence subjects do not match the request.
+    assert_eq!(
+        canonical_signed_with(
+            "did:example:mallory#key-1",
+            TRUSTED_AUDIENCE,
+            server::evidence::EvidenceInputs::new(both_refs(), [origin_input(TRUSTED_ORIGIN)]),
+        )
+        .unwrap_err(),
+        VerificationError::WrongSubject
+    );
+
+    // Wrong audience rejects when evidence audiences do not match the request.
+    assert_eq!(
+        canonical_signed_with(
+            TRUSTED_SUBJECT,
+            WALLET_OTHER_AUDIENCE,
+            server::evidence::EvidenceInputs::new(both_refs(), [origin_input(TRUSTED_ORIGIN)]),
+        )
+        .unwrap_err(),
+        VerificationError::WrongAudience
+    );
+
+    // Unknown refs at either layer leave required evidence unsatisfied.
+    assert_eq!(
+        canonical_signed_with(
+            TRUSTED_SUBJECT,
+            TRUSTED_AUDIENCE,
+            server::evidence::EvidenceInputs::new(
+                ["wallet-presentation:unknown", MEMBERSHIP_CREDENTIAL_REF],
+                [origin_input(TRUSTED_ORIGIN)],
+            ),
+        )
+        .unwrap_err(),
+        VerificationError::InsufficientEvidence
+    );
+    assert_eq!(
+        canonical_signed_with(
+            TRUSTED_SUBJECT,
+            TRUSTED_AUDIENCE,
+            server::evidence::EvidenceInputs::new(
+                [WALLET_EVIDENCE_REF, "membership-credential:unknown"],
+                [origin_input(TRUSTED_ORIGIN)],
+            ),
+        )
+        .unwrap_err(),
+        VerificationError::InsufficientEvidence
+    );
+}
+
+#[test]
+fn canonical_path_rejects_wrong_operation_and_resource_descriptors() {
+    // A descriptor whose operation/resource differ from the evidence
+    // bindings must reject through the canonical path.
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+
+    let mut wrong_operation = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    wrong_operation.name = server::manifest::OperationName::new("membership.provision.other");
+    let manifest = ReceiverManifest::new([wrong_operation]);
+    let result = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &server::evidence::EvidenceInputs::new(
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+            [origin_input(TRUSTED_ORIGIN)],
+        ),
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    );
+    assert_eq!(result.unwrap_err(), VerificationError::WrongOperation);
+
+    let mut wrong_resource = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    wrong_resource.payload_schema = Some("text/plain".to_string());
+    let manifest = ReceiverManifest::new([wrong_resource]);
+    let result = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &server::evidence::EvidenceInputs::new(
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+            [origin_input(TRUSTED_ORIGIN)],
+        ),
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    );
+    assert_eq!(result.unwrap_err(), VerificationError::WrongResource);
 }
