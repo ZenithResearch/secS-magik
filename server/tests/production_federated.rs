@@ -2469,3 +2469,83 @@ async fn descriptor_only_guard_and_missing_binding_remain_distinct_failures() {
         )
     );
 }
+
+#[tokio::test]
+async fn default_bindings_replay_of_membership_provision_rejects_without_second_execution() {
+    // 78.4: replay through the default production bindings — the second
+    // route of the same verified context must reject as replay_detected
+    // with exactly one execute-accepted receipt.
+    let pool = memory_pool().await;
+    let bootstrap = ConfigurableRouter::new(pool.clone());
+    let identity = bootstrap.identity().clone();
+    let (signed, payload) = evidence_backed_signed_for_default_manifest();
+
+    let mut router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool.clone(),
+        ExecutionLimits::default(),
+        identity,
+        TRUSTED_AUDIENCE,
+    );
+    server::gateway::register_runtime_bindings(&mut router, RuntimeMode::ProductionVerified);
+
+    router.route_verified(&signed, payload.clone()).await;
+    router.route_verified(&signed, payload).await;
+
+    let executes: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'execute' AND decision = 'accepted' AND context_id = ?",
+    )
+    .bind(&signed.context.context_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(executes.0, 1, "replay must not execute the handler twice");
+
+    let replay_rejects: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'reject' AND reason = 'replay_detected' AND context_id = ?",
+    )
+    .bind(&signed.context.context_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(replay_rejects.0, 1);
+}
+
+#[tokio::test]
+async fn default_bindings_wrong_audience_rejects_before_membership_execution() {
+    // 78.4: a context signed for a different audience must reject before
+    // the handler runs, even with the default binding registered.
+    let pool = memory_pool().await;
+    let bootstrap = ConfigurableRouter::new(pool.clone());
+    let (signed, payload) = evidence_backed_signed_for_default_manifest();
+
+    let mut router = ConfigurableRouter::with_limits_identity_and_audience(
+        pool.clone(),
+        ExecutionLimits::default(),
+        bootstrap.identity().clone(),
+        "secS://other-receiver",
+    );
+    server::gateway::register_runtime_bindings(&mut router, RuntimeMode::ProductionVerified);
+    router.route_verified(&signed, payload).await;
+
+    let accepted_executes: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'execute' AND decision = 'accepted' AND context_id = ?",
+    )
+    .bind(&signed.context.context_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(accepted_executes.0, 0, "wrong audience must not execute");
+}
+
+#[test]
+fn membership_handler_is_native_and_subprocess_free() {
+    // 78.5: the production-shaped handler must never become a subprocess
+    // surface. Source-level pin, mirroring the legacy-entrypoint checks.
+    let source = include_str!("../src/membership.rs");
+    for forbidden in ["SubprocessForwarder", "Command::new", "std::process"] {
+        assert!(
+            !source.contains(forbidden),
+            "membership.rs must stay a bounded native handler (found {forbidden:?})"
+        );
+    }
+}
