@@ -327,6 +327,24 @@ impl Verifier {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Canonical multi-evidence-ref verification API (#79): all evidence
+    /// refs and public inputs arrive as explicit [`EvidenceInputs`], never
+    /// via adapter mutation. Implemented in 79.3; stub fails closed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        _packet: &ZenithPacket,
+        _manifest: &ReceiverManifest,
+        _audience: &str,
+        _subject: &str,
+        _inputs: &crate::evidence::EvidenceInputs,
+        _adapter: &dyn EvidenceAdapter,
+        _now: u64,
+        _signer_key_id: &str,
+        _secret_key: &[u8; 32],
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        Err(VerificationError::InternalError)
+    }
+
     pub fn verify_manifest_operation_with_evidence_and_sign(
         packet: &ZenithPacket,
         manifest: &ReceiverManifest,

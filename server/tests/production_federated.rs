@@ -2148,3 +2148,84 @@ fn standalone_dregg_shaped_evidence_cannot_satisfy_tri_evidence_descriptor() {
         VerificationError::InsufficientEvidence,
     );
 }
+
+// --- #79: canonical multi-evidence-ref verification API ---
+
+fn canonical_inputs(refs: &[&str]) -> server::evidence::EvidenceInputs {
+    server::evidence::EvidenceInputs::new(refs.iter().copied(), [origin_input(TRUSTED_ORIGIN)])
+}
+
+fn canonical_multi_ref_signed(
+    refs: &[&str],
+) -> Result<server::verifier::SignedVerifiedCallContext, VerificationError> {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let manifest = ReceiverManifest::new([descriptor]);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+
+    Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &canonical_inputs(refs),
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+}
+
+#[test]
+fn canonical_multi_ref_api_accepts_wallet_plus_credential_refs_directly() {
+    let signed = canonical_multi_ref_signed(&[WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF])
+        .expect("wallet + membership credential refs via the canonical API must verify");
+
+    let summary = signed.context.evidence_summary.join("|");
+    assert!(summary.contains("evidence_kind:wallet_presentation"));
+    assert!(summary.contains("evidence_kind:membership_credential"));
+}
+
+#[test]
+fn canonical_multi_ref_api_rejects_missing_either_layer() {
+    assert_eq!(
+        canonical_multi_ref_signed(&[WALLET_EVIDENCE_REF]).unwrap_err(),
+        VerificationError::InsufficientEvidence,
+        "wallet ref alone must remain insufficient"
+    );
+    assert_eq!(
+        canonical_multi_ref_signed(&[MEMBERSHIP_CREDENTIAL_REF]).unwrap_err(),
+        VerificationError::InsufficientEvidence,
+        "membership credential ref alone must remain insufficient"
+    );
+    assert_eq!(
+        canonical_multi_ref_signed(&[]).unwrap_err(),
+        VerificationError::InsufficientEvidence,
+        "empty refs are an explicit fail-closed input, not a fallback"
+    );
+}
+
+#[test]
+fn canonical_multi_ref_api_deduplicates_refs_without_escalation() {
+    // Duplicate refs are deduplicated at construction (first occurrence
+    // wins); duplicates never escalate one evidence layer into two.
+    let inputs = server::evidence::EvidenceInputs::new(
+        [
+            WALLET_EVIDENCE_REF,
+            WALLET_EVIDENCE_REF,
+            WALLET_EVIDENCE_REF,
+        ],
+        Vec::<String>::new(),
+    );
+    assert_eq!(inputs.evidence_refs(), [WALLET_EVIDENCE_REF]);
+
+    assert_eq!(
+        canonical_multi_ref_signed(&[WALLET_EVIDENCE_REF, WALLET_EVIDENCE_REF]).unwrap_err(),
+        VerificationError::InsufficientEvidence
+    );
+}

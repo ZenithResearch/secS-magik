@@ -49,6 +49,51 @@ impl EvidenceKind {
     }
 }
 
+/// Canonical caller/runtime evidence inputs (#79).
+///
+/// The explicit, ordered, validated representation of what a caller or
+/// runtime ingress supplies for evidence-backed verification: zero or more
+/// evidence references plus zero or more public inputs. This replaces the
+/// test-only adapter-mutation pattern — evidence refs are direct inputs to
+/// the verifier API, never hidden inside adapter clones.
+///
+/// Refs are deduplicated at construction (first occurrence wins, order
+/// preserved) so duplicates can never escalate evidence. Empty refs are a
+/// valid input that fails closed downstream — never an implicit fallback to
+/// local/static evidence.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EvidenceInputs {
+    evidence_refs: Vec<String>,
+    public_inputs: Vec<String>,
+}
+
+impl EvidenceInputs {
+    pub fn new(
+        evidence_refs: impl IntoIterator<Item = impl Into<String>>,
+        public_inputs: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        let mut deduped: Vec<String> = Vec::new();
+        for evidence_ref in evidence_refs {
+            let evidence_ref = evidence_ref.into();
+            if !deduped.contains(&evidence_ref) {
+                deduped.push(evidence_ref);
+            }
+        }
+        Self {
+            evidence_refs: deduped,
+            public_inputs: public_inputs.into_iter().map(Into::into).collect(),
+        }
+    }
+
+    pub fn evidence_refs(&self) -> &[String] {
+        &self.evidence_refs
+    }
+
+    pub fn public_inputs(&self) -> &[String] {
+        &self.public_inputs
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvidenceRequest {
     pub accepted_evidence: Vec<String>,
