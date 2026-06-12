@@ -102,3 +102,11 @@ guard remains in force and live ingress still carries no evidence refs, so
 runtime `membership.provision` authority is still not claimable; the
 remaining live-wire activation rides on the #79 contract plus future
 ingress wiring.
+
+## #80 status note (2026-06-12)
+
+The E2E happy path now drives the active `default_v0()` descriptor;
+`membership_provision_descriptor()` is the shared canonical constructor and
+the `wallet_and_membership_descriptor` fixture delegates to it. The exhaustive
+contract test (`active_membership_provision_descriptor_contract_is_pinned_field_by_field`)
+is the drift gate for all twelve routing/authorization fields.
