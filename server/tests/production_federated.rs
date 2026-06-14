@@ -400,13 +400,14 @@ fn evidence_summary_redacts_private_material() {
 
     let summary = &signed.context.evidence_summary;
     for expected in [
+        // #83: cleartext authority-layer / outcome / validity metadata — the
+        // receiver already holds these trust anchors, so they are operator
+        // metadata, not a new disclosure.
         "evidence_kind:membership_credential",
         "credential_kind:membership_credential",
-        &format!("credential_id:{MEMBERSHIP_CREDENTIAL_REF}"),
         &format!("issuer_id:{TRUSTED_ISSUER_ID}"),
         &format!("trust_root_ref:{TRUST_ROOT_REF}"),
         &format!("registry_root_ref:{REGISTRY_ROOT_REF}"),
-        &format!("status_ref:{CREDENTIAL_STATUS_REF}"),
         "status:active",
         &format!("issued_at:{TRUSTED_ISSUED_AT}"),
         &format!("expires_at:{TRUSTED_EXPIRES_AT}"),
@@ -418,12 +419,19 @@ fn evidence_summary_redacts_private_material() {
             "missing safe summary field {expected}"
         );
     }
-    assert!(summary
-        .iter()
-        .any(|field| field.starts_with("issuer_key_id:pubkey:sha256:")));
-    assert!(summary
-        .iter()
-        .any(|field| field.starts_with("evidence_ref_sha256:")));
+    // #83: externally-linkable opaque handles are digested by default — present
+    // as deterministic sha256 fingerprints (correlatable), never as raw values.
+    for digested in [
+        "issuer_key_id:pubkey:sha256:",
+        "evidence_ref_sha256:",
+        "credential_id_sha256:",
+        "status_ref_sha256:",
+    ] {
+        assert!(
+            summary.iter().any(|field| field.starts_with(digested)),
+            "missing digested summary field prefix {digested}"
+        );
+    }
 
     let joined_summary = summary.join("\n");
     for forbidden in [
@@ -437,6 +445,11 @@ fn evidence_summary_redacts_private_material() {
         &raw_private_seed_debug,
         raw_credential_body.as_str(),
         server::evidence::SecsFederatedCredential::VERSION,
+        // #83: raw linkable handles must be digested, not cleartext.
+        MEMBERSHIP_CREDENTIAL_REF,
+        CREDENTIAL_STATUS_REF,
+        &format!("credential_id:{MEMBERSHIP_CREDENTIAL_REF}"),
+        &format!("status_ref:{CREDENTIAL_STATUS_REF}"),
     ] {
         assert!(
             !joined_summary.contains(forbidden),
@@ -464,6 +477,79 @@ fn evidence_summary_redacts_private_material() {
     assert!(!receipt_debug.contains("raw-registry-secret-token"));
     assert!(!receipt_debug.contains("/Users/bananawalnut/.secrets"));
     assert!(!receipt_debug.contains(server::evidence::SecsFederatedCredential::VERSION));
+}
+
+/// #83: provisioning_credential summaries follow the same disclosure taxonomy
+/// as membership_credential — linkable opaque handles are digested, authority
+/// anchors stay cleartext, raw handles are absent — and the digests are
+/// deterministic so operators can still correlate across receipts.
+#[test]
+fn provisioning_credential_summary_follows_disclosure_taxonomy() {
+    let adapter = FederatedCredentialAdapter::new(
+        [provisioning_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let request = request_for(
+        &provisioning_descriptor(PROVISIONING_OPCODE),
+        Some(PROVISIONING_CREDENTIAL_REF),
+    );
+
+    let EvidenceResult::Satisfied(summary) = adapter.verify(&request) else {
+        panic!("valid provisioning credential should verify");
+    };
+    let fields = &summary.summary_fields;
+
+    for digested in [
+        "credential_id_sha256:",
+        "status_ref_sha256:",
+        "evidence_ref_sha256:",
+        "issuer_key_id:pubkey:sha256:",
+    ] {
+        assert!(
+            fields.iter().any(|field| field.starts_with(digested)),
+            "missing digested provisioning field {digested}"
+        );
+    }
+    assert!(fields
+        .iter()
+        .any(|field| field == "credential_kind:provisioning_credential"));
+    assert!(fields.iter().any(|field| field.starts_with("issuer_id:")));
+    assert!(fields
+        .iter()
+        .any(|field| field == "proof:redacted_ed25519_signature"));
+
+    let joined = fields.join("\n");
+    for forbidden in [
+        PROVISIONING_CREDENTIAL_REF,
+        &format!("credential_id:{PROVISIONING_CREDENTIAL_REF}"),
+    ] {
+        assert!(
+            !joined.contains(forbidden),
+            "provisioning summary leaked raw handle {forbidden}"
+        );
+    }
+
+    // Deterministic digests: a second verification of the same credential
+    // produces identical credential_id / status_ref fingerprints.
+    let EvidenceResult::Satisfied(again) = adapter.verify(&request) else {
+        panic!("second verification should also satisfy");
+    };
+    let digest_of = |fields: &[String], prefix: &str| {
+        fields
+            .iter()
+            .find(|field| field.starts_with(prefix))
+            .cloned()
+            .unwrap_or_default()
+    };
+    assert_eq!(
+        digest_of(fields, "credential_id_sha256:"),
+        digest_of(&again.summary_fields, "credential_id_sha256:")
+    );
+    assert_eq!(
+        digest_of(fields, "status_ref_sha256:"),
+        digest_of(&again.summary_fields, "status_ref_sha256:")
+    );
 }
 
 #[test]

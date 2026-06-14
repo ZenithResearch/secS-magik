@@ -481,16 +481,31 @@ impl EvidenceAdapter for FederatedCredentialAdapter {
             resource: Some(credential.resource.clone()),
             local_dev_test_only: false,
             public_proof: true,
+            // #83 credential-summary disclosure boundary. Every field here is
+            // an explicit local/operator-inspection disclosure decision — this
+            // is NOT public auditability (#37) or deployment proof (#33). See
+            // `docs/issues/secs-magik-phases/credential-summary-disclosure-boundary.md`.
+            //
+            //   digest (sha256, deterministic, correlatable, never raw):
+            //     evidence_ref, credential_id, status_ref, issuer_key_id —
+            //     externally-linkable opaque handles/pointers.
+            //   cleartext authority-layer metadata (receiver already holds it):
+            //     credential_kind, issuer_id, trust_root_ref, registry_root_ref,
+            //     status, signature_suite, and the validity window issued_at/
+            //     expires_at.
+            //   redacted marker: proof.
+            //   absent: raw refs/paths/tokens, raw signatures, private seeds/
+            //     keys, raw credential bodies (never constructed here).
             summary_fields: vec![
                 redacted_reference_field("evidence_ref", evidence_ref),
-                format!("credential_id:{}", credential.credential_id),
+                redacted_reference_field("credential_id", &credential.credential_id),
                 format!("credential_kind:{}", credential.kind.as_str()),
                 format!("issuer_id:{}", credential.issuer_id),
                 format!("issuer_key_id:{}", credential.issuer_key_id),
                 format!("trust_root_ref:{}", credential.trust_root_ref),
                 format!("registry_root_ref:{}", credential.registry_root_ref),
                 format!("status:{}", credential_status_name(credential.status)),
-                format!("status_ref:{}", credential.status_ref),
+                redacted_reference_field("status_ref", &credential.status_ref),
                 format!("issued_at:{}", credential.issued_at),
                 format!("expires_at:{}", credential.expires_at),
                 format!("signature_suite:{}", credential.signature_suite),
