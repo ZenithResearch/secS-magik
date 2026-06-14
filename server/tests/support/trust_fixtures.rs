@@ -202,7 +202,10 @@ fn trusted_descriptor(
         opcode,
         name: OperationName::new(operation),
         payload_schema: Some(TRUSTED_RESOURCE.to_string()),
-        target_kind: TargetKind::LocalDevProcess,
+        // #82: this fixture models production-shaped membership/provisioning
+        // authority, so it uses the production receiver target kind — not
+        // LocalDevProcess — matching the canonical 0x44 descriptor.
+        target_kind: TargetKind::ReceiverProductionHandler,
         required_credentials: vec!["trusted.membership".to_string()],
         required_capabilities: vec!["membership.provision".to_string()],
         accepted_evidence,

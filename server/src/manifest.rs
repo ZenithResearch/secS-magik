@@ -271,7 +271,7 @@ pub fn membership_provision_descriptor() -> OperationDescriptor {
         opcode: OPCODE,
         name: OperationName::new("membership.provision"),
         payload_schema: Some("application/json".to_string()),
-        target_kind: TargetKind::LocalDevProcess,
+        target_kind: TargetKind::ReceiverProductionHandler,
         required_credentials: vec![
             "trusted.membership".to_string(),
             "wallet.presentation".to_string(),
