@@ -544,3 +544,11 @@ Deferred rails:
 - Code: `/Users/bananawalnut/repos/secS-magik/server/src/evidence.rs`
 - Code: `/Users/bananawalnut/repos/secS-magik/server/src/manifest.rs`
 - Tests: `/Users/bananawalnut/repos/secS-magik/server/tests/support/wallet_fixtures.rs`
+
+> **#83 update:** The `EvidenceSummary` returned by E4/E10 now follows an
+> explicit field-by-field disclosure policy. The E4 line "includes credential
+> kind/id, …, status/ref" still holds, but `credential_id` and `status_ref` are
+> emitted as deterministic digests (`credential_id_sha256:` / `status_ref_sha256:`),
+> joining the already-digested `evidence_ref` / `issuer_key_id`; issuer/root
+> anchors, status, and the validity window stay cleartext. Full taxonomy:
+> [`credential-summary-disclosure-boundary.md`](credential-summary-disclosure-boundary.md).
