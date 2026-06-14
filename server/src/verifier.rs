@@ -109,6 +109,10 @@ pub struct VerifiedSubject {
     pub key_id: String,
 }
 
+/// Bumped to 2 by #81: contexts now carry the descriptor authorization
+/// fingerprint, and the router re-validates it against the active manifest.
+pub const VERIFIED_CALL_CONTEXT_SCHEMA_VERSION: u16 = 2;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedCallContext {
     pub schema_version: u16,
@@ -125,6 +129,10 @@ pub struct VerifiedCallContext {
     pub credential_result: String,
     pub issued_at: u64,
     pub expires_at: u64,
+    /// Canonical authorization fingerprint of the descriptor this context
+    /// was verified against (#81); re-checked against the active manifest
+    /// before any route side effects. Empty fingerprints never route.
+    pub descriptor_fingerprint: String,
     pub replay_scope: String,
     pub handler_id: Option<String>,
 }
@@ -508,7 +516,7 @@ fn verified_context_for_descriptor(
         .collect::<String>();
 
     Ok(VerifiedCallContext {
-        schema_version: 1,
+        schema_version: VERIFIED_CALL_CONTEXT_SCHEMA_VERSION,
         context_id: format!("ctx-v1-{now}-{:02x}-{packet_hash_suffix}", packet.opcode),
         packet_hash,
         session_id: packet.session_id,
@@ -523,6 +531,7 @@ fn verified_context_for_descriptor(
         issued_at: now,
         expires_at: now.saturating_add(packet.claim_ttl),
         replay_scope: replay_scope_name(descriptor.replay_scope).to_string(),
+        descriptor_fingerprint: descriptor.authorization_fingerprint(),
         handler_id: Some(descriptor.handler_id.clone()),
     })
 }

@@ -62,7 +62,8 @@ mod tests {
         let program = MembershipProvisionProgram;
         let limits = ExecutionLimits::default();
         let context = crate::verifier::VerifiedCallContext {
-            schema_version: 1,
+            schema_version: 2,
+            descriptor_fingerprint: String::new(),
             context_id: "ctx_membership_test".to_string(),
             packet_hash: [7u8; 32],
             session_id: [1u8; 16],

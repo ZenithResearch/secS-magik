@@ -5,6 +5,7 @@
 //! assigns to each key.
 
 use crate::verifier::VerificationError;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 pub const CORE_STANDARDIZED_START: u8 = 0x01;
@@ -72,6 +73,82 @@ pub struct OperationDescriptor {
     pub handler_id: String,
     pub dev_binding: bool,
     pub range: OpcodeRange,
+}
+
+impl OperationDescriptor {
+    /// Canonical authorization fingerprint (#81): a deterministic SHA-256
+    /// over every routing/authorization-relevant descriptor field, computed
+    /// from canonical length-prefixed bytes (declared Vec order; no map
+    /// iteration, no Debug formatting). Carried in `VerifiedCallContext` at
+    /// verification time and re-checked against the active manifest before
+    /// any route side effects, so a signed context cannot ride on stale
+    /// descriptor semantics. Contains no payload or evidence material.
+    pub fn authorization_fingerprint(&self) -> String {
+        const VERSION: &str = "secs-descriptor-fingerprint-v1";
+        let mut bytes = Vec::new();
+        let mut field = |name: &str, value: &str| {
+            bytes.extend_from_slice(name.as_bytes());
+            bytes.push(b':');
+            bytes.extend_from_slice(value.len().to_string().as_bytes());
+            bytes.push(b':');
+            bytes.extend_from_slice(value.as_bytes());
+            bytes.push(b'\n');
+        };
+        field("version", VERSION);
+        field("opcode", &format!("{:02x}", self.opcode));
+        field("operation", self.name.as_str());
+        field(
+            "payload_schema",
+            self.payload_schema.as_deref().unwrap_or(""),
+        );
+        field("target_kind", target_kind_label(self.target_kind));
+        for credential in &self.required_credentials {
+            field("required_credential", credential);
+        }
+        for capability in &self.required_capabilities {
+            field("required_capability", capability);
+        }
+        for evidence in &self.accepted_evidence {
+            field("accepted_evidence", evidence);
+        }
+        field(
+            "replay_scope",
+            replay_scope_fingerprint_label(self.replay_scope),
+        );
+        field("max_ttl_seconds", &self.max_ttl_seconds.to_string());
+        field("handler_id", &self.handler_id);
+        field(
+            "dev_binding",
+            if self.dev_binding { "true" } else { "false" },
+        );
+        field("range", opcode_range_label(self.range));
+
+        let digest = Sha256::digest(&bytes);
+        let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+        format!("descriptor:sha256:{hex}")
+    }
+}
+
+fn target_kind_label(kind: TargetKind) -> &'static str {
+    match kind {
+        TargetKind::LegacyCoreExample => "legacy_core_example",
+        TargetKind::LocalDevProcess => "local_dev_process",
+    }
+}
+
+fn replay_scope_fingerprint_label(scope: ReplayScope) -> &'static str {
+    match scope {
+        ReplayScope::SessionOpcodeNonce => "session_opcode_nonce",
+    }
+}
+
+fn opcode_range_label(range: OpcodeRange) -> &'static str {
+    match range {
+        OpcodeRange::Reserved => "reserved",
+        OpcodeRange::CoreStandardized => "core_standardized",
+        OpcodeRange::CastaliaStandardCandidate => "castalia_standard_candidate",
+        OpcodeRange::OperatorDefined => "operator_defined",
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
