@@ -166,3 +166,91 @@ fn dregg_demo_descriptor_rejects_in_production_runtime() {
         VerificationError::PrototypeOperationNotProductionAuthorized
     );
 }
+
+// --- #82: explicit production target kind for membership.provision ---
+
+/// The canonical `0x44 membership.provision` descriptor must use the explicit
+/// non-dev production target kind, not `LocalDevProcess`, while keeping
+/// `dev_binding: false`. A production-shaped authority descriptor labeled as a
+/// local-dev process target is the exact semantic confusion #82 removes.
+#[test]
+fn membership_provision_uses_explicit_production_target_kind() {
+    let manifest = ReceiverManifest::default_v0();
+    let descriptor = manifest.lookup(0x44).unwrap();
+
+    assert_eq!(descriptor.name.as_str(), "membership.provision");
+    assert_eq!(descriptor.handler_id, "membership/provision");
+    assert!(
+        !descriptor.dev_binding,
+        "membership.provision is not a dev binding"
+    );
+    assert_eq!(
+        descriptor.target_kind,
+        TargetKind::ReceiverProductionHandler,
+        "canonical membership.provision must be a production-shaped receiver handler, not LocalDevProcess"
+    );
+    // The shared constructor and the active manifest must agree.
+    assert_eq!(
+        server::manifest::membership_provision_descriptor().target_kind,
+        TargetKind::ReceiverProductionHandler
+    );
+}
+
+/// The production target kind must stay distinct from dev and legacy kinds so
+/// dev/prototype descriptors can never be confused with production authority.
+#[test]
+fn dev_and_legacy_descriptors_keep_their_non_production_target_kinds() {
+    let manifest = ReceiverManifest::default_v0();
+
+    for opcode in [0x10u8, 0x20, 0x30] {
+        let descriptor = manifest.lookup(opcode).unwrap();
+        assert_eq!(
+            descriptor.target_kind,
+            TargetKind::LocalDevProcess,
+            "dev candidate {opcode:#04x} must remain LocalDevProcess"
+        );
+        assert!(
+            descriptor.dev_binding,
+            "dev candidate {opcode:#04x} stays dev-bound"
+        );
+        assert!(descriptor.handler_id.starts_with("dev/"));
+        assert_ne!(
+            descriptor.target_kind,
+            TargetKind::ReceiverProductionHandler
+        );
+    }
+
+    for opcode in [0x01u8, 0x02] {
+        let descriptor = manifest.lookup(opcode).unwrap();
+        assert_eq!(
+            descriptor.target_kind,
+            TargetKind::LegacyCoreExample,
+            "legacy example {opcode:#04x} must remain LegacyCoreExample"
+        );
+        assert_ne!(
+            descriptor.target_kind,
+            TargetKind::ReceiverProductionHandler
+        );
+    }
+}
+
+/// Changing the target kind must change the #81 descriptor authorization
+/// fingerprint: the fingerprint binds `target_kind`, so a production-shaped
+/// descriptor and an otherwise-identical local-dev one cannot collide.
+#[test]
+fn production_target_kind_changes_authorization_fingerprint() {
+    let production = server::manifest::membership_provision_descriptor();
+    assert_eq!(
+        production.target_kind,
+        TargetKind::ReceiverProductionHandler
+    );
+
+    let mut as_local_dev = production.clone();
+    as_local_dev.target_kind = TargetKind::LocalDevProcess;
+
+    assert_ne!(
+        production.authorization_fingerprint(),
+        as_local_dev.authorization_fingerprint(),
+        "target kind must be bound into the descriptor authorization fingerprint"
+    );
+}

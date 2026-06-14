@@ -2574,8 +2574,8 @@ fn active_membership_provision_descriptor_contract_is_pinned_field_by_field() {
     assert_eq!(active.payload_schema.as_deref(), Some("application/json"));
     assert_eq!(
         active.target_kind,
-        server::manifest::TargetKind::LocalDevProcess,
-        "target kind pinned until #82 introduces the production target kind"
+        server::manifest::TargetKind::ReceiverProductionHandler,
+        "#82: membership.provision is a production-shaped receiver handler, not a local-dev process target"
     );
     assert_eq!(
         active.required_credentials,
