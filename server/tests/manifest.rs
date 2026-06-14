@@ -209,9 +209,15 @@ fn dev_and_legacy_descriptors_keep_their_non_production_target_kinds() {
             TargetKind::LocalDevProcess,
             "dev candidate {opcode:#04x} must remain LocalDevProcess"
         );
-        assert!(descriptor.dev_binding, "dev candidate {opcode:#04x} stays dev-bound");
+        assert!(
+            descriptor.dev_binding,
+            "dev candidate {opcode:#04x} stays dev-bound"
+        );
         assert!(descriptor.handler_id.starts_with("dev/"));
-        assert_ne!(descriptor.target_kind, TargetKind::ReceiverProductionHandler);
+        assert_ne!(
+            descriptor.target_kind,
+            TargetKind::ReceiverProductionHandler
+        );
     }
 
     for opcode in [0x01u8, 0x02] {
@@ -221,7 +227,10 @@ fn dev_and_legacy_descriptors_keep_their_non_production_target_kinds() {
             TargetKind::LegacyCoreExample,
             "legacy example {opcode:#04x} must remain LegacyCoreExample"
         );
-        assert_ne!(descriptor.target_kind, TargetKind::ReceiverProductionHandler);
+        assert_ne!(
+            descriptor.target_kind,
+            TargetKind::ReceiverProductionHandler
+        );
     }
 }
 
@@ -231,7 +240,10 @@ fn dev_and_legacy_descriptors_keep_their_non_production_target_kinds() {
 #[test]
 fn production_target_kind_changes_authorization_fingerprint() {
     let production = server::manifest::membership_provision_descriptor();
-    assert_eq!(production.target_kind, TargetKind::ReceiverProductionHandler);
+    assert_eq!(
+        production.target_kind,
+        TargetKind::ReceiverProductionHandler
+    );
 
     let mut as_local_dev = production.clone();
     as_local_dev.target_kind = TargetKind::LocalDevProcess;
