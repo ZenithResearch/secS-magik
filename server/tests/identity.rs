@@ -40,7 +40,8 @@ fn hex_encode(bytes: &[u8; 32]) -> String {
 
 fn sample_context() -> VerifiedCallContext {
     VerifiedCallContext {
-        schema_version: 1,
+        schema_version: 2,
+        descriptor_fingerprint: String::new(),
         context_id: "ctx_identity_config".to_string(),
         packet_hash: [3u8; 32],
         session_id: [4u8; 16],

@@ -20,7 +20,8 @@ fn prototype_packet() -> ZenithPacket {
 
 fn sample_context_with_expiry(expires_at: u64) -> VerifiedCallContext {
     VerifiedCallContext {
-        schema_version: 1,
+        schema_version: 2,
+        descriptor_fingerprint: String::new(),
         context_id: "ctx_clock_test".to_string(),
         packet_hash: [7u8; 32],
         session_id: [1u8; 16],

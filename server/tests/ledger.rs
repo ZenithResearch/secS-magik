@@ -31,7 +31,8 @@ fn packet() -> ZenithPacket {
 
 fn verified_context(session_id: [u8; 16], nonce: [u8; 12], opcode: u8) -> VerifiedCallContext {
     VerifiedCallContext {
-        schema_version: 1,
+        schema_version: 2,
+        descriptor_fingerprint: String::new(),
         context_id: format!("ctx-{opcode:02x}-{}", nonce[0]),
         packet_hash: [9u8; 32],
         session_id,

@@ -697,6 +697,21 @@ fn signed_context_matches_active_manifest(context: &VerifiedCallContext) -> bool
     let Ok(descriptor) = manifest.lookup(context.opcode) else {
         return false;
     };
+    // #81: the context's descriptor authorization fingerprint must match the
+    // ACTIVE descriptor exactly — operation/handler checks stay as cheap
+    // guards, but the fingerprint binds every authorization-relevant field
+    // (credentials, capabilities, evidence, schema, target kind, replay
+    // scope, TTL bound, range). Empty fingerprints never route.
+    if context.descriptor_fingerprint.is_empty()
+        || context.descriptor_fingerprint != descriptor.authorization_fingerprint()
+    {
+        return false;
+    }
+    // The context's actual TTL span must also respect the ACTIVE bound: a
+    // stale-but-looser descriptor must not let an overlong context ride in.
+    if context.expires_at.saturating_sub(context.issued_at) > descriptor.max_ttl_seconds {
+        return false;
+    }
     context.operation == descriptor.name.as_str()
         && context.handler_id.as_deref() == Some(descriptor.handler_id.as_str())
 }
