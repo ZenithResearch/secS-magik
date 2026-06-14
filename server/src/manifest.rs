@@ -50,8 +50,20 @@ impl OperationName {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetKind {
+    /// Legacy prototype example handlers (`0x01`/`0x02`): prototype-evidence
+    /// only, rejected by `production_verified`.
     LegacyCoreExample,
+    /// Local-dev / dev-subprocess handlers (`dev/*`, `candidate.dev.*`):
+    /// always `dev_binding: true`, never registered in production runtime.
     LocalDevProcess,
+    /// Production-shaped receiver handler (#82): a non-dev, non-legacy target
+    /// whose authority still requires verifier signatures, evidence policy,
+    /// descriptor-local checks, replay/expiry/session checks, and #77's
+    /// fail-closed descriptor-only runtime guard where applicable. Target kind
+    /// alone is never sufficient authority — it only stops production-shaped
+    /// descriptors like canonical `0x44 membership.provision` from being
+    /// mislabeled as local-dev process targets.
+    ReceiverProductionHandler,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,6 +145,7 @@ fn target_kind_label(kind: TargetKind) -> &'static str {
     match kind {
         TargetKind::LegacyCoreExample => "legacy_core_example",
         TargetKind::LocalDevProcess => "local_dev_process",
+        TargetKind::ReceiverProductionHandler => "receiver_production_handler",
     }
 }
 
