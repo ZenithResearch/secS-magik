@@ -2,6 +2,7 @@ pub mod caller;
 pub mod clock;
 pub mod config;
 pub mod evidence;
+pub mod file_write;
 pub mod gateway;
 pub mod identity;
 pub mod ingress;
