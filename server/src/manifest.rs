@@ -240,6 +240,31 @@ pub fn dregg_demo_descriptor(opcode: u8) -> OperationDescriptor {
     }
 }
 
+/// Canonical handler id for the M13 sandboxed `demo.file.write` demo handler.
+pub const DEMO_FILE_WRITE_HANDLER_ID: &str = "demo/file-write";
+
+/// M13.2 sandboxed `demo.file.write` demo descriptor. **Not** part of
+/// [`ReceiverManifest::default_v0`]: M13.3 installs it explicitly into the demo
+/// manifest, exactly like [`dregg_demo_descriptor`]. It is `dev_binding: true`
+/// so `production_verified` rejects it — this is a permission-enforcement demo
+/// handler, never production filesystem authority.
+pub fn demo_file_write_descriptor(opcode: u8) -> OperationDescriptor {
+    OperationDescriptor {
+        opcode,
+        name: OperationName::new("demo.file.write"),
+        payload_schema: Some("application/json".to_string()),
+        target_kind: TargetKind::LocalDevProcess,
+        required_credentials: vec!["prototype.local-dev".to_string()],
+        required_capabilities: vec!["demo.file.write".to_string()],
+        accepted_evidence: vec!["prototype-proof-envelope".to_string()],
+        replay_scope: ReplayScope::SessionOpcodeNonce,
+        max_ttl_seconds: 300,
+        handler_id: DEMO_FILE_WRITE_HANDLER_ID.to_string(),
+        dev_binding: true,
+        range: OpcodeRange::classify(opcode),
+    }
+}
+
 fn dev_candidate_descriptor(
     opcode: u8,
     name: &str,

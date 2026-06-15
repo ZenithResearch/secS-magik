@@ -167,6 +167,33 @@ fn dregg_demo_descriptor_rejects_in_production_runtime() {
     );
 }
 
+// --- M13.2: sandboxed demo.file.write descriptor ---
+
+/// The demo file-write descriptor is dev-bounded and explicitly installed —
+/// never part of the default manifest, so production runtime cannot route it.
+#[test]
+fn demo_file_write_descriptor_is_dev_bounded_and_absent_from_default_manifest() {
+    let descriptor = server::manifest::demo_file_write_descriptor(0x50);
+    assert_eq!(descriptor.opcode, 0x50);
+    assert_eq!(descriptor.name.as_str(), "demo.file.write");
+    assert_eq!(
+        descriptor.handler_id,
+        server::manifest::DEMO_FILE_WRITE_HANDLER_ID
+    );
+    assert!(
+        descriptor.dev_binding,
+        "demo.file.write must be dev-bounded, not production authority"
+    );
+    assert_eq!(descriptor.target_kind, TargetKind::LocalDevProcess);
+
+    // Not in the default manifest.
+    let manifest = ReceiverManifest::default_v0();
+    assert_eq!(
+        manifest.lookup(0x50),
+        Err(VerificationError::UnknownOperation)
+    );
+}
+
 // --- #82: explicit production target kind for membership.provision ---
 
 /// The canonical `0x44 membership.provision` descriptor must use the explicit
