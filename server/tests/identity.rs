@@ -48,6 +48,7 @@ fn sample_context() -> VerifiedCallContext {
         nonce: [5u8; 12],
         opcode: 0x10,
         operation: "membership.provision".to_string(),
+        resource: None,
         subject: VerifiedSubject {
             subject_id: "did:example:node-operator".to_string(),
             key_id: "did:example:node-operator#key-1".to_string(),

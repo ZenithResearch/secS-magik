@@ -14,6 +14,7 @@ fn sample_context() -> VerifiedCallContext {
         nonce: [2u8; 12],
         opcode: 0x10,
         operation: "candidate.dev.bash_echo".to_string(),
+        resource: None,
         subject: VerifiedSubject {
             subject_id: "did:example:alice".to_string(),
             key_id: "did:example:alice#key-1".to_string(),

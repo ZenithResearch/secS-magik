@@ -194,6 +194,15 @@ impl ReceiverManifest {
         ])
     }
 
+    /// Return this manifest with `descriptor` installed (replacing any existing
+    /// descriptor at the same opcode). Used to add explicitly-installed
+    /// dev/demo descriptors (e.g. `demo_file_write_descriptor`) to a base
+    /// manifest without mutating `default_v0`.
+    pub fn with_descriptor(mut self, descriptor: OperationDescriptor) -> Self {
+        self.descriptors.insert(descriptor.opcode, descriptor);
+        self
+    }
+
     pub fn lookup(&self, opcode: u8) -> Result<&OperationDescriptor, VerificationError> {
         self.descriptors
             .get(&opcode)

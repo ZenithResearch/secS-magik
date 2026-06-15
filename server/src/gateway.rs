@@ -7,6 +7,7 @@ use crate::ontology::{
     DEFAULT_RECEIVER_AUDIENCE, LOCAL_PROTOTYPE_SIGNER_ID, REPLAY_DETECTED_REASON,
     REPLAY_RESERVATION_FAILED_REASON, UNVERIFIED_PROTOTYPE_OPERATION,
 };
+use crate::permissions::PermissionPolicy;
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
 use crate::runtime_mode::RuntimeMode;
 use crate::schema::{apply_schema, TELEMETRY_TABLES};
@@ -93,6 +94,13 @@ pub struct ConfigurableRouter {
     verifier_keys: PublicVerifierKeyRegistry,
     caller_keys: Option<crate::caller::CallerKeyRegistry>,
     expected_audience: String,
+    /// Active manifest the router validates contexts against (M13.3). Defaults
+    /// to `default_v0()`; the demo installs a manifest carrying the dev-bounded
+    /// `demo.file.write` descriptor so `default_v0` stays the production set.
+    manifest: ReceiverManifest,
+    /// Optional receiver-local permission policy (M13). When set, every verified
+    /// context is evaluated against it before handler dispatch (fail-closed).
+    permission_policy: Option<PermissionPolicy>,
 }
 
 impl ConfigurableRouter {
@@ -144,7 +152,22 @@ impl ConfigurableRouter {
             verifier_keys,
             caller_keys: None,
             expected_audience: expected_audience.into(),
+            manifest: ReceiverManifest::default_v0(),
+            permission_policy: None,
         }
+    }
+
+    /// Install the active manifest (M13.3). The demo installs `default_v0()`
+    /// plus the dev-bounded `demo.file.write` descriptor.
+    pub fn set_manifest(&mut self, manifest: ReceiverManifest) {
+        self.manifest = manifest;
+    }
+
+    /// Install a receiver-local permission policy (M13). With no policy the
+    /// router does not enforce permissions (existing behavior); with one, every
+    /// verified context is evaluated fail-closed before handler dispatch.
+    pub fn set_permission_policy(&mut self, policy: PermissionPolicy) {
+        self.permission_policy = Some(policy);
     }
 
     /// Install the receiver-held caller key registry (M12.1). Required for
@@ -172,7 +195,8 @@ impl ConfigurableRouter {
     }
 
     pub fn register(&mut self, opcode: u8, program: Box<dyn MachineProgram>) {
-        let handler_id = crate::manifest::ReceiverManifest::default_v0()
+        let handler_id = self
+            .manifest
             .lookup(opcode)
             .map(|descriptor| descriptor.handler_id.clone())
             .unwrap_or_else(|_| format!("opcode/{opcode:02x}"));
@@ -222,7 +246,8 @@ impl ConfigurableRouter {
             eprintln!("secS [Ledger]: failed to write unverified event - {}", e);
         }
 
-        let handler_id = crate::manifest::ReceiverManifest::default_v0()
+        let handler_id = self
+            .manifest
             .lookup(opcode)
             .ok()
             .map(|descriptor| descriptor.handler_id.clone());
@@ -323,7 +348,7 @@ impl ConfigurableRouter {
             );
         }
 
-        if !signed_context_matches_active_manifest(context) {
+        if !signed_context_matches_active_manifest(context, &self.manifest) {
             let reason = DESCRIPTOR_CONTEXT_MISMATCH_REASON;
             let receipt_id = self
                 .record_verified_reject_receipt(signed, reason, timestamp)
@@ -346,7 +371,11 @@ impl ConfigurableRouter {
             );
         }
 
-        if production_context_uses_dev_descriptor(signed, self.identity.authenticator_kind()) {
+        if production_context_uses_dev_descriptor(
+            signed,
+            self.identity.authenticator_kind(),
+            &self.manifest,
+        ) {
             let reason = VerificationError::PrototypeOperationNotProductionAuthorized.reason_code();
             let receipt_id = self
                 .record_verified_reject_receipt(signed, reason, timestamp)
@@ -435,6 +464,44 @@ impl ConfigurableRouter {
         let _verify_receipt_id = self.record_verify_receipt(signed, timestamp).await;
         self.record_operation_event(ReceiptEventKind::OperationRouted, signed, timestamp, None)
             .await;
+
+        // M13: receiver-local permission gate. The context is verified and the
+        // descriptor matches the active manifest; now enforce the permission
+        // policy (fail-closed) on the authenticated caller, opcode, operation,
+        // and the resource bound into the signed context, before any handler
+        // side effect. A denial records an execute-reject receipt with the
+        // typed permission reason.
+        if let Some(policy) = &self.permission_policy {
+            let resource = context.resource.as_deref().unwrap_or("");
+            if let Err(deny) = policy.evaluate(
+                &context.subject.subject_id,
+                context.opcode,
+                &context.operation,
+                resource,
+                timestamp,
+            ) {
+                let reason = deny.code();
+                let receipt_id = self
+                    .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::HandlerFailed,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+                eprintln!(
+                    "secS [Router]: permission denied for {} on {} ({:#04x}) - {}",
+                    context.subject.subject_id, context.operation, context.opcode, reason
+                );
+                return libsec_core::response::DecisionResponse::rejected(
+                    reason,
+                    Some(context.context_id.clone()),
+                    Some(receipt_id),
+                );
+            }
+        }
 
         if payload.len() > self.limits.max_payload_bytes {
             let reason = "payload_too_large";
@@ -692,8 +759,10 @@ fn should_emit_signed_context_reject(error: &VerificationError) -> bool {
     )
 }
 
-fn signed_context_matches_active_manifest(context: &VerifiedCallContext) -> bool {
-    let manifest = ReceiverManifest::default_v0();
+fn signed_context_matches_active_manifest(
+    context: &VerifiedCallContext,
+    manifest: &ReceiverManifest,
+) -> bool {
     let Ok(descriptor) = manifest.lookup(context.opcode) else {
         return false;
     };
@@ -719,11 +788,11 @@ fn signed_context_matches_active_manifest(context: &VerifiedCallContext) -> bool
 fn production_context_uses_dev_descriptor(
     signed: &SignedVerifiedCallContext,
     router_authenticator_kind: AuthenticatorKind,
+    manifest: &ReceiverManifest,
 ) -> bool {
     if router_authenticator_kind == AuthenticatorKind::LocalDevUntrusted {
         return false;
     }
-    let manifest = ReceiverManifest::default_v0();
     let Ok(descriptor) = manifest.lookup(signed.context.opcode) else {
         return true;
     };

@@ -1,11 +1,14 @@
 //! Sandboxed `demo.file.write` demo handler (M13.2).
 //!
-//! A deliberately constrained [`MachineProgram`] that writes a payload's
-//! `content` to a `file://` target **only** inside a configured sandbox root.
-//! It exists to make M13 permission enforcement concrete and visible — it is a
-//! demo handler, **not** production filesystem authority. Path traversal,
-//! absolute paths outside the sandbox, symlink escape, and non-`file://` URIs
-//! are rejected before any write, each with a typed reason.
+//! A deliberately constrained [`MachineProgram`] that writes the payload bytes
+//! to the `file://` target named by the verified context's bound `resource`
+//! (M13.3) — **only** inside a configured sandbox root. Taking the target from
+//! the signed context (not the payload) means the file written is exactly the
+//! resource the permission gate authorized. It exists to make M13 permission
+//! enforcement concrete and visible — it is a demo handler, **not** production
+//! filesystem authority. Path traversal, absolute paths outside the sandbox,
+//! symlink escape, and non-`file://` URIs are rejected before any write, each
+//! with a typed reason.
 //!
 //! Production hardening is out of scope and tracked in
 //! `docs/issues/secs-magik-phases/demo-file-write-handler.md`: this handler
@@ -16,25 +19,17 @@
 use crate::gateway::{ExecutionLimits, HandlerOutcome, MachineProgram};
 use crate::verifier::VerifiedCallContext;
 use async_trait::async_trait;
-use serde::Deserialize;
 use std::path::{Component, Path, PathBuf};
 
 /// Typed reject reasons. Stable strings for execution-receipt inspection; they
 /// describe the failure class only and never echo the payload or target path.
 pub mod reject_reason {
-    pub const MALFORMED_PAYLOAD: &str = "demo_file_write_malformed_payload";
+    pub const MISSING_RESOURCE: &str = "demo_file_write_missing_resource";
     pub const NOT_A_FILE_URI: &str = "demo_file_write_not_a_file_uri";
     pub const PATH_TRAVERSAL: &str = "demo_file_write_path_traversal";
     pub const PATH_OUTSIDE_SANDBOX: &str = "demo_file_write_path_outside_sandbox";
     pub const PAYLOAD_TOO_LARGE: &str = "demo_file_write_payload_too_large";
     pub const WRITE_FAILED: &str = "demo_file_write_write_failed";
-}
-
-/// Payload contract: `{ "resource": "file:///<sandbox>/...", "content": "..." }`.
-#[derive(Debug, Deserialize)]
-struct FileWriteRequest {
-    resource: String,
-    content: String,
 }
 
 /// Sandboxed demo file-write handler. Holds the canonical sandbox root; every
@@ -108,7 +103,7 @@ impl DemoFileWriteProgram {
 impl MachineProgram for DemoFileWriteProgram {
     async fn execute(
         &self,
-        _context: &VerifiedCallContext,
+        context: &VerifiedCallContext,
         payload: &[u8],
         limits: ExecutionLimits,
     ) -> HandlerOutcome {
@@ -117,19 +112,18 @@ impl MachineProgram for DemoFileWriteProgram {
         if payload.len() > limits.max_payload_bytes {
             return HandlerOutcome::rejected(reject_reason::PAYLOAD_TOO_LARGE);
         }
-        let request: FileWriteRequest = match serde_json::from_slice(payload) {
-            Ok(request) => request,
-            Err(_) => return HandlerOutcome::rejected(reject_reason::MALFORMED_PAYLOAD),
+        // The target is the resource bound into the verified context (M13.3),
+        // not the payload — so the file written is exactly the resource the
+        // permission gate authorized. The payload is the content to write.
+        let Some(resource) = context.resource.as_deref() else {
+            return HandlerOutcome::rejected(reject_reason::MISSING_RESOURCE);
         };
-        if request.content.len() > limits.max_output_bytes {
-            return HandlerOutcome::rejected(reject_reason::PAYLOAD_TOO_LARGE);
-        }
-        let target = match self.resolve_target(&request.resource) {
+        let target = match self.resolve_target(resource) {
             Ok(target) => target,
             Err(reason) => return HandlerOutcome::rejected(reason),
         };
-        match std::fs::write(&target, request.content.as_bytes()) {
-            Ok(()) => HandlerOutcome::succeeded_with_output_bytes(request.content.len()),
+        match std::fs::write(&target, payload) {
+            Ok(()) => HandlerOutcome::succeeded_with_output_bytes(payload.len()),
             Err(_) => HandlerOutcome::rejected(reject_reason::WRITE_FAILED),
         }
     }
