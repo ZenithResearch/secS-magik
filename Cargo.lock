@@ -1346,6 +1346,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bincode",
+ "clap",
  "ed25519-dalek",
  "libsec-core",
  "rand",

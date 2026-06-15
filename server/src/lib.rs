@@ -11,6 +11,7 @@ pub mod manifest;
 pub mod membership;
 pub mod ontology;
 pub mod payload;
+pub mod permctl;
 pub mod permissions;
 pub mod receipt;
 pub mod runtime_mode;

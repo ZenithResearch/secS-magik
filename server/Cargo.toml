@@ -12,6 +12,7 @@ serde_json = "1"
 ed25519-dalek.workspace = true
 sha2.workspace = true
 async-trait = "0.1.89"
+clap = { version = "4.4", features = ["derive"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }
 serial_test = "3.5"
 rand.workspace = true
@@ -23,3 +24,7 @@ path = "src/bin/secs-gateway.rs"
 [[bin]]
 name = "secz"
 path = "src/bin/secz.rs"
+
+[[bin]]
+name = "secs-permctl"
+path = "src/bin/secs-permctl.rs"
