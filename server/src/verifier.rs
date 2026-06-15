@@ -109,9 +109,10 @@ pub struct VerifiedSubject {
     pub key_id: String,
 }
 
-/// Bumped to 2 by #81: contexts now carry the descriptor authorization
-/// fingerprint, and the router re-validates it against the active manifest.
-pub const VERIFIED_CALL_CONTEXT_SCHEMA_VERSION: u16 = 2;
+/// Bumped to 3 by M13.3: contexts now carry the bound `resource` the operation
+/// acts on, so receiver-local permission policy can be evaluated against it.
+/// (v2 added the #81 descriptor authorization fingerprint.)
+pub const VERIFIED_CALL_CONTEXT_SCHEMA_VERSION: u16 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedCallContext {
@@ -122,6 +123,11 @@ pub struct VerifiedCallContext {
     pub nonce: [u8; 12],
     pub opcode: u8,
     pub operation: String,
+    /// Resource the operation acts on (M13.3), bound into the signed context so
+    /// receiver-local permission policy can be evaluated against it. `None` for
+    /// operations that carry no resource. Signing covers this field, so a
+    /// tampered resource breaks context verification.
+    pub resource: Option<String>,
     pub subject: VerifiedSubject,
     pub audience: String,
     pub evidence_summary: Vec<String>,
@@ -191,6 +197,42 @@ impl Verifier {
     ) -> Result<SignedVerifiedCallContext, VerificationError> {
         let context = Self::verify_manifest_operation(packet, manifest, audience, now)?;
         identity.sign_context(context)
+    }
+
+    /// M13.3: verify a (dev/prototype) operation and bind a `resource` into the
+    /// signed context before signing, so receiver-local permission policy can be
+    /// evaluated against it. The resource is signed, so it cannot be altered
+    /// after verification.
+    pub fn verify_manifest_operation_with_resource_and_sign_with_identity(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        resource: Option<&str>,
+        now: u64,
+        identity: &NodeVerifierIdentity,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let mut context = Self::verify_manifest_operation(packet, manifest, audience, now)?;
+        context.resource = resource.map(ToString::to_string);
+        identity.sign_context(context)
+    }
+
+    /// Raw-key variant of [`Self::verify_manifest_operation_with_resource_and_sign_with_identity`].
+    pub fn verify_manifest_operation_with_resource_and_sign(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        resource: Option<&str>,
+        now: u64,
+        signer_key_id: &str,
+        secret_key: &[u8; 32],
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        let mut context = Self::verify_manifest_operation(packet, manifest, audience, now)?;
+        context.resource = resource.map(ToString::to_string);
+        context.sign_ed25519(
+            signer_key_id,
+            secret_key,
+            AuthenticatorKind::Ed25519Verifier,
+        )
     }
 
     pub fn verify_manifest_operation_and_sign_for_runtime_with_identity(
@@ -523,6 +565,9 @@ fn verified_context_for_descriptor(
         nonce: packet.nonce,
         opcode: packet.opcode,
         operation: descriptor.name.as_str().to_string(),
+        // Resource is injected by the resource-aware sign path (M13.3) before
+        // signing; the base verification path binds no resource.
+        resource: None,
         subject,
         audience: audience.to_string(),
         evidence_summary,

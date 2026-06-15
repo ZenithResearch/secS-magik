@@ -70,6 +70,7 @@ mod tests {
             nonce: [2u8; 12],
             opcode: 0x44,
             operation: "membership.provision".to_string(),
+            resource: None,
             subject: crate::verifier::VerifiedSubject {
                 subject_id: "did:example:alice#key-1".to_string(),
                 key_id: "did:example:alice#key-1#key".to_string(),

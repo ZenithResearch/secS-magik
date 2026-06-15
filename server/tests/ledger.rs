@@ -39,6 +39,7 @@ fn verified_context(session_id: [u8; 16], nonce: [u8; 12], opcode: u8) -> Verifi
         nonce,
         opcode,
         operation: "candidate.dev.bash_echo".to_string(),
+        resource: None,
         subject: VerifiedSubject {
             subject_id: "prototype.local-dev.subject".to_string(),
             key_id: "subject-key:test".to_string(),
