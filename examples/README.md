@@ -7,6 +7,8 @@
 | File | Purpose |
 |---|---|
 | `hello-world.sh` | Starts the historical `secz` compatibility gateway on `127.0.0.1:9001`, sends `Hello World` through decimal opcode `16`, and verifies the gateway log saw the payload. |
+| `m12-demo.sh` | M12 end-to-end: authenticated caller accepted; forged proof / unknown caller / replay / expiry rejected with typed reasons; the caller receives the decision frame; an operator inspects the receipt chain. Local verifier behavior only. |
+| `m13-permission-demo.sh` | M13 receiver-local permissions: authors a policy with `secs-permctl` (grant exact/prefix, deny-wins, validity window, revoke) and asserts the `ALLOW` / `DENY:<reason>` matrix. The same model the gateway enforces live (M13.3) and the browser panel drives (M13.4b). Receiver-local only. |
 
 ## Run
 
