@@ -6,3 +6,5 @@
 *.db
 *.db-shm
 *.db-wal
+# Generated wasm-bindgen bundle for the browser permission panel (M13.4b).
+panel/www/pkg/

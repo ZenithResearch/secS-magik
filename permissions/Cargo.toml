@@ -1,0 +1,12 @@
+[package]
+name = "secs-permissions"
+version = "0.1.0"
+edition = "2021"
+description = "Receiver-local permission model and fail-closed evaluator for secS-magik (M13). serde + std only, so it compiles to wasm32 for the browser control panel and is reusable across the gateway, CLI, and M14/M15 authority rails."
+
+[lib]
+name = "secs_permissions"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = "1"

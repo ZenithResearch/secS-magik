@@ -51,6 +51,12 @@ jobs:
     - name: Check wasm32 + uniffi FFI surface
       run: cargo check -p libsec-core --target wasm32-unknown-unknown --features uniffi
 
+    # M13.4b: the browser permission control panel compiles the shared
+    # secs-permissions model to wasm32 via wasm-bindgen. Host builds never
+    # exercise the wasm cdylib, so without this lane panel breakage is silent.
+    - name: Check wasm32 permission panel
+      run: cargo check -p panel --target wasm32-unknown-unknown
+
   build_and_test:
     runs-on: ubuntu-latest
 

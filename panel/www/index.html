@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>secS permission control panel</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        background: #0d1117; color: #c9d1d9; margin: 0; padding: 24px;
+        line-height: 1.5;
+      }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      .sub { color: #8b949e; font-size: 12px; margin-bottom: 20px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+      fieldset { border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
+      legend { color: #8b949e; padding: 0 6px; font-size: 12px; }
+      label { display: block; font-size: 12px; color: #8b949e; margin: 8px 0 2px; }
+      input[type="text"], input[type="number"] {
+        width: 100%; box-sizing: border-box; background: #010409; color: #c9d1d9;
+        border: 1px solid #30363d; border-radius: 6px; padding: 6px 8px; font: inherit;
+      }
+      .row { display: flex; gap: 16px; align-items: center; margin-top: 8px; }
+      .row label { display: inline; margin: 0; }
+      button {
+        margin-top: 12px; margin-right: 8px; background: #21262d; color: #c9d1d9;
+        border: 1px solid #30363d; border-radius: 6px; padding: 7px 14px; font: inherit;
+        cursor: pointer;
+      }
+      button:hover { border-color: #8b949e; }
+      button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+      pre {
+        background: #010409; border: 1px solid #30363d; border-radius: 6px; padding: 10px;
+        white-space: pre-wrap; word-break: break-all; min-height: 60px; font-size: 12px;
+      }
+      .feed div { padding: 3px 0; border-bottom: 1px solid #161b22; font-size: 12px; }
+      .allow { color: #3fb950; }
+      .deny { color: #f85149; }
+      .note { color: #8b949e; font-size: 11px; margin-top: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1>secS permission control panel</h1>
+    <div class="sub">
+      Receiver-local policy authoring &amp; evaluation — entirely in your browser
+      (no server, no network). Same model the gateway enforces.
+    </div>
+
+    <div class="grid">
+      <fieldset>
+        <legend>permission record</legend>
+        <label>caller id</label>
+        <input id="caller" type="text" value="secS://caller-a" />
+        <label>opcode (e.g. 0x50)</label>
+        <input id="opcode" type="text" value="0x50" />
+        <label>operation</label>
+        <input id="operation" type="text" value="demo.file.write" />
+        <label>resource (file:// uri or prefix)</label>
+        <input id="resource" type="text" value="file:///tmp/secs-demo/" />
+        <div class="row">
+          <label><input id="prefix" type="checkbox" checked /> prefix scope</label>
+          <label><input id="deny" type="checkbox" /> deny (deny wins)</label>
+        </div>
+        <div class="row">
+          <span style="flex:1"><label>not_before</label><input id="not_before" type="number" value="0" /></span>
+          <span style="flex:1"><label>not_after</label><input id="not_after" type="number" value="9999999999" /></span>
+        </div>
+        <button id="grant" class="primary">Grant</button>
+        <button id="revoke">Revoke matching</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>evaluate a request</legend>
+        <label>now (unix seconds; blank = current)</label>
+        <input id="now" type="number" placeholder="current time" />
+        <button id="evaluate" class="primary">Evaluate (uses fields on the left)</button>
+        <div class="feed" id="feed"></div>
+      </fieldset>
+    </div>
+
+    <fieldset style="margin-top:24px">
+      <legend>current policy</legend>
+      <button id="clear">Clear policy</button>
+      <pre id="records"></pre>
+    </fieldset>
+
+    <div class="note">
+      Receiver-local policy only — no Dregg authority, deployment proof, or public
+      auditability. Build: <code>wasm-pack build panel --target web --out-dir www/pkg</code>,
+      then serve <code>panel/www</code> (e.g. <code>python3 -m http.server</code>).
+    </div>
+
+    <script type="module" src="./panel.js"></script>
+  </body>
+</html>
