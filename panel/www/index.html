@@ -17,12 +17,17 @@
       fieldset { border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
       legend { color: #8b949e; padding: 0 6px; font-size: 12px; }
       label { display: block; font-size: 12px; color: #8b949e; margin: 8px 0 2px; }
-      input[type="text"], input[type="number"] {
+      input[type="text"], input[type="number"], input[type="file"], select {
         width: 100%; box-sizing: border-box; background: #010409; color: #c9d1d9;
         border: 1px solid #30363d; border-radius: 6px; padding: 6px 8px; font: inherit;
       }
+      input[type="file"]::file-selector-button {
+        margin-right: 10px; background: #21262d; color: #c9d1d9;
+        border: 1px solid #30363d; border-radius: 6px; padding: 5px 10px; font: inherit;
+      }
       .row { display: flex; gap: 16px; align-items: center; margin-top: 8px; }
       .row label { display: inline; margin: 0; }
+      .hint { color: #8b949e; font-size: 11px; margin-top: 4px; }
       button {
         margin-top: 12px; margin-right: 8px; background: #21262d; color: #c9d1d9;
         border: 1px solid #30363d; border-radius: 6px; padding: 7px 14px; font: inherit;
@@ -52,12 +57,28 @@
         <legend>permission record</legend>
         <label>caller id</label>
         <input id="caller" type="text" value="secS://caller-a" />
-        <label>opcode (e.g. 0x50)</label>
-        <input id="opcode" type="text" value="0x50" />
+        <label>operation / opcode</label>
+        <select id="opcode" title="Choose a demo operation by title and opcode">
+          <option value="0x50" data-operation="demo.file.write" selected>Full write (create + update) — 0x50</option>
+          <option value="0x51" data-operation="demo.file.create">Create file — 0x51</option>
+          <option value="0x52" data-operation="demo.file.update">Update file — 0x52</option>
+          <option value="0x53" data-operation="demo.file.read">Read file — 0x53</option>
+          <option value="0x54" data-operation="demo.file.exec">Execute file — 0x54</option>
+        </select>
         <label>operation</label>
-        <input id="operation" type="text" value="demo.file.write" />
-        <label>resource (file:// uri or prefix)</label>
+        <input id="operation" type="text" value="demo.file.write" readonly />
+        <label>resource prefix (file:// uri)</label>
         <input id="resource" type="text" value="file:///tmp/secs-demo/" />
+        <label>visual resource folder</label>
+        <input id="resource_files" type="file" webkitdirectory multiple />
+        <label>file in selected folder</label>
+        <select id="resource_file_choice" title="Choose a file from the selected demo folder">
+          <option value="demo.txt">demo.txt</option>
+          <option value="notes/example.md">notes/example.md</option>
+          <option value="scripts/run-demo.sh">scripts/run-demo.sh</option>
+        </select>
+        <button id="use_selected_resource" type="button">Use selected resource</button>
+        <div class="hint" id="resource_file_hint">Browsers cannot force the native picker to open at /tmp/secs-demo or reveal absolute paths. Select the demo folder, then this panel maps the chosen relative filename under the visible file:// prefix.</div>
         <div class="row">
           <label><input id="prefix" type="checkbox" checked /> prefix scope</label>
           <label><input id="deny" type="checkbox" /> deny (deny wins)</label>
