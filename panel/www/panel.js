@@ -5,6 +5,11 @@
 import init, { grant, revoke, evaluate, list } from "./pkg/panel.js";
 
 const STORAGE_KEY = "secs.permission.policy";
+const DEMO_RESOURCE_CHOICES = [
+  "demo.txt",
+  "notes/example.md",
+  "scripts/run-demo.sh",
+];
 
 const $ = (id) => document.getElementById(id);
 
@@ -52,6 +57,59 @@ function appendFeed(text, kind) {
   div.textContent = `${new Date().toLocaleTimeString()}  ${text}`;
   if (kind) div.className = kind;
   $("feed").prepend(div);
+}
+
+function fileUriJoin(prefix, filename) {
+  const base = prefix.trim() || "file:///tmp/secs-demo/";
+  const root = base.endsWith("/") ? base : `${base.replace(/\/[^/]*$/, "")}/`;
+  return `${root}${filename.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function selectedResourcePath(file) {
+  return file.webkitRelativePath || file.name;
+}
+
+function resetResourceChoices(files = []) {
+  const choice = $("resource_file_choice");
+  choice.replaceChildren();
+  const seen = new Set();
+  for (const name of DEMO_RESOURCE_CHOICES) {
+    seen.add(name);
+    choice.append(new Option(name, name));
+  }
+  for (const file of files.sort((a, b) => selectedResourcePath(a).localeCompare(selectedResourcePath(b)))) {
+    const relativePath = selectedResourcePath(file);
+    if (!seen.has(relativePath)) {
+      seen.add(relativePath);
+      choice.append(new Option(relativePath, relativePath));
+    }
+  }
+}
+
+function populateResourceChoices() {
+  const files = Array.from($("resource_files").files || []);
+  resetResourceChoices(files);
+  if (files.length) {
+    appendFeed(`loaded ${files.length} visual resource candidate${files.length === 1 ? "" : "s"}`);
+  }
+}
+
+function applySelectedResourceChoice() {
+  const relativePath = $("resource_file_choice").value;
+  if (!relativePath) {
+    throw new Error("choose a file from the selected demo folder first");
+  }
+  const resource = fileUriJoin($("resource").value, relativePath);
+  $("resource").value = resource;
+  appendFeed(`selected visual resource ${resource}`);
+}
+
+function applyOpcodeSelection() {
+  const select = $("opcode");
+  const option = select.selectedOptions && select.selectedOptions[0];
+  if (!option || !select.value) return;
+  const operation = option.dataset.operation;
+  if (operation) $("operation").value = operation;
 }
 
 function withErrors(fn) {
@@ -106,4 +164,20 @@ $("clear").addEventListener("click", () => {
   appendFeed("cleared policy");
 });
 
-init().then(renderRecords);
+$("resource_files").addEventListener("change", () =>
+  withErrors(populateResourceChoices),
+);
+
+$("use_selected_resource").addEventListener("click", () =>
+  withErrors(applySelectedResourceChoice),
+);
+
+$("opcode").addEventListener("change", () =>
+  withErrors(applyOpcodeSelection),
+);
+
+init().then(() => {
+  applyOpcodeSelection();
+  resetResourceChoices();
+  renderRecords();
+});
