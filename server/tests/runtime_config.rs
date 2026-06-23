@@ -70,11 +70,8 @@ fn write_valid_caller_registry(name: &str) -> std::path::PathBuf {
 
 fn write_valid_trust_registry(name: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
-    std::fs::write(
-        &path,
-        r#"{"trusted_verifiers":[{"id":"operator"}]}"#,
-    )
-    .expect("trust registry fixture should be writable");
+    std::fs::write(&path, r#"{"trusted_verifiers":[{"id":"operator"}]}"#)
+        .expect("trust registry fixture should be writable");
     path
 }
 
@@ -117,7 +114,8 @@ fn local_dev_defaults_bind_loopback_only() {
 fn production_startup_rejects_unknown_evidence_adapter_names() {
     let registry_path = write_valid_trust_registry("secs-magik-trust-registry-adapters");
     let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-adapters");
-    let permission_policy_path = write_valid_permission_policy("secs-magik-permission-policy-adapters");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-adapters");
     let config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:9009",
         "sqlite:prod.db?mode=rwc",
@@ -144,7 +142,8 @@ fn production_startup_rejects_unknown_evidence_adapter_names() {
 #[test]
 fn production_startup_rejects_missing_permission_policy_file() {
     let registry_path = write_valid_trust_registry("secs-magik-trust-registry-policy-missing");
-    let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-policy-missing");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-policy-missing");
     let missing_policy_path = std::env::temp_dir().join(format!(
         "missing-permission-policy-{}.json",
         std::process::id()
@@ -175,8 +174,10 @@ fn production_startup_rejects_missing_permission_policy_file() {
 #[test]
 fn production_startup_accepts_valid_permission_policy_file() {
     let registry_path = write_valid_trust_registry("secs-magik-trust-registry-policy-valid");
-    let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-policy-valid");
-    let permission_policy_path = write_valid_permission_policy("secs-magik-permission-policy-valid");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-policy-valid");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-valid");
     let config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:9009",
         "sqlite:prod.db?mode=rwc",
@@ -199,7 +200,6 @@ fn production_startup_accepts_valid_permission_policy_file() {
         "valid production registries and permission policy should be startup-ready: {result:?}"
     );
 }
-
 
 #[test]
 #[serial]
@@ -372,4 +372,3 @@ fn production_config_rejects_prototype_receiver_audience() {
         Err(RuntimeConfigError::PrototypeReceiverAudienceInProduction)
     ));
 }
-

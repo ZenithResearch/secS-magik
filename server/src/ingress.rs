@@ -474,10 +474,10 @@ pub fn install_configured_permission_policy(
     config: &GatewayRuntimeConfig,
 ) {
     if let Some(path) = &config.permission_policy_path {
-        let policy = crate::permissions::PermissionPolicy::from_json_file(path).unwrap_or_else(|error| {
-            panic!("secS gateway: failed to load permission policy - {error:?}")
-        });
+        let policy =
+            crate::permissions::PermissionPolicy::from_json_file(path).unwrap_or_else(|error| {
+                panic!("secS gateway: failed to load permission policy - {error:?}")
+            });
         router.set_permission_policy(policy);
     }
 }
-

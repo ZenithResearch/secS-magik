@@ -27,8 +27,6 @@ fn packet(payload: &[u8]) -> ZenithPacket {
     }
 }
 
-
-
 fn write_valid_permission_policy(name: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
     std::fs::write(
