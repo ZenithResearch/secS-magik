@@ -6,6 +6,7 @@ const TRACK_I_STATUS: &str = include_str!(
     "../../docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md"
 );
 const SERVER_README: &str = include_str!("../../server/README.md");
+const CHANGELOG: &str = include_str!("../../CHANGELOG.md");
 
 fn detailed_track_h_section() -> &'static str {
     READY_FOR_PROD_CHECKLIST
@@ -239,8 +240,10 @@ fn membership_provision_runtime_guard_docs_preserve_live_ingress_boundary() {
         "Complete for local production-shaped E2E",
         "PR #76",
         "live runtime ingress still does not verify wallet + issuer evidence",
-        "must not claim active `membership.provision` runtime authority",
-        "#78/#79-style follow-ups",
+        "handler binding is not authority",
+        "live TCP ingress",
+        "no evidence refs",
+        "#141/#144",
         "not production deployment",
         "not public auditability",
         "not live Castalia/Dregg discovery",
@@ -253,6 +256,54 @@ fn membership_provision_runtime_guard_docs_preserve_live_ingress_boundary() {
                 || READY_FOR_PROD_CHECKLIST.contains(required)
                 || TRACK_I_STATUS.contains(required),
             "docs should preserve membership.provision runtime guard boundary language: {required}"
+        );
+    }
+}
+
+#[test]
+fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_authority() {
+    let docs = [
+        ("README.md", README),
+        ("server/README.md", SERVER_README),
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+        (
+            "docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md",
+            TRACK_I_STATUS,
+        ),
+        ("CHANGELOG.md", CHANGELOG),
+    ];
+
+    for forbidden in [
+        "must not claim active `membership.provision` runtime authority until #78/#79-style follow-ups land",
+        "until #78 lands the activation path",
+        "evidence-aware live ingress/runtime authority remains tracked in #78/#79-style follow-ups",
+        "live ingress/runtime wallet + issuer evidence verification remains tracked separately in #78/#79-style follow-ups",
+    ] {
+        for (name, text) in docs {
+            assert!(
+                !text.contains(forbidden),
+                "{name} contains stale membership.provision live-authority wording: {forbidden}"
+            );
+        }
+    }
+
+    for required in [
+        "handler binding is not authority",
+        "descriptor-only `production_verified`",
+        "fail-closed",
+        "live TCP ingress",
+        "no evidence refs",
+        "public inputs",
+        "#141/#144",
+        "#73 Dregg authority remains future",
+    ] {
+        assert!(
+            docs.iter().any(|(_, text)| text.contains(required)),
+            "membership.provision docs should preserve current #151 lockstep boundary phrase: {required}"
         );
     }
 }

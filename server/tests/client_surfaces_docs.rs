@@ -99,3 +99,40 @@ fn implementation_status_marks_packet_builder_as_present_and_verifier_free() {
         !lower.contains("packet-builder helper | `core/src/packet_builder.rs` | optional planned")
     );
 }
+
+#[test]
+fn client_surfaces_docs_pin_0x44_evidence_carrier_not_authority_boundary() {
+    let docs = client_surface_docs();
+    let lower = docs.to_lowercase();
+
+    for required in [
+        "0x44",
+        "membership.provision",
+        "wallet_presentation",
+        "membership_credential",
+        "may carry",
+        "do not verify authority",
+        "do not mint evidence-backed runtime contexts",
+        "secs remains the verifier",
+        "live tcp ingress",
+    ] {
+        assert!(
+            lower.contains(required),
+            "client surfaces docs should pin 0x44 evidence-carrier/not-authority boundary: {required}"
+        );
+    }
+
+    for line in docs.lines().filter(|line| {
+        let lower = line.to_lowercase();
+        lower.contains("membership.provision") && lower.contains("authority")
+    }) {
+        let lower = line.to_lowercase();
+        let negated = ["not", "do not", "cannot", "never", "no "]
+            .iter()
+            .any(|term| lower.contains(term));
+        assert!(
+            negated,
+            "membership.provision authority line must be explicitly negated on client surfaces: {line}"
+        );
+    }
+}
