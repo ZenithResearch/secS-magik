@@ -13,6 +13,7 @@ fn clear_env() {
         "SECS_VERIFIER_KEY_ID",
         "SECS_TRUST_REGISTRY_PATH",
         "SECS_CALLER_REGISTRY_PATH",
+        "SECS_PERMISSION_POLICY_PATH",
         "SECS_MAX_WIRE_BYTES",
         "SECS_MAX_PAYLOAD_BYTES",
         "SECS_MAX_OUTPUT_BYTES",
@@ -37,6 +38,7 @@ fn set_required_production_env() {
     std::env::set_var("SECS_VERIFIER_KEY_PATH", "/tmp/operator.key");
     std::env::set_var("SECS_TRUST_REGISTRY_PATH", "/tmp/trust-registry.json");
     std::env::set_var("SECS_CALLER_REGISTRY_PATH", "/tmp/caller-registry.json");
+    std::env::set_var("SECS_PERMISSION_POLICY_PATH", "/tmp/permission-policy.json");
     std::env::set_var("SECS_MAX_WIRE_BYTES", "2097152");
     std::env::set_var("SECS_MAX_PAYLOAD_BYTES", "1048576");
     std::env::set_var("SECS_MAX_OUTPUT_BYTES", "1048576");
@@ -66,6 +68,38 @@ fn write_valid_caller_registry(name: &str) -> std::path::PathBuf {
     path
 }
 
+fn write_valid_trust_registry(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"{"trusted_verifiers":[{"id":"operator"}]}"#,
+    )
+    .expect("trust registry fixture should be writable");
+    path
+}
+
+fn write_valid_permission_policy(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"[
+          {
+            "caller_id": "did:example:test",
+            "opcode": 16,
+            "operation": "file.write",
+            "resource": { "kind": "prefix", "prefix": "urn:secs:demo:" },
+            "effect": "allow",
+            "status": "active",
+            "authority_source": "receiver_local",
+            "not_before": 0,
+            "not_after": 4102444800
+          }
+        ]"#,
+    )
+    .expect("permission policy fixture should be writable");
+    path
+}
+
 #[test]
 #[serial]
 fn local_dev_defaults_bind_loopback_only() {
@@ -81,16 +115,9 @@ fn local_dev_defaults_bind_loopback_only() {
 
 #[test]
 fn production_startup_rejects_unknown_evidence_adapter_names() {
-    let registry_path = std::env::temp_dir().join(format!(
-        "secs-magik-trust-registry-{}.json",
-        std::process::id()
-    ));
-    std::fs::write(
-        &registry_path,
-        r#"{"trusted_verifiers":[{"id":"operator"}]}"#,
-    )
-    .expect("trust registry fixture should be writable");
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-adapters");
     let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-adapters");
+    let permission_policy_path = write_valid_permission_policy("secs-magik-permission-policy-adapters");
     let config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:9009",
         "sqlite:prod.db?mode=rwc",
@@ -99,6 +126,7 @@ fn production_startup_rejects_unknown_evidence_adapter_names() {
         Some("verifier:operator"),
         registry_path.to_str().unwrap(),
         caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
         "wallet_presentation,unknown_adapter",
     )
     .unwrap();
@@ -106,6 +134,7 @@ fn production_startup_rejects_unknown_evidence_adapter_names() {
     let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
     let _ = std::fs::remove_file(registry_path);
     let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
     assert!(
         error.to_string().contains("unknown evidence adapter"),
         "production startup must reject unsupported evidence adapters instead of silently accepting policy typos: {error}"
@@ -239,6 +268,7 @@ fn production_config_accepts_explicit_operator_runtime_fields() {
         Some("verifier:operator"),
         "/tmp/trust-registry.json",
         "/tmp/caller-registry.json",
+        "/tmp/permission-policy.json",
         "local_static,wallet_presentation",
     )
     .unwrap();
@@ -255,6 +285,10 @@ fn production_config_accepts_explicit_operator_runtime_fields() {
         config.allowed_evidence_adapters,
         vec!["local_static", "wallet_presentation"]
     );
+    assert_eq!(
+        config.permission_policy_path.as_deref(),
+        Some(std::path::Path::new("/tmp/permission-policy.json"))
+    );
     assert!(!config.fixture_only);
 }
 
@@ -268,6 +302,7 @@ fn production_config_rejects_prototype_receiver_audience() {
         None,
         "/tmp/trust-registry.json",
         "/tmp/caller-registry.json",
+        "/tmp/permission-policy.json",
         "local_static",
     );
 
@@ -276,3 +311,4 @@ fn production_config_rejects_prototype_receiver_audience() {
         Err(RuntimeConfigError::PrototypeReceiverAudienceInProduction)
     ));
 }
+

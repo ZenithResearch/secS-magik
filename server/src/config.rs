@@ -26,6 +26,7 @@ pub struct GatewayRuntimeConfig {
     pub ledger_path: Option<PathBuf>,
     pub trust_registry_path: Option<PathBuf>,
     pub caller_registry_path: Option<PathBuf>,
+    pub permission_policy_path: Option<PathBuf>,
     pub max_wire_bytes: usize,
     pub max_payload_bytes: usize,
     pub max_output_bytes: usize,
@@ -151,6 +152,8 @@ impl GatewayRuntimeConfig {
         let verifier_key_id = std::env::var("SECS_VERIFIER_KEY_ID").ok();
         let trust_registry_path = std::env::var_os("SECS_TRUST_REGISTRY_PATH").map(PathBuf::from);
         let caller_registry_path = std::env::var_os("SECS_CALLER_REGISTRY_PATH").map(PathBuf::from);
+        let permission_policy_path =
+            std::env::var_os("SECS_PERMISSION_POLICY_PATH").map(PathBuf::from);
         let ledger_path = std::env::var_os("SECS_LEDGER_PATH").map(PathBuf::from);
         let max_wire_bytes = parse_usize_env(
             "SECS_MAX_WIRE_BYTES",
@@ -205,6 +208,7 @@ impl GatewayRuntimeConfig {
                     Some(required_env_path(ledger_path, "SECS_LEDGER_PATH")?),
                     trust_registry_path,
                     caller_registry_path,
+                    permission_policy_path,
                     max_wire_bytes,
                     max_payload_bytes,
                     max_output_bytes,
@@ -226,6 +230,7 @@ impl GatewayRuntimeConfig {
                 ledger_path,
                 trust_registry_path,
                 caller_registry_path,
+                permission_policy_path,
                 max_wire_bytes,
                 max_payload_bytes,
                 max_output_bytes,
@@ -249,6 +254,7 @@ impl GatewayRuntimeConfig {
         verifier_key_id: Option<&str>,
         trust_registry_path: &str,
         caller_registry_path: &str,
+        permission_policy_path: &str,
         allowed_evidence_adapters: &str,
     ) -> Result<Self, RuntimeConfigError> {
         Self::production(
@@ -260,6 +266,7 @@ impl GatewayRuntimeConfig {
             sqlite_path_from_db_url(db_url),
             Some(PathBuf::from(trust_registry_path)),
             Some(PathBuf::from(caller_registry_path)),
+            Some(PathBuf::from(permission_policy_path)),
             DEFAULT_MAX_WIRE_BYTES,
             1024 * 1024,
             1024 * 1024,
@@ -282,6 +289,7 @@ impl GatewayRuntimeConfig {
             ledger_path: None,
             trust_registry_path: None,
             caller_registry_path: None,
+            permission_policy_path: None,
             max_wire_bytes: DEFAULT_MAX_WIRE_BYTES,
             max_payload_bytes: 1024 * 1024,
             max_output_bytes: 1024 * 1024,
@@ -363,6 +371,7 @@ impl GatewayRuntimeConfig {
         ledger_path: Option<PathBuf>,
         trust_registry_path: Option<PathBuf>,
         caller_registry_path: Option<PathBuf>,
+        permission_policy_path: Option<PathBuf>,
         max_wire_bytes: usize,
         max_payload_bytes: usize,
         max_output_bytes: usize,
@@ -403,6 +412,11 @@ impl GatewayRuntimeConfig {
             .ok_or(RuntimeConfigError::MissingProductionField(
                 "SECS_CALLER_REGISTRY_PATH",
             ))?;
+        let permission_policy_path = permission_policy_path
+            .filter(|path| !path.as_os_str().is_empty())
+            .ok_or(RuntimeConfigError::MissingProductionField(
+                "SECS_PERMISSION_POLICY_PATH",
+            ))?;
         validate_limits(max_wire_bytes, max_payload_bytes)?;
         Ok(Self {
             bind_addr,
@@ -414,6 +428,7 @@ impl GatewayRuntimeConfig {
             ledger_path: Some(ledger_path),
             trust_registry_path: Some(trust_registry_path),
             caller_registry_path: Some(caller_registry_path),
+            permission_policy_path: Some(permission_policy_path),
             max_wire_bytes,
             max_payload_bytes,
             max_output_bytes,
