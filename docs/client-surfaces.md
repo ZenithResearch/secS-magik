@@ -50,6 +50,10 @@ user / local Hermes / app / node intent
 
 At the target, secS receives the packet, validates the envelope and verifier inputs, looks up the receiver-local operation descriptor, evaluates evidence/capabilities/credentials according to the manifest, and only then hands a signed `VerifiedCallContext` to local handlers.
 
+## `0x44 membership.provision` evidence-carrier boundary
+
+For canonical `0x44 membership.provision`, client surfaces may carry `wallet_presentation` and `membership_credential` refs/material, but they do not verify authority and do not mint evidence-backed runtime contexts. secS remains the verifier: the server-side evidence-backed helper/API path consumes those refs/public inputs for local production-shaped E2E, while live TCP ingress still carries no evidence refs/public inputs for `0x44` until future wire-path work lands.
+
 ## Boundary rules
 
 - Client surfaces may construct packet inputs and submit packets.

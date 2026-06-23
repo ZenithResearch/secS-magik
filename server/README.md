@@ -2,7 +2,7 @@
 
 `server/` is the secS gateway/verifier substrate crate for secS-magik.
 
-Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy on `main`, and Track I local production-shaped `membership.provision` E2E on `main` via PR #76 at `5e5bb71`. Issue #77 adds a fail-closed descriptor-only `production_verified` runtime guard for canonical `0x44` `membership.provision`; live runtime ingress still does not verify wallet + issuer evidence and must not claim active `membership.provision` runtime authority until #78/#79-style follow-ups land. First-prod authority is still bounded: full Castalia Wallet wallet-core parity/import, live Castalia/Dregg discovery, Midnight/Cardano authority, production deployment proof, and public auditability are not implemented here.
+Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy on `main`, and Track I local production-shaped `membership.provision` E2E on `main` via PR #76 at `5e5bb71`. Issue #77 adds a fail-closed descriptor-only `production_verified` runtime guard for canonical `0x44` `membership.provision`; live runtime ingress still does not verify wallet + issuer evidence and live TCP ingress still has no evidence refs/public inputs for `membership.provision`; handler binding is not authority until #141/#144 wire-path work lands, and #73 Dregg authority remains future. First-prod authority is still bounded: full Castalia Wallet wallet-core parity/import, live Castalia/Dregg discovery, Midnight/Cardano authority, production deployment proof, and public auditability are not implemented here.
 
 ## Directory map
 
@@ -90,7 +90,7 @@ Do not document real operator keys, bearer tokens, packet captures, production D
 | `0x10` | `16` | Bash echo-pipe prototype/dev binding. |
 | `0x20` | `32` | Native Rust queue-stub prototype/dev binding. |
 | `0x30` | `48` | `jq .` JSON formatter/parser prototype/dev binding. |
-| `0x44` | `68` | `membership.provision` local production-shaped E2E descriptor. #77 fail-closes descriptor-only production runtime verification; evidence-aware live ingress/runtime authority remains tracked in #78/#79-style follow-ups. |
+| `0x44` | `68` | `membership.provision` local production-shaped E2E descriptor. #77 fail-closes descriptor-only production runtime verification; live TCP evidence-ref/public-input support remains open in #141/#144; handler binding is not authority and #73 Dregg authority remains future. |
 
 The client CLI accepts decimal values such as `16`, not `0x10`.
 
@@ -123,7 +123,7 @@ Track E is implemented on `main` as a static receiver-held fixture policy. `Trus
 
 The first-path federated credential verifier accepts signed `membership_credential` / `provisioning_credential` fixtures only when the credential signature verifies against receiver-held issuer metadata, the issuer/key/credential status is active in the fixture registry, subject/audience/operation/resource bindings match, and the receiver-local descriptor allows that evidence kind. `local_static`, plaintext/prototype evidence, wallet-only proof, embedded caller keys, and caller-supplied root refs reject as sufficient production authority.
 
-This is a static fixture registry path only: no live Dregg consensus or Castalia registry discovery, no Midnight proof adapter, no Cardano settlement/finality proof, no production deployment proof, no public auditability, and no full Castalia Wallet wallet-core parity. Track I local production-shaped `membership.provision` E2E is implemented on `main`; #77 adds the descriptor-only production runtime fail-closed guard, but live ingress/runtime wallet + issuer evidence verification remains tracked separately in #78/#79-style follow-ups.
+This is a static fixture registry path only: no live Dregg consensus or Castalia registry discovery, no Midnight proof adapter, no Cardano settlement/finality proof, no production deployment proof, no public auditability, and no full Castalia Wallet wallet-core parity. Track I local production-shaped `membership.provision` E2E is implemented on `main`; #77 adds the descriptor-only production runtime fail-closed guard, but live TCP ingress wallet + issuer evidence refs/public inputs remain open in #141/#144; handler binding is not authority and #73 Dregg authority remains future.
 
 ## Commands
 

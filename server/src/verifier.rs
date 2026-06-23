@@ -513,6 +513,11 @@ fn reject_non_production_descriptor(
 fn reject_descriptor_only_runtime_evidence_gap(
     descriptor: &OperationDescriptor,
 ) -> Result<(), VerificationError> {
+    // #151 lockstep guard: canonical `membership.provision` advertises the
+    // evidence-backed helper/API contract, but live TCP ingress is still
+    // descriptor-only and carries no evidence refs/public inputs. Keep this
+    // fail-closed branch until ingress routes on-wire evidence into the
+    // evidence-backed verifier path.
     if descriptor.opcode == 0x44
         && descriptor.name.as_str() == "membership.provision"
         && descriptor
