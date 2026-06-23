@@ -2,7 +2,7 @@
 
 `server/` is the secS gateway/verifier substrate crate for secS-magik.
 
-Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy on `main`, and Track I local production-shaped `membership.provision` E2E on `main` via PR #76 at `5e5bb71`. Issue #77 adds a fail-closed descriptor-only `production_verified` runtime guard for canonical `0x44` `membership.provision`; live runtime ingress still does not verify wallet + issuer evidence and live TCP ingress still has no evidence refs/public inputs for `membership.provision`; handler binding is not authority until #141/#144 wire-path work lands, and #73 Dregg authority remains future. First-prod authority is still bounded: full Castalia Wallet wallet-core parity/import, live Castalia/Dregg discovery, Midnight/Cardano authority, production deployment proof, and public auditability are not implemented here.
+Status: production-shaped local hardening is implemented for the current prototype gateway, including bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, receiver-local permission policy readiness/loading for canonical gateway startup, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy on `main`, and Track I local production-shaped `membership.provision` E2E on `main` via PR #76 at `5e5bb71`. Issue #77 adds a fail-closed descriptor-only `production_verified` runtime guard for canonical `0x44` `membership.provision`; live runtime ingress still does not verify wallet + issuer evidence and live TCP ingress still has no evidence refs/public inputs for `membership.provision`; handler binding is not authority until #141/#144 wire-path work lands, and #73 Dregg authority remains future. First-prod authority is still bounded: full Castalia Wallet wallet-core parity/import, live Castalia/Dregg discovery, Midnight/Cardano authority, production deployment proof, and public auditability are not implemented here.
 
 ## Directory map
 
@@ -31,7 +31,7 @@ Status: production-shaped local hardening is implemented for the current prototy
 
 | Mode | Current use |
 |---|---|
-| `production_verified` | Default canonical gateway mode. Fails closed unless explicit `SECS_*` runtime, key, ledger, trust-registry, audience, and limits are supplied. Fixture-only smoke must opt in with `SECS_FIXTURE_ONLY_SMOKE=1`. |
+| `production_verified` | Default canonical gateway mode. Fails closed unless explicit `SECS_*` runtime, key, ledger, trust-registry, caller-registry, permission-policy, audience, and limits are supplied. Fixture-only smoke must opt in with `SECS_FIXTURE_ONLY_SMOKE=1`. |
 | `local_dev_plaintext` | Explicit local development mode. Allows plaintext local testing without silently looking like production. |
 | `local_dev_tunnel` | Explicit local tunnel mode. Requires tunnel key material. |
 
@@ -68,6 +68,8 @@ Common gateway variables include:
 - `SECS_VERIFIER_KEY_PATH`
 - `SECS_VERIFIER_KEY_ID`
 - `SECS_TRUST_REGISTRY_PATH`
+- `SECS_CALLER_REGISTRY_PATH`
+- `SECS_PERMISSION_POLICY_PATH`
 - `SECS_ALLOWED_EVIDENCE_ADAPTERS`
 - `SECS_FIXTURE_ONLY_SMOKE`
 - `SECS_MAX_WIRE_BYTES`
