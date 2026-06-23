@@ -142,6 +142,66 @@ fn production_startup_rejects_unknown_evidence_adapter_names() {
 }
 
 #[test]
+fn production_startup_rejects_missing_permission_policy_file() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-policy-missing");
+    let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-policy-missing");
+    let missing_policy_path = std::env::temp_dir().join(format!(
+        "missing-permission-policy-{}.json",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&missing_policy_path);
+    let config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        missing_policy_path.to_str().unwrap(),
+        "wallet_presentation",
+    )
+    .unwrap();
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    assert!(
+        error.to_string().contains("permission policy"),
+        "production startup must reject unreadable/missing permission policy files: {error}"
+    );
+}
+
+#[test]
+fn production_startup_accepts_valid_permission_policy_file() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-policy-valid");
+    let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-policy-valid");
+    let permission_policy_path = write_valid_permission_policy("secs-magik-permission-policy-valid");
+    let config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "wallet_presentation",
+    )
+    .unwrap();
+
+    let result = server::config::validate_production_startup_readiness(&config);
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    assert!(
+        result.is_ok(),
+        "valid production registries and permission policy should be startup-ready: {result:?}"
+    );
+}
+
+
+#[test]
 #[serial]
 fn production_config_requires_explicit_receiver_audience() {
     clear_env();
@@ -187,6 +247,7 @@ fn production_config_rejects_missing_explicit_runtime_fields() {
         "SECS_HANDLER_TIMEOUT_MS",
         "SECS_INGRESS_READ_TIMEOUT_MS",
         "SECS_MAX_IN_FLIGHT_CONNECTIONS",
+        "SECS_PERMISSION_POLICY_PATH",
     ] {
         clear_env();
         set_required_production_env();

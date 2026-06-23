@@ -1,6 +1,7 @@
 use crate::gateway::ExecutionLimits;
 use crate::ingress::{DEFAULT_INGRESS_READ_TIMEOUT, DEFAULT_MAX_WIRE_BYTES};
 use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
+use crate::permissions::PermissionPolicy;
 use crate::runtime_mode::RuntimeMode;
 use sqlx::SqlitePool;
 use std::fmt;
@@ -109,6 +110,7 @@ impl GatewayReadiness {
 pub enum StartupReadinessError {
     TrustRegistryNotReady { path: PathBuf, reason: String },
     CallerRegistryNotReady { path: PathBuf, reason: String },
+    PermissionPolicyNotReady { path: PathBuf, reason: String },
 }
 
 impl fmt::Display for StartupReadinessError {
@@ -128,6 +130,11 @@ impl fmt::Display for StartupReadinessError {
                     path
                 )
             }
+            Self::PermissionPolicyNotReady { path, reason } => write!(
+                formatter,
+                "production permission policy {:?} is not ready: {reason}",
+                path
+            ),
         }
     }
 }
@@ -469,6 +476,12 @@ pub fn validate_production_startup_readiness(
     .map_err(|reason| StartupReadinessError::CallerRegistryNotReady {
         path: config.caller_registry_path.clone().unwrap_or_default(),
         reason,
+    })?;
+    validate_permission_policy_file(config.permission_policy_path.as_deref()).map_err(|reason| {
+        StartupReadinessError::PermissionPolicyNotReady {
+            path: config.permission_policy_path.clone().unwrap_or_default(),
+            reason,
+        }
     })
 }
 
@@ -479,6 +492,13 @@ async fn sqlite_table_exists(pool: &SqlitePool, table_name: &str) -> Result<bool
             .fetch_one(pool)
             .await?;
     Ok(count.0 > 0)
+}
+
+pub fn validate_permission_policy_file(path: Option<&Path>) -> Result<(), String> {
+    let path = path.ok_or_else(|| "missing permission policy path".to_string())?;
+    PermissionPolicy::from_json_file(path)
+        .map(|_| ())
+        .map_err(|error| format!("{error:?}"))
 }
 
 fn validate_trust_registry_file(
