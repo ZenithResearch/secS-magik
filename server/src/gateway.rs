@@ -170,6 +170,10 @@ impl ConfigurableRouter {
         self.permission_policy = Some(policy);
     }
 
+    pub fn has_permission_policy(&self) -> bool {
+        self.permission_policy.is_some()
+    }
+
     /// Install the receiver-held caller key registry (M12.1). Required for
     /// `production_verified` runtime verification; optional fixture seam in
     /// local/dev modes.

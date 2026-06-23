@@ -413,6 +413,7 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
             });
         router.set_caller_registry(caller_keys);
     }
+    install_configured_permission_policy(&mut router, &config);
     register_runtime_bindings(&mut router, config.runtime_mode);
 
     let router = Arc::new(router);
@@ -468,3 +469,15 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         }
     }
 }
+pub fn install_configured_permission_policy(
+    router: &mut ConfigurableRouter,
+    config: &GatewayRuntimeConfig,
+) {
+    if let Some(path) = &config.permission_policy_path {
+        let policy = crate::permissions::PermissionPolicy::from_json_file(path).unwrap_or_else(|error| {
+            panic!("secS gateway: failed to load permission policy - {error:?}")
+        });
+        router.set_permission_policy(policy);
+    }
+}
+
