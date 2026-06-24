@@ -47,7 +47,7 @@ Short current status:
 ## Overview
 
 - What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, bounds ingress wire reads before packet deserialization, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, enforces descriptor max TTL/session validity and receiver-local replay reservation before handler execution, routes verified bounded opcodes to configured local machine programs, persists typed receipt/event records to local SQLite without storing payload content by default, and exposes redacted local/operator receipt inspection.
-- What production-shaped gateway startup additionally requires now: `production_verified` must provide `SECS_PERMISSION_POLICY_PATH`; the file is parsed as receiver-local `PermissionPolicy` during readiness and installed into the canonical ingress router before local handler dispatch. Missing or invalid policy files fail startup/readiness closed.
+- What production-shaped gateway startup additionally requires now: `production_verified` must provide `SECS_PERMISSION_POLICY_PATH`; the file is parsed as receiver-local `PermissionPolicy` during readiness and installed into the canonical ingress router before local handler dispatch. When `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`, startup/readiness also requires `SECS_DREGG_AUTHORITY_REGISTRY_PATH` and parses it as the receiver-held Dregg issuer/root/epoch policy registry. Missing or invalid policy files fail startup/readiness closed.
 - What it is becoming: a typed secS verifier pipeline with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
 - Who it is for: developers and operators building owned machine-call rails instead of broad bearer-token APIs.
 - Primary stack: Rust workspace with `core`, `client`, and `server`; Tokio TCP; bincode packet serialization; optional ChaCha20Poly1305 tunnel decryption; SQLite through SQLx runtime queries.
@@ -165,7 +165,7 @@ Current request lifecycle:
 - Keep current ledger claims bounded to local/operator SQLite evidence.
 - Keep the Track D wallet cryptographic verifier bounded to the temporary minimal-equivalent secS challenge contract until full Castalia Wallet wallet-core parity replaces or reconciles it; wallet proof-of-possession remains necessary where required but never sufficient issuer/root authority.
 - Keep Track E authority receiver-held: static fixture `TrustedIssuerEntry` registry metadata, signed membership/provisioning credentials, `trust_root_ref` / `registry_root_ref` matching, and descriptor-local policy decide production evidence acceptance. Caller-supplied keys/root refs, `local_static`, plaintext/prototype evidence, and wallet-only evidence do not become sufficient authority.
-- Keep Dregg, Midnight, and Cardano as future adapter/anchor rails, not current runtime dependencies.
+- Keep Dregg, Midnight, and Cardano as future adapter/anchor rails. M15.2 adds the receiver-held static `dregg_authority` issuer/root/epoch registry and production startup/readiness requirement when that adapter is enabled; it still does not verify Dregg token admission, revocation proofs, finality, Midnight, Cardano, public auditability, or deployment proof.
 
 ## Packet v0
 

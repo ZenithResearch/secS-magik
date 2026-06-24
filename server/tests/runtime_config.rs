@@ -14,6 +14,7 @@ fn clear_env() {
         "SECS_TRUST_REGISTRY_PATH",
         "SECS_CALLER_REGISTRY_PATH",
         "SECS_PERMISSION_POLICY_PATH",
+        "SECS_DREGG_AUTHORITY_REGISTRY_PATH",
         "SECS_MAX_WIRE_BYTES",
         "SECS_MAX_PAYLOAD_BYTES",
         "SECS_MAX_OUTPUT_BYTES",
@@ -72,6 +73,40 @@ fn write_valid_trust_registry(name: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
     std::fs::write(&path, r#"{"trusted_verifiers":[{"id":"operator"}]}"#)
         .expect("trust registry fixture should be writable");
+    path
+}
+
+fn write_valid_dregg_authority_registry(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"[
+          {
+            "issuer_id": "did:dregg:fixture:issuer",
+            "issuer_key_id": "dregg-issuer-key:fixture-1",
+            "issuer_public_key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+            "federation_id": "dregg-federation:fixture",
+            "root_ref": "dregg-root:fixture-root-2026q2",
+            "root_fingerprint": "root:sha256:fixture-root-2026q2",
+            "epoch_id": "epoch:2026q2",
+            "epoch_not_before": 1770000000,
+            "epoch_not_after": 1777776000,
+            "accepted_audiences": ["secS://operator-receiver"],
+            "accepted_operations": ["membership.provision"],
+            "accepted_resources": ["application/json"],
+            "accepted_suites": ["dregg_authority_fixture_v1"],
+            "status_policy": {
+              "require_status": true,
+              "max_status_age_seconds": 300,
+              "require_revocation_check": true,
+              "require_finality": false
+            },
+            "root_status": "active",
+            "issuer_status": "active"
+          }
+        ]"#,
+    )
+    .expect("Dregg authority registry fixture should be writable");
     path
 }
 
@@ -371,4 +406,106 @@ fn production_config_rejects_prototype_receiver_audience() {
         config,
         Err(RuntimeConfigError::PrototypeReceiverAudienceInProduction)
     ));
+}
+
+#[test]
+fn production_startup_rejects_dregg_authority_adapter_without_registry_path() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-dregg-missing");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-dregg-missing");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-dregg-missing");
+    let config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "wallet_presentation,dregg_authority",
+    )
+    .unwrap();
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    assert!(
+        error.to_string().contains("production Dregg authority registry")
+            && error.to_string().contains("missing Dregg authority registry path"),
+        "production startup must reject dregg_authority adapter without SECS_DREGG_AUTHORITY_REGISTRY_PATH: {error}"
+    );
+}
+
+#[test]
+fn production_startup_accepts_dregg_authority_adapter_with_registry_path() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-dregg-valid");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-dregg-valid");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-dregg-valid");
+    let dregg_registry_path =
+        write_valid_dregg_authority_registry("secs-magik-dregg-authority-valid");
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "wallet_presentation,dregg_authority",
+    )
+    .unwrap();
+    config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
+
+    let result = server::config::validate_production_startup_readiness(&config);
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(dregg_registry_path);
+    assert!(
+        result.is_ok(),
+        "valid Dregg authority registry should make dregg_authority adapter startup-ready: {result:?}"
+    );
+}
+
+#[test]
+fn production_startup_rejects_empty_dregg_authority_registry() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-dregg-empty");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-dregg-empty");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-dregg-empty");
+    let dregg_registry_path =
+        std::env::temp_dir().join(format!("empty-dregg-authority-{}.json", std::process::id()));
+    std::fs::write(&dregg_registry_path, "[]").unwrap();
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority",
+    )
+    .unwrap();
+    config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(dregg_registry_path);
+    assert!(
+        error
+            .to_string()
+            .contains("production Dregg authority registry has no issuer/root entries"),
+        "production startup must reject empty Dregg authority registries: {error}"
+    );
 }

@@ -30,6 +30,8 @@ pub enum EvidenceKind {
     MidnightProof,
     #[serde(rename = "dregg_receipt")]
     DreggReceipt,
+    #[serde(rename = "dregg_authority")]
+    DreggAuthority,
     #[serde(rename = "cardano_settlement")]
     CardanoSettlement,
 }
@@ -44,6 +46,7 @@ impl EvidenceKind {
             Self::ProvisioningCredential => "provisioning_credential",
             Self::MidnightProof => "midnight_proof",
             Self::DreggReceipt => "dregg_receipt",
+            Self::DreggAuthority => "dregg_authority",
             Self::CardanoSettlement => "cardano_settlement",
         }
     }

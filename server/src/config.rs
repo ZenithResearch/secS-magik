@@ -1,3 +1,4 @@
+use crate::dregg_authority::DreggAuthorityRegistry;
 use crate::gateway::ExecutionLimits;
 use crate::ingress::{DEFAULT_INGRESS_READ_TIMEOUT, DEFAULT_MAX_WIRE_BYTES};
 use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
@@ -28,6 +29,7 @@ pub struct GatewayRuntimeConfig {
     pub trust_registry_path: Option<PathBuf>,
     pub caller_registry_path: Option<PathBuf>,
     pub permission_policy_path: Option<PathBuf>,
+    pub dregg_authority_registry_path: Option<PathBuf>,
     pub max_wire_bytes: usize,
     pub max_payload_bytes: usize,
     pub max_output_bytes: usize,
@@ -89,6 +91,7 @@ pub struct GatewayReadiness {
     pub ledger_ready: ReadinessStatus,
     pub trust_registry_ready: ReadinessStatus,
     pub caller_registry_ready: ReadinessStatus,
+    pub dregg_authority_registry_ready: ReadinessStatus,
 }
 
 impl GatewayReadiness {
@@ -103,6 +106,10 @@ impl GatewayReadiness {
                 self.caller_registry_ready,
                 ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
             )
+            && matches!(
+                self.dregg_authority_registry_ready,
+                ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
+            )
     }
 }
 
@@ -111,6 +118,7 @@ pub enum StartupReadinessError {
     TrustRegistryNotReady { path: PathBuf, reason: String },
     CallerRegistryNotReady { path: PathBuf, reason: String },
     PermissionPolicyNotReady { path: PathBuf, reason: String },
+    DreggAuthorityRegistryNotReady { path: PathBuf, reason: String },
 }
 
 impl fmt::Display for StartupReadinessError {
@@ -133,6 +141,11 @@ impl fmt::Display for StartupReadinessError {
             Self::PermissionPolicyNotReady { path, reason } => write!(
                 formatter,
                 "production permission policy {:?} is not ready: {reason}",
+                path
+            ),
+            Self::DreggAuthorityRegistryNotReady { path, reason } => write!(
+                formatter,
+                "production Dregg authority registry {:?} is not ready: {reason}",
                 path
             ),
         }
@@ -161,6 +174,8 @@ impl GatewayRuntimeConfig {
         let caller_registry_path = std::env::var_os("SECS_CALLER_REGISTRY_PATH").map(PathBuf::from);
         let permission_policy_path =
             std::env::var_os("SECS_PERMISSION_POLICY_PATH").map(PathBuf::from);
+        let dregg_authority_registry_path =
+            std::env::var_os("SECS_DREGG_AUTHORITY_REGISTRY_PATH").map(PathBuf::from);
         let ledger_path = std::env::var_os("SECS_LEDGER_PATH").map(PathBuf::from);
         let max_wire_bytes = parse_usize_env(
             "SECS_MAX_WIRE_BYTES",
@@ -216,6 +231,7 @@ impl GatewayRuntimeConfig {
                     trust_registry_path,
                     caller_registry_path,
                     permission_policy_path,
+                    dregg_authority_registry_path,
                     max_wire_bytes,
                     max_payload_bytes,
                     max_output_bytes,
@@ -238,6 +254,7 @@ impl GatewayRuntimeConfig {
                 trust_registry_path,
                 caller_registry_path,
                 permission_policy_path,
+                dregg_authority_registry_path,
                 max_wire_bytes,
                 max_payload_bytes,
                 max_output_bytes,
@@ -274,6 +291,7 @@ impl GatewayRuntimeConfig {
             Some(PathBuf::from(trust_registry_path)),
             Some(PathBuf::from(caller_registry_path)),
             Some(PathBuf::from(permission_policy_path)),
+            None,
             DEFAULT_MAX_WIRE_BYTES,
             1024 * 1024,
             1024 * 1024,
@@ -297,6 +315,7 @@ impl GatewayRuntimeConfig {
             trust_registry_path: None,
             caller_registry_path: None,
             permission_policy_path: None,
+            dregg_authority_registry_path: None,
             max_wire_bytes: DEFAULT_MAX_WIRE_BYTES,
             max_payload_bytes: 1024 * 1024,
             max_output_bytes: 1024 * 1024,
@@ -360,11 +379,37 @@ impl GatewayRuntimeConfig {
             }
         };
 
+        let dregg_authority_registry_ready = match self.runtime_mode {
+            RuntimeMode::ProductionVerified => {
+                if self
+                    .allowed_evidence_adapters
+                    .iter()
+                    .any(|adapter| adapter == "dregg_authority")
+                {
+                    if validate_dregg_authority_registry_file(
+                        self.dregg_authority_registry_path.as_deref(),
+                    )
+                    .is_ok()
+                    {
+                        ReadinessStatus::Ready
+                    } else {
+                        ReadinessStatus::NotReady
+                    }
+                } else {
+                    ReadinessStatus::FixtureOnly
+                }
+            }
+            RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => {
+                ReadinessStatus::FixtureOnly
+            }
+        };
+
         Ok(GatewayReadiness {
             config_loaded: ReadinessStatus::Ready,
             ledger_ready,
             trust_registry_ready,
             caller_registry_ready,
+            dregg_authority_registry_ready,
         })
     }
 
@@ -379,6 +424,7 @@ impl GatewayRuntimeConfig {
         trust_registry_path: Option<PathBuf>,
         caller_registry_path: Option<PathBuf>,
         permission_policy_path: Option<PathBuf>,
+        dregg_authority_registry_path: Option<PathBuf>,
         max_wire_bytes: usize,
         max_payload_bytes: usize,
         max_output_bytes: usize,
@@ -436,6 +482,7 @@ impl GatewayRuntimeConfig {
             trust_registry_path: Some(trust_registry_path),
             caller_registry_path: Some(caller_registry_path),
             permission_policy_path: Some(permission_policy_path),
+            dregg_authority_registry_path,
             max_wire_bytes,
             max_payload_bytes,
             max_output_bytes,
@@ -469,6 +516,22 @@ pub fn validate_production_startup_readiness(
             reason,
         }
     })?;
+    if config
+        .allowed_evidence_adapters
+        .iter()
+        .any(|adapter| adapter == "dregg_authority")
+    {
+        validate_dregg_authority_registry_file(config.dregg_authority_registry_path.as_deref())
+            .map_err(
+                |reason| StartupReadinessError::DreggAuthorityRegistryNotReady {
+                    path: config
+                        .dregg_authority_registry_path
+                        .clone()
+                        .unwrap_or_default(),
+                    reason,
+                },
+            )?;
+    }
     validate_caller_registry_file(
         config.caller_registry_path.as_deref(),
         config.fixture_only_smoke,
@@ -499,6 +562,19 @@ pub fn validate_permission_policy_file(path: Option<&Path>) -> Result<(), String
     PermissionPolicy::from_json_file(path)
         .map(|_| ())
         .map_err(|error| format!("{error:?}"))
+}
+
+pub fn validate_dregg_authority_registry_file(path: Option<&Path>) -> Result<(), String> {
+    let path = path.ok_or_else(|| "missing Dregg authority registry path".to_string())?;
+    DreggAuthorityRegistry::from_json_file(path)
+        .map(|registry| {
+            if registry.is_empty() {
+                Err("production Dregg authority registry has no issuer/root entries".to_string())
+            } else {
+                Ok(())
+            }
+        })
+        .map_err(|error| error.to_string())?
 }
 
 fn validate_trust_registry_file(
@@ -566,7 +642,7 @@ fn validate_allowed_evidence_adapters(config: &GatewayRuntimeConfig) -> Result<(
     }
     for adapter in &config.allowed_evidence_adapters {
         match adapter.as_str() {
-            "local_static" | "wallet_presentation" => {}
+            "local_static" | "wallet_presentation" | "dregg_authority" => {}
             _ => {
                 return Err(format!(
                     "unknown evidence adapter {adapter:?} in SECS_ALLOWED_EVIDENCE_ADAPTERS"

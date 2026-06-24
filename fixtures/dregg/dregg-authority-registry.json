@@ -1,0 +1,25 @@
+[
+  {
+    "issuer_id": "did:dregg:fixture:issuer",
+    "issuer_key_id": "dregg-issuer-key:fixture-1",
+    "issuer_public_key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "federation_id": "dregg-federation:fixture",
+    "root_ref": "dregg-root:fixture-root-2026q2",
+    "root_fingerprint": "root:sha256:fixture-root-2026q2",
+    "epoch_id": "epoch:2026q2",
+    "epoch_not_before": 1770000000,
+    "epoch_not_after": 1777776000,
+    "accepted_audiences": ["secS://operator-receiver"],
+    "accepted_operations": ["membership.provision"],
+    "accepted_resources": ["application/json"],
+    "accepted_suites": ["dregg_authority_fixture_v1"],
+    "status_policy": {
+      "require_status": true,
+      "max_status_age_seconds": 300,
+      "require_revocation_check": true,
+      "require_finality": false
+    },
+    "root_status": "active",
+    "issuer_status": "active"
+  }
+]
