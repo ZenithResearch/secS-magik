@@ -516,3 +516,36 @@ fn dregg_authority_docs_indexes_and_checklist_rewrite_issue_73_acceptance() {
         ],
     );
 }
+
+#[test]
+fn dregg_authority_docs_record_m15_4_fail_closed_posture_and_blockers() {
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "M15.4 / #140",
+            "require_revocation_check",
+            "require_finality",
+            "future status timestamps",
+            "token expires at the validation instant",
+            "named blockers",
+            "expected_revocation_root",
+            "RevocationVerifier",
+            "ReceiptQc::Threshold",
+            "rotated_replay",
+        ],
+    );
+
+    contains_all(
+        "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+        READY_FOR_PROD_CHECKLIST,
+        &[
+            "M15.4 / #140",
+            "revocation/freshness/finality posture",
+            "Missing revocation check material rejects as `missing_status`",
+            "Required finality without finality material rejects as `not_final`",
+            "Equivocation rejects as `equivocated`",
+            "#73 remains open",
+        ],
+    );
+}

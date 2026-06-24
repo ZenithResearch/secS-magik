@@ -1,5 +1,6 @@
 use server::dregg_authority::{
-    DreggAuthorityLookup, DreggAuthorityRegistry, DreggAuthorityRegistryError,
+    DreggAuthorityFinalityStatus, DreggAuthorityLookup, DreggAuthorityRegistry,
+    DreggAuthorityRegistryError, DreggAuthorityRevocationStatus,
 };
 use server::verifier::VerificationError;
 
@@ -45,6 +46,8 @@ fn valid_lookup() -> DreggAuthorityLookup {
         suite: "dregg_authority_fixture_v1".to_string(),
         validation_time: 1770000300,
         status_checked_at: Some(1770000200),
+        revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+        finality_status: Some(DreggAuthorityFinalityStatus::Final),
     }
 }
 
@@ -74,6 +77,16 @@ fn dregg_authority_registry_rejects_missing_empty_malformed_and_duplicates() {
         DreggAuthorityRegistry::from_json_str("[]").unwrap_err(),
         DreggAuthorityRegistryError::Empty
     );
+
+    assert!(matches!(
+        DreggAuthorityRegistry::from_json_str(&registry_json().replace(
+            "1111111111111111111111111111111111111111111111111111111111111111",
+            "ABCDEF1111111111111111111111111111111111111111111111111111111111"
+        ))
+        .unwrap_err(),
+        DreggAuthorityRegistryError::InvalidEntry(error)
+        if error.contains("issuer_public_key_hex")
+    ));
 
     let duplicate = format!(
         "[{},{}]",

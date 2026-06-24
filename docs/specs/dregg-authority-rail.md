@@ -96,6 +96,22 @@ Candidate API surfaces for later implementation are Dregg low-level credential `
 
 For #73, proof/finality is a named production question, not an implicit current claim. Until a later issue explicitly wires and tests rotated-replay/finality/equivocation material, `dregg_authority` may claim token/root/status admission only, not blocklace finality, public proof verification, public auditability, or settlement finality.
 
+
+
+## M15.4 / #140 revocation/freshness/finality posture
+
+M15.4 (#140) turns the #139 policy-admission seam into an explicit fail-closed revocation/freshness/finality posture. `require_revocation_check` and `require_finality` are runtime gates, not descriptive registry labels:
+
+- missing revocation check material rejects as `missing_status` when receiver-held policy requires a revocation check;
+- revoked token/status material rejects as `revoked`;
+- future status timestamps reject as `stale` instead of satisfying freshness by saturating to age zero;
+- `dga1_` authority token expires at the validation instant and rejects as `invalid_admission`;
+- required finality without finality material rejects as `not_final`;
+- explicit not-final material rejects as `not_final`;
+- equivocation material rejects as `equivocated`.
+
+The concrete in-repo implementation remains a bounded fixture/policy seam. Upstream production surfaces are named, not overclaimed: Dregg credentials `expected_revocation_root`, federation `RevocationVerifier` / `RevocationTree`, `ReceiptQc::Threshold` with BLS committee plumbing, and `rotated_replay` / `verify_rotated_replay_chain` are the candidate hardening rails. Any unavailable revocation/finality semantic is a named blockers item and must fail closed or keep production Dregg authority not-ready; it must never silently accept.
+
 ## #73 rewritten acceptance criteria
 
 #73 should now close only when these acceptance criteria are met:

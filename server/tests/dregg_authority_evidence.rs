@@ -1,5 +1,6 @@
 use server::dregg_authority::{
-    DreggAuthorityEntry, DreggAuthorityLookup, DreggAuthorityRegistry, DreggAuthorityStatus,
+    DreggAuthorityEntry, DreggAuthorityFinalityStatus, DreggAuthorityLookup,
+    DreggAuthorityRegistry, DreggAuthorityRevocationStatus, DreggAuthorityStatus,
     DreggAuthorityStatusPolicy,
 };
 use server::evidence::{
@@ -86,6 +87,8 @@ fn valid_grant() -> DreggAuthorityGrantFixture {
         epoch_id: "epoch:2026q2".to_string(),
         suite: "dregg_authority_fixture_v1".to_string(),
         status_checked_at: Some(STATUS_CHECKED_AT),
+        revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+        finality_status: None,
     }
 }
 
@@ -183,6 +186,8 @@ fn dregg_authority_rejects_binding_root_epoch_status_and_suite_failures() {
         suite: "dregg_authority_fixture_v1".to_string(),
         validation_time: VALIDATION_TIME,
         status_checked_at: Some(STATUS_CHECKED_AT),
+        revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+        finality_status: None,
     };
     assert!(registry().lookup_active_policy(&lookup).is_ok());
 
@@ -231,4 +236,103 @@ fn dregg_authority_rejects_binding_root_epoch_status_and_suite_failures() {
         registry().lookup_active_policy(&lookup).unwrap_err(),
         VerificationError::WrongEpoch
     );
+}
+
+#[test]
+fn dregg_authority_enforces_revocation_check_finality_and_time_boundaries() {
+    let mut missing_revocation = valid_grant();
+    missing_revocation.revocation_status = None;
+    assert_eq!(
+        adapter(missing_revocation).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::MissingStatus),
+        "require_revocation_check must be a fail-closed runtime gate, not a registry-only label"
+    );
+
+    let mut revoked = valid_grant();
+    revoked.revocation_status = Some(DreggAuthorityRevocationStatus::Revoked);
+    assert_eq!(
+        adapter(revoked).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::Revoked)
+    );
+
+    let mut future_status = valid_grant();
+    future_status.status_checked_at = Some(VALIDATION_TIME + 1);
+    assert_eq!(
+        adapter(future_status).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::Stale),
+        "caller-supplied future status timestamps must not satisfy freshness"
+    );
+
+    let mut expires_now = valid_grant();
+    expires_now.token =
+        DreggAuthorityGrantFixture::fixture_token(SUBJECT, OPERATION, VALIDATION_TIME);
+    assert_eq!(
+        adapter(expires_now).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::InvalidAdmission),
+        "authority tokens expire at the validation instant, matching fail-closed credential expiry semantics"
+    );
+}
+
+#[test]
+fn dregg_authority_finality_policy_fails_closed_or_rejects_equivocation() {
+    let registry = DreggAuthorityRegistry::new([DreggAuthorityEntry {
+        status_policy: DreggAuthorityStatusPolicy {
+            require_status: true,
+            max_status_age_seconds: 300,
+            require_revocation_check: true,
+            require_finality: true,
+        },
+        ..registry()
+            .lookup_active_policy(&DreggAuthorityLookup {
+                issuer_id: "did:dregg:issuer:fixture".to_string(),
+                issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+                root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+                root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+                epoch_id: "epoch:2026q2".to_string(),
+                audience: AUDIENCE.to_string(),
+                operation: OPERATION.to_string(),
+                resource: RESOURCE.to_string(),
+                suite: "dregg_authority_fixture_v1".to_string(),
+                validation_time: VALIDATION_TIME,
+                status_checked_at: Some(STATUS_CHECKED_AT),
+                revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+                finality_status: Some(DreggAuthorityFinalityStatus::Final),
+            })
+            .unwrap()
+            .clone()
+    }])
+    .unwrap();
+
+    let mut no_finality = valid_grant();
+    no_finality.finality_status = None;
+    assert_eq!(
+        DreggAuthorityEvidenceAdapter::new([no_finality], registry.clone(), VALIDATION_TIME)
+            .verify(&request()),
+        EvidenceResult::Rejected(VerificationError::NotFinal),
+        "require_finality must become a named blocker when no finality proof/check is present"
+    );
+
+    let mut not_final = valid_grant();
+    not_final.finality_status = Some(DreggAuthorityFinalityStatus::NotFinal);
+    assert_eq!(
+        DreggAuthorityEvidenceAdapter::new([not_final], registry.clone(), VALIDATION_TIME)
+            .verify(&request()),
+        EvidenceResult::Rejected(VerificationError::NotFinal)
+    );
+
+    let mut equivocated = valid_grant();
+    equivocated.finality_status = Some(DreggAuthorityFinalityStatus::Equivocated);
+    assert_eq!(
+        DreggAuthorityEvidenceAdapter::new([equivocated], registry.clone(), VALIDATION_TIME)
+            .verify(&request()),
+        EvidenceResult::Rejected(VerificationError::Equivocated)
+    );
+
+    let mut final_grant = valid_grant();
+    final_grant.finality_status = Some(DreggAuthorityFinalityStatus::Final);
+    assert!(matches!(
+        DreggAuthorityEvidenceAdapter::new([final_grant], registry, VALIDATION_TIME)
+            .verify(&request()),
+        EvidenceResult::Satisfied(_)
+    ));
 }
