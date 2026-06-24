@@ -11,6 +11,21 @@ pub enum DreggAuthorityStatus {
     Revoked,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DreggAuthorityRevocationStatus {
+    Active,
+    Revoked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DreggAuthorityFinalityStatus {
+    Final,
+    NotFinal,
+    Equivocated,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DreggAuthorityStatusPolicy {
     pub require_status: bool,
@@ -52,6 +67,8 @@ pub struct DreggAuthorityLookup {
     pub suite: String,
     pub validation_time: u64,
     pub status_checked_at: Option<u64>,
+    pub revocation_status: Option<DreggAuthorityRevocationStatus>,
+    pub finality_status: Option<DreggAuthorityFinalityStatus>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,10 +193,29 @@ impl DreggAuthorityRegistry {
             let checked_at = lookup
                 .status_checked_at
                 .ok_or(VerificationError::MissingStatus)?;
-            if lookup.validation_time.saturating_sub(checked_at)
-                > entry.status_policy.max_status_age_seconds
-            {
+            if checked_at > lookup.validation_time {
                 return Err(VerificationError::Stale);
+            }
+            if lookup.validation_time - checked_at > entry.status_policy.max_status_age_seconds {
+                return Err(VerificationError::Stale);
+            }
+        }
+        if entry.status_policy.require_revocation_check {
+            match lookup
+                .revocation_status
+                .ok_or(VerificationError::MissingStatus)?
+            {
+                DreggAuthorityRevocationStatus::Active => {}
+                DreggAuthorityRevocationStatus::Revoked => return Err(VerificationError::Revoked),
+            }
+        }
+        if entry.status_policy.require_finality {
+            match lookup.finality_status.ok_or(VerificationError::NotFinal)? {
+                DreggAuthorityFinalityStatus::Final => {}
+                DreggAuthorityFinalityStatus::NotFinal => return Err(VerificationError::NotFinal),
+                DreggAuthorityFinalityStatus::Equivocated => {
+                    return Err(VerificationError::Equivocated);
+                }
             }
         }
         if !entry
@@ -229,7 +265,7 @@ fn validate_entry(entry: &DreggAuthorityEntry) -> Result<(), DreggAuthorityRegis
         || !entry
             .issuer_public_key_hex
             .bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     {
         return Err(DreggAuthorityRegistryError::InvalidEntry(
             "issuer_public_key_hex must be 32-byte lowercase hex".to_string(),

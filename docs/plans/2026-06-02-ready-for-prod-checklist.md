@@ -47,6 +47,22 @@ M15.3 (#139) adds the bounded production `dregg_authority` policy-admission seam
 
 This closes neither #73 nor M15.4: revocation proof verification, finality/equivocation, discovery, public auditability, Midnight, and Cardano remain downstream. M12.3 `dregg_receipt` shape/signature fixtures remain a separate evidence kind and cannot satisfy `dregg_authority`.
 
+
+
+## M15.4 / #140 — revocation/freshness/finality posture
+
+M15.4 (#140) hardens the existing `dregg_authority` seam without closing #73. It enforces policy bits that would otherwise be misleading labels:
+
+- Missing revocation check material rejects as `missing_status` when `require_revocation_check` is set.
+- Revoked authority material rejects as `revoked`.
+- Future status timestamps reject as `stale`.
+- Authority tokens expire at the validation instant and reject as `invalid_admission`.
+- Required finality without finality material rejects as `not_final`.
+- Equivocation rejects as `equivocated`.
+- #73 remains open until #144 completes descriptor composition, disclosure/migration hardening, and production-shaped E2E/docs.
+
+The selected production path is intentionally conservative: this issue names Dregg `expected_revocation_root`, `RevocationVerifier`, `ReceiptQc::Threshold`, and `rotated_replay` follow-ups as hardening surfaces, but it does not claim public proof, BLS threshold finality, rotated-replay verification, deployment proof, public auditability, Midnight, or Cardano.
+
 ## A0 — Production target
 
 First-prod readiness requires all three Track A rails:

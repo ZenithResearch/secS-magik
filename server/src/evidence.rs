@@ -980,6 +980,8 @@ pub struct DreggAuthorityGrantFixture {
     pub epoch_id: String,
     pub suite: String,
     pub status_checked_at: Option<u64>,
+    pub revocation_status: Option<crate::dregg_authority::DreggAuthorityRevocationStatus>,
+    pub finality_status: Option<crate::dregg_authority::DreggAuthorityFinalityStatus>,
 }
 
 impl DreggAuthorityGrantFixture {
@@ -1085,6 +1087,8 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             suite: grant.suite.clone(),
             validation_time: self.validation_time,
             status_checked_at: grant.status_checked_at,
+            revocation_status: grant.revocation_status,
+            finality_status: grant.finality_status,
         };
         let entry = match self.registry.lookup_active_policy(&lookup) {
             Ok(entry) => entry,
@@ -1100,7 +1104,7 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
         if parsed.tool != request.operation {
             return EvidenceResult::Rejected(VerificationError::WrongOperation);
         }
-        if parsed.until < self.validation_time {
+        if parsed.until <= self.validation_time {
             return EvidenceResult::Rejected(VerificationError::InvalidAdmission);
         }
 
@@ -1124,6 +1128,14 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 format!("root_fingerprint:{}", grant.root_fingerprint),
                 format!("epoch_id:{}", grant.epoch_id),
                 format!("suite:{}", grant.suite),
+                grant
+                    .revocation_status
+                    .map(|status| format!("revocation_status:{status:?}"))
+                    .unwrap_or_else(|| "revocation_status:named_blocker_missing".to_string()),
+                grant
+                    .finality_status
+                    .map(|status| format!("finality_status:{status:?}"))
+                    .unwrap_or_else(|| "finality_status:not_required_or_named_blocker".to_string()),
                 format!("federation_id:{}", entry.federation_id),
                 format!(
                     "issuer_public_key_ref:{}",
