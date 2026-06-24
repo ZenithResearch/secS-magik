@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     # Fails on any known RUSTSEC vulnerability in Cargo.lock. Unmaintained-crate
     # advisories surface as warnings; any ignore must live in audit.toml with a
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Setup Rust Cache
       uses: Swatinem/rust-cache@v2
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     # 0. Initialize Rust Cache
     # This action automatically caches ~/.cargo/registry, ~/.cargo/git, and target/
