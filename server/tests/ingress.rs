@@ -1,7 +1,9 @@
 use libsec_core::ZenithPacket;
+use server::config::GatewayRuntimeConfig;
 use server::gateway::{init_telemetry_schema, ConfigurableRouter};
 use server::ingress::{
-    handle_gateway_connection_with_limits, read_bounded_wire_packet, IngressReadError,
+    handle_gateway_connection_with_limits, install_configured_permission_policy,
+    read_bounded_wire_packet, IngressReadError,
 };
 use server::ledger::Ledger;
 use server::runtime_mode::RuntimeMode;
@@ -23,6 +25,49 @@ fn packet(payload: &[u8]) -> ZenithPacket {
         encrypted_payload: payload.to_vec(),
         mac: [0u8; 16],
     }
+}
+
+fn write_valid_permission_policy(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"[
+          {
+            "caller_id": "did:example:test",
+            "opcode": 16,
+            "operation": "file.write",
+            "resource": { "kind": "prefix", "prefix": "urn:secs:demo:" },
+            "effect": "allow",
+            "status": "active",
+            "authority_source": "receiver_local",
+            "not_before": 0,
+            "not_after": 4102444800
+          }
+        ]"#,
+    )
+    .expect("permission policy fixture should be writable");
+    path
+}
+
+#[tokio::test]
+async fn configured_permission_policy_is_installed_before_serving() {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    let mut router = ConfigurableRouter::new(pool);
+    let permission_policy_path = write_valid_permission_policy("configured-policy-install");
+    let mut config = GatewayRuntimeConfig::local_fixture();
+    config.permission_policy_path = Some(permission_policy_path.clone());
+
+    install_configured_permission_policy(&mut router, &config);
+
+    let _ = std::fs::remove_file(permission_policy_path);
+    assert!(
+        router.has_permission_policy(),
+        "canonical ingress startup must install configured permission policy before serving"
+    );
 }
 
 #[tokio::test]

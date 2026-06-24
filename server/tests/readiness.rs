@@ -50,6 +50,7 @@ fn production_startup_validation_fails_before_binding_with_missing_trust_registr
         Some("verifier:operator"),
         "",
         "/tmp/caller-registry.json",
+        "/tmp/permission-policy.json",
         "local_static",
     );
 
@@ -93,6 +94,7 @@ fn production_startup_validation_accepts_regular_json_registry() {
     )
     .unwrap();
     let caller_registry = write_caller_registry_fixture("caller-registry-valid", false);
+    let permission_policy = write_permission_policy_fixture("permission-policy-valid");
     let config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:0",
         "sqlite:prod.db?mode=rwc",
@@ -101,6 +103,7 @@ fn production_startup_validation_accepts_regular_json_registry() {
         Some("verifier:operator"),
         registry.to_str().unwrap(),
         caller_registry.to_str().unwrap(),
+        permission_policy.to_str().unwrap(),
         "wallet_presentation",
     )
     .unwrap();
@@ -109,6 +112,7 @@ fn production_startup_validation_accepts_regular_json_registry() {
 
     let _ = fs::remove_file(registry);
     let _ = fs::remove_file(caller_registry);
+    let _ = fs::remove_file(permission_policy);
 }
 
 #[test]
@@ -123,6 +127,7 @@ fn production_startup_validation_rejects_fixture_only_caller_registry_without_sm
     // Fixture-only caller registry must be refused without the explicit
     // SECS_FIXTURE_ONLY_SMOKE allowance.
     let fixture_caller_registry = write_caller_registry_fixture("caller-registry-fixture", true);
+    let permission_policy = write_permission_policy_fixture("permission-policy-caller-check");
     let mut config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:0",
         "sqlite:prod.db?mode=rwc",
@@ -131,6 +136,7 @@ fn production_startup_validation_rejects_fixture_only_caller_registry_without_sm
         Some("verifier:operator"),
         registry.to_str().unwrap(),
         fixture_caller_registry.to_str().unwrap(),
+        permission_policy.to_str().unwrap(),
         "wallet_presentation",
     )
     .unwrap();
@@ -157,6 +163,7 @@ fn production_startup_validation_rejects_fixture_only_caller_registry_without_sm
 
     let _ = fs::remove_file(registry);
     let _ = fs::remove_file(fixture_caller_registry);
+    let _ = fs::remove_file(permission_policy);
     let _ = fs::remove_file(empty);
 }
 
@@ -175,6 +182,28 @@ fn write_caller_registry_fixture(name: &str, fixture_only: bool) -> std::path::P
         format!(
             r#"{{"fixture_only": {fixture_only}, "callers": [{{"key_id": "caller:test", "subject_id": "did:example:test", "algorithm": "ed25519", "public_key_hex": "{public_key_hex}"}}]}}"#
         ),
+    )
+    .unwrap();
+    path
+}
+
+fn write_permission_policy_fixture(name: &str) -> std::path::PathBuf {
+    let path = temp_path(name);
+    fs::write(
+        &path,
+        br#"[
+          {
+            "caller_id": "did:example:test",
+            "opcode": 16,
+            "operation": "file.write",
+            "resource": { "kind": "prefix", "prefix": "urn:secs:demo:" },
+            "effect": "allow",
+            "status": "active",
+            "authority_source": "receiver_local",
+            "not_before": 0,
+            "not_after": 4102444800
+          }
+        ]"#,
     )
     .unwrap();
     path
@@ -225,6 +254,7 @@ fn production_config_with_registry(path: &std::path::Path) -> GatewayRuntimeConf
         Some("verifier:operator"),
         path.to_str().unwrap(),
         "/tmp/caller-registry.json",
+        "/tmp/permission-policy.json",
         "local_static",
     )
     .unwrap()
