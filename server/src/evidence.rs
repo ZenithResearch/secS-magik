@@ -4,6 +4,7 @@
 //! adapters rooted here rather than becoming hard dependencies of packet parsing
 //! or gateway execution.
 
+use crate::dregg_authority::{DreggAuthorityLookup, DreggAuthorityRegistry};
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -962,6 +963,181 @@ impl DreggReceiptFixture {
             && self.author_public_key_bytes.len() == 32
             && self.signature_bytes.len() == 64
     }
+}
+
+/// Fixture-level authority grant token accepted by the M15.3 Dregg authority
+/// verifier seam. This intentionally models the productized `dregg-auth` policy
+/// admission contract (subject + tool + expiry) without treating M12.3
+/// `dregg_receipt` shape/signature evidence as production authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggAuthorityGrantFixture {
+    pub evidence_ref: String,
+    pub token: String,
+    pub issuer_id: String,
+    pub issuer_key_id: String,
+    pub root_ref: String,
+    pub root_fingerprint: String,
+    pub epoch_id: String,
+    pub suite: String,
+    pub status_checked_at: Option<u64>,
+}
+
+impl DreggAuthorityGrantFixture {
+    pub const TOKEN_PREFIX: &'static str = "dga1_";
+
+    pub fn fixture_token(subject: &str, tool: &str, until: u64) -> String {
+        format!("{}{subject}|{tool}|{until}", Self::TOKEN_PREFIX)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedDreggAuthorityToken<'a> {
+    subject: &'a str,
+    tool: &'a str,
+    until: u64,
+}
+
+fn parse_dregg_authority_token(
+    token: &str,
+) -> Result<ParsedDreggAuthorityToken<'_>, VerificationError> {
+    let Some(rest) = token.strip_prefix(DreggAuthorityGrantFixture::TOKEN_PREFIX) else {
+        return Err(VerificationError::MalformedDreggAuthority);
+    };
+    let mut parts = rest.split('|');
+    let subject = parts
+        .next()
+        .filter(|value| !value.is_empty())
+        .ok_or(VerificationError::MalformedDreggAuthority)?;
+    let tool = parts
+        .next()
+        .filter(|value| !value.is_empty())
+        .ok_or(VerificationError::MalformedDreggAuthority)?;
+    let until = parts
+        .next()
+        .ok_or(VerificationError::MalformedDreggAuthority)?
+        .parse::<u64>()
+        .map_err(|_| VerificationError::MalformedDreggAuthority)?;
+    if parts.next().is_some() {
+        return Err(VerificationError::MalformedDreggAuthority);
+    }
+    Ok(ParsedDreggAuthorityToken {
+        subject,
+        tool,
+        until,
+    })
+}
+
+/// Production Dregg authority verifier seam for M15.3.
+///
+/// The receiver-held registry is consulted before any token admission result is
+/// accepted. The fixture token here is deliberately `dga1_`-shaped and separate
+/// from M12.3 `dregg_receipt` fixtures so shape + author signature can never be
+/// confused with production authority. Full revocation proof/finality semantics
+/// remain M15.4.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggAuthorityEvidenceAdapter {
+    grants: Vec<DreggAuthorityGrantFixture>,
+    registry: DreggAuthorityRegistry,
+    validation_time: u64,
+}
+
+impl DreggAuthorityEvidenceAdapter {
+    pub fn new(
+        grants: impl IntoIterator<Item = DreggAuthorityGrantFixture>,
+        registry: DreggAuthorityRegistry,
+        validation_time: u64,
+    ) -> Self {
+        Self {
+            grants: grants.into_iter().collect(),
+            registry,
+            validation_time,
+        }
+    }
+}
+
+impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::DreggAuthority
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        if !request.accepts(self.kind()) {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        let Some((evidence_ref, grant)) = request.evidence_refs.iter().find_map(|evidence_ref| {
+            self.grants
+                .iter()
+                .find(|grant| &grant.evidence_ref == evidence_ref)
+                .map(|grant| (evidence_ref, grant))
+        }) else {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        };
+        let resource = request.resource.as_deref().unwrap_or_default();
+        let lookup = DreggAuthorityLookup {
+            issuer_id: grant.issuer_id.clone(),
+            issuer_key_id: grant.issuer_key_id.clone(),
+            root_ref: grant.root_ref.clone(),
+            root_fingerprint: grant.root_fingerprint.clone(),
+            epoch_id: grant.epoch_id.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: resource.to_string(),
+            suite: grant.suite.clone(),
+            validation_time: self.validation_time,
+            status_checked_at: grant.status_checked_at,
+        };
+        let entry = match self.registry.lookup_active_policy(&lookup) {
+            Ok(entry) => entry,
+            Err(error) => return EvidenceResult::Rejected(error),
+        };
+        let parsed = match parse_dregg_authority_token(&grant.token) {
+            Ok(parsed) => parsed,
+            Err(error) => return EvidenceResult::Rejected(error),
+        };
+        if parsed.subject != request.subject {
+            return EvidenceResult::Rejected(VerificationError::WrongSubject);
+        }
+        if parsed.tool != request.operation {
+            return EvidenceResult::Rejected(VerificationError::WrongOperation);
+        }
+        if parsed.until < self.validation_time {
+            return EvidenceResult::Rejected(VerificationError::InvalidAdmission);
+        }
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: self.kind(),
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.resource.clone(),
+            local_dev_test_only: false,
+            // M15.3 admits against receiver-held Dregg policy, but M15.4 still
+            // owns revocation proofs/finality/public auditability.
+            public_proof: false,
+            summary_fields: vec![
+                "admission:admitted".to_string(),
+                redacted_reference_field("evidence_ref", evidence_ref),
+                "token:dga1_[redacted]".to_string(),
+                format!("issuer_id:{}", grant.issuer_id),
+                format!("issuer_key_id:{}", grant.issuer_key_id),
+                format!("root_ref:{}", grant.root_ref),
+                format!("root_fingerprint:{}", grant.root_fingerprint),
+                format!("epoch_id:{}", grant.epoch_id),
+                format!("suite:{}", grant.suite),
+                format!("federation_id:{}", entry.federation_id),
+                format!(
+                    "issuer_public_key_ref:{}",
+                    public_key_ref_for_hex(&entry.issuer_public_key_hex)
+                ),
+            ],
+        })
+    }
+}
+
+fn public_key_ref_for_hex(hex: &str) -> String {
+    let digest = Sha256::digest(hex.as_bytes());
+    let hash: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!("dregg-issuer-pubkey:sha256:{hash}")
 }
 
 /// Adapter for [`EvidenceKind::DreggReceipt`]: shape + author-signature only.

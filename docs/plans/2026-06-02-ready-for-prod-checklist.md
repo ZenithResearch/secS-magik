@@ -39,6 +39,14 @@ M15.2 (#138) implements the first static receiver-held `dregg_authority` registr
 
 This registry is an issuer/root/epoch/status policy gate only. It does not yet call `dregg-auth::policy::Verifier::admit`, verify revocation proofs, prove finality, run live discovery (#72), close #73, or replace wallet/trusted-issuer/receiver-local policy layers.
 
+
+
+## M15.3 / #139 — Dregg authority verifier engine
+
+M15.3 (#139) adds the bounded production `dregg_authority` policy-admission seam: `DreggAuthorityEvidenceAdapter` requires `dga1_`-shaped authority tokens, receiver-held issuer/root/epoch policy selection from #138, subject/tool/time admission, and stable typed failure reasons before `EvidenceKind::DreggAuthority` can be summarized into a verifier context.
+
+This closes neither #73 nor M15.4: revocation proof verification, finality/equivocation, discovery, public auditability, Midnight, and Cardano remain downstream. M12.3 `dregg_receipt` shape/signature fixtures remain a separate evidence kind and cannot satisfy `dregg_authority`.
+
 ## A0 — Production target
 
 First-prod readiness requires all three Track A rails:
