@@ -37,6 +37,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | [repository-schema.md](repository-schema.md) | Current schema map | Objective file-system schema and module ownership map. |
 | [client-surfaces.md](client-surfaces.md) | Current boundary doc | Client-side local Hermes/secC/secZ packet-construction boundary. |
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Architecture/objectives spec. Check status ledger before treating target behavior as implemented. |
+| [specs/dregg-authority-rail.md](specs/dregg-authority-rail.md) | Current M15.1 spec | Dregg authority rail spec for `dregg_authority`; #137 rewrites #73 acceptance while keeping production authority future until code lands. |
 | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) | Current control surface | Ready-for-prod track checklist and completion checkpoints through the current implementation train. |
 | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E trusted issuer/root policy implementation spec; Track E is complete on `main` after PR #69. |
 | [issues/secs-magik-phases/track-i-production-membership-provision-e2e.md](issues/secs-magik-phases/track-i-production-membership-provision-e2e.md) | Local phase spec/status | Track I local production-shaped `membership.provision` E2E spec; complete on `main` after PR #76 / post-merge CI run 27071532041. |
@@ -66,6 +67,7 @@ Plans define intended sequence and acceptance criteria. They do not override [im
 | Path | Status | Purpose |
 |---|---|---|
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Corrected secS-magik architecture, target verifier pipeline, repository boundary, and non-goals. |
+| [specs/dregg-authority-rail.md](specs/dregg-authority-rail.md) | Current M15.1 spec | Dregg authority rail spec for `dregg_authority`; #137 rewrites #73 acceptance and gates M15.2–M15.8. |
 
 ## Draft / external-language docs
 

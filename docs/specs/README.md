@@ -9,6 +9,7 @@ Specs define the intended/current architecture. They are not, by themselves, imp
 | Spec | Use it for |
 |---|---|
 | [2026-06-01-secs-magik-objectives-spec.md](2026-06-01-secs-magik-objectives-spec.md) | Corrected secS-magik architecture, v0 packet compatibility, client-vs-verifier boundary, receiver-local manifests, target verifier pipeline, evidence adapters, receipts, and non-goals. |
+| [dregg-authority-rail.md](dregg-authority-rail.md) | Dregg authority rail M15.1 / #137 spec that rewrites #73 acceptance criteria while keeping `dregg_authority` distinct from shape-only and fixture-backed rails. |
 
 ## How to read specs
 

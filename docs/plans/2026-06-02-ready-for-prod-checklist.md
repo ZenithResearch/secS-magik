@@ -13,6 +13,24 @@ Status: Track A is complete through A9 as a docs/control-surface phase. Track D 
 
 Track E trusted issuer/root policy is complete on `main`: PR #69 merged at `baee35be4c2ed5ec6c626540b52b86516ee7debd`, post-merge main Rust CI run 27050361282 passed, and issues #35/#63 closed. Track I `membership.provision` E2E (#70) is complete for local production-shaped E2E on `main` via PR #76 at `5e5bb71` with post-merge CI run 27071532041. Issue #77 adds a fail-closed runtime guard for descriptor-only production verification of canonical `0x44` `membership.provision`; it does not make live ingress evidence-aware. Non-covered PR #69/#76 claims remain explicitly tracked by #71 (wallet-core parity), #72 (live Castalia registry discovery), #73 (future Dregg authority), #74 (Midnight), #75 (Cardano), #33 (deployment proof), #37 (public auditability), and #141/#144 live TCP evidence-ref/public-input follow-ups.
 
+
+
+## M15.1 / #137 — Dregg authority spec and #73 rewritten acceptance
+
+M15.1 (#137) rewrites #73 through `docs/specs/dregg-authority-rail.md`. This is a spec/control-surface gate only: production `dregg_authority` code remains future until M15.2–M15.8 land.
+
+#73 rewritten acceptance now requires:
+
+- `docs/specs/dregg-authority-rail.md` exists and distinguishes M12.3 shape-only, M14 `dregg_backed`, and M15 `dregg_authority`.
+- Dregg-shaped refs alone remain rejected until a real adapter verifies them.
+- receiver-held production trust policy defines trusted issuer/root material.
+- epoch-scoped federation/root policy is represented before federation authority is claimed.
+- revocation/freshness policy is explicit; stale/revoked authority fails closed.
+- wrong subject/audience/operation/resource, wrong root, wrong epoch, malformed token, unsupported suite, and wrong_binding cases produce typed failures.
+- Operator inspection and receipt summaries are redaction-safe and expose fingerprints/status/reason codes rather than raw private authority material.
+- Dregg authority composes with wallet proof-of-possession, trusted-issuer credentials, receiver-local manifest policy, descriptor-local policy, and receiver-local permission policy; it is not a bypass.
+- Midnight/Cardano/public auditability/deployment overclaims remain forbidden: #74, #75, #37, and #33 stay separate unless later issues implement and verify them.
+
 ## A0 — Production target
 
 First-prod readiness requires all three Track A rails:
