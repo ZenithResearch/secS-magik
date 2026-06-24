@@ -7,6 +7,9 @@ const TRACK_I_STATUS: &str = include_str!(
 );
 const SERVER_README: &str = include_str!("../../server/README.md");
 const CHANGELOG: &str = include_str!("../../CHANGELOG.md");
+const SPECS_README: &str = include_str!("../../docs/specs/README.md");
+const DOCS_README: &str = include_str!("../../docs/README.md");
+const DREGG_AUTHORITY_SPEC: &str = include_str!("../../docs/specs/dregg-authority-rail.md");
 
 fn detailed_track_h_section() -> &'static str {
     READY_FOR_PROD_CHECKLIST
@@ -306,4 +309,210 @@ fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_aut
             "membership.provision docs should preserve current #151 lockstep boundary phrase: {required}"
         );
     }
+}
+
+fn contains_all(name: &str, text: &str, required: &[&str]) {
+    for phrase in required {
+        assert!(
+            text.contains(phrase),
+            "{name} should contain Dregg authority boundary phrase: {phrase}"
+        );
+    }
+}
+
+#[test]
+fn dregg_authority_spec_exists_and_answers_m15_1_bundle_questions() {
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "# Dregg authority rail",
+            "M15.1",
+            "#137",
+            "#73",
+            "receiver-held production trust policy",
+            "authority object taxonomy",
+            "token",
+            "issuer",
+            "federation root",
+            "epoch",
+            "revocation/status",
+            "freshness",
+            "proof/finality",
+            "subject",
+            "audience",
+            "opcode",
+            "operation",
+            "resource",
+            "validity",
+            "nonce/replay",
+            "root",
+            "status",
+            "receiver-held root/trust data",
+            "epoch-scoped",
+            "freshness/revocation/finality/non-amplification",
+            "which Dregg API verifies each",
+            "out of scope",
+            "#33",
+            "#37",
+            "#74",
+            "#75",
+        ],
+    );
+
+    for forbidden in [
+        "Dregg-shaped refs alone satisfy production authority",
+        "caller-supplied roots alone satisfy production authority",
+        "local SQLite receipts prove Dregg authority",
+        "closes #73",
+    ] {
+        assert!(
+            !DREGG_AUTHORITY_SPEC.contains(forbidden),
+            "Dregg authority spec must not contain forbidden overclaim: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn dregg_authority_spec_preserves_m12_m14_m15_boundaries() {
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "M12.3 shape-only",
+            "M14 `dregg_backed`",
+            "M15 `dregg_authority`",
+            "shape + author signature only",
+            "`dregg-auth::policy::Verifier::admit`",
+            "subject + tool + clock",
+            "receiver-local resource scope",
+            "necessary but not sufficient",
+            "production trust policy",
+            "epoch-scoped federation/root",
+            "revocation/freshness",
+        ],
+    );
+
+    for forbidden in [
+        "M12.3 Dregg-shaped evidence is Dregg authority",
+        "M14 `dregg_backed` is full Dregg authority",
+        "`dregg-auth::policy::Verifier::admit` checks resource scope",
+        "`Call.args.resource` is a trusted authorization gate",
+        "Dregg admit verdict alone authorizes a handler side effect",
+    ] {
+        assert!(
+            !DREGG_AUTHORITY_SPEC.contains(forbidden),
+            "Dregg authority spec must not contain forbidden tier overclaim: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn dregg_authority_spec_defines_failure_taxonomy_and_proof_posture() {
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "wrong_root",
+            "wrong_epoch",
+            "stale",
+            "revoked",
+            "not_final",
+            "equivocated",
+            "malformed",
+            "unsupported_suite",
+            "wrong_binding",
+            "wrong subject",
+            "wrong audience",
+            "wrong operation",
+            "wrong resource",
+            "rotated-replay IR-v2 chain",
+            "verify_effect_vm_proof",
+            "not the whole live path",
+        ],
+    );
+
+    for forbidden in [
+        "verify_effect_vm_proof is the whole live path",
+        "proof verification is complete because verify_effect_vm_proof exists",
+        "rotated-replay proof is out of scope without a follow-up issue",
+    ] {
+        assert!(
+            !DREGG_AUTHORITY_SPEC.contains(forbidden),
+            "Dregg authority spec must not contain proof/finality overclaim: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn dregg_authority_spec_documents_composition_without_bypass() {
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "wallet proof-of-possession",
+            "trusted-issuer credential",
+            "Dregg is not a bypass",
+            "wallet PoP",
+            "necessary where required but never sufficient",
+            "receiver-local manifest policy",
+            "descriptor-local policy",
+            "trusted issuer/root",
+            "resource canonicalization",
+            "before side effects",
+        ],
+    );
+
+    for forbidden in [
+        "Dregg bypasses wallet",
+        "Dregg bypasses trusted issuer",
+        "Dregg bypasses receiver-local",
+        "Dregg authority replaces secS verification",
+        "wallet-only evidence is sufficient Dregg authority",
+    ] {
+        assert!(
+            !DREGG_AUTHORITY_SPEC.contains(forbidden),
+            "Dregg authority spec must not contain composition overclaim: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn dregg_authority_docs_indexes_and_checklist_rewrite_issue_73_acceptance() {
+    contains_all(
+        "docs/specs/README.md",
+        SPECS_README,
+        &[
+            "dregg-authority-rail.md",
+            "Dregg authority rail",
+            "M15.1",
+            "#137",
+            "#73",
+        ],
+    );
+    assert!(
+        DOCS_README.contains("dregg-authority-rail.md") && DOCS_README.contains("dregg_authority"),
+        "docs/README.md should index the M15 dregg_authority spec"
+    );
+
+    contains_all(
+        "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+        READY_FOR_PROD_CHECKLIST,
+        &[
+            "M15.1",
+            "#137",
+            "rewrites #73",
+            "docs/specs/dregg-authority-rail.md",
+            "Dregg-shaped refs alone remain rejected until a real adapter verifies them",
+            "receiver-held production trust policy",
+            "epoch-scoped federation/root",
+            "revocation/freshness",
+            "wrong subject/audience/operation/resource",
+            "stale/revoked",
+            "wrong root",
+            "unsupported suite",
+            "redaction-safe",
+            "Midnight/Cardano/public auditability/deployment overclaims",
+        ],
+    );
 }
