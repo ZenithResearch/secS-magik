@@ -1,6 +1,7 @@
 pub mod caller;
 pub mod clock;
 pub mod config;
+pub mod dregg_authority;
 pub mod evidence;
 pub mod file_write;
 pub mod gateway;

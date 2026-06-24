@@ -31,6 +31,14 @@ M15.1 (#137) rewrites #73 through `docs/specs/dregg-authority-rail.md`. This is 
 - Dregg authority composes with wallet proof-of-possession, trusted-issuer credentials, receiver-local manifest policy, descriptor-local policy, and receiver-local permission policy; it is not a bypass.
 - Midnight/Cardano/public auditability/deployment overclaims remain forbidden: #74, #75, #37, and #33 stay separate unless later issues implement and verify them.
 
+
+
+## M15.2 / #138 — receiver-held Dregg issuer/root policy registry
+
+M15.2 (#138) implements the first static receiver-held `dregg_authority` registry surface: `server/src/dregg_authority.rs`, `fixtures/dregg/dregg-authority-registry.json`, `SECS_DREGG_AUTHORITY_REGISTRY_PATH`, and startup/readiness checks when `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`.
+
+This registry is an issuer/root/epoch/status policy gate only. It does not yet call `dregg-auth::policy::Verifier::admit`, verify revocation proofs, prove finality, run live discovery (#72), close #73, or replace wallet/trusted-issuer/receiver-local policy layers.
+
 ## A0 — Production target
 
 First-prod readiness requires all three Track A rails:
