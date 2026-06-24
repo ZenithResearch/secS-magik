@@ -1,0 +1,234 @@
+use server::dregg_authority::{
+    DreggAuthorityEntry, DreggAuthorityLookup, DreggAuthorityRegistry, DreggAuthorityStatus,
+    DreggAuthorityStatusPolicy,
+};
+use server::evidence::{
+    DreggAuthorityEvidenceAdapter, DreggAuthorityGrantFixture, DreggReceiptFixture,
+    DreggShapedEvidenceAdapter, EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult,
+};
+use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
+use server::verifier::VerificationError;
+
+const SUBJECT: &str = "did:castalia:member:alice";
+const AUDIENCE: &str = "secS://operator-receiver";
+const OPERATION: &str = "membership.provision";
+const RESOURCE: &str = "application/json";
+const EVIDENCE_REF: &str = "dregg-authority:fixture:alice";
+const VALIDATION_TIME: u64 = 1_770_000_300;
+const STATUS_CHECKED_AT: u64 = 1_770_000_200;
+
+fn descriptor() -> OperationDescriptor {
+    OperationDescriptor {
+        opcode: 0x44,
+        name: OperationName::new(OPERATION),
+        payload_schema: Some(RESOURCE.to_string()),
+        target_kind: TargetKind::ReceiverProductionHandler,
+        required_credentials: vec![],
+        required_capabilities: vec!["dregg_authority".to_string()],
+        accepted_evidence: vec![EvidenceKind::DreggAuthority.as_str().to_string()],
+        replay_scope: ReplayScope::SessionOpcodeNonce,
+        max_ttl_seconds: 60,
+        handler_id: "membership/provision".to_string(),
+        dev_binding: false,
+        range: OpcodeRange::OperatorDefined,
+    }
+}
+
+fn request() -> EvidenceRequest {
+    let mut request = EvidenceRequest::from_descriptor_with_refs(
+        &descriptor(),
+        SUBJECT,
+        AUDIENCE,
+        [EVIDENCE_REF],
+    );
+    request
+        .public_inputs
+        .push("origin:https://gallery.local".to_string());
+    request
+}
+
+fn registry() -> DreggAuthorityRegistry {
+    DreggAuthorityRegistry::new([DreggAuthorityEntry {
+        issuer_id: "did:dregg:issuer:fixture".to_string(),
+        issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+        issuer_public_key_hex: "1111111111111111111111111111111111111111111111111111111111111111"
+            .to_string(),
+        federation_id: "dregg-federation:fixture".to_string(),
+        root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+        root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+        epoch_id: "epoch:2026q2".to_string(),
+        epoch_not_before: 1_770_000_000,
+        epoch_not_after: 1_777_776_000,
+        accepted_audiences: vec![AUDIENCE.to_string()],
+        accepted_operations: vec![OPERATION.to_string()],
+        accepted_resources: vec![RESOURCE.to_string()],
+        accepted_suites: vec!["dregg_authority_fixture_v1".to_string()],
+        status_policy: DreggAuthorityStatusPolicy {
+            require_status: true,
+            max_status_age_seconds: 300,
+            require_revocation_check: true,
+            require_finality: false,
+        },
+        root_status: DreggAuthorityStatus::Active,
+        issuer_status: DreggAuthorityStatus::Active,
+    }])
+    .unwrap()
+}
+
+fn valid_grant() -> DreggAuthorityGrantFixture {
+    DreggAuthorityGrantFixture {
+        evidence_ref: EVIDENCE_REF.to_string(),
+        token: DreggAuthorityGrantFixture::fixture_token(SUBJECT, OPERATION, 1_777_000_000),
+        issuer_id: "did:dregg:issuer:fixture".to_string(),
+        issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+        root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+        root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+        epoch_id: "epoch:2026q2".to_string(),
+        suite: "dregg_authority_fixture_v1".to_string(),
+        status_checked_at: Some(STATUS_CHECKED_AT),
+    }
+}
+
+fn adapter(fixture: DreggAuthorityGrantFixture) -> DreggAuthorityEvidenceAdapter {
+    DreggAuthorityEvidenceAdapter::new([fixture], registry(), VALIDATION_TIME)
+}
+
+fn shape_only_receipt_fixture() -> DreggReceiptFixture {
+    DreggReceiptFixture {
+        evidence_ref: EVIDENCE_REF.to_string(),
+        subject: SUBJECT.to_string(),
+        audience: AUDIENCE.to_string(),
+        origin: "https://gallery.local".to_string(),
+        operation: OPERATION.to_string(),
+        resource: RESOURCE.to_string(),
+        receipt_kind: DreggReceiptFixture::RECEIPT_KIND.to_string(),
+        strand_ref: "dregg-strand:fixture".to_string(),
+        sequence: 7,
+        issued_at: VALIDATION_TIME - 10,
+        expires_at: VALIDATION_TIME + 10,
+        signature_suite: "Ed25519".to_string(),
+        public_key_ref: "pubkey:sha256:shape-only".to_string(),
+        author_public_key_bytes: vec![0; 32],
+        signature_bytes: vec![0; 64],
+    }
+}
+
+#[test]
+fn dregg_receipt_shape_only_adapter_cannot_satisfy_dregg_authority() {
+    let adapter = DreggShapedEvidenceAdapter::with_validation_time(
+        [shape_only_receipt_fixture()],
+        VALIDATION_TIME,
+    );
+
+    assert_eq!(
+        adapter.verify(&request()),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
+}
+
+#[test]
+fn dregg_authority_rejects_non_dga1_shape_valid_token() {
+    let mut fixture = valid_grant();
+    fixture.token = DreggReceiptFixture::VERSION.to_string();
+
+    assert_eq!(
+        adapter(fixture).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::MalformedDreggAuthority)
+    );
+}
+
+#[test]
+fn dregg_authority_accepts_grant_only_after_receiver_held_policy() {
+    let EvidenceResult::Satisfied(summary) = adapter(valid_grant()).verify(&request()) else {
+        panic!("valid authority grant should satisfy dregg_authority");
+    };
+
+    assert_eq!(summary.kind, EvidenceKind::DreggAuthority);
+    assert!(
+        !summary.public_proof,
+        "#139 does not claim finality/public auditability"
+    );
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "admission:admitted"));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "issuer_id:did:dregg:issuer:fixture"));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "epoch_id:epoch:2026q2"));
+    assert!(
+        summary
+            .summary_fields
+            .iter()
+            .all(|field| !field.contains(&valid_grant().token)),
+        "raw Dregg authority token must not be disclosed in summaries"
+    );
+}
+
+#[test]
+fn dregg_authority_rejects_binding_root_epoch_status_and_suite_failures() {
+    let mut lookup = DreggAuthorityLookup {
+        issuer_id: "did:dregg:issuer:fixture".to_string(),
+        issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+        root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+        root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+        epoch_id: "epoch:2026q2".to_string(),
+        audience: AUDIENCE.to_string(),
+        operation: OPERATION.to_string(),
+        resource: RESOURCE.to_string(),
+        suite: "dregg_authority_fixture_v1".to_string(),
+        validation_time: VALIDATION_TIME,
+        status_checked_at: Some(STATUS_CHECKED_AT),
+    };
+    assert!(registry().lookup_active_policy(&lookup).is_ok());
+
+    let mut wrong_subject = valid_grant();
+    wrong_subject.token = DreggAuthorityGrantFixture::fixture_token(
+        "did:castalia:member:bob",
+        OPERATION,
+        1_777_000_000,
+    );
+    assert_eq!(
+        adapter(wrong_subject).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::WrongSubject)
+    );
+
+    let mut wrong_operation = valid_grant();
+    wrong_operation.token =
+        DreggAuthorityGrantFixture::fixture_token(SUBJECT, "admin.delete", 1_777_000_000);
+    assert_eq!(
+        adapter(wrong_operation).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::WrongOperation)
+    );
+
+    let mut wrong_root = valid_grant();
+    wrong_root.root_ref = "dregg-root:wrong".to_string();
+    assert_eq!(
+        adapter(wrong_root).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::WrongRoot)
+    );
+
+    let mut stale = valid_grant();
+    stale.status_checked_at = Some(VALIDATION_TIME - 301);
+    assert_eq!(
+        adapter(stale).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::Stale)
+    );
+
+    let mut unsupported_suite = valid_grant();
+    unsupported_suite.suite = "dregg_authority_unknown_v9".to_string();
+    assert_eq!(
+        adapter(unsupported_suite).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::UnsupportedSuite)
+    );
+
+    lookup.epoch_id = "epoch:wrong".to_string();
+    assert_eq!(
+        registry().lookup_active_policy(&lookup).unwrap_err(),
+        VerificationError::WrongEpoch
+    );
+}
