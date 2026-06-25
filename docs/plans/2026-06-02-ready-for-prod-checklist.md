@@ -77,6 +77,17 @@ M15.5 (#141) wires `dregg_authority` into canonical `0x44 membership.provision` 
 - #160 remains future for Dregg-provisioned resource locks; #141 does not claim resource-lock authority.
 - #73 remains open until #144 finalizes the production-shaped E2E/demo/docs without overclaiming #159/#160.
 
+
+## M15.6 / #142 — operator inspection and disclosure boundary
+
+M15.6 (#142) carries the Dregg authority evidence summary into signed verify receipts and local operator inspection while preserving a redaction boundary:
+
+- `authority_class:dregg_authority` and `tier:m15_production_shaped` make the layer visible and distinct from M12.3 shape-only evidence and M14 fixture labels.
+- Linkable/opaque handles are digested: `evidence_ref_sha256`, `issuer_key_id_sha256`, `root_ref_sha256`, `epoch_id_sha256`, and `federation_id_sha256`.
+- Raw tokens remain `token:dga1_[redacted]`; raw public keys, proof bytes, signature bytes, private graph refs, and evidence refs stay absent from summaries, receipts, and operator inspection.
+- Receipt schema and operator export schema are bumped to preserve the redacted evidence summary for local inspection.
+- Boundary: local operator inspection only; does not implement #159, #160, #162, #33, #37, #74, #75, or close #73.
+
 ## A0 — Production target
 
 First-prod readiness requires all three Track A rails:

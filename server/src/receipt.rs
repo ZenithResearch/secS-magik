@@ -10,7 +10,7 @@ use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const RECEIPT_SCHEMA_VERSION: u16 = 1;
+pub const RECEIPT_SCHEMA_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReceiptKind {
@@ -115,6 +115,7 @@ pub struct Receipt {
     pub timestamp: u64,
     pub authenticator_kind: AuthenticatorKind,
     pub signer_key_id: String,
+    pub evidence_summary: Vec<String>,
     pub signature: Vec<u8>,
 }
 
@@ -145,6 +146,7 @@ impl Receipt {
             timestamp,
             authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
             signer_key_id: String::new(),
+            evidence_summary: Vec::new(),
             signature: Vec::new(),
         }
     }
@@ -188,6 +190,7 @@ impl Receipt {
             timestamp,
             authenticator_kind: signed_context.authenticator_kind,
             signer_key_id: signed_context.signer_key_id.clone(),
+            evidence_summary: context.evidence_summary.clone(),
             signature: Vec::new(),
         }
     }
@@ -214,6 +217,7 @@ impl Receipt {
             timestamp,
             authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
             signer_key_id: String::new(),
+            evidence_summary: Vec::new(),
             signature: Vec::new(),
         }
     }
@@ -241,6 +245,7 @@ impl Receipt {
             timestamp,
             authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
             signer_key_id: String::new(),
+            evidence_summary: Vec::new(),
             signature: Vec::new(),
         }
     }

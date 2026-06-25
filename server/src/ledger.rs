@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use sqlx::Row;
 use sqlx::SqlitePool;
 
-pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 1;
+pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 2;
 pub const LEDGER_REDACTION_POLICY: &str =
     "local_redacted_no_payload_or_private_evidence_by_default";
 
@@ -38,6 +38,7 @@ pub struct OperatorReceiptInspection {
     pub signature_present: bool,
     pub signature_len: usize,
     pub signature_sha256_hex: Option<String>,
+    pub evidence_summary: Vec<String>,
 }
 
 impl OperatorReceiptInspection {
@@ -191,8 +192,9 @@ impl Ledger {
                 handler_id,
                 authenticator_kind,
                 signer_key_id,
+                evidence_summary,
                 signature
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&receipt.receipt_id)
         .bind(i64::from(receipt.schema_version))
@@ -209,6 +211,7 @@ impl Ledger {
         .bind(receipt.handler_id.as_deref())
         .bind(receipt.authenticator_kind.as_str())
         .bind(&receipt.signer_key_id)
+        .bind(serde_json::to_string(&receipt.evidence_summary).unwrap_or_else(|_| "[]".to_string()))
         .bind(&receipt.signature)
         .execute(&self.pool)
         .await
@@ -237,8 +240,8 @@ impl Ledger {
         // Receipt insert (dupe of record_receipt query for tx; keeps record_receipt available for other uses)
         sqlx::query(
             "INSERT INTO receipts (
-                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, signature
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, evidence_summary, signature
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&receipt.receipt_id)
         .bind(i64::from(receipt.schema_version))
@@ -255,6 +258,7 @@ impl Ledger {
         .bind(receipt.handler_id.as_deref())
         .bind(receipt.authenticator_kind.as_str())
         .bind(&receipt.signer_key_id)
+        .bind(serde_json::to_string(&receipt.evidence_summary).unwrap_or_else(|_| "[]".to_string()))
         .bind(&receipt.signature)
         .execute(&mut *tx)
         .await?;
@@ -313,6 +317,7 @@ impl Ledger {
                 handler_id,
                 authenticator_kind,
                 signer_key_id,
+                evidence_summary,
                 signature
             FROM receipts
             WHERE context_id = ?
@@ -350,6 +355,7 @@ const OPERATOR_RECEIPT_SELECT_SQL: &str = "SELECT
     handler_id,
     authenticator_kind,
     signer_key_id,
+    evidence_summary,
     signature
 FROM receipts
 WHERE receipt_id = ?";
@@ -358,6 +364,9 @@ fn operator_inspection_from_row(
     row: sqlx::sqlite::SqliteRow,
 ) -> Result<OperatorReceiptInspection, sqlx::Error> {
     let signature: Vec<u8> = row.try_get("signature")?;
+    let evidence_summary_json: String = row.try_get("evidence_summary")?;
+    let evidence_summary: Vec<String> = serde_json::from_str(&evidence_summary_json)
+        .map_err(|_| invalid_ledger_data("receipt evidence_summary is not valid JSON array"))?;
     let signature_sha256_hex = if signature.is_empty() {
         None
     } else {
@@ -402,6 +411,7 @@ fn operator_inspection_from_row(
         signature_present: !signature.is_empty(),
         signature_len: signature.len(),
         signature_sha256_hex,
+        evidence_summary,
     })
 }
 

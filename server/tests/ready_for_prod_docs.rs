@@ -578,3 +578,23 @@ fn dregg_authority_docs_record_m15_5_descriptor_composition_without_overclaim() 
         ],
     );
 }
+
+#[test]
+fn dregg_authority_docs_record_m15_6_operator_disclosure_boundary() {
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "M15.6 / #142 operator inspection and disclosure boundary",
+            "authority_class:dregg_authority",
+            "root_ref_sha256",
+            "issuer_key_id_sha256",
+            "federation_id_sha256",
+            "token:dga1_[redacted]",
+            "local operator inspection only",
+            "not public auditability",
+            "does not implement #159",
+            "does not implement #162",
+        ],
+    );
+}
