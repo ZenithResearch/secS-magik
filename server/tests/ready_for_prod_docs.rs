@@ -242,11 +242,11 @@ fn membership_provision_runtime_guard_docs_preserve_live_ingress_boundary() {
     for required in [
         "Complete for local production-shaped E2E",
         "PR #76",
-        "live runtime ingress still does not verify wallet + issuer evidence",
+        "Live runtime ingress still does not verify wallet + issuer + Dregg authority evidence",
         "handler binding is not authority",
         "live TCP ingress",
         "no evidence refs",
-        "#141/#144",
+        "#162/#144",
         "not production deployment",
         "not public auditability",
         "not live Castalia/Dregg discovery",
@@ -301,8 +301,8 @@ fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_aut
         "live TCP ingress",
         "no evidence refs",
         "public inputs",
-        "#141/#144",
-        "#73 Dregg authority remains future",
+        "#162/#144",
+        "#73 remains open until #144",
     ] {
         assert!(
             docs.iter().any(|(_, text)| text.contains(required)),
@@ -501,7 +501,7 @@ fn dregg_authority_docs_indexes_and_checklist_rewrite_issue_73_acceptance() {
         &[
             "M15.1",
             "#137",
-            "rewrites #73",
+            "rewrote #73",
             "docs/specs/dregg-authority-rail.md",
             "Dregg-shaped refs alone remain rejected until a real adapter verifies them",
             "receiver-held production trust policy",
@@ -595,6 +595,66 @@ fn dregg_authority_docs_record_m15_6_operator_disclosure_boundary() {
             "not public auditability",
             "does not implement #159",
             "does not implement #162",
+        ],
+    );
+}
+
+#[test]
+fn dregg_seam_migration_docs_remove_stale_live_ingress_and_future_authority_claims() {
+    let docs = [
+        ("README.md", README),
+        ("server/README.md", SERVER_README),
+        ("docs/README.md", DOCS_README),
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+        (
+            "docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md",
+            TRACK_I_STATUS,
+        ),
+        ("docs/specs/dregg-authority-rail.md", DREGG_AUTHORITY_SPEC),
+    ];
+
+    for forbidden in [
+        "#141/#144 live TCP evidence-ref/public-input",
+        "#141/#144 live TCP evidence refs",
+        "#141/#144 land the live TCP evidence-ref/public-input wire path",
+        "#141/#144 ingress wiring",
+        "#73 Dregg authority remains future",
+        "production `dregg_authority` code remains future until M15.2",
+        "handler binding is not authority until #141/#144 wire-path work lands",
+    ] {
+        for (name, text) in docs {
+            assert!(
+                !text.contains(forbidden),
+                "{name} contains stale #143 seam-migration wording: {forbidden}"
+            );
+        }
+    }
+
+    contains_all(
+        "docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md",
+        TRACK_I_STATUS,
+        &[
+            "wallet + issuer + Dregg authority",
+            "#162/#144",
+            "#73 remains open until #144",
+            "#159",
+            "#160",
+            "bounded static receiver-held Dregg policy-admission",
+        ],
+    );
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "M12.3 Dregg-shaped evidence",
+            "M14 `dregg_backed`",
+            "M15 `dregg_authority`",
+            "M15.2–M15.6 now implement",
+            "#159/#160/#162",
         ],
     );
 }

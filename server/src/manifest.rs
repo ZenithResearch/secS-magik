@@ -300,10 +300,10 @@ fn dev_candidate_descriptor(
 /// constructor shared by `ReceiverManifest::default_v0()` and the Track I
 /// test fixtures, so the active manifest and tests cannot drift apart.
 ///
-/// #151 boundary: `accepted_evidence` documents the local/helper API evidence
-/// contract only. It is not live TCP evidence-ref/public-input support until
-/// ingress carries those fields and routes them into the evidence-backed
-/// verifier path.
+/// #143 boundary: `accepted_evidence` documents the local/helper API evidence
+/// contract only. It is not live TCP evidence-ref/public-input support; #162
+/// or an explicit #144 non-goal owns live ingress propagation into the
+/// evidence-backed verifier path.
 pub fn membership_provision_descriptor() -> OperationDescriptor {
     const OPCODE: u8 = 0x44;
     OperationDescriptor {

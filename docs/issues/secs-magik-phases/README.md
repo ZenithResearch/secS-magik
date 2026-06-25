@@ -17,7 +17,7 @@ and a boundary-preserving Castalia-over-Dregg-shaped evidence seam — plus the
 correctness/supply-chain hardening a credible demo needs. Filed as GitHub issues
 2026-06-09: umbrella #88, children #89-#95 (linked in the table below). They are complementary to (not duplicates of) the
 `membership.provision` live-ingress hardening tracked in #78–#83, and they must
-not be used to close the future authority rails #71–#75.
+not be used to close the unresolved authority rails #71–#75.
 
 | Spec | GitHub issue | Local file | Demo role |
 |---|---:|---|---|
