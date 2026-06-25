@@ -314,6 +314,56 @@ fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_aut
     }
 }
 
+#[test]
+fn dregg_authority_docs_preserve_167_attenuation_without_resource_lock_overclaim() {
+    let docs = [
+        ("README.md", README),
+        ("server/README.md", SERVER_README),
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        ("docs/specs/dregg-authority-rail.md", DREGG_AUTHORITY_SPEC),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+        (
+            "docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md",
+            TRACK_I_STATUS,
+        ),
+    ];
+
+    for required in [
+        "#167",
+        "delegated attenuation / non-amplification",
+        "requested authority must not exceed held authority",
+        "#160 remains future for Dregg-provisioned resource locks",
+        "#73 remains open until #144",
+    ] {
+        assert!(
+            docs.iter().any(|(_, text)| text.contains(required)),
+            "docs should preserve #167 attenuation boundary phrase: {required}"
+        );
+    }
+
+    for forbidden in [
+        "#167 closes #160",
+        "attenuation implements Dregg resource locks",
+        "Dregg resource-lock authority is implemented",
+        "Dregg admit verdict grants resource scope",
+        "Call.args.resource is a trusted authorization gate",
+        "live runtime ingress remains descriptor-only",
+        "live ingress still carries no evidence refs",
+        "future #162/#144 ingress wiring",
+        "until #162 or an explicitly scoped #144",
+    ] {
+        for (name, text) in docs {
+            assert!(
+                !text.contains(forbidden),
+                "{name} contains stale or overclaimed #167/#162 boundary wording: {forbidden}"
+            );
+        }
+    }
+}
+
 fn contains_all(name: &str, text: &str, required: &[&str]) {
     for phrase in required {
         assert!(

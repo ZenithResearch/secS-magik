@@ -1,8 +1,14 @@
 use libsec_core::ingress_request::{encode_ingress_request_v1, IngressRequestV1};
 use libsec_core::ZenithPacket;
 use server::config::GatewayRuntimeConfig;
+use server::dregg_authority::{
+    DreggAuthorityEntry, DreggAuthorityFinalityMode, DreggAuthorityRegistry,
+    DreggAuthorityRevocationStatus, DreggAuthorityRevocationVerifierMode, DreggAuthorityStatus,
+    DreggAuthorityStatusPolicy,
+};
 use server::evidence::{
-    EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, EvidenceSummary,
+    DreggAuthorityEvidenceAdapter, DreggAuthorityGrantFixture, EvidenceAdapter, EvidenceKind,
+    EvidenceRequest, EvidenceResult, EvidenceSummary,
 };
 use server::gateway::{init_telemetry_schema, register_runtime_bindings, ConfigurableRouter};
 use server::ingress::{
@@ -647,6 +653,36 @@ mod decision_response {
     #[derive(Default)]
     struct RecordingEvidenceAdapter(std::sync::Mutex<Vec<EvidenceRequest>>);
 
+    #[derive(Default)]
+    struct RejectingAttenuationEvidenceAdapter(std::sync::Mutex<Vec<EvidenceRequest>>);
+
+    impl EvidenceAdapter for RejectingAttenuationEvidenceAdapter {
+        fn kind(&self) -> EvidenceKind {
+            EvidenceKind::DreggAuthority
+        }
+
+        fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+            self.0.lock().unwrap().push(request.clone());
+            if request
+                .public_inputs
+                .iter()
+                .any(|input| input == "requested_resource:urn:secs:member:bob/profile")
+            {
+                return EvidenceResult::Rejected(VerificationError::AuthorityAmplification);
+            }
+            EvidenceResult::Satisfied(EvidenceSummary {
+                kind: EvidenceKind::DreggAuthority,
+                subject: request.subject.clone(),
+                audience: request.audience.clone(),
+                operation: request.operation.clone(),
+                resource: request.resource.clone(),
+                local_dev_test_only: false,
+                public_proof: false,
+                summary_fields: vec!["attenuation:non_amplifying".to_string()],
+            })
+        }
+    }
+
     impl EvidenceAdapter for RecordingEvidenceAdapter {
         fn kind(&self) -> EvidenceKind {
             EvidenceKind::DreggAuthority
@@ -738,6 +774,161 @@ mod decision_response {
             "ingress must preserve caller public inputs alongside descriptor inputs"
         );
         assert_eq!(seen[0].operation, "membership.provision");
+    }
+
+    fn dregg_registry_for_attenuation() -> DreggAuthorityRegistry {
+        DreggAuthorityRegistry::new([DreggAuthorityEntry {
+            issuer_id: "did:dregg:issuer:fixture".to_string(),
+            issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+            issuer_public_key_hex:
+                "1111111111111111111111111111111111111111111111111111111111111111".to_string(),
+            federation_id: "dregg-federation:fixture".to_string(),
+            root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+            root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+            epoch_id: "epoch:2026q2".to_string(),
+            epoch_not_before: 1_770_000_000,
+            epoch_not_after: 1_777_776_000,
+            accepted_audiences: vec!["secS://receiver-a".to_string()],
+            accepted_operations: vec!["membership.provision".to_string()],
+            accepted_resources: vec!["application/json".to_string()],
+            accepted_suites: vec!["dregg_authority_fixture_v1".to_string()],
+            status_policy: DreggAuthorityStatusPolicy {
+                require_status: true,
+                max_status_age_seconds: 300,
+                require_revocation_check: true,
+                require_finality: false,
+                revocation_verifier_mode: DreggAuthorityRevocationVerifierMode::ExpectedRootBinding,
+                finality_mode: DreggAuthorityFinalityMode::FixtureStatusOnly,
+                expected_revocation_root_ref: Some(
+                    "dregg-revocation-root:fixture-2026q2".to_string(),
+                ),
+            },
+            root_status: DreggAuthorityStatus::Active,
+            issuer_status: DreggAuthorityStatus::Active,
+        }])
+        .unwrap()
+    }
+
+    fn attenuated_dregg_adapter() -> DreggAuthorityEvidenceAdapter {
+        DreggAuthorityEvidenceAdapter::new(
+            [DreggAuthorityGrantFixture {
+                evidence_ref: "dregg-live-ref".to_string(),
+                token: DreggAuthorityGrantFixture::fixture_token_with_resource_prefix(
+                    "prototype.local-dev.subject",
+                    "membership.provision",
+                    "urn:secs:member:alice/",
+                    1_777_000_000,
+                ),
+                issuer_id: "did:dregg:issuer:fixture".to_string(),
+                issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+                root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+                root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+                epoch_id: "epoch:2026q2".to_string(),
+                suite: "dregg_authority_fixture_v1".to_string(),
+                status_checked_at: Some(1_770_000_200),
+                revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+                finality_status: None,
+                attested_revocation_root_ref: Some(
+                    "dregg-revocation-root:fixture-2026q2".to_string(),
+                ),
+            }],
+            dregg_registry_for_attenuation(),
+            1_770_000_300,
+        )
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn amplified_live_ingress_authority_rejects_before_handler_dispatch() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let adapter = Arc::new(RejectingAttenuationEvidenceAdapter::default());
+        let mut router = ConfigurableRouter::new(pool.clone());
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        router.set_evidence_adapter(adapter.clone());
+        let router = Arc::new(router);
+
+        let mut request_packet = packet(br#"{"membership":"requested"}"#);
+        request_packet.opcode = 0x44;
+        let request = IngressRequestV1::new(
+            request_packet,
+            vec!["dregg-live-ref".to_string()],
+            vec![
+                "origin:https://example.test".to_string(),
+                "requested_resource:urn:secs:member:bob/profile".to_string(),
+            ],
+        );
+        let frame = call_gateway(router, encode_ingress_request_v1(&request).unwrap()).await;
+
+        let response = DecisionResponse::decode(&frame)
+            .expect("amplified live ingress call must answer with a decision response");
+        assert!(!response.is_accepted());
+        assert_eq!(
+            response.reason_code.as_deref(),
+            Some(VerificationError::AuthorityAmplification.reason_code()),
+            "live ingress must preserve the attenuation failure reason before dispatch"
+        );
+        assert_eq!(
+            adapter.0.lock().unwrap().len(),
+            1,
+            "the live path should reject from evidence verification, before handler dispatch"
+        );
+        let accepts: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE kind = 'accept'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            accepts.0, 0,
+            "amplified authority must not create an accept receipt"
+        );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn real_dregg_attenuation_adapter_rejects_amplified_live_ingress_before_dispatch() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool.clone());
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        router.set_evidence_adapter(Arc::new(attenuated_dregg_adapter()));
+        let router = Arc::new(router);
+
+        let mut request_packet = packet(br#"{"membership":"requested"}"#);
+        request_packet.opcode = 0x44;
+        let request = IngressRequestV1::new(
+            request_packet,
+            vec!["dregg-live-ref".to_string()],
+            vec!["requested_resource:urn:secs:member:bob/profile".to_string()],
+        );
+        let frame = call_gateway(router, encode_ingress_request_v1(&request).unwrap()).await;
+
+        let response = DecisionResponse::decode(&frame)
+            .expect("real Dregg adapter amplification reject must answer with a decision response");
+        assert!(!response.is_accepted());
+        assert_eq!(
+            response.reason_code.as_deref(),
+            Some(VerificationError::AuthorityAmplification.reason_code())
+        );
+        let accepts: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE kind = 'accept'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            accepts.0, 0,
+            "real Dregg attenuation failure must reject before accept/execute receipts"
+        );
     }
 
     #[tokio::test]

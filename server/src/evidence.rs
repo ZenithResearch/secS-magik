@@ -998,12 +998,25 @@ impl DreggAuthorityGrantFixture {
     pub fn fixture_token(subject: &str, tool: &str, until: u64) -> String {
         format!("{}{subject}|{tool}|{until}", Self::TOKEN_PREFIX)
     }
+
+    pub fn fixture_token_with_resource_prefix(
+        subject: &str,
+        tool: &str,
+        delegated_resource_prefix: &str,
+        until: u64,
+    ) -> String {
+        format!(
+            "{}{subject}|{tool}|resource_prefix:{delegated_resource_prefix}|{until}",
+            Self::TOKEN_PREFIX
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ParsedDreggAuthorityToken<'a> {
     subject: &'a str,
     tool: &'a str,
+    delegated_resource_prefix: Option<&'a str>,
     until: u64,
 }
 
@@ -1022,17 +1035,35 @@ fn parse_dregg_authority_token(
         .next()
         .filter(|value| !value.is_empty())
         .ok_or(VerificationError::MalformedDreggAuthority)?;
-    let until = parts
+    let third = parts
         .next()
-        .ok_or(VerificationError::MalformedDreggAuthority)?
-        .parse::<u64>()
-        .map_err(|_| VerificationError::MalformedDreggAuthority)?;
+        .ok_or(VerificationError::MalformedDreggAuthority)?;
+    let (delegated_resource_prefix, until) =
+        if let Some(prefix) = third.strip_prefix("resource_prefix:") {
+            let until = parts
+                .next()
+                .ok_or(VerificationError::MalformedDreggAuthority)?
+                .parse::<u64>()
+                .map_err(|_| VerificationError::MalformedDreggAuthority)?;
+            if prefix.is_empty() {
+                return Err(VerificationError::MalformedDreggAuthority);
+            }
+            (Some(prefix), until)
+        } else {
+            (
+                None,
+                third
+                    .parse::<u64>()
+                    .map_err(|_| VerificationError::MalformedDreggAuthority)?,
+            )
+        };
     if parts.next().is_some() {
         return Err(VerificationError::MalformedDreggAuthority);
     }
     Ok(ParsedDreggAuthorityToken {
         subject,
         tool,
+        delegated_resource_prefix,
         until,
     })
 }
@@ -1116,6 +1147,72 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
         if parsed.until <= self.validation_time {
             return EvidenceResult::Rejected(VerificationError::InvalidAdmission);
         }
+        let requested_resource = match requested_resource_public_input(request) {
+            Ok(resource) => resource,
+            Err(error) => return EvidenceResult::Rejected(error),
+        };
+        if let Some(delegated_prefix) = parsed.delegated_resource_prefix {
+            let Some(requested_resource) = requested_resource else {
+                return EvidenceResult::Rejected(VerificationError::AuthorityAmplification);
+            };
+            if !requested_resource.starts_with(delegated_prefix) {
+                return EvidenceResult::Rejected(VerificationError::AuthorityAmplification);
+            }
+        }
+
+        let mut summary_fields = vec![
+            "admission:admitted".to_string(),
+            "authority_class:dregg_authority".to_string(),
+            "tier:m15_production_shaped".to_string(),
+            redacted_reference_field("evidence_ref", evidence_ref),
+            "token:dga1_[redacted]".to_string(),
+            format!("issuer_id:{}", grant.issuer_id),
+            redacted_reference_field("issuer_key_id", &grant.issuer_key_id),
+            redacted_reference_field("root_ref", &grant.root_ref),
+            format!("root_fingerprint:{}", grant.root_fingerprint),
+            redacted_reference_field("epoch_id", &grant.epoch_id),
+            format!("suite:{}", grant.suite),
+            format!(
+                "revocation_verifier_mode:{}",
+                revocation_verifier_mode_name(entry.status_policy.revocation_verifier_mode)
+            ),
+            entry
+                .status_policy
+                .expected_revocation_root_ref
+                .as_ref()
+                .map(|root| redacted_reference_field("revocation_root_ref", root))
+                .unwrap_or_else(|| "revocation_root_ref:not_required".to_string()),
+            grant
+                .revocation_status
+                .map(|status| format!("revocation_status:{}", revocation_status_name(status)))
+                .unwrap_or_else(|| "revocation_status:named_blocker_missing".to_string()),
+            format!(
+                "finality_mode:{}",
+                finality_mode_name(entry.status_policy.finality_mode)
+            ),
+            grant
+                .finality_status
+                .map(|status| format!("finality_status:{}", finality_status_name(status)))
+                .unwrap_or_else(|| "finality_status:not_required".to_string()),
+            redacted_reference_field("federation_id", &entry.federation_id),
+            format!(
+                "issuer_public_key_ref:{}",
+                public_key_ref_for_hex(&entry.issuer_public_key_hex)
+            ),
+        ];
+        if let Some(delegated_prefix) = parsed.delegated_resource_prefix {
+            summary_fields.push("attenuation:non_amplifying".to_string());
+            summary_fields.push(redacted_reference_field(
+                "delegated_resource_prefix",
+                delegated_prefix,
+            ));
+            if let Some(requested_resource) = requested_resource {
+                summary_fields.push(redacted_reference_field(
+                    "requested_resource",
+                    requested_resource,
+                ));
+            }
+        }
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
@@ -1127,48 +1224,25 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             // M15.3 admits against receiver-held Dregg policy, but M15.4 still
             // owns revocation proofs/finality/public auditability.
             public_proof: false,
-            summary_fields: vec![
-                "admission:admitted".to_string(),
-                "authority_class:dregg_authority".to_string(),
-                "tier:m15_production_shaped".to_string(),
-                redacted_reference_field("evidence_ref", evidence_ref),
-                "token:dga1_[redacted]".to_string(),
-                format!("issuer_id:{}", grant.issuer_id),
-                redacted_reference_field("issuer_key_id", &grant.issuer_key_id),
-                redacted_reference_field("root_ref", &grant.root_ref),
-                format!("root_fingerprint:{}", grant.root_fingerprint),
-                redacted_reference_field("epoch_id", &grant.epoch_id),
-                format!("suite:{}", grant.suite),
-                format!(
-                    "revocation_verifier_mode:{}",
-                    revocation_verifier_mode_name(entry.status_policy.revocation_verifier_mode)
-                ),
-                entry
-                    .status_policy
-                    .expected_revocation_root_ref
-                    .as_ref()
-                    .map(|root| redacted_reference_field("revocation_root_ref", root))
-                    .unwrap_or_else(|| "revocation_root_ref:not_required".to_string()),
-                grant
-                    .revocation_status
-                    .map(|status| format!("revocation_status:{}", revocation_status_name(status)))
-                    .unwrap_or_else(|| "revocation_status:named_blocker_missing".to_string()),
-                format!(
-                    "finality_mode:{}",
-                    finality_mode_name(entry.status_policy.finality_mode)
-                ),
-                grant
-                    .finality_status
-                    .map(|status| format!("finality_status:{}", finality_status_name(status)))
-                    .unwrap_or_else(|| "finality_status:not_required".to_string()),
-                redacted_reference_field("federation_id", &entry.federation_id),
-                format!(
-                    "issuer_public_key_ref:{}",
-                    public_key_ref_for_hex(&entry.issuer_public_key_hex)
-                ),
-            ],
+            summary_fields,
         })
     }
+}
+
+fn requested_resource_public_input(
+    request: &EvidenceRequest,
+) -> Result<Option<&str>, VerificationError> {
+    let mut requested_resources = request
+        .public_inputs
+        .iter()
+        .filter_map(|input| input.strip_prefix("requested_resource:"));
+    let Some(first) = requested_resources.next() else {
+        return Ok(None);
+    };
+    if first.is_empty() || requested_resources.next().is_some() {
+        return Err(VerificationError::AuthorityAmplification);
+    }
+    Ok(Some(first))
 }
 
 fn revocation_verifier_mode_name(mode: DreggAuthorityRevocationVerifierMode) -> &'static str {
