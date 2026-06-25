@@ -1224,3 +1224,8 @@ Track A is now complete through A9. Preserve the repo workflow pattern going for
 
 - Track H #61 is implemented through PR #65 / commit 7742ce9: H1 collision-resistant receipt IDs, #57 replay reservation pruning, H2 atomic receipt/event persistence, folded #51/#52 audit visibility, and H4 redaction/schema/docs/status sweep are complete. The full local gate passed on PR #65 before this documentation navigation pass. Remaining action is approval to merge PR #65, then watch post-merge main CI and close folded issues.
 - Documentation navigation now follows a README-as-map pattern: the root README links to child READMEs for `core/`, `client/`, `server/`, `docs/`, `docs/specs/`, `docs/plans/`, `examples/`, and `scripts/`, and stale historical-plan language is explicitly caveated.
+
+
+### #167 attenuation boundary
+
+#167 adds delegated attenuation / non-amplification: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` on the live evidence path before handler dispatch. #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles this boundary without overclaim.

@@ -78,7 +78,7 @@ These are accepted next-pass targets after the completed issue train and the A0/
 | Public auditability beyond local SQLite receipts | GitHub #37 | Future/public audit rail; local operator inspection is not public auditability. |
 | Castalia wallet-core parity | GitHub #71 | Future reconciliation before full wallet-core parity claims. |
 | Live Castalia registry discovery | GitHub #72 | Future live registry rail beyond static fixture registry. |
-| Dregg / Midnight / Cardano authority rails | GitHub #73/#74/#75 | Dregg M15.2–M15.6 has a bounded static receiver-held policy-admission/operator-inspection seam; #159 adds explicit expected-revocation-root binding and hard-blocker modes for live proof/finality surfaces. Full resource-lock/live-ingress/finalizer hardening remains #160/#162/#144. Midnight/Cardano remain future optional rails. |
+| Dregg / Midnight / Cardano authority rails | GitHub #73/#74/#75 | Dregg M15.2–M15.6 has a bounded static receiver-held policy-admission/operator-inspection seam; #159 adds explicit expected-revocation-root binding and hard-blocker modes for live proof/finality surfaces. Full finalizer hardening now separates #167 delegated attenuation / non-amplification from #160 resource locks and #144 finalizer closure. #167 proves requested authority must not exceed held authority on the live path; #160 remains future for Dregg-provisioned resource locks; #73 remains open until #144 reconciles both without overclaim. Midnight/Cardano remain future optional rails. |
 | Repository schema / module layout | `docs/repository-schema.md`, `server/src/{ingress,gateway,payload,manifest,evidence,receipt,ledger}.rs` | Phase 0.1 implemented: reusable gateway/payload/ingress code moved out of binaries, and placeholder module homes exist for manifest/evidence/receipt/ledger. |
 | OperationDescriptor / ReceiverManifest | `server/src/manifest.rs` | Implemented as a receiver-local descriptor/lookup layer; signed-context creation and local bounded handler routing now consume descriptor operation/handler metadata. |
 | Opcode range governance | `server/src/manifest.rs`, docs; possibly `core/src/lib.rs` constants | Implemented in the manifest descriptor layer for reserved/core/candidate/operator ranges. |
@@ -145,3 +145,8 @@ Avoid these phrases unless code proves them:
 - “WalletAuth is part of secS-magik”;
 - “manifest is the firewall” without caveating that current bindings are prototype hardcoded registrations;
 - “production receipt ledger” or “public auditability” for the current local SQLite receipt/event ledger.
+
+
+## #167 delegated attenuation / non-amplification
+
+#167 adds the no-widening boundary for Dregg authority: requested authority must not exceed held authority. The implemented seam rejects amplified requested resources with `authority_amplification` before handler dispatch over the live ingress evidence path. This is not Dregg-provisioned resource-lock authority; #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 finalizes or explicitly scopes remaining blockers.

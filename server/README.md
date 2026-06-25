@@ -160,3 +160,8 @@ cargo test -p server trust trusted_issuer -- --nocapture
 - [Implementation status](../docs/implementation-status.md)
 - [Repository schema](../docs/repository-schema.md)
 - [Ready-for-prod checklist](../docs/plans/2026-06-02-ready-for-prod-checklist.md)
+
+
+## #167 attenuation boundary
+
+#167 adds delegated attenuation / non-amplification for the live evidence path: requested authority must not exceed held authority. This is a no-widening check on Dregg authority admission, not Dregg-provisioned resource locks; #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles #167/#160 without overclaim.

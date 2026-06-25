@@ -177,6 +177,102 @@ fn dregg_authority_accepts_grant_only_after_receiver_held_policy() {
 }
 
 #[test]
+fn dregg_authority_rejects_amplified_requested_resource_outside_delegated_scope() {
+    let mut fixture = valid_grant();
+    fixture.token = DreggAuthorityGrantFixture::fixture_token_with_resource_prefix(
+        SUBJECT,
+        OPERATION,
+        "urn:secs:member:alice/",
+        1_777_000_000,
+    );
+    let mut amplified = request();
+    amplified
+        .public_inputs
+        .push("requested_resource:urn:secs:member:bob/profile".to_string());
+
+    assert_eq!(
+        adapter(fixture).verify(&amplified),
+        EvidenceResult::Rejected(VerificationError::AuthorityAmplification),
+        "a caller-supplied requested resource outside the delegated prefix must fail closed before any authority summary is minted"
+    );
+}
+
+#[test]
+fn dregg_authority_rejects_attenuated_grant_without_requested_resource() {
+    let mut fixture = valid_grant();
+    fixture.token = DreggAuthorityGrantFixture::fixture_token_with_resource_prefix(
+        SUBJECT,
+        OPERATION,
+        "urn:secs:member:alice/",
+        1_777_000_000,
+    );
+
+    assert_eq!(
+        adapter(fixture).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::AuthorityAmplification),
+        "an attenuated grant must fail closed when the live request omits the requested authority/resource it is trying to exercise"
+    );
+}
+
+#[test]
+fn dregg_authority_rejects_ambiguous_duplicate_requested_resources() {
+    let mut fixture = valid_grant();
+    fixture.token = DreggAuthorityGrantFixture::fixture_token_with_resource_prefix(
+        SUBJECT,
+        OPERATION,
+        "urn:secs:member:alice/",
+        1_777_000_000,
+    );
+    let mut ambiguous = request();
+    ambiguous
+        .public_inputs
+        .push("requested_resource:urn:secs:member:alice/profile".to_string());
+    ambiguous
+        .public_inputs
+        .push("requested_resource:urn:secs:member:bob/profile".to_string());
+
+    assert_eq!(
+        adapter(fixture).verify(&ambiguous),
+        EvidenceResult::Rejected(VerificationError::AuthorityAmplification),
+        "duplicate requested_resource public inputs are ambiguous and must not let callers choose the first benign value"
+    );
+}
+
+#[test]
+fn dregg_authority_accepts_requested_resource_inside_delegated_scope() {
+    let mut fixture = valid_grant();
+    fixture.token = DreggAuthorityGrantFixture::fixture_token_with_resource_prefix(
+        SUBJECT,
+        OPERATION,
+        "urn:secs:member:alice/",
+        1_777_000_000,
+    );
+    let mut narrowed = request();
+    narrowed
+        .public_inputs
+        .push("requested_resource:urn:secs:member:alice/profile".to_string());
+
+    let EvidenceResult::Satisfied(summary) = adapter(fixture).verify(&narrowed) else {
+        panic!("requested resource inside the delegated prefix should satisfy dregg_authority");
+    };
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "attenuation:non_amplifying"));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field.starts_with("requested_resource_sha256:")));
+    assert!(
+        summary
+            .summary_fields
+            .iter()
+            .all(|field| !field.contains("urn:secs:member:alice/profile")),
+        "requested resource scope must be redacted before it reaches signed contexts/receipts"
+    );
+}
+
+#[test]
 fn dregg_authority_rejects_binding_root_epoch_status_and_suite_failures() {
     let mut lookup = DreggAuthorityLookup {
         issuer_id: "did:dregg:issuer:fixture".to_string(),

@@ -89,7 +89,7 @@ The canonical multi-evidence-ref contract landed: Track I tests pass wallet +
 membership credential refs directly through
 `verify_manifest_operation_with_evidence_refs_and_inputs_and_sign` and the
 test-only `AdditionalEvidenceRefsAdapter` mutation pattern is removed. This is
-the verifier/caller API only — live runtime ingress remains descriptor-only
+the verifier/caller API only — historical pre-#162 live runtime ingress was descriptor-only
 and #77 still blocks `membership.provision` production runtime success until
 #162 or an explicitly scoped #144 non-goal resolves the live TCP evidence-ref/public-input wire path.
 
@@ -98,7 +98,7 @@ and #77 still blocks `membership.provision` production runtime success until
 Runtime posture resolved as an active binding: default runtime bindings now
 register the bounded native `membership/provision` handler in every mode
 (`server/src/membership.rs` holds the decision record). #77's descriptor-only
-guard remains in force and live ingress still carries no evidence refs, so
+guard remains in force and historical pre-#162 live ingress carried no evidence refs, so
 runtime `membership.provision` authority is still not claimable; the
 remaining live-wire activation rides on the #79 API contract plus future
 #162/#144 ingress wiring; handler binding is not authority.
@@ -110,3 +110,8 @@ The E2E happy path now drives the active `default_v0()` descriptor;
 the `wallet_and_membership_descriptor` fixture delegates to it. The exhaustive
 contract test (`active_membership_provision_descriptor_contract_is_pinned_field_by_field`)
 is the drift gate for all twelve routing/authorization fields.
+
+
+## #167 attenuation boundary
+
+#167 adds delegated attenuation / non-amplification to the live evidence path: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` before handler dispatch. This is not Dregg-provisioned resource-lock authority; #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles #167/#160 without overclaim.
