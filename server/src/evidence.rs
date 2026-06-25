@@ -114,6 +114,7 @@ pub struct EvidenceRequest {
     pub resource: Option<String>,
     pub evidence_refs: Vec<String>,
     pub public_inputs: Vec<String>,
+    pub trusted_requested_resource: Option<String>,
 }
 
 impl EvidenceRequest {
@@ -143,6 +144,7 @@ impl EvidenceRequest {
                 format!("opcode:{:02x}", descriptor.opcode),
                 format!("handler_id:{}", descriptor.handler_id),
             ],
+            trusted_requested_resource: None,
         }
     }
 
@@ -1147,10 +1149,7 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
         if parsed.until <= self.validation_time {
             return EvidenceResult::Rejected(VerificationError::InvalidAdmission);
         }
-        let requested_resource = match requested_resource_public_input(request) {
-            Ok(resource) => resource,
-            Err(error) => return EvidenceResult::Rejected(error),
-        };
+        let requested_resource = request.trusted_requested_resource.as_deref();
         if let Some(delegated_prefix) = parsed.delegated_resource_prefix {
             let Some(requested_resource) = requested_resource else {
                 return EvidenceResult::Rejected(VerificationError::AuthorityAmplification);
@@ -1227,22 +1226,6 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             summary_fields,
         })
     }
-}
-
-fn requested_resource_public_input(
-    request: &EvidenceRequest,
-) -> Result<Option<&str>, VerificationError> {
-    let mut requested_resources = request
-        .public_inputs
-        .iter()
-        .filter_map(|input| input.strip_prefix("requested_resource:"));
-    let Some(first) = requested_resources.next() else {
-        return Ok(None);
-    };
-    if first.is_empty() || requested_resources.next().is_some() {
-        return Err(VerificationError::AuthorityAmplification);
-    }
-    Ok(Some(first))
 }
 
 fn revocation_verifier_mode_name(mode: DreggAuthorityRevocationVerifierMode) -> &'static str {

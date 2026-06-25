@@ -306,6 +306,7 @@ mod dregg_shaped {
             resource: Some(RESOURCE.to_string()),
             evidence_refs: vec![fixture.evidence_ref.clone()],
             public_inputs: vec![format!("origin:{ORIGIN}")],
+            trusted_requested_resource: None,
         }
     }
 

@@ -40,7 +40,7 @@ Short current status:
 
 - Solid on `main`: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, descriptor-bound local handler routing, receiver-local permission policy loading/readiness for canonical gateway startup, receiver-local durable replay/session/expiry enforcement within the configured local replay store/scope, typed receipt/event objects, local SQLite receipt/event persistence, redacted local/operator inspection by receipt/context id, own-verifier key lifecycle seam, production-shaped runtime config/readiness, deterministic `local_static` local-dev-test evidence seam, cryptographic `wallet_presentation` verification over the temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy for signed membership/provisioning credentials, and Track I local production-shaped `membership.provision` E2E.
 - Partial / prototype: current secS TCP listener/prototype verifier path, `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL envelope checks, legacy `node_telemetry`, and local/dev handler bindings.
-- Planned next: replacement/reconciliation of the temporary wallet challenge contract with full Castalia Wallet wallet-core parity, #160 Dregg resource-lock scope, and #144 finalizer reconciliation for #73; #77 is only the fail-closed descriptor-only runtime guard and #162 is the live ingress evidence-ref wire path.
+- Planned next: replacement/reconciliation of the temporary wallet challenge contract with full Castalia Wallet wallet-core parity, #160 Dregg resource-lock scope and #144 finalizer reconciliation for #73; #169 is only the trusted requested-authority no-widening seam, #77 is only the fail-closed descriptor-only runtime guard, and #162 is the live ingress evidence-ref wire path.
 - Future / optional: external proof, federation receipt, and settlement evidence adapters.
 - Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access, and application membership semantics.
 
@@ -140,7 +140,7 @@ adapter seam, and operator inspection of the verify/execute/reject receipt
 chain. The demo proves local verifier behavior only — not production
 deployment (#33), public auditability (#37), wallet-core parity (#71), live
 registry discovery (#72), or Dregg/Midnight/Cardano authority (#73-#75);
-live evidence-aware ingress remains the #78/#79 rail.
+live evidence-aware ingress is the #162 rail, while trusted requested-authority attenuation is bounded to #169 and resource locks remain #160.
 
 ## How It Works
 

@@ -112,6 +112,6 @@ contract test (`active_membership_provision_descriptor_contract_is_pinned_field_
 is the drift gate for all twelve routing/authorization fields.
 
 
-## #167 attenuation boundary
+## #169 trusted requested-authority attenuation boundary
 
-#167 adds delegated attenuation / non-amplification to the live evidence path: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` before handler dispatch. This is not Dregg-provisioned resource-lock authority; #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles #167/#160 without overclaim.
+#167 adds delegated attenuation / non-amplification to the live evidence path: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` before handler dispatch. This is not Dregg-provisioned resource-lock authority; #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles #169/#160 without overclaim.

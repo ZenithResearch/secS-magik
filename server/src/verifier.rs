@@ -403,6 +403,7 @@ impl Verifier {
         manifest: &ReceiverManifest,
         audience: &str,
         inputs: &crate::evidence::EvidenceInputs,
+        trusted_payload: &[u8],
         adapter: &dyn EvidenceAdapter,
         now: u64,
         identity: &NodeVerifierIdentity,
@@ -437,6 +438,8 @@ impl Verifier {
         request
             .public_inputs
             .extend(inputs.public_inputs().iter().cloned());
+        request.trusted_requested_resource =
+            trusted_requested_resource_from_payload(trusted_payload)?;
         let evidence_summary = match adapter.verify(&request) {
             EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
             EvidenceResult::Rejected(error) => return Err(error),
@@ -498,6 +501,8 @@ impl Verifier {
         request
             .public_inputs
             .extend(inputs.public_inputs().iter().cloned());
+        request.trusted_requested_resource =
+            trusted_requested_resource_from_payload(&packet.encrypted_payload)?;
         let evidence_summary = match adapter.verify(&request) {
             EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
             EvidenceResult::Rejected(error) => return Err(error),
@@ -628,6 +633,30 @@ fn prototype_subject() -> VerifiedSubject {
         subject_id: PROTOTYPE_LOCAL_SUBJECT.to_string(),
         key_id: format!("{PROTOTYPE_LOCAL_SUBJECT}#key"),
     }
+}
+
+fn trusted_requested_resource_from_payload(
+    payload: &[u8],
+) -> Result<Option<String>, VerificationError> {
+    if payload.is_empty() {
+        return Ok(None);
+    }
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(payload) else {
+        return Ok(None);
+    };
+    let Some(resource) = value
+        .as_object()
+        .and_then(|object| object.get("requested_resource"))
+    else {
+        return Ok(None);
+    };
+    let Some(resource) = resource.as_str() else {
+        return Err(VerificationError::AuthorityAmplification);
+    };
+    if resource.is_empty() {
+        return Err(VerificationError::AuthorityAmplification);
+    }
+    Ok(Some(resource.to_string()))
 }
 
 fn verified_context_for_descriptor(
