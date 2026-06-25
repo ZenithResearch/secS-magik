@@ -34,7 +34,7 @@ This phase proves a no-real-secret local fixture packet can compose:
 
 ## Acceptance criteria
 
-- [x] A fixture `membership.provision` descriptor exists and requires wallet + trusted issuer evidence layers.
+- [x] A fixture `membership.provision` descriptor exists and requires wallet + issuer + Dregg authority evidence layers.
 - [x] A valid local fixture packet reaches verify + execute with signed context and local/operator ledger evidence.
 - [x] Operator inspection can retrieve the receipt chain by context id.
 - [x] Negative tests prove packet echo, verifier-only accept, fixture smoke output, and `local_static` fallback are not success.
@@ -67,7 +67,7 @@ git diff --check -- README.md CHANGELOG.md docs/ server/ core/ client/
 
 ## Bounded claims / forbidden claims
 
-This phase is local production-shaped E2E only. Issue #77 preserves that boundary by rejecting descriptor-only `production_verified` runtime verification for canonical `0x44` `membership.provision` unless the evidence-aware helper path has supplied wallet proof-of-possession plus trusted issuer evidence. Live TCP ingress still carries no evidence refs/public inputs and must not be claimed as active `membership.provision` runtime authority; #141/#144 live TCP evidence-ref/public-input follow-ups remain open, and #73 Dregg authority remains future. It is not:
+This phase is local production-shaped E2E only. Issue #77 preserves that boundary by rejecting descriptor-only `production_verified` runtime verification for canonical `0x44` `membership.provision` unless the evidence-aware helper path has supplied wallet proof-of-possession, trusted issuer evidence, and the bounded static receiver-held Dregg policy-admission seam. Live TCP ingress still carries no evidence refs/public inputs and must not be claimed as active `membership.provision` runtime authority; #162/#144 live TCP evidence-ref/public-input follow-ups remain open. #73 remains open until #144 finalizes the bounded M15 Dregg authority E2E/docs without overclaiming #159 live proof/finality, #160 Dregg resource locks, or #162 live ingress. It is not:
 
 - production deployment proof;
 - public auditability beyond local SQLite operator inspection;
@@ -79,7 +79,7 @@ This phase is local production-shaped E2E only. Issue #77 preserves that boundar
 
 - PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9`.
 - Post-merge Rust CI run 27071532041 passed.
-- Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84. #77 is the descriptor-only production runtime fail-closed guard; #141/#144 live TCP evidence-ref/public-input follow-ups remain responsible for evidence-aware live ingress/runtime authority; #73 Dregg authority remains future.
+- Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84. #77 is the descriptor-only production runtime fail-closed guard. #162/#144 live TCP evidence-ref/public-input follow-ups remain responsible for evidence-aware live ingress/runtime authority; #73 remains open until #144 finalizes the bounded M15 Dregg authority E2E/docs without overclaiming #159/#160/#162.
 - #84 is covered by `membership_provision_verifier_acceptance_without_execute_receipt_is_not_success`, which pins the non-success boundary for smoke/log/verifier-only paths without accepted execute receipts.
 
 
@@ -91,7 +91,7 @@ membership credential refs directly through
 test-only `AdditionalEvidenceRefsAdapter` mutation pattern is removed. This is
 the verifier/caller API only — live runtime ingress remains descriptor-only
 and #77 still blocks `membership.provision` production runtime success until
-#141/#144 land the live TCP evidence-ref/public-input wire path.
+#162 or an explicitly scoped #144 non-goal resolves the live TCP evidence-ref/public-input wire path.
 
 ## #78 status note (2026-06-12)
 
@@ -101,7 +101,7 @@ register the bounded native `membership/provision` handler in every mode
 guard remains in force and live ingress still carries no evidence refs, so
 runtime `membership.provision` authority is still not claimable; the
 remaining live-wire activation rides on the #79 API contract plus future
-#141/#144 ingress wiring; handler binding is not authority.
+#162/#144 ingress wiring; handler binding is not authority.
 
 ## #80 status note (2026-06-12)
 

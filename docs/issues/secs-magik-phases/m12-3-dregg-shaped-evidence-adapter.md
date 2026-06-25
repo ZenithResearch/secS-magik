@@ -38,7 +38,7 @@ inspectable shape, clearly labeled as not the full upstream system.
 - Independent of M12.1/M12.2; composes with them in the demo.
 - Strictly **distinct from #73** (Dregg capability/proof/revocation **authority**
   rail). This issue is the boundary-preserving *shape+signature* stub; #73 remains
-  the future authority rail. The spec must say so and #73 must not be closed by it.
+  the M15 production authority rail. The spec must say so and #73 must not be closed by it.
 
 ## Target files
 

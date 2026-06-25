@@ -4,7 +4,7 @@ Status: M15.1 / #137 specification. This rewrites #73 acceptance criteria, but #
 
 ## Purpose
 
-This spec defines what secS-magik means by production `dregg_authority` before any M15 production-authority code lands. It separates the current Dregg-shaped and Dregg-backed surfaces from the future production authority rail, then names the receiver-held root/trust data, epoch-scoped root policy, freshness/revocation/finality/non-amplification posture, and public inputs that later code must verify.
+This spec defines the M15 `dregg_authority` semantics gate. It separates M12.3 Dregg-shaped evidence, M14 `dregg_backed`, and the bounded M15 production-shaped authority seam while preserving the original receiver-held root/trust data, epoch-scoped root policy, and freshness/revocation/finality/non-amplification posture. M15.2–M15.6 now implement static receiver-held registry, policy-admission, descriptor-composition, and local-operator disclosure; live proof/finality, Dregg resource locks, and live TCP evidence propagation remain #159/#160/#162 or explicitly scoped #144 finalizer work.
 
 ## Tier boundary
 
