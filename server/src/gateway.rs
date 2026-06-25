@@ -1,3 +1,4 @@
+use crate::evidence::EvidenceAdapter;
 use crate::identity::{
     explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
 };
@@ -17,6 +18,7 @@ use libsec_core::ZenithPacket;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Child;
@@ -101,6 +103,7 @@ pub struct ConfigurableRouter {
     /// Optional receiver-local permission policy (M13). When set, every verified
     /// context is evaluated against it before handler dispatch (fail-closed).
     permission_policy: Option<PermissionPolicy>,
+    evidence_adapter: Option<Arc<dyn EvidenceAdapter>>,
 }
 
 impl ConfigurableRouter {
@@ -154,6 +157,7 @@ impl ConfigurableRouter {
             expected_audience: expected_audience.into(),
             manifest: ReceiverManifest::default_v0(),
             permission_policy: None,
+            evidence_adapter: None,
         }
     }
 
@@ -161,6 +165,18 @@ impl ConfigurableRouter {
     /// plus the dev-bounded `demo.file.write` descriptor.
     pub fn set_manifest(&mut self, manifest: ReceiverManifest) {
         self.manifest = manifest;
+    }
+
+    pub fn manifest(&self) -> &ReceiverManifest {
+        &self.manifest
+    }
+
+    pub fn set_evidence_adapter(&mut self, adapter: Arc<dyn EvidenceAdapter>) {
+        self.evidence_adapter = Some(adapter);
+    }
+
+    pub fn evidence_adapter(&self) -> Option<&dyn EvidenceAdapter> {
+        self.evidence_adapter.as_deref()
     }
 
     /// Install a receiver-local permission policy (M13). With no policy the

@@ -1,9 +1,13 @@
+use libsec_core::ingress_request::{encode_ingress_request_v1, IngressRequestV1};
 use libsec_core::ZenithPacket;
 use server::config::GatewayRuntimeConfig;
-use server::gateway::{init_telemetry_schema, ConfigurableRouter};
+use server::evidence::{
+    EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, EvidenceSummary,
+};
+use server::gateway::{init_telemetry_schema, register_runtime_bindings, ConfigurableRouter};
 use server::ingress::{
     handle_gateway_connection_with_limits, install_configured_permission_policy,
-    read_bounded_wire_packet, IngressReadError,
+    read_bounded_ingress_request, read_bounded_wire_packet, IngressReadError,
 };
 use server::ledger::Ledger;
 use server::runtime_mode::RuntimeMode;
@@ -68,6 +72,54 @@ async fn configured_permission_policy_is_installed_before_serving() {
         router.has_permission_policy(),
         "canonical ingress startup must install configured permission policy before serving"
     );
+}
+
+#[tokio::test]
+async fn bounded_ingress_request_decodes_live_evidence_refs_and_public_inputs() {
+    let request = IngressRequestV1::new(
+        packet(b"payload"),
+        vec![
+            "wallet-ref".to_string(),
+            "credential-ref".to_string(),
+            "wallet-ref".to_string(),
+        ],
+        vec!["origin:https://example.test".to_string()],
+    );
+    let bytes = encode_ingress_request_v1(&request).unwrap();
+
+    let frame =
+        read_bounded_ingress_request(std::io::Cursor::new(bytes), 4096, Duration::from_secs(1))
+            .await
+            .unwrap()
+            .expect("request should decode");
+
+    assert_eq!(frame.packet.opcode, 0x10);
+    assert_eq!(
+        frame.evidence_inputs.evidence_refs(),
+        &["wallet-ref".to_string(), "credential-ref".to_string()]
+    );
+    assert_eq!(
+        frame.evidence_inputs.public_inputs(),
+        &["origin:https://example.test".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn bounded_ingress_request_rejects_oversized_evidence_metadata() {
+    let mut bytes = libsec_core::ingress_request::INGRESS_REQUEST_V1_MAGIC.to_vec();
+    bytes.extend_from_slice(&(u64::MAX).to_le_bytes());
+
+    let result =
+        read_bounded_ingress_request(std::io::Cursor::new(bytes), 4096, Duration::from_secs(1))
+            .await;
+
+    assert!(matches!(
+        result,
+        Err(IngressReadError::LogicalFrameTooLarge {
+            field: "ingress_request",
+            ..
+        })
+    ));
 }
 
 #[tokio::test]
@@ -590,6 +642,102 @@ mod decision_response {
         .expect("decision response read should succeed");
         server_task.await.unwrap();
         frame
+    }
+
+    #[derive(Default)]
+    struct RecordingEvidenceAdapter(std::sync::Mutex<Vec<EvidenceRequest>>);
+
+    impl EvidenceAdapter for RecordingEvidenceAdapter {
+        fn kind(&self) -> EvidenceKind {
+            EvidenceKind::DreggAuthority
+        }
+
+        fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+            self.0.lock().unwrap().push(request.clone());
+            if !request
+                .evidence_refs
+                .contains(&"wallet-live-ref".to_string())
+                || !request
+                    .evidence_refs
+                    .contains(&"credential-live-ref".to_string())
+                || !request
+                    .evidence_refs
+                    .contains(&"dregg-live-ref".to_string())
+            {
+                return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+            }
+            EvidenceResult::Satisfied(EvidenceSummary {
+                kind: EvidenceKind::DreggAuthority,
+                subject: request.subject.clone(),
+                audience: request.audience.clone(),
+                operation: request.operation.clone(),
+                resource: request.resource.clone(),
+                local_dev_test_only: false,
+                public_proof: false,
+                summary_fields: vec![
+                    "authority_class:dregg_authority".to_string(),
+                    "tier:m15_production_shaped".to_string(),
+                    "token:dga1_[redacted]".to_string(),
+                ],
+            })
+        }
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn versioned_live_ingress_request_supplies_evidence_refs_to_verifier() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let adapter = Arc::new(RecordingEvidenceAdapter::default());
+        let mut router = ConfigurableRouter::new(pool);
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        router.set_evidence_adapter(adapter.clone());
+        let router = Arc::new(router);
+
+        let mut request_packet = packet(br#"{"membership":"requested"}"#);
+        request_packet.opcode = 0x44;
+        let request = IngressRequestV1::new(
+            request_packet,
+            vec![
+                "wallet-live-ref".to_string(),
+                "credential-live-ref".to_string(),
+                "dregg-live-ref".to_string(),
+                "wallet-live-ref".to_string(),
+            ],
+            vec!["origin:https://example.test".to_string()],
+        );
+        let frame = call_gateway(router, encode_ingress_request_v1(&request).unwrap()).await;
+
+        let response = DecisionResponse::decode(&frame)
+            .expect("versioned ingress call must answer with a decision response");
+        assert!(
+            response.is_accepted(),
+            "live evidence-backed request should accept"
+        );
+        let seen = adapter.0.lock().unwrap();
+        assert_eq!(
+            seen.len(),
+            1,
+            "the live request must invoke the evidence adapter exactly once"
+        );
+        assert_eq!(
+            seen[0].evidence_refs,
+            vec!["wallet-live-ref", "credential-live-ref", "dregg-live-ref"],
+            "ingress must dedupe refs and pass them to canonical EvidenceRequest"
+        );
+        assert!(
+            seen[0]
+                .public_inputs
+                .contains(&"origin:https://example.test".to_string()),
+            "ingress must preserve caller public inputs alongside descriptor inputs"
+        );
+        assert_eq!(seen[0].operation, "membership.provision");
     }
 
     #[tokio::test]

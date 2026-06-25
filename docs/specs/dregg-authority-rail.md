@@ -4,7 +4,7 @@ Status: M15.1 / #137 specification. This rewrites #73 acceptance criteria, but #
 
 ## Purpose
 
-This spec defines the M15 `dregg_authority` semantics gate. It separates M12.3 Dregg-shaped evidence, M14 `dregg_backed`, and the bounded M15 production-shaped authority seam while preserving the original receiver-held root/trust data, epoch-scoped root policy, and freshness/revocation/finality/non-amplification posture. M15.2–M15.6 now implement static receiver-held registry, policy-admission, descriptor-composition, and local-operator disclosure; live proof/finality, Dregg resource locks, and live TCP evidence propagation remain #159/#160/#162 or explicitly scoped #144 finalizer work.
+This spec defines the M15 `dregg_authority` semantics gate. It separates M12.3 Dregg-shaped evidence, M14 `dregg_backed`, and the bounded M15 production-shaped authority seam while preserving the original receiver-held root/trust data, epoch-scoped root policy, and freshness/revocation/finality/non-amplification posture. M15.2–M15.6 now implement static receiver-held registry, policy-admission, descriptor-composition, and local-operator disclosure; #159 has resolved proof/finality as explicit fail-closed blocker posture and #162 wires live TCP evidence propagation into the canonical evidence adapter path; Dregg resource locks and finalizer closure remain #160/#144 work.
 
 ## Tier boundary
 
@@ -54,7 +54,7 @@ A future production `dregg_authority` adapter must define which Dregg API verifi
 
 The upstream live verifier surfaces remain named blockers because this repository does not yet import or wire Dregg federation proof APIs: `credentials::VerificationOptions.expected_revocation_root`, federation `RevocationVerifier` / `RevocationTree`, `ReceiptQc::Threshold` with BLS FederationCommittee plumbing, and `rotated_replay::verify_rotated_replay_chain`. If a registry policy requires those live surfaces, the current adapter rejects with `unsupported_revocation_verifier`, `unsupported_bls_threshold_finality`, or `unsupported_rotated_replay_verifier` rather than accepting fixture status as proof.
 
-This is no live Dregg revocation proof, no BLS threshold finality, and no rotated-replay proof verification. #144 may only close #73 by either implementing those verifier paths later or explicitly documenting them as finalizer non-goals; #73 remains open until #144 lands.
+This is no live Dregg revocation proof, no BLS threshold finality, and no rotated-replay proof verification. #162 live ingress evidence refs do not change that blocker posture; #144 may only close #73 by either implementing those verifier paths later or explicitly documenting them as finalizer non-goals; #73 remains open until #144 lands.
 
 ## Composition rules
 
