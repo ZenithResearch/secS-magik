@@ -5,8 +5,8 @@
 //! or gateway execution.
 
 use crate::dregg_authority::{
-    DreggAuthorityFinalityStatus, DreggAuthorityLookup, DreggAuthorityRegistry,
-    DreggAuthorityRevocationStatus,
+    DreggAuthorityFinalityMode, DreggAuthorityFinalityStatus, DreggAuthorityLookup,
+    DreggAuthorityRegistry, DreggAuthorityRevocationStatus, DreggAuthorityRevocationVerifierMode,
 };
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
@@ -985,6 +985,7 @@ pub struct DreggAuthorityGrantFixture {
     pub status_checked_at: Option<u64>,
     pub revocation_status: Option<crate::dregg_authority::DreggAuthorityRevocationStatus>,
     pub finality_status: Option<crate::dregg_authority::DreggAuthorityFinalityStatus>,
+    pub attested_revocation_root_ref: Option<String>,
 }
 
 impl DreggAuthorityGrantFixture {
@@ -1092,6 +1093,7 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             status_checked_at: grant.status_checked_at,
             revocation_status: grant.revocation_status,
             finality_status: grant.finality_status,
+            attested_revocation_root_ref: grant.attested_revocation_root_ref.clone(),
         };
         let entry = match self.registry.lookup_active_policy(&lookup) {
             Ok(entry) => entry,
@@ -1133,10 +1135,24 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 format!("root_fingerprint:{}", grant.root_fingerprint),
                 redacted_reference_field("epoch_id", &grant.epoch_id),
                 format!("suite:{}", grant.suite),
+                format!(
+                    "revocation_verifier_mode:{}",
+                    revocation_verifier_mode_name(entry.status_policy.revocation_verifier_mode)
+                ),
+                entry
+                    .status_policy
+                    .expected_revocation_root_ref
+                    .as_ref()
+                    .map(|root| redacted_reference_field("revocation_root_ref", root))
+                    .unwrap_or_else(|| "revocation_root_ref:not_required".to_string()),
                 grant
                     .revocation_status
                     .map(|status| format!("revocation_status:{}", revocation_status_name(status)))
                     .unwrap_or_else(|| "revocation_status:named_blocker_missing".to_string()),
+                format!(
+                    "finality_mode:{}",
+                    finality_mode_name(entry.status_policy.finality_mode)
+                ),
                 grant
                     .finality_status
                     .map(|status| format!("finality_status:{}", finality_status_name(status)))
@@ -1148,6 +1164,25 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 ),
             ],
         })
+    }
+}
+
+fn revocation_verifier_mode_name(mode: DreggAuthorityRevocationVerifierMode) -> &'static str {
+    match mode {
+        DreggAuthorityRevocationVerifierMode::FixtureStatusOnly => "fixture_status_only",
+        DreggAuthorityRevocationVerifierMode::ExpectedRootBinding => "expected_root_binding",
+        DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired => {
+            "live_revocation_verifier_required"
+        }
+    }
+}
+
+fn finality_mode_name(mode: DreggAuthorityFinalityMode) -> &'static str {
+    match mode {
+        DreggAuthorityFinalityMode::NotRequired => "not_required",
+        DreggAuthorityFinalityMode::FixtureStatusOnly => "fixture_status_only",
+        DreggAuthorityFinalityMode::BlsThresholdRequired => "bls_threshold_required",
+        DreggAuthorityFinalityMode::RotatedReplayRequired => "rotated_replay_required",
     }
 }
 

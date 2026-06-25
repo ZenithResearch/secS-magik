@@ -600,6 +600,60 @@ fn dregg_authority_docs_record_m15_6_operator_disclosure_boundary() {
 }
 
 #[test]
+fn dregg_authority_docs_record_m15_7_proof_finality_blockers_without_overclaim() {
+    let docs = [
+        ("docs/specs/dregg-authority-rail.md", DREGG_AUTHORITY_SPEC),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        ("CHANGELOG.md", CHANGELOG),
+    ];
+
+    for required in [
+        "M15 proof hardening / #159 proof/finality blocker posture",
+        "expected_revocation_root",
+        "RevocationVerifier",
+        "RevocationTree",
+        "ReceiptQc::Threshold",
+        "BLS FederationCommittee",
+        "verify_rotated_replay_chain",
+        "missing_revocation_root",
+        "wrong_revocation_root",
+        "unsupported_revocation_verifier",
+        "unsupported_bls_threshold_finality",
+        "unsupported_rotated_replay_verifier",
+        "no live Dregg revocation proof",
+        "no BLS threshold finality",
+        "no rotated-replay proof verification",
+        "#144",
+        "#73 remains open",
+    ] {
+        assert!(
+            docs.iter().any(|(_, text)| text.contains(required)),
+            "M15.7 docs should record #159 proof/finality blocker phrase: {required}"
+        );
+    }
+
+    for forbidden in [
+        "live Dregg revocation proof is implemented",
+        "BLS threshold finality is implemented",
+        "rotated-replay proof verification is implemented",
+        "ReceiptQc::Threshold verifies production finality",
+        "verify_rotated_replay_chain is wired into secS",
+        "closes #73",
+    ] {
+        for (name, text) in docs {
+            assert!(
+                !text.contains(forbidden),
+                "{name} contains forbidden #159 overclaim: {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
 fn dregg_seam_migration_docs_remove_stale_live_ingress_and_future_authority_claims() {
     let docs = [
         ("README.md", README),

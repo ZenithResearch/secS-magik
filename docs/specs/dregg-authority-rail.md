@@ -46,6 +46,16 @@ A future production `dregg_authority` adapter must define which Dregg API verifi
 - epoch: federation/root authority is epoch-scoped when federation authority is claimed.
 - status: revocation/status/freshness material must bind to issuer, token, root, and validation time.
 
+
+
+## M15 proof hardening / #159 proof/finality blocker posture
+
+#159 adds explicit tested posture for the Dregg proof/finality blockers named by #140 before #144 can finalize #73. secS now binds a receiver-held `expected_revocation_root` through an attested fixture/root reference and fails closed with `missing_revocation_root` or `wrong_revocation_root`; caller-supplied public inputs cannot satisfy that root binding.
+
+The upstream live verifier surfaces remain named blockers because this repository does not yet import or wire Dregg federation proof APIs: `credentials::VerificationOptions.expected_revocation_root`, federation `RevocationVerifier` / `RevocationTree`, `ReceiptQc::Threshold` with BLS FederationCommittee plumbing, and `rotated_replay::verify_rotated_replay_chain`. If a registry policy requires those live surfaces, the current adapter rejects with `unsupported_revocation_verifier`, `unsupported_bls_threshold_finality`, or `unsupported_rotated_replay_verifier` rather than accepting fixture status as proof.
+
+This is no live Dregg revocation proof, no BLS threshold finality, and no rotated-replay proof verification. #144 may only close #73 by either implementing those verifier paths later or explicitly documenting them as finalizer non-goals; #73 remains open until #144 lands.
+
 ## Composition rules
 
 Dregg is not a bypass. A descriptor may require `dregg_authority`, but that never replaces other required evidence layers:
