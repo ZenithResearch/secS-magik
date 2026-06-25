@@ -234,6 +234,67 @@ fn dregg_authority_ignores_caller_declared_requested_resource_without_trusted_bi
 }
 
 #[test]
+fn dregg_authority_rejects_requested_resource_outside_resource_lock() {
+    let mut fixture = valid_grant();
+    fixture.token = DreggAuthorityGrantFixture::fixture_token_with_resource_lock(
+        SUBJECT,
+        OPERATION,
+        "urn:secs:member:alice/profile",
+        1_777_000_000,
+    );
+    let mut request = request();
+    request.trusted_requested_resource = Some("urn:secs:member:bob/profile".to_string());
+
+    assert_eq!(
+        adapter(fixture).verify(&request),
+        EvidenceResult::Rejected(VerificationError::ResourceLockViolation),
+        "Dregg resource locks must reject a trusted requested resource outside the locked mutation target"
+    );
+}
+
+#[test]
+fn dregg_authority_summary_binds_resource_lock_without_raw_disclosure() {
+    let mut fixture = valid_grant();
+    fixture.token = DreggAuthorityGrantFixture::fixture_token_with_resource_lock(
+        SUBJECT,
+        OPERATION,
+        "urn:secs:member:alice/profile",
+        1_777_000_000,
+    );
+    let mut request = request();
+    request.trusted_requested_resource = Some("urn:secs:member:alice/profile".to_string());
+
+    let EvidenceResult::Satisfied(summary) = adapter(fixture).verify(&request) else {
+        panic!(
+            "trusted requested resource matching the Dregg resource lock should satisfy authority"
+        );
+    };
+    assert_eq!(
+        summary.resource.as_deref(),
+        Some("urn:secs:member:alice/profile")
+    );
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "resource_lock:verified"));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field.starts_with("resource_lock_sha256:")));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field.starts_with("locked_resource_sha256:")));
+    assert!(
+        summary
+            .summary_fields
+            .iter()
+            .all(|field| !field.contains("urn:secs:member:alice/profile")),
+        "raw locked resource must stay out of summaries"
+    );
+}
+
+#[test]
 fn dregg_authority_accepts_requested_resource_inside_delegated_scope() {
     let mut fixture = valid_grant();
     fixture.token = DreggAuthorityGrantFixture::fixture_token_with_resource_prefix(

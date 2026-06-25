@@ -336,7 +336,7 @@ fn dregg_authority_docs_preserve_169_trusted_requested_authority_without_resourc
         "trusted requested-authority",
         "delegated attenuation / non-amplification",
         "requested authority must not exceed held authority",
-        "#160 remains future for Dregg-provisioned resource locks",
+        "#160 implements bounded Dregg-provisioned resource locks",
         "#73 remains open until #144",
     ] {
         assert!(
@@ -361,6 +361,59 @@ fn dregg_authority_docs_preserve_169_trusted_requested_authority_without_resourc
             assert!(
                 !text.contains(forbidden),
                 "{name} contains stale or overclaimed #169/#162 boundary wording: {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
+fn dregg_authority_docs_record_160_resource_locks_without_finality_or_parent_overclaim() {
+    let docs = [
+        ("README.md", README),
+        ("server/README.md", SERVER_README),
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        ("docs/specs/dregg-authority-rail.md", DREGG_AUTHORITY_SPEC),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+        (
+            "docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md",
+            TRACK_I_STATUS,
+        ),
+    ];
+
+    for required in [
+        "#160",
+        "Dregg-provisioned resource locks",
+        "trusted requested resource",
+        "resource_lock:verified",
+        "resource_lock_violation",
+        "separate from #169 trusted requested-authority attenuation",
+        "#159 remains fail-closed blocker posture only",
+        "#73 remains open until #144",
+    ] {
+        assert!(
+            docs.iter().any(|(_, text)| text.contains(required)),
+            "docs should preserve #160 bounded resource-lock boundary phrase: {required}"
+        );
+    }
+
+    for forbidden in [
+        "#160 closes #73",
+        "#169 implements resource locks",
+        "#167 implements resource locks",
+        "resource locks prove Dregg finality",
+        "resource locks implement live Dregg revocation proof",
+        "resource locks implement BLS threshold finality",
+        "resource locks implement rotated-replay proof verification",
+        "Dregg admit verdict grants resource locks",
+        "Call.args.resource is a trusted authorization gate",
+    ] {
+        for (name, text) in docs {
+            assert!(
+                !text.contains(forbidden),
+                "{name} contains overclaimed #160 resource-lock wording: {forbidden}"
             );
         }
     }
@@ -629,7 +682,7 @@ fn dregg_authority_docs_record_m15_5_descriptor_composition_without_overclaim() 
             "wallet + issuer + Dregg authority",
             "M12.3 shape-only `dregg_receipt` cannot satisfy",
             "#159 is resolved as explicit fail-closed blocker posture",
-            "#160 remains future",
+            "#160 implements bounded Dregg-provisioned resource locks",
         ],
     );
 }

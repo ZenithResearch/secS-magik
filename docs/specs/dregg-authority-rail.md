@@ -134,7 +134,7 @@ M15.5 (#141) composes `dregg_authority` into the canonical production `membershi
 
 Wallet plus issuer evidence is no longer sufficient for canonical `membership.provision`; missing `dregg_authority` rejects as `insufficient_evidence`. Conversely, `dregg_authority` alone is never sufficient and cannot bypass receiver-local descriptor, permission, session, replay, TTL, or handler-binding policy. M12.3 shape-only `dregg_receipt` cannot satisfy the production `dregg_authority` requirement.
 
-This issue does not close #73. #159 remains unresolved for live Dregg revocation proof, BLS finality, and rotated-replay proof verification. #160 remains future for Dregg-provisioned resource locks; #141 binds operation/resource through receiver-local descriptor and request policy only, not Dregg resource-lock authority.
+This issue does not close #73. #159 remains unresolved for live Dregg revocation proof, BLS finality, and rotated-replay proof verification. #160 implements bounded Dregg-provisioned resource locks; #141 binds operation/resource through receiver-local descriptor and request policy only, not Dregg resource-lock authority.
 
 
 ## M15.6 / #142 operator inspection and disclosure boundary
@@ -180,3 +180,6 @@ Out of scope for M15.1 and not proven by this spec:
 - treating local SQLite receipts as public Dregg authority evidence;
 - treating caller-supplied roots or root refs as production authority;
 - treating M12.3 shape-only or M14 fixture-backed admission as M15 production `dregg_authority`.
+
+
+#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #73 remains open until #144 reconciles the finalizer.

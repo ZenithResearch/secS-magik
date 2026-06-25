@@ -1012,6 +1012,18 @@ impl DreggAuthorityGrantFixture {
             Self::TOKEN_PREFIX
         )
     }
+
+    pub fn fixture_token_with_resource_lock(
+        subject: &str,
+        tool: &str,
+        locked_resource: &str,
+        until: u64,
+    ) -> String {
+        format!(
+            "{}{subject}|{tool}|resource_lock:{locked_resource}|{until}",
+            Self::TOKEN_PREFIX
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1019,6 +1031,7 @@ struct ParsedDreggAuthorityToken<'a> {
     subject: &'a str,
     tool: &'a str,
     delegated_resource_prefix: Option<&'a str>,
+    resource_lock: Option<&'a str>,
     until: u64,
 }
 
@@ -1040,7 +1053,7 @@ fn parse_dregg_authority_token(
     let third = parts
         .next()
         .ok_or(VerificationError::MalformedDreggAuthority)?;
-    let (delegated_resource_prefix, until) =
+    let (delegated_resource_prefix, resource_lock, until) =
         if let Some(prefix) = third.strip_prefix("resource_prefix:") {
             let until = parts
                 .next()
@@ -1050,9 +1063,20 @@ fn parse_dregg_authority_token(
             if prefix.is_empty() {
                 return Err(VerificationError::MalformedDreggAuthority);
             }
-            (Some(prefix), until)
+            (Some(prefix), None, until)
+        } else if let Some(locked_resource) = third.strip_prefix("resource_lock:") {
+            let until = parts
+                .next()
+                .ok_or(VerificationError::MalformedDreggAuthority)?
+                .parse::<u64>()
+                .map_err(|_| VerificationError::MalformedDreggAuthority)?;
+            if locked_resource.is_empty() {
+                return Err(VerificationError::MalformedDreggAuthority);
+            }
+            (None, Some(locked_resource), until)
         } else {
             (
+                None,
                 None,
                 third
                     .parse::<u64>()
@@ -1066,6 +1090,7 @@ fn parse_dregg_authority_token(
         subject,
         tool,
         delegated_resource_prefix,
+        resource_lock,
         until,
     })
 }
@@ -1150,6 +1175,7 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             return EvidenceResult::Rejected(VerificationError::InvalidAdmission);
         }
         let requested_resource = request.trusted_requested_resource.as_deref();
+        let mut verified_resource_lock = None;
         if let Some(delegated_prefix) = parsed.delegated_resource_prefix {
             let Some(requested_resource) = requested_resource else {
                 return EvidenceResult::Rejected(VerificationError::AuthorityAmplification);
@@ -1157,6 +1183,15 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             if !requested_resource.starts_with(delegated_prefix) {
                 return EvidenceResult::Rejected(VerificationError::AuthorityAmplification);
             }
+        }
+        if let Some(locked_resource) = parsed.resource_lock {
+            let Some(requested_resource) = requested_resource else {
+                return EvidenceResult::Rejected(VerificationError::ResourceLockViolation);
+            };
+            if requested_resource != locked_resource {
+                return EvidenceResult::Rejected(VerificationError::ResourceLockViolation);
+            }
+            verified_resource_lock = Some(requested_resource.to_string());
         }
 
         let mut summary_fields = vec![
@@ -1212,13 +1247,23 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 ));
             }
         }
+        if let Some(locked_resource) = parsed.resource_lock {
+            summary_fields.push("resource_lock:verified".to_string());
+            summary_fields.push(redacted_reference_field("resource_lock", locked_resource));
+            if let Some(requested_resource) = requested_resource {
+                summary_fields.push(redacted_reference_field(
+                    "locked_resource",
+                    requested_resource,
+                ));
+            }
+        }
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
             subject: request.subject.clone(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
-            resource: request.resource.clone(),
+            resource: verified_resource_lock,
             local_dev_test_only: false,
             // M15.3 admits against receiver-held Dregg policy, but M15.4 still
             // owns revocation proofs/finality/public auditability.

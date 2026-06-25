@@ -817,6 +817,34 @@ mod decision_response {
         .unwrap()
     }
 
+    fn resource_locked_dregg_adapter() -> DreggAuthorityEvidenceAdapter {
+        DreggAuthorityEvidenceAdapter::new(
+            [DreggAuthorityGrantFixture {
+                evidence_ref: "dregg-live-ref".to_string(),
+                token: DreggAuthorityGrantFixture::fixture_token_with_resource_lock(
+                    "prototype.local-dev.subject",
+                    "membership.provision",
+                    "urn:secs:member:alice/profile",
+                    1_777_000_000,
+                ),
+                issuer_id: "did:dregg:issuer:fixture".to_string(),
+                issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+                root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+                root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+                epoch_id: "epoch:2026q2".to_string(),
+                suite: "dregg_authority_fixture_v1".to_string(),
+                status_checked_at: Some(1_770_000_200),
+                revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+                finality_status: None,
+                attested_revocation_root_ref: Some(
+                    "dregg-revocation-root:fixture-2026q2".to_string(),
+                ),
+            }],
+            dregg_registry_for_attenuation(),
+            1_770_000_300,
+        )
+    }
+
     fn attenuated_dregg_adapter() -> DreggAuthorityEvidenceAdapter {
         DreggAuthorityEvidenceAdapter::new(
             [DreggAuthorityGrantFixture {
@@ -948,6 +976,96 @@ mod decision_response {
             "trusted requested resource must be derived from decrypted tunnel payload, not ciphertext"
         );
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn real_dregg_resource_lock_mismatch_rejects_before_accept_receipt() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool.clone());
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        router.set_evidence_adapter(Arc::new(resource_locked_dregg_adapter()));
+        let router = Arc::new(router);
+
+        let mut request_packet = packet(
+            br#"{"membership":"requested","requested_resource":"urn:secs:member:bob/profile"}"#,
+        );
+        request_packet.opcode = 0x44;
+        let request = IngressRequestV1::new(
+            request_packet,
+            vec!["dregg-live-ref".to_string()],
+            vec!["origin:https://example.test".to_string()],
+        );
+        let frame = call_gateway(router, encode_ingress_request_v1(&request).unwrap()).await;
+        let response = DecisionResponse::decode(&frame)
+            .expect("resource-lock mismatch should produce a decision response");
+        assert!(!response.is_accepted());
+        assert_eq!(
+            response.reason_code.as_deref(),
+            Some(VerificationError::ResourceLockViolation.reason_code())
+        );
+
+        let accepts: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE kind = 'accept'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            accepts.0, 0,
+            "resource-lock mismatch must not create an accept receipt"
+        );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn real_dregg_resource_lock_binds_verified_context_resource() {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool.clone());
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        router.set_evidence_adapter(Arc::new(resource_locked_dregg_adapter()));
+        let router = Arc::new(router);
+
+        let mut request_packet = packet(
+            br#"{"membership":"requested","requested_resource":"urn:secs:member:alice/profile"}"#,
+        );
+        request_packet.opcode = 0x44;
+        let request = IngressRequestV1::new(
+            request_packet,
+            vec!["dregg-live-ref".to_string()],
+            vec!["origin:https://example.test".to_string()],
+        );
+        let frame = call_gateway(router, encode_ingress_request_v1(&request).unwrap()).await;
+        let response = DecisionResponse::decode(&frame)
+            .expect("resource-locked Dregg authority should produce a decision response");
+        assert!(response.is_accepted());
+        let evidence_summary: (String,) =
+            sqlx::query_as("SELECT evidence_summary FROM receipts WHERE kind = 'verify'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(
+            evidence_summary.0.contains("resource_lock:verified"),
+            "the signed verify receipt must carry the verified Dregg resource-lock marker"
+        );
+        assert!(
+            evidence_summary
+                .0
+                .contains("resource:urn:secs:member:alice/profile"),
+            "the signed context must bind the Dregg-locked mutation resource"
+        );
     }
 
     #[tokio::test]
