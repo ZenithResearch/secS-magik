@@ -395,6 +395,61 @@ impl Verifier {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_manifest_operation_with_live_evidence_and_sign_for_runtime_with_identity_and_caller(
+        packet: &ZenithPacket,
+        manifest: &ReceiverManifest,
+        audience: &str,
+        inputs: &crate::evidence::EvidenceInputs,
+        adapter: &dyn EvidenceAdapter,
+        now: u64,
+        identity: &NodeVerifierIdentity,
+        runtime_mode: RuntimeMode,
+        caller_keys: Option<&crate::caller::CallerKeyRegistry>,
+    ) -> Result<SignedVerifiedCallContext, VerificationError> {
+        if crate::clock::is_clock_read_failure(now) {
+            return Err(VerificationError::ExpiredClaim);
+        }
+        Self::verify_prototype_envelope(packet)?;
+        let descriptor = manifest.lookup(packet.opcode)?;
+        reject_non_production_descriptor(descriptor, runtime_mode)?;
+        let subject = match (runtime_mode, caller_keys) {
+            (_, Some(registry)) => {
+                let caller = crate::caller::verify_caller_proof(packet, registry, now)?;
+                VerifiedSubject {
+                    subject_id: caller.subject_id,
+                    key_id: caller.key_id,
+                }
+            }
+            (RuntimeMode::ProductionVerified, None) => {
+                return Err(VerificationError::MissingCallerRegistry);
+            }
+            (_, None) => prototype_subject(),
+        };
+        let mut request = EvidenceRequest::from_descriptor_with_refs(
+            descriptor,
+            &subject.subject_id,
+            audience,
+            inputs.evidence_refs().iter().map(String::as_str),
+        );
+        request
+            .public_inputs
+            .extend(inputs.public_inputs().iter().cloned());
+        let evidence_summary = match adapter.verify(&request) {
+            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
+            EvidenceResult::Rejected(error) => return Err(error),
+        };
+        let context = verified_context_for_descriptor(
+            packet,
+            descriptor,
+            audience,
+            subject,
+            evidence_summary,
+            now,
+        )?;
+        identity.sign_context(context)
+    }
+
     pub fn verify_manifest_operation_and_sign_with_kind(
         packet: &ZenithPacket,
         manifest: &ReceiverManifest,

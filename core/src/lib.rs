@@ -11,6 +11,7 @@ pub mod ffi;
 #[cfg(all(feature = "uniffi", target_arch = "wasm32"))]
 uniffi::setup_scaffolding!();
 pub mod caller_proof;
+pub mod ingress_request;
 pub mod packet_builder;
 pub mod response;
 pub mod tunnel;
@@ -47,6 +48,11 @@ pub struct SessionHandshake {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ingress_request::{
+        decode_ingress_frame, encode_ingress_request_v1, IngressFrame, IngressRequestV1,
+        MAX_EVIDENCE_INPUTS, MAX_EVIDENCE_INPUT_BYTES,
+    };
+    use alloc::format;
     use alloc::string::ToString;
     use alloc::vec;
 
@@ -59,6 +65,60 @@ mod tests {
             claim_ttl: 3600,
             encrypted_payload: vec![0xDD; 128],
             mac: [0xEE; 16],
+        }
+    }
+
+    #[test]
+    fn ingress_request_v1_round_trips_packet_refs_and_public_inputs() {
+        let request = IngressRequestV1::new(
+            sample_packet(),
+            vec![
+                "wallet-ref".to_string(),
+                "credential-ref".to_string(),
+                "wallet-ref".to_string(),
+            ],
+            vec!["origin:https://example.test".to_string()],
+        );
+
+        let bytes = encode_ingress_request_v1(&request).unwrap();
+        match decode_ingress_frame(&bytes, bytes.len()).unwrap() {
+            IngressFrame::V1(decoded) => {
+                assert_eq!(decoded.packet, request.packet);
+                assert_eq!(decoded.evidence_refs, vec!["wallet-ref", "credential-ref"]);
+                assert_eq!(decoded.public_inputs, vec!["origin:https://example.test"]);
+            }
+            IngressFrame::Legacy(_) => {
+                panic!("versioned ingress request must not decode as legacy packet")
+            }
+        }
+    }
+
+    #[test]
+    fn ingress_request_v1_rejects_unbounded_evidence_metadata() {
+        let too_many = IngressRequestV1::new(
+            sample_packet(),
+            (0..=MAX_EVIDENCE_INPUTS)
+                .map(|i| format!("evidence-{i}"))
+                .collect(),
+            vec![],
+        );
+        assert!(encode_ingress_request_v1(&too_many).is_err());
+
+        let too_large = IngressRequestV1::new(
+            sample_packet(),
+            vec!["x".repeat(MAX_EVIDENCE_INPUT_BYTES + 1)],
+            vec![],
+        );
+        assert!(encode_ingress_request_v1(&too_large).is_err());
+    }
+
+    #[test]
+    fn legacy_packet_decodes_as_legacy_ingress_frame() {
+        let packet = sample_packet();
+        let bytes = bincode::serialize(&packet).unwrap();
+        match decode_ingress_frame(&bytes, bytes.len()).unwrap() {
+            IngressFrame::Legacy(decoded) => assert_eq!(decoded, packet),
+            IngressFrame::V1(_) => panic!("bare ZenithPacket must remain v0-compatible"),
         }
     }
 

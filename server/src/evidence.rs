@@ -99,6 +99,10 @@ impl EvidenceInputs {
     pub fn public_inputs(&self) -> &[String] {
         &self.public_inputs
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.evidence_refs.is_empty() && self.public_inputs.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,7 +189,7 @@ pub enum EvidenceResult {
     Rejected(VerificationError),
 }
 
-pub trait EvidenceAdapter {
+pub trait EvidenceAdapter: Send + Sync {
     fn kind(&self) -> EvidenceKind;
     fn verify(&self, request: &EvidenceRequest) -> EvidenceResult;
 }

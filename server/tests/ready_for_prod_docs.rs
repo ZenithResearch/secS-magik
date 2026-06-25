@@ -242,11 +242,11 @@ fn membership_provision_runtime_guard_docs_preserve_live_ingress_boundary() {
     for required in [
         "Complete for local production-shaped E2E",
         "PR #76",
-        "Live runtime ingress still does not verify wallet + issuer + Dregg authority evidence",
+        "versioned request envelope carrying bounded evidence refs/public inputs",
         "handler binding is not authority",
         "live TCP ingress",
-        "no evidence refs",
-        "#162/#144",
+        "configured evidence adapter path",
+        "#144/#160",
         "not production deployment",
         "not public auditability",
         "not live Castalia/Dregg discovery",
@@ -285,6 +285,9 @@ fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_aut
         "until #78 lands the activation path",
         "evidence-aware live ingress/runtime authority remains tracked in #78/#79-style follow-ups",
         "live ingress/runtime wallet + issuer evidence verification remains tracked separately in #78/#79-style follow-ups",
+        "live TCP ingress still carries no evidence refs/public inputs",
+        "live TCP ingress still has no evidence refs/public inputs",
+        "live TCP ingress remains descriptor-only",
     ] {
         for (name, text) in docs {
             assert!(
@@ -299,14 +302,14 @@ fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_aut
         "descriptor-only `production_verified`",
         "fail-closed",
         "live TCP ingress",
-        "no evidence refs",
+        "bounded evidence refs/public inputs",
         "public inputs",
-        "#162/#144",
+        "#144/#160",
         "#73 remains open until #144",
     ] {
         assert!(
             docs.iter().any(|(_, text)| text.contains(required)),
-            "membership.provision docs should preserve current #151 lockstep boundary phrase: {required}"
+            "membership.provision docs should preserve current #162 live-ingress boundary phrase: {required}"
         );
     }
 }
@@ -573,7 +576,7 @@ fn dregg_authority_docs_record_m15_5_descriptor_composition_without_overclaim() 
             "M15.5 / #141",
             "wallet + issuer + Dregg authority",
             "M12.3 shape-only `dregg_receipt` cannot satisfy",
-            "#159 remains unresolved",
+            "#159 is resolved as explicit fail-closed blocker posture",
             "#160 remains future",
         ],
     );
@@ -708,7 +711,7 @@ fn dregg_seam_migration_docs_remove_stale_live_ingress_and_future_authority_clai
             "M14 `dregg_backed`",
             "M15 `dregg_authority`",
             "M15.2–M15.6 now implement",
-            "#159/#160/#162",
+            "#160/#144",
         ],
     );
 }

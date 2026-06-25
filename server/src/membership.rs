@@ -16,8 +16,9 @@
 //!
 //! - descriptor-only `production_verified` verification for canonical `0x44`
 //!   still fails closed with `insufficient_evidence` (#77);
-//! - live TCP ingress supplies no evidence refs yet (#79 landed API-only),
-//!   so runtime ingress cannot mint evidence-backed contexts;
+//! - live TCP ingress supplies bounded evidence refs/public inputs via the
+//!   #162 versioned ingress request envelope, but only into configured
+//!   evidence adapters;
 //! - evidence-backed contexts require wallet proof-of-possession plus
 //!   receiver-held trusted-issuer membership credentials (Track E).
 //!

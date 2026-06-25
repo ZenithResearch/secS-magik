@@ -1,9 +1,9 @@
 use crate::config::{validate_production_startup_readiness, GatewayRuntimeConfig};
+use crate::evidence::EvidenceInputs;
 use crate::gateway::{init_telemetry_schema, register_runtime_bindings, ConfigurableRouter};
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
 };
-use crate::manifest::ReceiverManifest;
 use crate::payload::decrypt_machine_payload;
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::{VerificationError, Verifier};
@@ -66,11 +66,17 @@ impl fmt::Display for IngressReadError {
 
 impl std::error::Error for IngressReadError {}
 
-pub async fn read_bounded_wire_packet<R>(
+pub struct DecodedIngressRequest {
+    pub packet: ZenithPacket,
+    pub evidence_inputs: EvidenceInputs,
+    pub versioned_request: bool,
+}
+
+pub async fn read_bounded_ingress_request<R>(
     reader: R,
     max_wire_bytes: usize,
     read_timeout: Duration,
-) -> Result<Option<ZenithPacket>, IngressReadError>
+) -> Result<Option<DecodedIngressRequest>, IngressReadError>
 where
     R: AsyncRead + Unpin,
 {
@@ -92,14 +98,69 @@ where
         });
     }
 
+    if wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V1_MAGIC) {
+        match libsec_core::ingress_request::decode_ingress_frame(&wire_bytes, max_wire_bytes) {
+            Ok(libsec_core::ingress_request::IngressFrame::V1(request)) => {
+                return Ok(Some(DecodedIngressRequest {
+                    packet: request.packet,
+                    evidence_inputs: EvidenceInputs::new(
+                        request.evidence_refs,
+                        request.public_inputs,
+                    ),
+                    versioned_request: true,
+                }));
+            }
+            Ok(libsec_core::ingress_request::IngressFrame::Legacy(packet)) => {
+                return Ok(Some(DecodedIngressRequest {
+                    packet,
+                    evidence_inputs: EvidenceInputs::default(),
+                    versioned_request: false,
+                }));
+            }
+            Err(libsec_core::ingress_request::IngressRequestError::FrameTooLarge)
+            | Err(libsec_core::ingress_request::IngressRequestError::TooManyEvidenceInputs)
+            | Err(libsec_core::ingress_request::IngressRequestError::EvidenceInputTooLarge) => {
+                return Err(IngressReadError::LogicalFrameTooLarge {
+                    field: "ingress_request",
+                    declared_len: wire_bytes.len() as u64,
+                    limit: max_wire_bytes,
+                });
+            }
+            Err(libsec_core::ingress_request::IngressRequestError::Malformed) => {
+                return Err(IngressReadError::MalformedPacket(Box::new(
+                    bincode::ErrorKind::Custom("malformed ingress request".to_string()),
+                )));
+            }
+        }
+    }
+
     reject_huge_declared_vec_lengths(&wire_bytes, max_wire_bytes)?;
 
     bincode::DefaultOptions::new()
         .with_fixint_encoding()
         .with_limit(max_wire_bytes as u64)
         .deserialize::<ZenithPacket>(&wire_bytes)
-        .map(Some)
+        .map(|packet| {
+            Some(DecodedIngressRequest {
+                packet,
+                evidence_inputs: EvidenceInputs::default(),
+                versioned_request: false,
+            })
+        })
         .map_err(IngressReadError::MalformedPacket)
+}
+
+pub async fn read_bounded_wire_packet<R>(
+    reader: R,
+    max_wire_bytes: usize,
+    read_timeout: Duration,
+) -> Result<Option<ZenithPacket>, IngressReadError>
+where
+    R: AsyncRead + Unpin,
+{
+    read_bounded_ingress_request(reader, max_wire_bytes, read_timeout)
+        .await
+        .map(|request| request.map(|request| request.packet))
 }
 
 fn reject_huge_declared_vec_lengths(
@@ -211,8 +272,14 @@ pub async fn handle_gateway_connection_with_limits(
     runtime_mode: RuntimeMode,
 ) {
     let (read_half, mut write_half) = socket.into_split();
-    let packet = match read_bounded_wire_packet(read_half, max_wire_bytes, read_timeout).await {
-        Ok(Some(packet)) => packet,
+    let decoded_request = match read_bounded_ingress_request(
+        read_half,
+        max_wire_bytes,
+        read_timeout,
+    )
+    .await
+    {
+        Ok(Some(request)) => request,
         Ok(None) => return,
         Err(IngressReadError::MalformedPacket(error)) => {
             eprintln!("secS [Transport]: rejected malformed packet - {}", error);
@@ -266,6 +333,8 @@ pub async fn handle_gateway_connection_with_limits(
             return;
         }
     };
+    let evidence_inputs = decoded_request.evidence_inputs;
+    let packet = decoded_request.packet;
 
     if let Err(error) = Verifier::verify_prototype_envelope(&packet) {
         eprintln!(
@@ -304,13 +373,65 @@ pub async fn handle_gateway_connection_with_limits(
         }
     };
 
-    let manifest = ReceiverManifest::default_v0();
-    let signed_context =
+    let manifest = router.manifest();
+    let now = current_unix_seconds();
+    let signed_context = if !evidence_inputs.is_empty() {
+        match router.evidence_adapter() {
+            Some(adapter) => match Verifier::verify_manifest_operation_with_live_evidence_and_sign_for_runtime_with_identity_and_caller(
+                &packet,
+                manifest,
+                router.expected_audience(),
+                &evidence_inputs,
+                adapter,
+                now,
+                router.identity(),
+                runtime_mode,
+                router.caller_keys(),
+            ) {
+                Ok(context) => context,
+                Err(error) => {
+                    eprintln!(
+                        "secS [Manifest]: rejected evidence-backed packet before handler lookup - {}",
+                        error.reason_code()
+                    );
+                    let reason = error.reason_code();
+                    let receipt_id = router.record_reject(&packet, error).await;
+                    write_decision_response(
+                        &mut write_half,
+                        &libsec_core::response::DecisionResponse::rejected(
+                            reason,
+                            None,
+                            Some(receipt_id),
+                        ),
+                        read_timeout,
+                    )
+                    .await;
+                    return;
+                }
+            },
+            None => {
+                let error = VerificationError::InsufficientEvidence;
+                eprintln!(
+                    "secS [Manifest]: rejected evidence-backed packet without configured adapter - {}",
+                    error.reason_code()
+                );
+                let reason = error.reason_code();
+                let receipt_id = router.record_reject(&packet, error).await;
+                write_decision_response(
+                    &mut write_half,
+                    &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+                    read_timeout,
+                )
+                .await;
+                return;
+            }
+        }
+    } else {
         match Verifier::verify_manifest_operation_and_sign_for_runtime_with_identity_and_caller(
             &packet,
-            &manifest,
+            manifest,
             router.expected_audience(),
-            current_unix_seconds(),
+            now,
             router.identity(),
             runtime_mode,
             router.caller_keys(),
@@ -335,7 +456,8 @@ pub async fn handle_gateway_connection_with_limits(
                 .await;
                 return;
             }
-        };
+        }
+    };
 
     let response = router.route_verified(&signed_context, payload).await;
     write_decision_response(&mut write_half, &response, read_timeout).await;
