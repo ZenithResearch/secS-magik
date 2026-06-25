@@ -5,10 +5,15 @@ mod wallet_fixtures;
 
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
+use server::dregg_authority::{
+    DreggAuthorityEntry, DreggAuthorityFinalityStatus, DreggAuthorityRegistry,
+    DreggAuthorityRevocationStatus, DreggAuthorityStatus, DreggAuthorityStatusPolicy,
+};
 use server::evidence::{
-    CompositeEvidenceAdapter, EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult,
-    FederatedCredentialAdapter, FederatedCredentialStatus, LocalStaticEvidenceAdapter,
-    LocalStaticGrant, TrustedIssuerRegistry, TrustedIssuerStatus, WalletPresentationAdapter,
+    CompositeEvidenceAdapter, DreggAuthorityEvidenceAdapter, DreggAuthorityGrantFixture,
+    EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, FederatedCredentialAdapter,
+    FederatedCredentialStatus, LocalStaticEvidenceAdapter, LocalStaticGrant, TrustedIssuerRegistry,
+    TrustedIssuerStatus, WalletPresentationAdapter,
 };
 use server::gateway::{
     init_telemetry_schema, ConfigurableRouter, ExecutionLimits, HandlerOutcome, MachineProgram,
@@ -259,6 +264,70 @@ fn current_test_time() -> u64 {
         .duration_since(UNIX_EPOCH)
         .expect("clock should be after unix epoch")
         .as_secs()
+}
+
+const DREGG_AUTHORITY_EVIDENCE_REF: &str = "dregg-authority:membership-provision:alice";
+const DREGG_AUTHORITY_ISSUER_ID: &str = "did:dregg:issuer:membership-fixture";
+const DREGG_AUTHORITY_ISSUER_KEY_ID: &str = "dregg-issuer-key:membership-fixture-1";
+const DREGG_AUTHORITY_ROOT_REF: &str = "dregg-root:membership-fixture-2026q2";
+const DREGG_AUTHORITY_ROOT_FINGERPRINT: &str = "root:sha256:membership-fixture-2026q2";
+const DREGG_AUTHORITY_EPOCH_ID: &str = "epoch:2026q2";
+const DREGG_AUTHORITY_SUITE: &str = "dregg_authority_fixture_v1";
+
+fn dregg_authority_registry(require_finality: bool) -> DreggAuthorityRegistry {
+    DreggAuthorityRegistry::new([DreggAuthorityEntry {
+        issuer_id: DREGG_AUTHORITY_ISSUER_ID.to_string(),
+        issuer_key_id: DREGG_AUTHORITY_ISSUER_KEY_ID.to_string(),
+        issuer_public_key_hex: "1111111111111111111111111111111111111111111111111111111111111111"
+            .to_string(),
+        federation_id: "dregg-federation:membership-fixture".to_string(),
+        root_ref: DREGG_AUTHORITY_ROOT_REF.to_string(),
+        root_fingerprint: DREGG_AUTHORITY_ROOT_FINGERPRINT.to_string(),
+        epoch_id: DREGG_AUTHORITY_EPOCH_ID.to_string(),
+        epoch_not_before: TRUSTED_VALIDATION_TIME - 60,
+        epoch_not_after: TRUSTED_VALIDATION_TIME + 3_600,
+        accepted_audiences: vec![TRUSTED_AUDIENCE.to_string()],
+        accepted_operations: vec![MEMBERSHIP_OPERATION.to_string()],
+        accepted_resources: vec![TRUSTED_RESOURCE.to_string()],
+        accepted_suites: vec![DREGG_AUTHORITY_SUITE.to_string()],
+        status_policy: DreggAuthorityStatusPolicy {
+            require_status: true,
+            max_status_age_seconds: 300,
+            require_revocation_check: true,
+            require_finality,
+        },
+        root_status: DreggAuthorityStatus::Active,
+        issuer_status: DreggAuthorityStatus::Active,
+    }])
+    .expect("Dregg authority registry fixture should be valid")
+}
+
+fn dregg_authority_fixture() -> DreggAuthorityGrantFixture {
+    DreggAuthorityGrantFixture {
+        evidence_ref: DREGG_AUTHORITY_EVIDENCE_REF.to_string(),
+        token: DreggAuthorityGrantFixture::fixture_token(
+            TRUSTED_SUBJECT,
+            MEMBERSHIP_OPERATION,
+            TRUSTED_VALIDATION_TIME + 300,
+        ),
+        issuer_id: DREGG_AUTHORITY_ISSUER_ID.to_string(),
+        issuer_key_id: DREGG_AUTHORITY_ISSUER_KEY_ID.to_string(),
+        root_ref: DREGG_AUTHORITY_ROOT_REF.to_string(),
+        root_fingerprint: DREGG_AUTHORITY_ROOT_FINGERPRINT.to_string(),
+        epoch_id: DREGG_AUTHORITY_EPOCH_ID.to_string(),
+        suite: DREGG_AUTHORITY_SUITE.to_string(),
+        status_checked_at: Some(TRUSTED_VALIDATION_TIME - 10),
+        revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+        finality_status: Some(DreggAuthorityFinalityStatus::Final),
+    }
+}
+
+fn dregg_authority_adapter() -> DreggAuthorityEvidenceAdapter {
+    DreggAuthorityEvidenceAdapter::new(
+        [dregg_authority_fixture()],
+        dregg_authority_registry(true),
+        TRUSTED_VALIDATION_TIME,
+    )
 }
 
 fn hex_lower(bytes: &[u8]) -> String {
@@ -838,6 +907,29 @@ fn composite_adapter<'a>(
     ])
 }
 
+fn composite_adapter_with_dregg<'a>(
+    wallet: &'a WalletPresentationAdapter,
+    credential: &'a FederatedCredentialAdapter,
+    dregg: &'a DreggAuthorityEvidenceAdapter,
+) -> CompositeEvidenceAdapter<'a> {
+    CompositeEvidenceAdapter::new([
+        wallet as &dyn EvidenceAdapter,
+        credential as &dyn EvidenceAdapter,
+        dregg as &dyn EvidenceAdapter,
+    ])
+}
+
+fn membership_evidence_inputs_with_dregg() -> server::evidence::EvidenceInputs {
+    server::evidence::EvidenceInputs::new(
+        [
+            WALLET_EVIDENCE_REF,
+            MEMBERSHIP_CREDENTIAL_REF,
+            DREGG_AUTHORITY_EVIDENCE_REF,
+        ],
+        [origin_input(TRUSTED_ORIGIN)],
+    )
+}
+
 fn membership_wallet_adapter() -> WalletPresentationAdapter {
     let mut fixture = wallet_fixture();
     fixture.operation = MEMBERSHIP_OPERATION.to_string();
@@ -1211,6 +1303,80 @@ fn membership_provision_default_manifest_exposes_canonical_descriptor_contract()
         .accepted_evidence
         .iter()
         .any(|kind| kind == EvidenceKind::PrototypeProofEnvelope.as_str()));
+    assert!(descriptor
+        .accepted_evidence
+        .iter()
+        .any(|kind| kind == EvidenceKind::DreggAuthority.as_str()));
+    assert!(!descriptor
+        .accepted_evidence
+        .iter()
+        .any(|kind| kind == EvidenceKind::DreggReceipt.as_str()));
+}
+
+#[test]
+fn membership_provision_rejects_wallet_and_issuer_without_dregg_authority() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let composite = composite_adapter(&wallet, &credential);
+
+    assert_eq!(
+        composite.verify(&request_with_refs(
+            &descriptor,
+            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        )),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence),
+        "wallet proof plus issuer credential must not satisfy canonical membership.provision once M15.5 requires dregg_authority"
+    );
+}
+
+#[test]
+fn membership_provision_accepts_wallet_issuer_and_dregg_authority_together() {
+    let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let dregg = dregg_authority_adapter();
+    let composite = CompositeEvidenceAdapter::new([
+        &wallet as &dyn EvidenceAdapter,
+        &credential as &dyn EvidenceAdapter,
+        &dregg as &dyn EvidenceAdapter,
+    ]);
+
+    let EvidenceResult::Satisfied(summary) = composite.verify(&request_with_refs(
+        &descriptor,
+        [
+            WALLET_EVIDENCE_REF,
+            MEMBERSHIP_CREDENTIAL_REF,
+            DREGG_AUTHORITY_EVIDENCE_REF,
+        ],
+    )) else {
+        panic!("wallet + issuer + dregg_authority should satisfy M15.5 descriptor composition");
+    };
+
+    let joined = summary.summary_fields.join("\n");
+    assert!(joined.contains("evidence_kind:wallet_presentation"));
+    assert!(joined.contains("evidence_kind:membership_credential"));
+    assert!(joined.contains("evidence_kind:dregg_authority"));
+    assert!(joined.contains("admission:admitted"));
+    assert!(
+        !summary.public_proof,
+        "#141 must not overclaim #159 proof/finality/public-audit semantics"
+    );
+    assert!(
+        summary
+            .summary_fields
+            .iter()
+            .all(|field| !field.contains(&dregg_authority_fixture().token)),
+        "raw Dregg authority token must not be disclosed in descriptor-composition summaries"
+    );
 }
 
 #[test]
@@ -1303,12 +1469,20 @@ async fn membership_provision_e2e_contract_reaches_verify_execute_and_ledger_ins
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
     let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     let payload = packet.encrypted_payload.clone();
     let payload_size = payload.len() as i64;
 
-    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(        &packet,        &manifest,        TRUSTED_AUDIENCE,        TRUSTED_SUBJECT,        &server::evidence::EvidenceInputs::new(            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],            [origin_input(TRUSTED_ORIGIN)],        ),        &composite,        current_test_time(),
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &membership_evidence_inputs_with_dregg(),
+        &composite,
+        current_test_time(),
         "verifier:local-prototype",
         &[7u8; 32],
     )
@@ -1400,11 +1574,19 @@ async fn membership_provision_verifier_acceptance_without_execute_receipt_is_not
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
     let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     let payload = packet.encrypted_payload.clone();
 
-    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(        &packet,        &manifest,        TRUSTED_AUDIENCE,        TRUSTED_SUBJECT,        &server::evidence::EvidenceInputs::new(            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],            [origin_input(TRUSTED_ORIGIN)],        ),        &composite,        current_test_time(),
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &membership_evidence_inputs_with_dregg(),
+        &composite,
+        current_test_time(),
         "verifier:local-prototype",
         &[7u8; 32],
     )
@@ -1724,7 +1906,8 @@ async fn membership_provision_rejects_remain_inspectable_and_redacted() {
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
 
     let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
         &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
@@ -1732,7 +1915,11 @@ async fn membership_provision_rejects_remain_inspectable_and_redacted() {
         TRUSTED_AUDIENCE,
         TRUSTED_SUBJECT,
         &server::evidence::EvidenceInputs::new(
-            [sensitive_wallet_ref, sensitive_credential_ref],
+            [
+                sensitive_wallet_ref,
+                sensitive_credential_ref,
+                DREGG_AUTHORITY_EVIDENCE_REF,
+            ],
             [origin_input(TRUSTED_ORIGIN)],
         ),
         &composite,
@@ -1862,7 +2049,8 @@ fn membership_provision_session_and_packet_guards_still_apply_after_evidence() {
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
 
     let mut invalid_session = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     invalid_session.session_id = [0u8; 16];
@@ -1872,10 +2060,7 @@ fn membership_provision_session_and_packet_guards_still_apply_after_evidence() {
             &manifest,
             TRUSTED_AUDIENCE,
             TRUSTED_SUBJECT,
-            &server::evidence::EvidenceInputs::new(
-                [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
-                [origin_input(TRUSTED_ORIGIN)],
-            ),
+            &membership_evidence_inputs_with_dregg(),
             &composite,
             current_test_time(),
             "verifier:local-prototype",
@@ -1893,10 +2078,7 @@ fn membership_provision_session_and_packet_guards_still_apply_after_evidence() {
             &manifest,
             TRUSTED_AUDIENCE,
             TRUSTED_SUBJECT,
-            &server::evidence::EvidenceInputs::new(
-                [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
-                [origin_input(TRUSTED_ORIGIN)],
-            ),
+            &membership_evidence_inputs_with_dregg(),
             &composite,
             current_test_time(),
             "verifier:local-prototype",
@@ -1908,7 +2090,7 @@ fn membership_provision_session_and_packet_guards_still_apply_after_evidence() {
 }
 
 #[test]
-fn wallet_and_issuer_composition_requires_both_layers() {
+fn wallet_issuer_and_dregg_authority_composition_requires_all_three_layers() {
     let descriptor = wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE);
     let wallet = membership_wallet_adapter();
     let credential = FederatedCredentialAdapter::new(
@@ -1916,20 +2098,30 @@ fn wallet_and_issuer_composition_requires_both_layers() {
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
 
-    assert_eq!(
-        composite.verify(&request_for(&descriptor, Some(WALLET_EVIDENCE_REF))),
-        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
-    );
-    assert_eq!(
-        composite.verify(&request_for(&descriptor, Some(MEMBERSHIP_CREDENTIAL_REF))),
-        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
-    );
+    for refs in [
+        vec![WALLET_EVIDENCE_REF],
+        vec![MEMBERSHIP_CREDENTIAL_REF],
+        vec![DREGG_AUTHORITY_EVIDENCE_REF],
+        vec![WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        vec![WALLET_EVIDENCE_REF, DREGG_AUTHORITY_EVIDENCE_REF],
+        vec![MEMBERSHIP_CREDENTIAL_REF, DREGG_AUTHORITY_EVIDENCE_REF],
+    ] {
+        assert_eq!(
+            composite.verify(&request_with_refs(&descriptor, refs)),
+            EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+        );
+    }
 
     match composite.verify(&request_with_refs(
         &descriptor,
-        [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
+        [
+            WALLET_EVIDENCE_REF,
+            MEMBERSHIP_CREDENTIAL_REF,
+            DREGG_AUTHORITY_EVIDENCE_REF,
+        ],
     )) {
         EvidenceResult::Satisfied(summary) => {
             assert!(summary
@@ -1943,10 +2135,18 @@ fn wallet_and_issuer_composition_requires_both_layers() {
             assert!(summary
                 .summary_fields
                 .iter()
+                .any(|field| field == "evidence_kind:dregg_authority"));
+            assert!(summary
+                .summary_fields
+                .iter()
                 .any(|field| field == "credential_kind:membership_credential"));
+            assert!(summary
+                .summary_fields
+                .iter()
+                .any(|field| field == "admission:admitted"));
         }
         EvidenceResult::Rejected(error) => {
-            panic!("expected both evidence layers to satisfy, got {error:?}")
+            panic!("expected all three evidence layers to satisfy, got {error:?}")
         }
     }
 }
@@ -2099,7 +2299,7 @@ fn tri_evidence_descriptor(opcode: u8) -> server::manifest::OperationDescriptor 
 }
 
 #[test]
-fn wallet_issuer_and_dregg_shaped_evidence_compose_through_composite_adapter() {
+fn wallet_issuer_and_dregg_shaped_evidence_cannot_satisfy_production_dregg_authority() {
     let wallet = membership_wallet_adapter();
     let credential = FederatedCredentialAdapter::new(
         [membership_credential_fixture()],
@@ -2117,7 +2317,7 @@ fn wallet_issuer_and_dregg_shaped_evidence_compose_through_composite_adapter() {
     ]);
 
     let request = request_with_refs(
-        &tri_evidence_descriptor(WALLET_AND_MEMBERSHIP_OPCODE),
+        &wallet_and_membership_descriptor(WALLET_AND_MEMBERSHIP_OPCODE),
         [
             WALLET_EVIDENCE_REF,
             MEMBERSHIP_CREDENTIAL_REF,
@@ -2125,21 +2325,10 @@ fn wallet_issuer_and_dregg_shaped_evidence_compose_through_composite_adapter() {
         ],
     );
 
-    match composite.verify(&request) {
-        EvidenceResult::Satisfied(summary) => {
-            let joined = summary.to_context_fields().join("|");
-            assert!(joined.contains("evidence_kind:wallet_presentation"));
-            assert!(joined.contains("evidence_kind:membership_credential"));
-            assert!(joined.contains("evidence_kind:dregg_receipt"));
-            assert!(
-                !summary.public_proof,
-                "composition including shape-only Dregg evidence must not claim public proof"
-            );
-        }
-        EvidenceResult::Rejected(error) => {
-            panic!("wallet + issuer + dregg composition must satisfy, got {error:?}")
-        }
-    }
+    assert_rejected(
+        composite.verify(&request),
+        VerificationError::InsufficientEvidence,
+    );
 }
 
 #[test]
@@ -2206,7 +2395,8 @@ fn canonical_multi_ref_signed(
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
 
     Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
         &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
@@ -2222,13 +2412,20 @@ fn canonical_multi_ref_signed(
 }
 
 #[test]
-fn canonical_multi_ref_api_accepts_wallet_plus_credential_refs_directly() {
-    let signed = canonical_multi_ref_signed(&[WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF])
-        .expect("wallet + membership credential refs via the canonical API must verify");
+fn canonical_multi_ref_api_accepts_wallet_credential_and_dregg_authority_refs_directly() {
+    let signed = canonical_multi_ref_signed(&[
+        WALLET_EVIDENCE_REF,
+        MEMBERSHIP_CREDENTIAL_REF,
+        DREGG_AUTHORITY_EVIDENCE_REF,
+    ])
+    .expect(
+        "wallet + membership credential + dregg_authority refs via the canonical API must verify",
+    );
 
     let summary = signed.context.evidence_summary.join("|");
     assert!(summary.contains("evidence_kind:wallet_presentation"));
     assert!(summary.contains("evidence_kind:membership_credential"));
+    assert!(summary.contains("evidence_kind:dregg_authority"));
 }
 
 #[test]
@@ -2283,7 +2480,8 @@ fn canonical_signed_with(
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
 
     Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
         &production_packet(WALLET_AND_MEMBERSHIP_OPCODE),
@@ -2395,10 +2593,7 @@ fn canonical_path_rejects_wrong_operation_and_resource_descriptors() {
         &manifest,
         TRUSTED_AUDIENCE,
         TRUSTED_SUBJECT,
-        &server::evidence::EvidenceInputs::new(
-            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
-            [origin_input(TRUSTED_ORIGIN)],
-        ),
+        &membership_evidence_inputs_with_dregg(),
         &composite,
         current_test_time(),
         "verifier:local-prototype",
@@ -2414,10 +2609,7 @@ fn canonical_path_rejects_wrong_operation_and_resource_descriptors() {
         &manifest,
         TRUSTED_AUDIENCE,
         TRUSTED_SUBJECT,
-        &server::evidence::EvidenceInputs::new(
-            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
-            [origin_input(TRUSTED_ORIGIN)],
-        ),
+        &membership_evidence_inputs_with_dregg(),
         &composite,
         current_test_time(),
         "verifier:local-prototype",
@@ -2444,7 +2636,8 @@ fn evidence_backed_signed_for_default_manifest(
         trusted_registry(),
         TRUSTED_VALIDATION_TIME,
     );
-    let composite = composite_adapter(&wallet, &credential);
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
     let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
     let payload = packet.encrypted_payload.clone();
 
@@ -2453,10 +2646,7 @@ fn evidence_backed_signed_for_default_manifest(
         &manifest,
         TRUSTED_AUDIENCE,
         TRUSTED_SUBJECT,
-        &server::evidence::EvidenceInputs::new(
-            [WALLET_EVIDENCE_REF, MEMBERSHIP_CREDENTIAL_REF],
-            [origin_input(TRUSTED_ORIGIN)],
-        ),
+        &membership_evidence_inputs_with_dregg(),
         &composite,
         current_test_time(),
         "verifier:local-prototype",
@@ -2665,12 +2855,23 @@ fn active_membership_provision_descriptor_contract_is_pinned_field_by_field() {
     );
     assert_eq!(
         active.required_credentials,
-        vec!["trusted.membership", "wallet.presentation"]
+        vec![
+            "trusted.membership",
+            "wallet.presentation",
+            "dregg.authority"
+        ]
     );
-    assert_eq!(active.required_capabilities, vec!["membership.provision"]);
+    assert_eq!(
+        active.required_capabilities,
+        vec!["membership.provision", "dregg_authority"]
+    );
     assert_eq!(
         active.accepted_evidence,
-        vec!["wallet_presentation", "membership_credential"]
+        vec![
+            "wallet_presentation",
+            "membership_credential",
+            "dregg_authority"
+        ]
     );
     assert_eq!(
         active.replay_scope,

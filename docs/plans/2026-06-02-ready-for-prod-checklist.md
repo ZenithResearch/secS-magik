@@ -63,6 +63,20 @@ M15.4 (#140) hardens the existing `dregg_authority` seam without closing #73. It
 
 The selected production path is intentionally conservative: this issue names Dregg `expected_revocation_root`, `RevocationVerifier`, `ReceiptQc::Threshold`, and `rotated_replay` follow-ups as hardening surfaces, but it does not claim public proof, BLS threshold finality, rotated-replay verification, deployment proof, public auditability, Midnight, or Cardano.
 
+
+
+## M15.5 / #141 — production descriptor composition
+
+M15.5 (#141) wires `dregg_authority` into canonical `0x44 membership.provision` descriptor composition. The success path now requires wallet + issuer + Dregg authority evidence together: `wallet_presentation`, `membership_credential`, and `dregg_authority`.
+
+- Wallet plus issuer evidence alone rejects as `insufficient_evidence`.
+- `dregg_authority` alone rejects as `insufficient_evidence`.
+- M12.3 shape-only `dregg_receipt` cannot satisfy the production `dregg_authority` requirement.
+- Receiver-local descriptor/resource/session/replay/TTL/permission/handler policy still applies before side effects.
+- #159 remains unresolved for live Dregg revocation proof, BLS finality, and rotated-replay proof verification.
+- #160 remains future for Dregg-provisioned resource locks; #141 does not claim resource-lock authority.
+- #73 remains open until #144 finalizes the production-shaped E2E/demo/docs without overclaiming #159/#160.
+
 ## A0 — Production target
 
 First-prod readiness requires all three Track A rails:

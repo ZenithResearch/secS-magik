@@ -112,6 +112,20 @@ M15.4 (#140) turns the #139 policy-admission seam into an explicit fail-closed r
 
 The concrete in-repo implementation remains a bounded fixture/policy seam. Upstream production surfaces are named, not overclaimed: Dregg credentials `expected_revocation_root`, federation `RevocationVerifier` / `RevocationTree`, `ReceiptQc::Threshold` with BLS committee plumbing, and `rotated_replay` / `verify_rotated_replay_chain` are the candidate hardening rails. Any unavailable revocation/finality semantic is a named blockers item and must fail closed or keep production Dregg authority not-ready; it must never silently accept.
 
+
+
+## M15.5 / #141 descriptor composition
+
+M15.5 (#141) composes `dregg_authority` into the canonical production `membership.provision` descriptor. The active default manifest now requires all three evidence kinds before a signed context can authorize the operation:
+
+- `wallet_presentation` proves possession of the claimed subject key;
+- `membership_credential` proves trusted issuer membership/provisioning evidence under receiver-held issuer/root policy;
+- `dregg_authority` proves the bounded Dregg authority policy-admission seam under receiver-held Dregg issuer/root/epoch/status policy.
+
+Wallet plus issuer evidence is no longer sufficient for canonical `membership.provision`; missing `dregg_authority` rejects as `insufficient_evidence`. Conversely, `dregg_authority` alone is never sufficient and cannot bypass receiver-local descriptor, permission, session, replay, TTL, or handler-binding policy. M12.3 shape-only `dregg_receipt` cannot satisfy the production `dregg_authority` requirement.
+
+This issue does not close #73. #159 remains unresolved for live Dregg revocation proof, BLS finality, and rotated-replay proof verification. #160 remains future for Dregg-provisioned resource locks; #141 binds operation/resource through receiver-local descriptor and request policy only, not Dregg resource-lock authority.
+
 ## #73 rewritten acceptance criteria
 
 #73 should now close only when these acceptance criteria are met:

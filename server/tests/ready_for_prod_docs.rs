@@ -549,3 +549,32 @@ fn dregg_authority_docs_record_m15_4_fail_closed_posture_and_blockers() {
         ],
     );
 }
+
+#[test]
+fn dregg_authority_docs_record_m15_5_descriptor_composition_without_overclaim() {
+    contains_all(
+        "docs/specs/dregg-authority-rail.md",
+        DREGG_AUTHORITY_SPEC,
+        &[
+            "M15.5 / #141",
+            "membership.provision",
+            "wallet_presentation",
+            "membership_credential",
+            "dregg_authority",
+            "#159",
+            "#160",
+            "does not close #73",
+        ],
+    );
+    contains_all(
+        "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+        READY_FOR_PROD_CHECKLIST,
+        &[
+            "M15.5 / #141",
+            "wallet + issuer + Dregg authority",
+            "M12.3 shape-only `dregg_receipt` cannot satisfy",
+            "#159 remains unresolved",
+            "#160 remains future",
+        ],
+    );
+}
