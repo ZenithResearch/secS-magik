@@ -1226,6 +1226,6 @@ Track A is now complete through A9. Preserve the repo workflow pattern going for
 - Documentation navigation now follows a README-as-map pattern: the root README links to child READMEs for `core/`, `client/`, `server/`, `docs/`, `docs/specs/`, `docs/plans/`, `examples/`, and `scripts/`, and stale historical-plan language is explicitly caveated.
 
 
-### #167 attenuation boundary
+### #169 trusted requested-authority attenuation boundary
 
 #167 adds delegated attenuation / non-amplification: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` on the live evidence path before handler dispatch. #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles this boundary without overclaim.

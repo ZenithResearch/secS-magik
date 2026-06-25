@@ -618,7 +618,11 @@ mod decision_response {
     use libsec_core::response::{DecisionResponse, MAX_DECISION_RESPONSE_BYTES};
     use tokio::io::AsyncReadExt;
 
-    async fn call_gateway(router: Arc<ConfigurableRouter>, packet_bytes: Vec<u8>) -> Vec<u8> {
+    async fn call_gateway_with_runtime(
+        router: Arc<ConfigurableRouter>,
+        packet_bytes: Vec<u8>,
+        runtime_mode: RuntimeMode,
+    ) -> Vec<u8> {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server_task = tokio::spawn(async move {
@@ -628,7 +632,7 @@ mod decision_response {
                 socket,
                 DEFAULT_TEST_WIRE_LIMIT,
                 Duration::from_secs(1),
-                RuntimeMode::LocalDevPlaintext,
+                runtime_mode,
             )
             .await;
         });
@@ -648,6 +652,10 @@ mod decision_response {
         .expect("decision response read should succeed");
         server_task.await.unwrap();
         frame
+    }
+
+    async fn call_gateway(router: Arc<ConfigurableRouter>, packet_bytes: Vec<u8>) -> Vec<u8> {
+        call_gateway_with_runtime(router, packet_bytes, RuntimeMode::LocalDevPlaintext).await
     }
 
     #[derive(Default)]
@@ -891,6 +899,95 @@ mod decision_response {
 
     #[tokio::test]
     #[serial_test::serial]
+    async fn real_dregg_attenuation_adapter_accepts_trusted_decrypted_tunnel_payload_resource() {
+        std::env::set_var(
+            "SECS_TUNNEL_KEY_HEX",
+            "0101010101010101010101010101010101010101010101010101010101010101",
+        );
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool.clone());
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevTunnel);
+        router.set_evidence_adapter(Arc::new(attenuated_dregg_adapter()));
+        let router = Arc::new(router);
+
+        let mut request_packet = packet(b"");
+        request_packet.opcode = 0x44;
+        request_packet.nonce = [7u8; 12];
+        request_packet.encrypted_payload = libsec_core::tunnel::encrypt_payload(
+            &[1u8; 32],
+            &request_packet.nonce,
+            br#"{"membership":"requested","requested_resource":"urn:secs:member:alice/profile"}"#,
+            &libsec_core::tunnel::packet_aad(
+                &request_packet.session_id,
+                request_packet.opcode,
+                request_packet.claim_ttl,
+            ),
+        );
+        let request = IngressRequestV1::new(
+            request_packet,
+            vec!["dregg-live-ref".to_string()],
+            vec!["origin:https://example.test".to_string()],
+        );
+        let frame = call_gateway_with_runtime(
+            router,
+            encode_ingress_request_v1(&request).unwrap(),
+            RuntimeMode::LocalDevTunnel,
+        )
+        .await;
+
+        let response = DecisionResponse::decode(&frame)
+            .expect("trusted decrypted requested resource should produce a decision response");
+        assert!(
+            response.is_accepted(),
+            "trusted requested resource must be derived from decrypted tunnel payload, not ciphertext"
+        );
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn real_dregg_attenuation_adapter_accepts_trusted_payload_resource_without_public_input()
+    {
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool.clone());
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevPlaintext);
+        router.set_evidence_adapter(Arc::new(attenuated_dregg_adapter()));
+        let router = Arc::new(router);
+
+        let mut request_packet = packet(
+            br#"{"membership":"requested","requested_resource":"urn:secs:member:alice/profile"}"#,
+        );
+        request_packet.opcode = 0x44;
+        let request = IngressRequestV1::new(
+            request_packet,
+            vec!["dregg-live-ref".to_string()],
+            vec!["origin:https://example.test".to_string()],
+        );
+        let frame = call_gateway(router, encode_ingress_request_v1(&request).unwrap()).await;
+
+        let response = DecisionResponse::decode(&frame)
+            .expect("trusted in-prefix requested resource should produce a decision response");
+        assert!(
+            response.is_accepted(),
+            "trusted requested resource derived from payload should satisfy Dregg attenuation without caller public input"
+        );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
     async fn real_dregg_attenuation_adapter_rejects_amplified_live_ingress_before_dispatch() {
         std::env::remove_var("SECS_TUNNEL_KEY_HEX");
         std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
@@ -905,12 +1002,14 @@ mod decision_response {
         router.set_evidence_adapter(Arc::new(attenuated_dregg_adapter()));
         let router = Arc::new(router);
 
-        let mut request_packet = packet(br#"{"membership":"requested"}"#);
+        let mut request_packet = packet(
+            br#"{"membership":"requested","requested_resource":"urn:secs:member:bob/profile"}"#,
+        );
         request_packet.opcode = 0x44;
         let request = IngressRequestV1::new(
             request_packet,
             vec!["dregg-live-ref".to_string()],
-            vec!["requested_resource:urn:secs:member:bob/profile".to_string()],
+            vec!["requested_resource:urn:secs:member:alice/profile".to_string()],
         );
         let frame = call_gateway(router, encode_ingress_request_v1(&request).unwrap()).await;
 

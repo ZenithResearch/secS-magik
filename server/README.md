@@ -162,6 +162,6 @@ cargo test -p server trust trusted_issuer -- --nocapture
 - [Ready-for-prod checklist](../docs/plans/2026-06-02-ready-for-prod-checklist.md)
 
 
-## #167 attenuation boundary
+## #169 trusted requested-authority attenuation boundary
 
-#167 adds delegated attenuation / non-amplification for the live evidence path: requested authority must not exceed held authority. This is a no-widening check on Dregg authority admission, not Dregg-provisioned resource locks; #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles #167/#160 without overclaim.
+#169 binds delegated attenuation / non-amplification to a verifier-derived trusted requested resource on the live evidence path: requested authority must not exceed held authority, and caller-declared `requested_resource` public inputs cannot satisfy the Dregg authority check by themselves. This is a no-widening check on Dregg authority admission, not Dregg-provisioned resource locks; #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles #169/#160 without overclaim.

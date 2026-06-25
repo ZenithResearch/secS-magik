@@ -315,7 +315,7 @@ fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_aut
 }
 
 #[test]
-fn dregg_authority_docs_preserve_167_attenuation_without_resource_lock_overclaim() {
+fn dregg_authority_docs_preserve_169_trusted_requested_authority_without_resource_lock_overclaim() {
     let docs = [
         ("README.md", README),
         ("server/README.md", SERVER_README),
@@ -332,7 +332,8 @@ fn dregg_authority_docs_preserve_167_attenuation_without_resource_lock_overclaim
     ];
 
     for required in [
-        "#167",
+        "#169",
+        "trusted requested-authority",
         "delegated attenuation / non-amplification",
         "requested authority must not exceed held authority",
         "#160 remains future for Dregg-provisioned resource locks",
@@ -340,11 +341,12 @@ fn dregg_authority_docs_preserve_167_attenuation_without_resource_lock_overclaim
     ] {
         assert!(
             docs.iter().any(|(_, text)| text.contains(required)),
-            "docs should preserve #167 attenuation boundary phrase: {required}"
+            "docs should preserve #169 trusted requested-authority attenuation boundary phrase: {required}"
         );
     }
 
     for forbidden in [
+        "#169 closes #160",
         "#167 closes #160",
         "attenuation implements Dregg resource locks",
         "Dregg resource-lock authority is implemented",
@@ -358,7 +360,7 @@ fn dregg_authority_docs_preserve_167_attenuation_without_resource_lock_overclaim
         for (name, text) in docs {
             assert!(
                 !text.contains(forbidden),
-                "{name} contains stale or overclaimed #167/#162 boundary wording: {forbidden}"
+                "{name} contains stale or overclaimed #169/#162 boundary wording: {forbidden}"
             );
         }
     }

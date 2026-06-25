@@ -382,6 +382,7 @@ pub async fn handle_gateway_connection_with_limits(
                 manifest,
                 router.expected_audience(),
                 &evidence_inputs,
+                &payload,
                 adapter,
                 now,
                 router.identity(),
