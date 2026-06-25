@@ -314,11 +314,16 @@ pub fn membership_provision_descriptor() -> OperationDescriptor {
         required_credentials: vec![
             "trusted.membership".to_string(),
             "wallet.presentation".to_string(),
+            "dregg.authority".to_string(),
         ],
-        required_capabilities: vec!["membership.provision".to_string()],
+        required_capabilities: vec![
+            "membership.provision".to_string(),
+            "dregg_authority".to_string(),
+        ],
         accepted_evidence: vec![
             "wallet_presentation".to_string(),
             "membership_credential".to_string(),
+            "dregg_authority".to_string(),
         ],
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
