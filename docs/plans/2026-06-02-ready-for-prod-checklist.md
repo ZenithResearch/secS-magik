@@ -78,6 +78,12 @@ M15.5 (#141) wires `dregg_authority` into canonical `0x44 membership.provision` 
 - #73 remains open until #144 finalizes the production-shaped E2E/demo/docs without overclaiming #159/#160.
 
 
+
+
+## M15 proof hardening / #159 proof/finality blocker posture
+
+#159 resolves the proof/finality blocker posture for the current bounded seam without overclaiming live Dregg proof. It adds receiver-held `expected_revocation_root` binding with `missing_revocation_root` / `wrong_revocation_root`, and it records that `RevocationVerifier`, `RevocationTree`, `ReceiptQc::Threshold` / BLS FederationCommittee, and `verify_rotated_replay_chain` remain unsupported live verifier surfaces in this repo. Current failures are explicit: `unsupported_revocation_verifier`, `unsupported_bls_threshold_finality`, and `unsupported_rotated_replay_verifier`. Therefore the current rail has no live Dregg revocation proof, no BLS threshold finality, and no rotated-replay proof verification; #144 must keep those as implemented paths or explicit non-goals before any #73 finalizer claim. #73 remains open until #144.
+
 ## M15.6 / #142 — operator inspection and disclosure boundary
 
 M15.6 (#142) carries the Dregg authority evidence summary into signed verify receipts and local operator inspection while preserving a redaction boundary:

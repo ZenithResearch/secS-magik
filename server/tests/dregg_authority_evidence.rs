@@ -1,7 +1,7 @@
 use server::dregg_authority::{
-    DreggAuthorityEntry, DreggAuthorityFinalityStatus, DreggAuthorityLookup,
-    DreggAuthorityRegistry, DreggAuthorityRevocationStatus, DreggAuthorityStatus,
-    DreggAuthorityStatusPolicy,
+    DreggAuthorityEntry, DreggAuthorityFinalityMode, DreggAuthorityFinalityStatus,
+    DreggAuthorityLookup, DreggAuthorityRegistry, DreggAuthorityRevocationStatus,
+    DreggAuthorityRevocationVerifierMode, DreggAuthorityStatus, DreggAuthorityStatusPolicy,
 };
 use server::evidence::{
     DreggAuthorityEvidenceAdapter, DreggAuthorityGrantFixture, DreggReceiptFixture,
@@ -69,6 +69,9 @@ fn registry() -> DreggAuthorityRegistry {
             max_status_age_seconds: 300,
             require_revocation_check: true,
             require_finality: false,
+            revocation_verifier_mode: DreggAuthorityRevocationVerifierMode::ExpectedRootBinding,
+            finality_mode: DreggAuthorityFinalityMode::FixtureStatusOnly,
+            expected_revocation_root_ref: Some("dregg-revocation-root:fixture-2026q2".to_string()),
         },
         root_status: DreggAuthorityStatus::Active,
         issuer_status: DreggAuthorityStatus::Active,
@@ -89,6 +92,7 @@ fn valid_grant() -> DreggAuthorityGrantFixture {
         status_checked_at: Some(STATUS_CHECKED_AT),
         revocation_status: Some(DreggAuthorityRevocationStatus::Active),
         finality_status: None,
+        attested_revocation_root_ref: Some("dregg-revocation-root:fixture-2026q2".to_string()),
     }
 }
 
@@ -188,6 +192,7 @@ fn dregg_authority_rejects_binding_root_epoch_status_and_suite_failures() {
         status_checked_at: Some(STATUS_CHECKED_AT),
         revocation_status: Some(DreggAuthorityRevocationStatus::Active),
         finality_status: None,
+        attested_revocation_root_ref: Some("dregg-revocation-root:fixture-2026q2".to_string()),
     };
     assert!(registry().lookup_active_policy(&lookup).is_ok());
 
@@ -239,6 +244,126 @@ fn dregg_authority_rejects_binding_root_epoch_status_and_suite_failures() {
 }
 
 #[test]
+fn dregg_authority_binds_receiver_held_revocation_root_not_public_inputs() {
+    let mut missing_root = valid_grant();
+    missing_root.attested_revocation_root_ref = None;
+    let mut request_with_caller_root = request();
+    request_with_caller_root
+        .public_inputs
+        .push("revocation_root:dregg-revocation-root:fixture-2026q2".to_string());
+    assert_eq!(
+        adapter(missing_root).verify(&request_with_caller_root),
+        EvidenceResult::Rejected(VerificationError::MissingRevocationRoot),
+        "caller-supplied public_inputs must not satisfy receiver-held revocation-root binding"
+    );
+
+    let mut wrong_root = valid_grant();
+    wrong_root.attested_revocation_root_ref =
+        Some("dregg-revocation-root:caller-supplied".to_string());
+    assert_eq!(
+        adapter(wrong_root).verify(&request()),
+        EvidenceResult::Rejected(VerificationError::WrongRevocationRoot)
+    );
+
+    let EvidenceResult::Satisfied(summary) = adapter(valid_grant()).verify(&request()) else {
+        panic!("matching receiver-held revocation root should satisfy bounded root binding");
+    };
+    assert!(
+        !summary.public_proof,
+        "root binding is not live public proof"
+    );
+    let joined = summary.summary_fields.join(
+        "
+",
+    );
+    assert!(joined.contains("revocation_verifier_mode:expected_root_binding"));
+    assert!(joined.contains("revocation_root_ref_sha256:"));
+    assert!(
+        !joined.contains("dregg-revocation-root:fixture-2026q2"),
+        "raw revocation root refs must be digested in summaries"
+    );
+}
+
+#[test]
+fn live_revocation_bls_finality_and_rotated_replay_modes_fail_closed_without_verifiers() {
+    let base = registry()
+        .lookup_active_policy(&DreggAuthorityLookup {
+            issuer_id: "did:dregg:issuer:fixture".to_string(),
+            issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
+            root_ref: "dregg-root:fixture-root-2026q2".to_string(),
+            root_fingerprint: "root:sha256:fixture-root-2026q2".to_string(),
+            epoch_id: "epoch:2026q2".to_string(),
+            audience: AUDIENCE.to_string(),
+            operation: OPERATION.to_string(),
+            resource: RESOURCE.to_string(),
+            suite: "dregg_authority_fixture_v1".to_string(),
+            validation_time: VALIDATION_TIME,
+            status_checked_at: Some(STATUS_CHECKED_AT),
+            revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+            finality_status: Some(DreggAuthorityFinalityStatus::Final),
+            attested_revocation_root_ref: Some("dregg-revocation-root:fixture-2026q2".to_string()),
+        })
+        .unwrap()
+        .clone();
+
+    let live_revocation_registry = DreggAuthorityRegistry::new([DreggAuthorityEntry {
+        status_policy: DreggAuthorityStatusPolicy {
+            revocation_verifier_mode:
+                DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired,
+            ..base.status_policy.clone()
+        },
+        ..base.clone()
+    }])
+    .unwrap();
+    assert_eq!(
+        DreggAuthorityEvidenceAdapter::new(
+            [valid_grant()],
+            live_revocation_registry,
+            VALIDATION_TIME
+        )
+        .verify(&request()),
+        EvidenceResult::Rejected(VerificationError::UnsupportedRevocationVerifier),
+        "fixture root/status material must not fake a live Dregg RevocationVerifier/RevocationTree"
+    );
+
+    let bls_registry = DreggAuthorityRegistry::new([DreggAuthorityEntry {
+        status_policy: DreggAuthorityStatusPolicy {
+            require_finality: true,
+            finality_mode: DreggAuthorityFinalityMode::BlsThresholdRequired,
+            ..base.status_policy.clone()
+        },
+        ..base.clone()
+    }])
+    .unwrap();
+    let mut final_fixture = valid_grant();
+    final_fixture.finality_status = Some(DreggAuthorityFinalityStatus::Final);
+    assert_eq!(
+        DreggAuthorityEvidenceAdapter::new([final_fixture], bls_registry, VALIDATION_TIME)
+            .verify(&request()),
+        EvidenceResult::Rejected(VerificationError::UnsupportedBlsThresholdFinality),
+        "final fixture status must not fake ReceiptQc::Threshold/BLS FederationCommittee finality"
+    );
+
+    let rotated_registry = DreggAuthorityRegistry::new([DreggAuthorityEntry {
+        status_policy: DreggAuthorityStatusPolicy {
+            require_finality: true,
+            finality_mode: DreggAuthorityFinalityMode::RotatedReplayRequired,
+            ..base.status_policy
+        },
+        ..base
+    }])
+    .unwrap();
+    let mut final_fixture = valid_grant();
+    final_fixture.finality_status = Some(DreggAuthorityFinalityStatus::Final);
+    assert_eq!(
+        DreggAuthorityEvidenceAdapter::new([final_fixture], rotated_registry, VALIDATION_TIME)
+            .verify(&request()),
+        EvidenceResult::Rejected(VerificationError::UnsupportedRotatedReplayVerifier),
+        "final fixture status must not fake rotated_replay::verify_rotated_replay_chain"
+    );
+}
+
+#[test]
 fn dregg_authority_enforces_revocation_check_finality_and_time_boundaries() {
     let mut missing_revocation = valid_grant();
     missing_revocation.revocation_status = None;
@@ -281,6 +406,9 @@ fn dregg_authority_finality_policy_fails_closed_or_rejects_equivocation() {
             max_status_age_seconds: 300,
             require_revocation_check: true,
             require_finality: true,
+            revocation_verifier_mode: DreggAuthorityRevocationVerifierMode::ExpectedRootBinding,
+            finality_mode: DreggAuthorityFinalityMode::FixtureStatusOnly,
+            expected_revocation_root_ref: Some("dregg-revocation-root:fixture-2026q2".to_string()),
         },
         ..registry()
             .lookup_active_policy(&DreggAuthorityLookup {
@@ -297,6 +425,9 @@ fn dregg_authority_finality_policy_fails_closed_or_rejects_equivocation() {
                 status_checked_at: Some(STATUS_CHECKED_AT),
                 revocation_status: Some(DreggAuthorityRevocationStatus::Active),
                 finality_status: Some(DreggAuthorityFinalityStatus::Final),
+                attested_revocation_root_ref: Some(
+                    "dregg-revocation-root:fixture-2026q2".to_string(),
+                ),
             })
             .unwrap()
             .clone()

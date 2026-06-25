@@ -17,7 +17,10 @@
       "require_status": true,
       "max_status_age_seconds": 300,
       "require_revocation_check": true,
-      "require_finality": false
+      "require_finality": false,
+      "revocation_verifier_mode": "expected_root_binding",
+      "finality_mode": "not_required",
+      "expected_revocation_root_ref": "dregg-revocation-root:fixture-2026q2"
     },
     "root_status": "active",
     "issuer_status": "active"

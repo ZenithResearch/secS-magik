@@ -6,8 +6,9 @@ mod wallet_fixtures;
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
 use server::dregg_authority::{
-    DreggAuthorityEntry, DreggAuthorityFinalityStatus, DreggAuthorityRegistry,
-    DreggAuthorityRevocationStatus, DreggAuthorityStatus, DreggAuthorityStatusPolicy,
+    DreggAuthorityEntry, DreggAuthorityFinalityMode, DreggAuthorityFinalityStatus,
+    DreggAuthorityRegistry, DreggAuthorityRevocationStatus, DreggAuthorityRevocationVerifierMode,
+    DreggAuthorityStatus, DreggAuthorityStatusPolicy,
 };
 use server::evidence::{
     CompositeEvidenceAdapter, DreggAuthorityEvidenceAdapter, DreggAuthorityGrantFixture,
@@ -295,6 +296,15 @@ fn dregg_authority_registry(require_finality: bool) -> DreggAuthorityRegistry {
             max_status_age_seconds: 300,
             require_revocation_check: true,
             require_finality,
+            revocation_verifier_mode: DreggAuthorityRevocationVerifierMode::ExpectedRootBinding,
+            finality_mode: if require_finality {
+                DreggAuthorityFinalityMode::FixtureStatusOnly
+            } else {
+                DreggAuthorityFinalityMode::NotRequired
+            },
+            expected_revocation_root_ref: Some(
+                "dregg-revocation-root:membership-fixture".to_string(),
+            ),
         },
         root_status: DreggAuthorityStatus::Active,
         issuer_status: DreggAuthorityStatus::Active,
@@ -319,6 +329,7 @@ fn dregg_authority_fixture() -> DreggAuthorityGrantFixture {
         status_checked_at: Some(TRUSTED_VALIDATION_TIME - 10),
         revocation_status: Some(DreggAuthorityRevocationStatus::Active),
         finality_status: Some(DreggAuthorityFinalityStatus::Final),
+        attested_revocation_root_ref: Some("dregg-revocation-root:membership-fixture".to_string()),
     }
 }
 

@@ -24,7 +24,10 @@ fn registry_json() -> String {
           "require_status": true,
           "max_status_age_seconds": 300,
           "require_revocation_check": true,
-          "require_finality": false
+          "require_finality": false,
+          "revocation_verifier_mode": "expected_root_binding",
+          "finality_mode": "not_required",
+          "expected_revocation_root_ref": "dregg-revocation-root:fixture-2026q2"
         },
         "root_status": "active",
         "issuer_status": "active"
@@ -48,6 +51,7 @@ fn valid_lookup() -> DreggAuthorityLookup {
         status_checked_at: Some(1770000200),
         revocation_status: Some(DreggAuthorityRevocationStatus::Active),
         finality_status: Some(DreggAuthorityFinalityStatus::Final),
+        attested_revocation_root_ref: Some("dregg-revocation-root:fixture-2026q2".to_string()),
     }
 }
 
@@ -116,6 +120,28 @@ fn dregg_authority_registry_rejects_root_epoch_status_and_binding_failures() {
         VerificationError::WrongRoot
     );
     assert_eq!(VerificationError::WrongRoot.reason_code(), "wrong_root");
+
+    let mut lookup = valid_lookup();
+    lookup.attested_revocation_root_ref = None;
+    assert_eq!(
+        registry.lookup_active_policy(&lookup).unwrap_err(),
+        VerificationError::MissingRevocationRoot
+    );
+    assert_eq!(
+        VerificationError::MissingRevocationRoot.reason_code(),
+        "missing_revocation_root"
+    );
+
+    let mut lookup = valid_lookup();
+    lookup.attested_revocation_root_ref = Some("dregg-revocation-root:wrong".to_string());
+    assert_eq!(
+        registry.lookup_active_policy(&lookup).unwrap_err(),
+        VerificationError::WrongRevocationRoot
+    );
+    assert_eq!(
+        VerificationError::WrongRevocationRoot.reason_code(),
+        "wrong_revocation_root"
+    );
 
     let mut lookup = valid_lookup();
     lookup.epoch_id = "epoch:wrong".to_string();

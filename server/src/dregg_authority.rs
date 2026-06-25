@@ -26,12 +26,43 @@ pub enum DreggAuthorityFinalityStatus {
     Equivocated,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DreggAuthorityRevocationVerifierMode {
+    FixtureStatusOnly,
+    ExpectedRootBinding,
+    LiveRevocationVerifierRequired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DreggAuthorityFinalityMode {
+    NotRequired,
+    FixtureStatusOnly,
+    BlsThresholdRequired,
+    RotatedReplayRequired,
+}
+
+fn default_revocation_verifier_mode() -> DreggAuthorityRevocationVerifierMode {
+    DreggAuthorityRevocationVerifierMode::FixtureStatusOnly
+}
+
+fn default_finality_mode() -> DreggAuthorityFinalityMode {
+    DreggAuthorityFinalityMode::NotRequired
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DreggAuthorityStatusPolicy {
     pub require_status: bool,
     pub max_status_age_seconds: u64,
     pub require_revocation_check: bool,
     pub require_finality: bool,
+    #[serde(default = "default_revocation_verifier_mode")]
+    pub revocation_verifier_mode: DreggAuthorityRevocationVerifierMode,
+    #[serde(default = "default_finality_mode")]
+    pub finality_mode: DreggAuthorityFinalityMode,
+    #[serde(default)]
+    pub expected_revocation_root_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,6 +100,7 @@ pub struct DreggAuthorityLookup {
     pub status_checked_at: Option<u64>,
     pub revocation_status: Option<DreggAuthorityRevocationStatus>,
     pub finality_status: Option<DreggAuthorityFinalityStatus>,
+    pub attested_revocation_root_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -209,13 +241,46 @@ impl DreggAuthorityRegistry {
                 DreggAuthorityRevocationStatus::Revoked => return Err(VerificationError::Revoked),
             }
         }
-        if entry.status_policy.require_finality {
-            match lookup.finality_status.ok_or(VerificationError::NotFinal)? {
-                DreggAuthorityFinalityStatus::Final => {}
-                DreggAuthorityFinalityStatus::NotFinal => return Err(VerificationError::NotFinal),
-                DreggAuthorityFinalityStatus::Equivocated => {
-                    return Err(VerificationError::Equivocated);
+        match entry.status_policy.revocation_verifier_mode {
+            DreggAuthorityRevocationVerifierMode::FixtureStatusOnly => {}
+            DreggAuthorityRevocationVerifierMode::ExpectedRootBinding => {
+                let expected = entry
+                    .status_policy
+                    .expected_revocation_root_ref
+                    .as_ref()
+                    .ok_or(VerificationError::MissingRevocationRoot)?;
+                let attested = lookup
+                    .attested_revocation_root_ref
+                    .as_ref()
+                    .ok_or(VerificationError::MissingRevocationRoot)?;
+                if attested != expected {
+                    return Err(VerificationError::WrongRevocationRoot);
                 }
+            }
+            DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired => {
+                return Err(VerificationError::UnsupportedRevocationVerifier);
+            }
+        }
+        match entry.status_policy.finality_mode {
+            DreggAuthorityFinalityMode::NotRequired => {}
+            DreggAuthorityFinalityMode::FixtureStatusOnly => {
+                if entry.status_policy.require_finality {
+                    match lookup.finality_status.ok_or(VerificationError::NotFinal)? {
+                        DreggAuthorityFinalityStatus::Final => {}
+                        DreggAuthorityFinalityStatus::NotFinal => {
+                            return Err(VerificationError::NotFinal);
+                        }
+                        DreggAuthorityFinalityStatus::Equivocated => {
+                            return Err(VerificationError::Equivocated);
+                        }
+                    }
+                }
+            }
+            DreggAuthorityFinalityMode::BlsThresholdRequired => {
+                return Err(VerificationError::UnsupportedBlsThresholdFinality);
+            }
+            DreggAuthorityFinalityMode::RotatedReplayRequired => {
+                return Err(VerificationError::UnsupportedRotatedReplayVerifier);
             }
         }
         if !entry
@@ -291,6 +356,25 @@ fn validate_entry(entry: &DreggAuthorityEntry) -> Result<(), DreggAuthorityRegis
     if entry.status_policy.require_status && entry.status_policy.max_status_age_seconds == 0 {
         return Err(DreggAuthorityRegistryError::InvalidEntry(
             "max_status_age_seconds is required when status is required".to_string(),
+        ));
+    }
+    if entry.status_policy.revocation_verifier_mode
+        == DreggAuthorityRevocationVerifierMode::ExpectedRootBinding
+        && entry.status_policy.expected_revocation_root_ref.is_none()
+    {
+        return Err(DreggAuthorityRegistryError::InvalidEntry(
+            "expected_revocation_root_ref is required for expected_root_binding".to_string(),
+        ));
+    }
+    if !entry.status_policy.require_finality
+        && matches!(
+            entry.status_policy.finality_mode,
+            DreggAuthorityFinalityMode::BlsThresholdRequired
+                | DreggAuthorityFinalityMode::RotatedReplayRequired
+        )
+    {
+        return Err(DreggAuthorityRegistryError::InvalidEntry(
+            "require_finality is required for live finality verifier modes".to_string(),
         ));
     }
     for (field, values) in [
