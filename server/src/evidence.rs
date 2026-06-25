@@ -4,7 +4,10 @@
 //! adapters rooted here rather than becoming hard dependencies of packet parsing
 //! or gateway execution.
 
-use crate::dregg_authority::{DreggAuthorityLookup, DreggAuthorityRegistry};
+use crate::dregg_authority::{
+    DreggAuthorityFinalityStatus, DreggAuthorityLookup, DreggAuthorityRegistry,
+    DreggAuthorityRevocationStatus,
+};
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -1120,29 +1123,46 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             public_proof: false,
             summary_fields: vec![
                 "admission:admitted".to_string(),
+                "authority_class:dregg_authority".to_string(),
+                "tier:m15_production_shaped".to_string(),
                 redacted_reference_field("evidence_ref", evidence_ref),
                 "token:dga1_[redacted]".to_string(),
                 format!("issuer_id:{}", grant.issuer_id),
-                format!("issuer_key_id:{}", grant.issuer_key_id),
-                format!("root_ref:{}", grant.root_ref),
+                redacted_reference_field("issuer_key_id", &grant.issuer_key_id),
+                redacted_reference_field("root_ref", &grant.root_ref),
                 format!("root_fingerprint:{}", grant.root_fingerprint),
-                format!("epoch_id:{}", grant.epoch_id),
+                redacted_reference_field("epoch_id", &grant.epoch_id),
                 format!("suite:{}", grant.suite),
                 grant
                     .revocation_status
-                    .map(|status| format!("revocation_status:{status:?}"))
+                    .map(|status| format!("revocation_status:{}", revocation_status_name(status)))
                     .unwrap_or_else(|| "revocation_status:named_blocker_missing".to_string()),
                 grant
                     .finality_status
-                    .map(|status| format!("finality_status:{status:?}"))
-                    .unwrap_or_else(|| "finality_status:not_required_or_named_blocker".to_string()),
-                format!("federation_id:{}", entry.federation_id),
+                    .map(|status| format!("finality_status:{}", finality_status_name(status)))
+                    .unwrap_or_else(|| "finality_status:not_required".to_string()),
+                redacted_reference_field("federation_id", &entry.federation_id),
                 format!(
                     "issuer_public_key_ref:{}",
                     public_key_ref_for_hex(&entry.issuer_public_key_hex)
                 ),
             ],
         })
+    }
+}
+
+fn revocation_status_name(status: DreggAuthorityRevocationStatus) -> &'static str {
+    match status {
+        DreggAuthorityRevocationStatus::Active => "active",
+        DreggAuthorityRevocationStatus::Revoked => "revoked",
+    }
+}
+
+fn finality_status_name(status: DreggAuthorityFinalityStatus) -> &'static str {
+    match status {
+        DreggAuthorityFinalityStatus::Final => "final",
+        DreggAuthorityFinalityStatus::NotFinal => "not_final",
+        DreggAuthorityFinalityStatus::Equivocated => "equivocated",
     }
 }
 

@@ -676,7 +676,7 @@ async fn ledger_schema_upgrade_preserves_old_receipts_and_adds_track_h_columns()
         .await
         .unwrap()
         .expect("old receipt remains inspectable after schema upgrade");
-    assert_eq!(export.schema_version, RECEIPT_SCHEMA_VERSION);
+    assert_eq!(export.schema_version, 1);
     assert_eq!(export.context_id, None);
     assert_eq!(export.reason.as_deref(), Some("unknown_operation"));
 }
@@ -693,4 +693,51 @@ fn receipt_kinds_and_decisions_have_stable_storage_values() {
         AuthenticatorKind::Ed25519Verifier.as_str(),
         "ed25519_verifier"
     );
+}
+
+#[tokio::test]
+async fn operator_inspection_persists_redacted_authority_summary_without_raw_material() {
+    let ledger = memory_ledger().await;
+    let mut context = verified_context([8u8; 16], [9u8; 12], 0x44);
+    context.context_id = "ctx-dregg-authority-summary".to_string();
+    context.operation = "membership.provision".to_string();
+    context.evidence_summary = vec![
+        "evidence_kind:dregg_authority".to_string(),
+        "authority_class:dregg_authority".to_string(),
+        "tier:m15_production_shaped".to_string(),
+        "root_ref_sha256:abc123".to_string(),
+        "token:dga1_[redacted]".to_string(),
+    ];
+    let signed_context = context
+        .sign_ed25519(
+            "verifier:local-test",
+            &[7u8; 32],
+            AuthenticatorKind::Ed25519Verifier,
+        )
+        .unwrap();
+    let receipt = Receipt::verify_from_signed_context(
+        "receipt-dregg-authority-summary",
+        &signed_context,
+        1_001,
+    )
+    .sign_ed25519(
+        "verifier:local-test",
+        &[7u8; 32],
+        AuthenticatorKind::Ed25519Verifier,
+    )
+    .unwrap();
+
+    ledger.record_receipt(&receipt).await.unwrap();
+    let chain = ledger
+        .inspect_receipt_chain_by_context_id("ctx-dregg-authority-summary")
+        .await
+        .unwrap();
+    let verify = chain.iter().find(|row| row.kind == "verify").unwrap();
+    let joined = verify.evidence_summary.join("\n");
+
+    assert_eq!(verify.export_schema_version, 2);
+    assert!(joined.contains("authority_class:dregg_authority"));
+    assert!(joined.contains("root_ref_sha256:abc123"));
+    assert!(!format!("{verify:?}").contains("dregg-root:raw"));
+    assert!(!format!("{verify:?}").contains("dga1_secret"));
 }

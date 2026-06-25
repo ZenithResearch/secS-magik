@@ -162,7 +162,7 @@ fn dregg_authority_accepts_grant_only_after_receiver_held_policy() {
     assert!(summary
         .summary_fields
         .iter()
-        .any(|field| field == "epoch_id:epoch:2026q2"));
+        .any(|field| field.starts_with("epoch_id_sha256:")));
     assert!(
         summary
             .summary_fields
@@ -335,4 +335,38 @@ fn dregg_authority_finality_policy_fails_closed_or_rejects_equivocation() {
             .verify(&request()),
         EvidenceResult::Satisfied(_)
     ));
+}
+
+#[test]
+fn dregg_authority_summary_follows_m15_6_disclosure_boundary() {
+    let grant = valid_grant();
+    let EvidenceResult::Satisfied(summary) = adapter(grant.clone()).verify(&request()) else {
+        panic!("valid authority grant should satisfy dregg_authority");
+    };
+    let joined = summary.summary_fields.join("\n");
+
+    assert!(joined.contains("authority_class:dregg_authority"));
+    assert!(joined.contains("tier:m15_production_shaped"));
+    assert!(joined.contains("root_fingerprint:root:sha256:fixture-root-2026q2"));
+    assert!(joined.contains("revocation_status:active"));
+    assert!(joined.contains("finality_status:not_required"));
+    assert!(joined.contains("issuer_key_id_sha256:"));
+    assert!(joined.contains("root_ref_sha256:"));
+    assert!(joined.contains("federation_id_sha256:"));
+
+    for forbidden in [
+        grant.token.as_str(),
+        EVIDENCE_REF,
+        grant.issuer_key_id.as_str(),
+        grant.root_ref.as_str(),
+        "dregg-federation:fixture",
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "revocation_status:Active",
+        "finality_status:Final",
+    ] {
+        assert!(
+            !joined.contains(forbidden),
+            "Dregg authority disclosure summary leaked forbidden raw value: {forbidden}"
+        );
+    }
 }

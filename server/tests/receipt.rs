@@ -113,7 +113,7 @@ fn execution_receipt_references_handler_decision_and_never_payload_content() {
 
 #[test]
 fn receipt_schema_version_is_explicit_and_stable_for_migrations() {
-    assert_eq!(RECEIPT_SCHEMA_VERSION, 1);
+    assert_eq!(RECEIPT_SCHEMA_VERSION, 2);
 
     let receipt = Receipt::execution(
         "receipt-exec-versioned",
@@ -233,4 +233,38 @@ fn evidence_reject_reasons_use_stable_verification_error_codes() {
         );
         assert_eq!(receipt.reason.as_deref(), Some(expected));
     }
+}
+
+#[test]
+fn verify_receipt_carries_signed_redacted_evidence_summary_for_operator_inspection() {
+    let key = [7u8; 32];
+    let mut context = sample_context();
+    context.evidence_summary = vec![
+        "evidence_kind:dregg_authority".to_string(),
+        "authority_class:dregg_authority".to_string(),
+        "root_ref_sha256:abc123".to_string(),
+        "token:dga1_[redacted]".to_string(),
+    ];
+    let signed_context = context
+        .sign_ed25519("verifier:test", &key, AuthenticatorKind::Ed25519Verifier)
+        .unwrap();
+
+    let mut receipt =
+        Receipt::verify_from_signed_context("receipt-dregg-summary", &signed_context, 151)
+            .sign_ed25519("verifier:test", &key, AuthenticatorKind::Ed25519Verifier)
+            .unwrap();
+
+    assert!(receipt
+        .evidence_summary
+        .iter()
+        .any(|field| field == "authority_class:dregg_authority"));
+    assert!(receipt.verify_ed25519(&key).is_ok());
+
+    receipt
+        .evidence_summary
+        .push("root_ref:dregg-root:raw".to_string());
+    assert_eq!(
+        receipt.verify_ed25519(&key),
+        Err(VerificationError::InvalidSignature)
+    );
 }

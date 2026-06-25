@@ -126,6 +126,21 @@ Wallet plus issuer evidence is no longer sufficient for canonical `membership.pr
 
 This issue does not close #73. #159 remains unresolved for live Dregg revocation proof, BLS finality, and rotated-replay proof verification. #160 remains future for Dregg-provisioned resource locks; #141 binds operation/resource through receiver-local descriptor and request policy only, not Dregg resource-lock authority.
 
+
+## M15.6 / #142 operator inspection and disclosure boundary
+
+M15.6 (#142) makes `dregg_authority` visible to local operator inspection without leaking raw authority material. The disclosure taxonomy is local operator inspection only and not public auditability:
+
+- summaries label the layer with `authority_class:dregg_authority` and `tier:m15_production_shaped`;
+- raw evidence refs are digested as `evidence_ref_sha256`;
+- raw `issuer_key_id`, `root_ref`, `epoch_id`, and `federation_id` are digested as `issuer_key_id_sha256`, `root_ref_sha256`, `epoch_id_sha256`, and `federation_id_sha256`;
+- stable receiver-held metadata that remains cleartext is limited to fields such as `issuer_id`, `root_fingerprint`, `suite`, `revocation_status`, and `finality_status`;
+- raw authority tokens are rendered only as `token:dga1_[redacted]`;
+- status/finality fields use stable snake_case values (`active`, `revoked`, `final`, `not_final`, `equivocated`, `not_required`) rather than Rust debug formatting;
+- verify receipts and operator receipt inspection preserve the redacted evidence summary under a schema-versioned local ledger projection.
+
+This issue does not implement #159 live Dregg revocation proof, BLS finality, or rotated-replay proof verification. It does not implement #162 live TCP evidence-ref/public-input propagation. It is not deployment proof (#33), public auditability (#37), Midnight (#74), Cardano (#75), or parent #73 closure.
+
 ## #73 rewritten acceptance criteria
 
 #73 should now close only when these acceptance criteria are met:

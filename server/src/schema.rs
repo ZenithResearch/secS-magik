@@ -45,6 +45,7 @@ pub const RECEIPTS_TABLE: RuntimeTable = RuntimeTable {
         handler_id TEXT,
         authenticator_kind TEXT NOT NULL,
         signer_key_id TEXT NOT NULL,
+        evidence_summary TEXT NOT NULL DEFAULT '[]',
         signature BLOB NOT NULL
     );",
 };
@@ -107,6 +108,13 @@ async fn ensure_receipts_columns(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         "receipts",
         "context_id",
         "ALTER TABLE receipts ADD COLUMN context_id TEXT",
+    )
+    .await?;
+    ensure_column(
+        pool,
+        "receipts",
+        "evidence_summary",
+        "ALTER TABLE receipts ADD COLUMN evidence_summary TEXT NOT NULL DEFAULT '[]'",
     )
     .await
 }
