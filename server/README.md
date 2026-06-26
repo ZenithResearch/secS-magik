@@ -31,7 +31,7 @@ Status: production-shaped local hardening is implemented for the current prototy
 
 | Mode | Current use |
 |---|---|
-| `production_verified` | Default canonical gateway mode. Fails closed unless explicit `SECS_*` runtime, key, ledger, trust-registry, caller-registry, permission-policy, audience, and limits are supplied. When `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`, it also requires `SECS_DREGG_AUTHORITY_REGISTRY_PATH`. Fixture-only smoke must opt in with `SECS_FIXTURE_ONLY_SMOKE=1`. |
+| `production_verified` | Default canonical gateway mode. Fails closed unless explicit `SECS_*` runtime, key, ledger, trust-registry, caller-registry, permission-policy, audience, tunnel X25519 secret, and limits are supplied. When `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`, it also requires `SECS_DREGG_AUTHORITY_REGISTRY_PATH`. Fixture-only smoke must opt in with `SECS_FIXTURE_ONLY_SMOKE=1`. |
 | `local_dev_plaintext` | Explicit local development mode. Allows plaintext local testing without silently looking like production. |
 | `local_dev_tunnel` | Explicit local tunnel mode. Requires tunnel key material. |
 
@@ -79,8 +79,11 @@ Common gateway variables include:
 - `SECS_HANDLER_TIMEOUT_MS`
 - `SECS_INGRESS_READ_TIMEOUT_MS`
 - `SECS_MAX_IN_FLIGHT_CONNECTIONS`
-- `SECS_TUNNEL_KEY_HEX`
-- `SECZ_TUNNEL_KEY_HEX`
+- `SECS_TUNNEL_KEY_HEX` (static local-dev tunnel key)
+- `SECZ_TUNNEL_KEY_HEX` (legacy static local-dev tunnel key fallback)
+- `SECS_TUNNEL_X25519_SECRET_HEX` (gateway-side 32-byte X25519 static secret for v2 session-derived tunnel keys; required in `production_verified`)
+- `SECZ_TUNNEL_X25519_SECRET_HEX` (legacy fallback)
+- Client-side v2 session-key packets use `SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX` / `SECZ_TUNNEL_SERVER_X25519_PUBLIC_HEX`; do not publish the gateway secret.
 
 Do not document real operator keys, bearer tokens, packet captures, production DB URLs, or private runtime config in this repository.
 

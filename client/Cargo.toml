@@ -11,3 +11,4 @@ bincode = { workspace = true }
 rand.workspace = true
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 sha2.workspace = true
+x25519-dalek = { version = "2.0", default-features = false, features = ["static_secrets"] }

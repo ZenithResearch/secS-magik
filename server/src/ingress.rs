@@ -4,7 +4,7 @@ use crate::gateway::{init_telemetry_schema, register_runtime_bindings, Configura
 use crate::identity::{
     explicit_test_fixture_identity, load_node_verifier_identity, VerifierIdentityConfig,
 };
-use crate::payload::decrypt_machine_payload;
+use crate::payload::decrypt_machine_payload_with_session_key;
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::{VerificationError, Verifier};
 use bincode::Options;
@@ -20,6 +20,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 static PRE_DECODE_REJECT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 pub const DEFAULT_MAX_WIRE_BYTES: usize = 2 * 1024 * 1024;
@@ -70,6 +71,7 @@ pub struct DecodedIngressRequest {
     pub packet: ZenithPacket,
     pub evidence_inputs: EvidenceInputs,
     pub versioned_request: bool,
+    pub client_ephemeral_public_key: Option<[u8; 32]>,
 }
 
 pub async fn read_bounded_ingress_request<R>(
@@ -98,7 +100,9 @@ where
         });
     }
 
-    if wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V1_MAGIC) {
+    if wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V1_MAGIC)
+        || wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V2_MAGIC)
+    {
         match libsec_core::ingress_request::decode_ingress_frame(&wire_bytes, max_wire_bytes) {
             Ok(libsec_core::ingress_request::IngressFrame::V1(request)) => {
                 return Ok(Some(DecodedIngressRequest {
@@ -108,6 +112,18 @@ where
                         request.public_inputs,
                     ),
                     versioned_request: true,
+                    client_ephemeral_public_key: None,
+                }));
+            }
+            Ok(libsec_core::ingress_request::IngressFrame::V2(request)) => {
+                return Ok(Some(DecodedIngressRequest {
+                    packet: request.packet,
+                    evidence_inputs: EvidenceInputs::new(
+                        request.evidence_refs,
+                        request.public_inputs,
+                    ),
+                    versioned_request: true,
+                    client_ephemeral_public_key: Some(request.client_ephemeral_public_key),
                 }));
             }
             Ok(libsec_core::ingress_request::IngressFrame::Legacy(packet)) => {
@@ -115,6 +131,7 @@ where
                     packet,
                     evidence_inputs: EvidenceInputs::default(),
                     versioned_request: false,
+                    client_ephemeral_public_key: None,
                 }));
             }
             Err(libsec_core::ingress_request::IngressRequestError::FrameTooLarge)
@@ -145,6 +162,7 @@ where
                 packet,
                 evidence_inputs: EvidenceInputs::default(),
                 versioned_request: false,
+                client_ephemeral_public_key: None,
             })
         })
         .map_err(IngressReadError::MalformedPacket)
@@ -334,6 +352,7 @@ pub async fn handle_gateway_connection_with_limits(
         }
     };
     let evidence_inputs = decoded_request.evidence_inputs;
+    let client_ephemeral_public_key = decoded_request.client_ephemeral_public_key;
     let packet = decoded_request.packet;
 
     if let Err(error) = Verifier::verify_prototype_envelope(&packet) {
@@ -352,7 +371,44 @@ pub async fn handle_gateway_connection_with_limits(
         return;
     }
 
-    let payload = match decrypt_machine_payload(&packet, runtime_mode) {
+    if runtime_mode == RuntimeMode::ProductionVerified && client_ephemeral_public_key.is_none() {
+        let error = VerificationError::MissingTunnelKey;
+        eprintln!(
+            "secS [Crypto]: rejected production tunnel packet without session handshake - {}",
+            error.reason_code()
+        );
+        let reason = error.reason_code();
+        let receipt_id = router.record_reject(&packet, error).await;
+        write_decision_response(
+            &mut write_half,
+            &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+            read_timeout,
+        )
+        .await;
+        return;
+    }
+
+    let session_key = match derive_session_tunnel_key(&packet, client_ephemeral_public_key) {
+        Ok(key) => key,
+        Err(error) => {
+            eprintln!(
+                "secS [Crypto]: rejected tunnel handshake - {}",
+                error.reason_code()
+            );
+            let reason = error.reason_code();
+            let receipt_id = router.record_reject(&packet, error).await;
+            write_decision_response(
+                &mut write_half,
+                &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+                read_timeout,
+            )
+            .await;
+            return;
+        }
+    };
+
+    let payload = match decrypt_machine_payload_with_session_key(&packet, runtime_mode, session_key)
+    {
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
@@ -462,6 +518,34 @@ pub async fn handle_gateway_connection_with_limits(
 
     let response = router.route_verified(&signed_context, payload).await;
     write_decision_response(&mut write_half, &response, read_timeout).await;
+}
+
+fn derive_session_tunnel_key(
+    packet: &ZenithPacket,
+    client_ephemeral_public_key: Option<[u8; 32]>,
+) -> Result<Option<[u8; 32]>, VerificationError> {
+    let Some(client_public_bytes) = client_ephemeral_public_key else {
+        return Ok(None);
+    };
+    let secret_hex = std::env::var("SECS_TUNNEL_X25519_SECRET_HEX")
+        .or_else(|_| std::env::var("SECZ_TUNNEL_X25519_SECRET_HEX"))
+        .map_err(|_| VerificationError::MissingTunnelKey)?;
+    let secret_bytes = libsec_core::tunnel::parse_tunnel_key_hex(&secret_hex)
+        .ok_or(VerificationError::MissingTunnelKey)?;
+    let server_secret = StaticSecret::from(secret_bytes);
+    let server_public = PublicKey::from(&server_secret).to_bytes();
+    let client_public = PublicKey::from(client_public_bytes);
+    let shared = server_secret.diffie_hellman(&client_public);
+    if !shared.was_contributory() {
+        return Err(VerificationError::BadMac);
+    }
+    let shared = shared.to_bytes();
+    Ok(Some(libsec_core::tunnel::derive_tunnel_key_hkdf(
+        &shared,
+        &packet.session_id,
+        &client_public_bytes,
+        &server_public,
+    )))
 }
 
 async fn record_pre_decode_reject(router: &ConfigurableRouter) -> String {

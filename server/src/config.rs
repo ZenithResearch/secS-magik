@@ -49,6 +49,7 @@ pub enum RuntimeConfigError {
     PayloadExceedsWireBudget,
     LedgerPathDoesNotMatchDbUrl,
     InvalidRuntimeMode(String),
+    InvalidTunnelX25519Secret,
 }
 
 impl fmt::Display for RuntimeConfigError {
@@ -72,6 +73,10 @@ impl fmt::Display for RuntimeConfigError {
                 "SECS_LEDGER_PATH must match the SQLite path named by SECS_DB_URL"
             ),
             Self::InvalidRuntimeMode(value) => write!(formatter, "unsupported runtime mode {value:?}"),
+            Self::InvalidTunnelX25519Secret => write!(
+                formatter,
+                "SECS_TUNNEL_X25519_SECRET_HEX must be 32 bytes encoded as 64 hex characters"
+            ),
         }
     }
 }
@@ -221,7 +226,7 @@ impl GatewayRuntimeConfig {
                 require_env_present("SECS_HANDLER_TIMEOUT_MS")?;
                 require_env_present("SECS_INGRESS_READ_TIMEOUT_MS")?;
                 require_env_present("SECS_MAX_IN_FLIGHT_CONNECTIONS")?;
-                Self::production(
+                let config = Self::production(
                     required_env_string(bind_addr, "SECS_BIND_ADDR")?,
                     required_env_string(db_url, "SECS_DB_URL")?,
                     receiver_audience,
@@ -240,7 +245,9 @@ impl GatewayRuntimeConfig {
                     max_in_flight_connections,
                     allowed_evidence_adapters,
                     fixture_only_smoke,
-                )
+                )?;
+                validate_tunnel_x25519_secret_env()?;
+                Ok(config)
             }
             RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => Ok(Self {
                 bind_addr: bind_addr.unwrap_or_else(|| "127.0.0.1:9001".to_string()),
@@ -701,6 +708,15 @@ fn require_env_present(field: &'static str) -> Result<(), RuntimeConfigError> {
         Ok(value) if !value.trim().is_empty() => Ok(()),
         _ => Err(RuntimeConfigError::MissingProductionField(field)),
     }
+}
+
+fn validate_tunnel_x25519_secret_env() -> Result<(), RuntimeConfigError> {
+    let value = std::env::var("SECS_TUNNEL_X25519_SECRET_HEX")
+        .or_else(|_| std::env::var("SECZ_TUNNEL_X25519_SECRET_HEX"))
+        .map_err(|_| RuntimeConfigError::MissingProductionField("SECS_TUNNEL_X25519_SECRET_HEX"))?;
+    libsec_core::tunnel::parse_tunnel_key_hex(&value)
+        .map(|_| ())
+        .ok_or(RuntimeConfigError::InvalidTunnelX25519Secret)
 }
 
 fn required_env_path(

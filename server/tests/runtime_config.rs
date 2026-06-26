@@ -22,6 +22,8 @@ fn clear_env() {
         "SECS_INGRESS_READ_TIMEOUT_MS",
         "SECS_MAX_IN_FLIGHT_CONNECTIONS",
         "SECS_ALLOWED_EVIDENCE_ADAPTERS",
+        "SECS_TUNNEL_X25519_SECRET_HEX",
+        "SECZ_TUNNEL_X25519_SECRET_HEX",
         "SECS_FIXTURE_ONLY_SMOKE",
         "SECS_RUNTIME_MODE",
         "SECZ_RUNTIME_MODE",
@@ -46,6 +48,10 @@ fn set_required_production_env() {
     std::env::set_var("SECS_HANDLER_TIMEOUT_MS", "30000");
     std::env::set_var("SECS_INGRESS_READ_TIMEOUT_MS", "10000");
     std::env::set_var("SECS_MAX_IN_FLIGHT_CONNECTIONS", "64");
+    std::env::set_var(
+        "SECS_TUNNEL_X25519_SECRET_HEX",
+        "0808080808080808080808080808080808080808080808080808080808080808",
+    );
 }
 
 fn write_valid_caller_registry(name: &str) -> std::path::PathBuf {
@@ -295,6 +301,28 @@ fn production_config_rejects_missing_explicit_runtime_fields() {
             Err(RuntimeConfigError::MissingProductionField(field))
         );
     }
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn production_config_requires_valid_tunnel_x25519_secret() {
+    clear_env();
+    set_required_production_env();
+    std::env::remove_var("SECS_TUNNEL_X25519_SECRET_HEX");
+    assert_eq!(
+        GatewayRuntimeConfig::from_env(),
+        Err(RuntimeConfigError::MissingProductionField(
+            "SECS_TUNNEL_X25519_SECRET_HEX"
+        ))
+    );
+
+    set_required_production_env();
+    std::env::set_var("SECS_TUNNEL_X25519_SECRET_HEX", "not-hex");
+    assert_eq!(
+        GatewayRuntimeConfig::from_env(),
+        Err(RuntimeConfigError::InvalidTunnelX25519Secret)
+    );
     clear_env();
 }
 

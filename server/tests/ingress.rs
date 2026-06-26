@@ -1,4 +1,6 @@
-use libsec_core::ingress_request::{encode_ingress_request_v1, IngressRequestV1};
+use libsec_core::ingress_request::{
+    encode_ingress_request_v1, encode_ingress_request_v2, IngressRequestV1, IngressRequestV2,
+};
 use libsec_core::ZenithPacket;
 use server::config::GatewayRuntimeConfig;
 use server::dregg_authority::{
@@ -725,6 +727,124 @@ mod decision_response {
                 ],
             })
         }
+    }
+
+    fn session_v2_packet_and_request(
+        plaintext: &[u8],
+        server_secret_bytes: [u8; 32],
+        client_secret_bytes: [u8; 32],
+    ) -> IngressRequestV2 {
+        let server_secret = x25519_dalek::StaticSecret::from(server_secret_bytes);
+        let server_public = x25519_dalek::PublicKey::from(&server_secret).to_bytes();
+        let client_secret = x25519_dalek::StaticSecret::from(client_secret_bytes);
+        let client_public = x25519_dalek::PublicKey::from(&client_secret).to_bytes();
+        let session_id = [0x44; 16];
+        let nonce = [0x55; 12];
+        let opcode = 0x10;
+        let claim_ttl = 300;
+        let shared = client_secret
+            .diffie_hellman(&x25519_dalek::PublicKey::from(server_public))
+            .to_bytes();
+        let key = libsec_core::tunnel::derive_tunnel_key_hkdf(
+            &shared,
+            &session_id,
+            &client_public,
+            &server_public,
+        );
+        let ciphertext = libsec_core::tunnel::encrypt_payload(
+            &key,
+            &nonce,
+            plaintext,
+            &libsec_core::tunnel::packet_aad(&session_id, opcode, claim_ttl),
+        );
+        IngressRequestV2::new(
+            ZenithPacket {
+                session_id,
+                nonce,
+                opcode,
+                proof: vec![1],
+                claim_ttl,
+                encrypted_payload: ciphertext,
+                mac: [0u8; 16],
+            },
+            Vec::new(),
+            Vec::new(),
+            client_public,
+        )
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn v2_session_handshake_derives_server_key_and_accepts_tunnel_payload() {
+        std::env::set_var(
+            "SECS_TUNNEL_X25519_SECRET_HEX",
+            "0808080808080808080808080808080808080808080808080808080808080808",
+        );
+        std::env::remove_var("SECZ_TUNNEL_X25519_SECRET_HEX");
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool);
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevTunnel);
+        let router = Arc::new(router);
+        let request =
+            session_v2_packet_and_request(b"session-key tunnel payload", [8u8; 32], [7u8; 32]);
+
+        let frame = call_gateway_with_runtime(
+            router,
+            encode_ingress_request_v2(&request).unwrap(),
+            RuntimeMode::LocalDevTunnel,
+        )
+        .await;
+        let response = DecisionResponse::decode(&frame)
+            .expect("v2 session request must answer with a decision response");
+        assert!(
+            response.is_accepted(),
+            "v2 session-key payload should accept: {response:?}"
+        );
+
+        std::env::remove_var("SECS_TUNNEL_X25519_SECRET_HEX");
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn v2_session_handshake_rejects_non_contributory_client_public_key() {
+        std::env::set_var(
+            "SECS_TUNNEL_X25519_SECRET_HEX",
+            "0808080808080808080808080808080808080808080808080808080808080808",
+        );
+        std::env::remove_var("SECZ_TUNNEL_X25519_SECRET_HEX");
+        std::env::remove_var("SECS_TUNNEL_KEY_HEX");
+        std::env::remove_var("SECZ_TUNNEL_KEY_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool);
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevTunnel);
+        let router = Arc::new(router);
+        let mut request = session_v2_packet_and_request(b"low order", [8u8; 32], [7u8; 32]);
+        request.client_ephemeral_public_key = [0u8; 32];
+
+        let frame = call_gateway_with_runtime(
+            router,
+            encode_ingress_request_v2(&request).unwrap(),
+            RuntimeMode::LocalDevTunnel,
+        )
+        .await;
+        let response = DecisionResponse::decode(&frame)
+            .expect("low-order v2 request must answer with a decision response");
+        assert!(!response.is_accepted());
+        assert_eq!(response.reason_code.as_deref(), Some("bad_mac"));
+
+        std::env::remove_var("SECS_TUNNEL_X25519_SECRET_HEX");
     }
 
     #[tokio::test]

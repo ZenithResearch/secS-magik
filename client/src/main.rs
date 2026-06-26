@@ -1,8 +1,12 @@
 use clap::{Parser, Subcommand};
 use ed25519_dalek::SigningKey;
 use libsec_core::caller_proof::{caller_canonical_bytes, encode_caller_proof};
+use libsec_core::ingress_request::{encode_ingress_request_v2, IngressRequestV2};
 use libsec_core::packet_builder::PacketBuilder;
 use libsec_core::response::{DecisionResponse, MAX_DECISION_RESPONSE_BYTES};
+use libsec_core::tunnel::{
+    derive_shared_secret, derive_tunnel_key_hkdf, encrypt_payload, packet_aad, parse_tunnel_key_hex,
+};
 use libsec_core::zk::generate_proof;
 use libsec_core::ZenithPacket;
 use rand::rngs::OsRng;
@@ -11,6 +15,7 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 const DEFAULT_CLAIM_TTL_SECONDS: u64 = 300;
 
@@ -186,7 +191,59 @@ fn load_or_create_identity() -> CallerIdentity {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TunnelMode {
+    Plaintext,
+    StaticKey([u8; 32]),
+    SessionKey { server_public_key: [u8; 32] },
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum TunnelKeyConfigError {
+    Malformed,
+}
+
+impl std::fmt::Display for TunnelKeyConfigError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Malformed => write!(formatter, "tunnel key env var must hold 64 hex characters"),
+        }
+    }
+}
+
+fn load_tunnel_mode_from_env() -> Result<TunnelMode, TunnelKeyConfigError> {
+    if let Ok(value) = std::env::var("SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX")
+        .or_else(|_| std::env::var("SECZ_TUNNEL_SERVER_X25519_PUBLIC_HEX"))
+    {
+        let server_public_key =
+            parse_tunnel_key_hex(&value).ok_or(TunnelKeyConfigError::Malformed)?;
+        return Ok(TunnelMode::SessionKey { server_public_key });
+    }
+    if let Ok(value) =
+        std::env::var("SECS_TUNNEL_KEY_HEX").or_else(|_| std::env::var("SECZ_TUNNEL_KEY_HEX"))
+    {
+        let key = parse_tunnel_key_hex(&value).ok_or(TunnelKeyConfigError::Malformed)?;
+        return Ok(TunnelMode::StaticKey(key));
+    }
+    Ok(TunnelMode::Plaintext)
+}
+
+struct BuiltPacket {
+    packet: ZenithPacket,
+    client_ephemeral_public_key: Option<[u8; 32]>,
+}
+
+#[cfg(test)]
 fn build_packet(identity: &CallerIdentity, opcode: u8, payload: Vec<u8>) -> ZenithPacket {
+    build_packet_with_tunnel_mode(identity, opcode, payload, TunnelMode::Plaintext).packet
+}
+
+fn build_packet_with_tunnel_mode(
+    identity: &CallerIdentity,
+    opcode: u8,
+    payload: Vec<u8>,
+    tunnel_mode: TunnelMode,
+) -> BuiltPacket {
     let session_id = OsRng.gen::<[u8; 16]>();
     let nonce = OsRng.gen::<[u8; 12]>();
     // The mac field is reserved (M12.6 option b): zeroed, never verified.
@@ -195,23 +252,45 @@ fn build_packet(identity: &CallerIdentity, opcode: u8, payload: Vec<u8>) -> Zeni
     let mac = [0u8; 16];
     let claim_ttl = claim_ttl_seconds();
 
+    let aad = packet_aad(&session_id, opcode, claim_ttl);
+    let (wire_payload, client_ephemeral_public_key): (Vec<u8>, Option<[u8; 32]>) = match tunnel_mode
+    {
+        TunnelMode::Plaintext => (payload, None),
+        TunnelMode::StaticKey(key) => (encrypt_payload(&key, &nonce, &payload, &aad), None),
+        TunnelMode::SessionKey { server_public_key } => {
+            let client_secret = EphemeralSecret::random_from_rng(OsRng);
+            let client_public = PublicKey::from(&client_secret).to_bytes();
+            let server_public = PublicKey::from(server_public_key);
+            let shared = derive_shared_secret(client_secret, &server_public);
+            let key =
+                derive_tunnel_key_hkdf(&shared, &session_id, &client_public, &server_public_key);
+            (
+                encrypt_payload(&key, &nonce, &payload, &aad),
+                Some(client_public),
+            )
+        }
+    };
+
     // Sign the canonical envelope bytes — session, nonce, opcode, TTL, and
-    // payload — so the proof cannot be re-bound to a different packet.
-    let canonical = caller_canonical_bytes(&session_id, &nonce, opcode, claim_ttl, &payload);
+    // encrypted payload — so the proof cannot be re-bound to a different packet.
+    let canonical = caller_canonical_bytes(&session_id, &nonce, opcode, claim_ttl, &wire_payload);
     let signature_bytes = generate_proof(&identity.signing_key, &canonical);
     let mut signature = [0u8; 64];
     signature.copy_from_slice(&signature_bytes);
     let proof = encode_caller_proof(&identity.key_id, &signature);
 
-    PacketBuilder::new()
-        .session_id(session_id)
-        .nonce(nonce)
-        .opcode(opcode)
-        .proof(proof)
-        .claim_ttl(claim_ttl)
-        .encrypted_payload(payload)
-        .mac(mac)
-        .build()
+    BuiltPacket {
+        packet: PacketBuilder::new()
+            .session_id(session_id)
+            .nonce(nonce)
+            .opcode(opcode)
+            .proof(proof)
+            .claim_ttl(claim_ttl)
+            .encrypted_payload(wire_payload)
+            .mac(mac)
+            .build(),
+        client_ephemeral_public_key,
+    }
 }
 
 const DECISION_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -225,8 +304,19 @@ async fn dispatch_packet(
     opcode: u8,
     payload: Vec<u8>,
 ) -> Option<DecisionResponse> {
-    let packet = build_packet(identity, opcode, payload);
-    let bytes = bincode::serialize(&packet).unwrap();
+    let tunnel_mode = load_tunnel_mode_from_env()
+        .unwrap_or_else(|error| panic!("client: invalid tunnel configuration - {error}"));
+    let built = build_packet_with_tunnel_mode(identity, opcode, payload, tunnel_mode);
+    let bytes = match built.client_ephemeral_public_key {
+        Some(client_ephemeral_public_key) => encode_ingress_request_v2(&IngressRequestV2::new(
+            built.packet,
+            Vec::new(),
+            Vec::new(),
+            client_ephemeral_public_key,
+        ))
+        .expect("client-built ingress v2 request is bounded"),
+        None => bincode::serialize(&built.packet).unwrap(),
+    };
     // Demo/test affordance: persist the exact wire bytes so a demo can replay
     // them verbatim and show the gateway's replay rejection.
     if let Some(path) = std::env::var_os("SECS_SAVE_PACKET_PATH") {
@@ -570,5 +660,67 @@ mod tests {
     #[test]
     fn hub_command_rejects_opcode_above_u8_range() {
         assert!(Cli::try_parse_from(["client", "hub", "256", "overflow"]).is_err());
+    }
+
+    #[test]
+    fn build_packet_with_static_tunnel_key_encrypts_and_signs_ciphertext() {
+        let identity = fixed_identity();
+        let built = build_packet_with_tunnel_mode(
+            &identity,
+            0x10,
+            b"secret payload".to_vec(),
+            TunnelMode::StaticKey([7u8; 32]),
+        );
+        let aad = packet_aad(
+            &built.packet.session_id,
+            built.packet.opcode,
+            built.packet.claim_ttl,
+        );
+        let decrypted = libsec_core::tunnel::decrypt_payload(
+            &[7u8; 32],
+            &built.packet.nonce,
+            &built.packet.encrypted_payload,
+            &aad,
+        )
+        .unwrap();
+        assert_eq!(decrypted, b"secret payload");
+        assert_ne!(built.packet.encrypted_payload, b"secret payload");
+        assert!(libsec_core::caller_proof::decode_caller_proof(&built.packet.proof).is_some());
+    }
+
+    #[test]
+    fn build_packet_with_session_tunnel_key_emits_v2_client_public_key() {
+        let identity = fixed_identity();
+        let server_secret = x25519_dalek::StaticSecret::from([8u8; 32]);
+        let server_public_key = PublicKey::from(&server_secret).to_bytes();
+        let built = build_packet_with_tunnel_mode(
+            &identity,
+            0x10,
+            b"session secret".to_vec(),
+            TunnelMode::SessionKey { server_public_key },
+        );
+        let client_public = built.client_ephemeral_public_key.unwrap();
+        let shared = server_secret
+            .diffie_hellman(&PublicKey::from(client_public))
+            .to_bytes();
+        let key = derive_tunnel_key_hkdf(
+            &shared,
+            &built.packet.session_id,
+            &client_public,
+            &server_public_key,
+        );
+        let aad = packet_aad(
+            &built.packet.session_id,
+            built.packet.opcode,
+            built.packet.claim_ttl,
+        );
+        let decrypted = libsec_core::tunnel::decrypt_payload(
+            &key,
+            &built.packet.nonce,
+            &built.packet.encrypted_payload,
+            &aad,
+        )
+        .unwrap();
+        assert_eq!(decrypted, b"session secret");
     }
 }
