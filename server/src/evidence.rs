@@ -114,6 +114,25 @@ impl LiveDreggEvidenceEnvelope {
             format!("verifier_mode:{}", self.verifier_mode),
         ]
     }
+
+    pub fn to_evidence_summary(
+        &self,
+        subject: impl Into<String>,
+        audience: impl Into<String>,
+        operation: impl Into<String>,
+        resource: Option<impl Into<String>>,
+    ) -> EvidenceSummary {
+        EvidenceSummary {
+            kind: self.evidence_kind(),
+            subject: subject.into(),
+            audience: audience.into(),
+            operation: operation.into(),
+            resource: resource.map(Into::into),
+            local_dev_test_only: false,
+            public_proof: true,
+            summary_fields: self.redacted_summary_fields(),
+        }
+    }
 }
 
 pub trait LiveDreggVerifier: Send + Sync {

@@ -107,3 +107,37 @@ fn missing_live_dregg_verifier_trait_fails_closed_per_proof_kind() {
         Err(VerificationError::MissingLiveDreggRotatedReplayVerifier)
     );
 }
+
+#[test]
+fn live_dregg_evidence_summary_context_fields_never_include_raw_proof_material() {
+    let envelope = live_envelope(LiveDreggProofKind::BlsThresholdFinality);
+    let summary = envelope.to_evidence_summary(
+        "did:castalia:member:alice",
+        "secS://operator-receiver",
+        "membership.provision",
+        Some("urn:secs:member:alice/profile"),
+    );
+    let fields = summary.to_context_fields();
+    let joined = fields.join(
+        "
+",
+    );
+
+    assert_eq!(summary.kind, EvidenceKind::DreggAuthority);
+    assert!(!summary.local_dev_test_only);
+    assert!(summary.public_proof);
+    assert!(joined.contains("evidence_kind:dregg_authority"));
+    assert!(joined.contains("resource:urn:secs:member:alice/profile"));
+    assert!(joined.contains("proof_ref_sha256:"));
+    for forbidden in [
+        "raw-proof-ref-secret",
+        "proof-ref:do-not-leak",
+        "dregg-federation:fixture",
+        "epoch:2026q2",
+    ] {
+        assert!(
+            !joined.contains(forbidden),
+            "live Dregg summary/context fields must redact {forbidden:?}: {joined}"
+        );
+    }
+}
