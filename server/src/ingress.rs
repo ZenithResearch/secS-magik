@@ -388,7 +388,7 @@ pub async fn handle_gateway_connection_with_limits(
         return;
     }
 
-    let session_key = match derive_session_tunnel_key(&packet, client_ephemeral_public_key) {
+    let session_tunnel_key = match derive_session_tunnel_key(&packet, client_ephemeral_public_key) {
         Ok(key) => key,
         Err(error) => {
             eprintln!(
@@ -407,8 +407,11 @@ pub async fn handle_gateway_connection_with_limits(
         }
     };
 
-    let payload = match decrypt_machine_payload_with_session_key(&packet, runtime_mode, session_key)
-    {
+    let payload = match decrypt_machine_payload_with_session_key(
+        &packet,
+        runtime_mode,
+        session_tunnel_key.as_ref().map(|key| key.key),
+    ) {
         Ok(payload) => payload,
         Err(e) => {
             eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
@@ -515,20 +518,61 @@ pub async fn handle_gateway_connection_with_limits(
             }
         }
     };
+    let tunnel_key_id = session_tunnel_key.as_ref().map(|key| key.key_id.as_str());
+    let signed_context =
+        match annotate_tunnel_key_id(signed_context, tunnel_key_id, router.identity()) {
+            Ok(context) => context,
+            Err(error) => {
+                let reason = error.reason_code();
+                let receipt_id = router.record_reject(&packet, error).await;
+                write_decision_response(
+                    &mut write_half,
+                    &libsec_core::response::DecisionResponse::rejected(
+                        reason,
+                        None,
+                        Some(receipt_id),
+                    ),
+                    read_timeout,
+                )
+                .await;
+                return;
+            }
+        };
 
     let response = router.route_verified(&signed_context, payload).await;
     write_decision_response(&mut write_half, &response, read_timeout).await;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SessionTunnelKey {
+    key: [u8; 32],
+    key_id: String,
+}
+
 fn derive_session_tunnel_key(
     packet: &ZenithPacket,
     client_ephemeral_public_key: Option<[u8; 32]>,
-) -> Result<Option<[u8; 32]>, VerificationError> {
+) -> Result<Option<SessionTunnelKey>, VerificationError> {
     let Some(client_public_bytes) = client_ephemeral_public_key else {
         return Ok(None);
     };
-    let secret_hex = std::env::var("SECS_TUNNEL_X25519_SECRET_HEX")
-        .or_else(|_| std::env::var("SECZ_TUNNEL_X25519_SECRET_HEX"))
+    let candidate = derive_session_tunnel_key_from_env_pair(
+        packet,
+        client_public_bytes,
+        "SECS_TUNNEL_X25519_SECRET_HEX",
+        "SECZ_TUNNEL_X25519_SECRET_HEX",
+    )?;
+    Ok(Some(candidate))
+}
+
+fn derive_session_tunnel_key_from_env_pair(
+    packet: &ZenithPacket,
+    client_public_bytes: [u8; 32],
+    primary: &'static str,
+    legacy: &'static str,
+) -> Result<SessionTunnelKey, VerificationError> {
+    let secret_hex = std::env::var(primary)
+        .or_else(|_| std::env::var(legacy))
         .map_err(|_| VerificationError::MissingTunnelKey)?;
     let secret_bytes = libsec_core::tunnel::parse_tunnel_key_hex(&secret_hex)
         .ok_or(VerificationError::MissingTunnelKey)?;
@@ -540,12 +584,30 @@ fn derive_session_tunnel_key(
         return Err(VerificationError::BadMac);
     }
     let shared = shared.to_bytes();
-    Ok(Some(libsec_core::tunnel::derive_tunnel_key_hkdf(
-        &shared,
-        &packet.session_id,
-        &client_public_bytes,
-        &server_public,
-    )))
+    Ok(SessionTunnelKey {
+        key: libsec_core::tunnel::derive_tunnel_key_hkdf(
+            &shared,
+            &packet.session_id,
+            &client_public_bytes,
+            &server_public,
+        ),
+        key_id: libsec_core::tunnel::tunnel_public_key_id(&server_public),
+    })
+}
+
+fn annotate_tunnel_key_id(
+    signed_context: crate::verifier::SignedVerifiedCallContext,
+    tunnel_key_id: Option<&str>,
+    identity: &crate::identity::NodeVerifierIdentity,
+) -> Result<crate::verifier::SignedVerifiedCallContext, VerificationError> {
+    let Some(key_id) = tunnel_key_id else {
+        return Ok(signed_context);
+    };
+    let mut context = signed_context.context;
+    context
+        .evidence_summary
+        .push(format!("tunnel_key_id:{key_id}"));
+    identity.sign_context(context)
 }
 
 async fn record_pre_decode_reject(router: &ConfigurableRouter) -> String {

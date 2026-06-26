@@ -310,3 +310,5 @@ See [LICENSE](LICENSE).
 
 
 #144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.
+
+- Tunnel key lifecycle (#175): v2 session-key clients may pin `SECS_TUNNEL_SERVER_X25519_PUBLIC_ID`, while gateways expose redacted `tunnel:x25519:<hash>` identities for current/next X25519 keys and record accepted v2 key ids in verify receipts.

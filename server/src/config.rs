@@ -4,10 +4,12 @@ use crate::ingress::{DEFAULT_INGRESS_READ_TIMEOUT, DEFAULT_MAX_WIRE_BYTES};
 use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
 use crate::permissions::PermissionPolicy;
 use crate::runtime_mode::RuntimeMode;
+use libsec_core::tunnel::{parse_tunnel_key_hex, tunnel_public_key_id};
 use sqlx::SqlitePool;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use x25519_dalek::{PublicKey, StaticSecret};
 
 pub const MAX_CONFIGURED_WIRE_BYTES: usize = DEFAULT_MAX_WIRE_BYTES;
 pub const MAX_CONFIGURED_PAYLOAD_BYTES: usize = 1024 * 1024;
@@ -39,6 +41,13 @@ pub struct GatewayRuntimeConfig {
     pub allowed_evidence_adapters: Vec<String>,
     pub fixture_only: bool,
     pub fixture_only_smoke: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelKeyLifecycleSummary {
+    pub current_key_id: String,
+    pub next_key_id: Option<String>,
+    pub rotation_mode: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -501,6 +510,35 @@ impl GatewayRuntimeConfig {
             fixture_only_smoke,
         })
     }
+
+    pub fn tunnel_key_lifecycle_summary(
+        &self,
+    ) -> Result<TunnelKeyLifecycleSummary, RuntimeConfigError> {
+        let current = tunnel_x25519_secret_from_env(
+            "SECS_TUNNEL_X25519_SECRET_HEX",
+            "SECZ_TUNNEL_X25519_SECRET_HEX",
+        )?;
+        let current_public = PublicKey::from(&StaticSecret::from(current)).to_bytes();
+        let next = optional_tunnel_x25519_secret_from_env(
+            "SECS_TUNNEL_NEXT_X25519_SECRET_HEX",
+            "SECZ_TUNNEL_NEXT_X25519_SECRET_HEX",
+        )?;
+        let next_key_id = next.map(|secret| {
+            let public = PublicKey::from(&StaticSecret::from(secret)).to_bytes();
+            tunnel_public_key_id(&public)
+        });
+        let rotation_mode = if next_key_id.is_some() {
+            "current_next"
+        } else {
+            "single_active"
+        }
+        .to_string();
+        Ok(TunnelKeyLifecycleSummary {
+            current_key_id: tunnel_public_key_id(&current_public),
+            next_key_id,
+            rotation_mode,
+        })
+    }
 }
 
 pub fn validate_production_startup_readiness(
@@ -711,12 +749,37 @@ fn require_env_present(field: &'static str) -> Result<(), RuntimeConfigError> {
 }
 
 fn validate_tunnel_x25519_secret_env() -> Result<(), RuntimeConfigError> {
-    let value = std::env::var("SECS_TUNNEL_X25519_SECRET_HEX")
-        .or_else(|_| std::env::var("SECZ_TUNNEL_X25519_SECRET_HEX"))
-        .map_err(|_| RuntimeConfigError::MissingProductionField("SECS_TUNNEL_X25519_SECRET_HEX"))?;
-    libsec_core::tunnel::parse_tunnel_key_hex(&value)
-        .map(|_| ())
-        .ok_or(RuntimeConfigError::InvalidTunnelX25519Secret)
+    tunnel_x25519_secret_from_env(
+        "SECS_TUNNEL_X25519_SECRET_HEX",
+        "SECZ_TUNNEL_X25519_SECRET_HEX",
+    )?;
+    optional_tunnel_x25519_secret_from_env(
+        "SECS_TUNNEL_NEXT_X25519_SECRET_HEX",
+        "SECZ_TUNNEL_NEXT_X25519_SECRET_HEX",
+    )?;
+    Ok(())
+}
+
+fn tunnel_x25519_secret_from_env(
+    primary: &'static str,
+    legacy: &'static str,
+) -> Result<[u8; 32], RuntimeConfigError> {
+    let value = std::env::var(primary)
+        .or_else(|_| std::env::var(legacy))
+        .map_err(|_| RuntimeConfigError::MissingProductionField(primary))?;
+    parse_tunnel_key_hex(&value).ok_or(RuntimeConfigError::InvalidTunnelX25519Secret)
+}
+
+fn optional_tunnel_x25519_secret_from_env(
+    primary: &'static str,
+    legacy: &'static str,
+) -> Result<Option<[u8; 32]>, RuntimeConfigError> {
+    match std::env::var(primary).or_else(|_| std::env::var(legacy)) {
+        Ok(value) if !value.trim().is_empty() => parse_tunnel_key_hex(&value)
+            .map(Some)
+            .ok_or(RuntimeConfigError::InvalidTunnelX25519Secret),
+        _ => Ok(None),
+    }
 }
 
 fn required_env_path(

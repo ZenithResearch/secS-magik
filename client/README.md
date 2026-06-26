@@ -79,3 +79,5 @@ cargo test --workspace
 - [Core README](../core/README.md)
 - [Server README](../server/README.md)
 - [Client surfaces](../docs/client-surfaces.md)
+
+Tunnel key pinning: when using `SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX`, set `SECS_TUNNEL_SERVER_X25519_PUBLIC_ID=tunnel:x25519:<sha256-prefix>` to fail closed if the configured public key does not match the expected gateway key identity.

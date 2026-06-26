@@ -813,6 +813,54 @@ mod decision_response {
 
     #[tokio::test]
     #[serial_test::serial]
+    async fn v2_session_handshake_records_tunnel_key_id_in_verify_receipt_without_secret() {
+        std::env::set_var(
+            "SECS_TUNNEL_X25519_SECRET_HEX",
+            "0808080808080808080808080808080808080808080808080808080808080808",
+        );
+        std::env::remove_var("SECS_TUNNEL_NEXT_X25519_SECRET_HEX");
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let mut router = ConfigurableRouter::new(pool.clone());
+        register_runtime_bindings(&mut router, RuntimeMode::LocalDevTunnel);
+        let request = session_v2_packet_and_request(b"tunnel-key-id", [8u8; 32], [4u8; 32]);
+        let server_public =
+            x25519_dalek::PublicKey::from(&x25519_dalek::StaticSecret::from([8u8; 32])).to_bytes();
+        let expected_key_id = libsec_core::tunnel::tunnel_public_key_id(&server_public);
+
+        let frame = call_gateway_with_runtime(
+            Arc::new(router),
+            encode_ingress_request_v2(&request).unwrap(),
+            RuntimeMode::LocalDevTunnel,
+        )
+        .await;
+        let response = DecisionResponse::decode(&frame).expect("decision response should decode");
+        assert!(response.is_accepted());
+
+        let summaries: Vec<(String,)> = sqlx::query_as(
+            "SELECT evidence_summary FROM receipts WHERE kind = 'verify' ORDER BY timestamp ASC",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        let joined = summaries
+            .iter()
+            .map(|(summary,)| summary.as_str())
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+        assert!(joined.contains(&format!("tunnel_key_id:{expected_key_id}")));
+        assert!(!joined.contains("0808080808080808"));
+        std::env::remove_var("SECS_TUNNEL_X25519_SECRET_HEX");
+    }
+    #[tokio::test]
+    #[serial_test::serial]
     async fn v2_session_handshake_rejects_non_contributory_client_public_key() {
         std::env::set_var(
             "SECS_TUNNEL_X25519_SECRET_HEX",
