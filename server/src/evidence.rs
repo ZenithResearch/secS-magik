@@ -56,6 +56,66 @@ impl EvidenceKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveDreggProofKind {
+    Revocation,
+    BlsThresholdFinality,
+    RotatedReplay,
+}
+
+impl LiveDreggProofKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Revocation => "revocation",
+            Self::BlsThresholdFinality => "bls_threshold_finality",
+            Self::RotatedReplay => "rotated_replay",
+        }
+    }
+}
+
+/// Versioned contract envelope for future live Dregg verifier adapters (#177).
+///
+/// This is a typed, redaction-safe contract only. It deliberately does not
+/// verify revocation, BLS finality, or rotated replay proofs; later #178/#179/#180
+/// adapters plug real verifiers into the trait seam using this shape.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveDreggEvidenceEnvelope {
+    pub version: &'static str,
+    pub proof_kind: LiveDreggProofKind,
+    pub evidence_ref: String,
+    pub federation_id: String,
+    pub issuer_id: String,
+    pub root_ref: String,
+    pub root_fingerprint: String,
+    pub epoch_id: String,
+    pub proof_ref: String,
+    pub verifier_mode: String,
+}
+
+impl LiveDreggEvidenceEnvelope {
+    pub const VERSION: &'static str = "secs-dregg-live-evidence-v1";
+
+    pub fn evidence_kind(&self) -> EvidenceKind {
+        EvidenceKind::DreggAuthority
+    }
+
+    pub fn redacted_summary_fields(&self) -> Vec<String> {
+        vec![
+            format!("live_dregg_contract:{}", self.version),
+            format!("live_dregg_proof_kind:{}", self.proof_kind.as_str()),
+            redacted_reference_field("evidence_ref", &self.evidence_ref),
+            redacted_reference_field("federation_id", &self.federation_id),
+            redacted_reference_field("issuer_id", &self.issuer_id),
+            redacted_reference_field("root_ref", &self.root_ref),
+            format!("root_fingerprint:{}", self.root_fingerprint),
+            redacted_reference_field("epoch_id", &self.epoch_id),
+            redacted_reference_field("proof_ref", &self.proof_ref),
+            format!("verifier_mode:{}", self.verifier_mode),
+        ]
+    }
+}
+
 /// Canonical caller/runtime evidence inputs (#79).
 ///
 /// The explicit, ordered, validated representation of what a caller or

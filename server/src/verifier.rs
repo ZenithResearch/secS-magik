@@ -54,6 +54,13 @@ pub enum VerificationError {
     UnsupportedRevocationVerifier,
     UnsupportedBlsThresholdFinality,
     UnsupportedRotatedReplayVerifier,
+    MissingLiveDreggVerifier,
+    MissingLiveDreggRevocationVerifier,
+    MissingLiveDreggBlsThresholdVerifier,
+    MissingLiveDreggRotatedReplayVerifier,
+    StaleDreggRevocationRoot,
+    InvalidDreggFinalityQc,
+    InvalidDreggRotatedProof,
     InvalidAdmission,
     RevokedIssuer,
     RevokedCredential,
@@ -119,6 +126,17 @@ impl VerificationError {
             Self::UnsupportedRevocationVerifier => "unsupported_revocation_verifier",
             Self::UnsupportedBlsThresholdFinality => "unsupported_bls_threshold_finality",
             Self::UnsupportedRotatedReplayVerifier => "unsupported_rotated_replay_verifier",
+            Self::MissingLiveDreggVerifier => "missing_live_dregg_verifier",
+            Self::MissingLiveDreggRevocationVerifier => "missing_live_dregg_revocation_verifier",
+            Self::MissingLiveDreggBlsThresholdVerifier => {
+                "missing_live_dregg_bls_threshold_verifier"
+            }
+            Self::MissingLiveDreggRotatedReplayVerifier => {
+                "missing_live_dregg_rotated_replay_verifier"
+            }
+            Self::StaleDreggRevocationRoot => "stale_dregg_revocation_root",
+            Self::InvalidDreggFinalityQc => "invalid_dregg_finality_qc",
+            Self::InvalidDreggRotatedProof => "invalid_dregg_rotated_proof",
             Self::InvalidAdmission => "invalid_admission",
             Self::RevokedIssuer => "revoked_issuer",
             Self::RevokedCredential => "revoked_credential",
