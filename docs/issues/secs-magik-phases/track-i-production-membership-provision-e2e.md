@@ -67,7 +67,7 @@ git diff --check -- README.md CHANGELOG.md docs/ server/ core/ client/
 
 ## Bounded claims / forbidden claims
 
-This phase is local production-shaped E2E only. Issue #77 preserves that boundary by rejecting descriptor-only `production_verified` runtime verification for canonical `0x44` `membership.provision` unless the evidence-aware helper path has supplied wallet proof-of-possession, trusted issuer evidence, and the bounded static receiver-held Dregg policy-admission seam. Live TCP ingress now carries bounded evidence refs/public inputs through the #162 versioned ingress request envelope, but only into the existing evidence adapter path; it must not be claimed as production deployment proof, live Castalia/Dregg discovery, or live Dregg proof/finality. #144/#160 remain open before #73 can close. #73 remains open until #144 finalizes the bounded M15 Dregg authority E2E/docs without overclaiming #159 live proof/finality, #160 Dregg resource locks, or #162 live ingress. It is not:
+This phase is local production-shaped E2E only. Issue #77 preserves that boundary by rejecting descriptor-only `production_verified` runtime verification for canonical `0x44` `membership.provision` unless the evidence-aware helper path has supplied wallet proof-of-possession, trusted issuer evidence, and the bounded static receiver-held Dregg policy-admission seam. Live TCP ingress now carries bounded evidence refs/public inputs through the #162 versioned ingress request envelope, but only into the existing evidence adapter path; it must not be claimed as production deployment proof, live Castalia/Dregg discovery, or live Dregg proof/finality. #144/M15.8 and #160 remain unsupported before #73 can close. #144/M15.8 reconciles the bounded #73 finalizer finalizes the bounded M15 Dregg authority E2E/docs without overclaiming #159 live proof/finality, #160 Dregg resource locks, or #162 live ingress. It is not:
 
 - production deployment proof;
 - public auditability beyond local SQLite operator inspection;
@@ -79,7 +79,7 @@ This phase is local production-shaped E2E only. Issue #77 preserves that boundar
 
 - PR #76 merged to `main` at `5e5bb7139cdf6ee7b94582391005dc59c331cff9`.
 - Post-merge Rust CI run 27071532041 passed.
-- Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84. #77 is the descriptor-only production runtime fail-closed guard. #162/#144 live TCP evidence-ref/public-input follow-ups remain responsible for evidence-aware live ingress/runtime authority; #73 remains open until #144 finalizes the bounded M15 Dregg authority E2E/docs without overclaiming #159/#160/#162.
+- Follow-up issues from post-merge review: #77, #78, #79, #80, #81, #82, #83, #84. #77 is the descriptor-only production runtime fail-closed guard. #162 and #144/M15.8 live TCP evidence-ref/public-input follow-ups remain responsible for evidence-aware live ingress/runtime authority; #144/M15.8 reconciles the bounded #73 finalizer finalizes the bounded M15 Dregg authority E2E/docs without overclaiming #159/#160/#162.
 - #84 is covered by `membership_provision_verifier_acceptance_without_execute_receipt_is_not_success`, which pins the non-success boundary for smoke/log/verifier-only paths without accepted execute receipts.
 
 
@@ -101,7 +101,7 @@ register the bounded native `membership/provision` handler in every mode
 guard remains in force and historical pre-#162 live ingress carried no evidence refs, so
 runtime `membership.provision` authority is still not claimable; the
 remaining live-wire activation rides on the #79 API contract plus future
-#162/#144 ingress wiring; handler binding is not authority.
+#162 and #144/M15.8 ingress wiring; handler binding is not authority.
 
 ## #80 status note (2026-06-12)
 
@@ -114,7 +114,10 @@ is the drift gate for all twelve routing/authorization fields.
 
 ## #169 trusted requested-authority attenuation boundary
 
-#167 adds delegated attenuation / non-amplification to the live evidence path: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` before handler dispatch. This is not Dregg-provisioned resource-lock authority; #160 implements bounded Dregg-provisioned resource locks, and #73 remains open until #144 reconciles #169/#160 without overclaim.
+#167 adds delegated attenuation / non-amplification to the live evidence path: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` before handler dispatch. This is not Dregg-provisioned resource-lock authority; #160 implements bounded Dregg-provisioned resource locks, and #144/M15.8 reconciles the bounded #73 finalizer reconciles #169/#160 without overclaim.
 
 
-#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #73 remains open until #144 reconciles the finalizer.
+#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #144/M15.8 reconciles the bounded #73 finalizer.
+
+
+#144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.

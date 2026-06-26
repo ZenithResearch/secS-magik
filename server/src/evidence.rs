@@ -565,6 +565,18 @@ impl EvidenceAdapter for CompositeEvidenceAdapter<'_> {
             }
         }
 
+        let locked_resource = summaries.iter().find_map(|summary| {
+            if summary.kind == EvidenceKind::DreggAuthority
+                && summary
+                    .summary_fields
+                    .iter()
+                    .any(|field| field == "resource_lock:verified")
+            {
+                summary.resource.clone()
+            } else {
+                None
+            }
+        });
         let mut summary_fields = Vec::new();
         for summary in &summaries {
             summary_fields.extend(summary.to_context_fields());
@@ -578,7 +590,7 @@ impl EvidenceAdapter for CompositeEvidenceAdapter<'_> {
             subject: request.subject.clone(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
-            resource: request.resource.clone(),
+            resource: locked_resource,
             local_dev_test_only: summaries.iter().any(|summary| summary.local_dev_test_only),
             public_proof: summaries.iter().all(|summary| summary.public_proof),
             summary_fields,
