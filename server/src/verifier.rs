@@ -59,6 +59,7 @@ pub enum VerificationError {
     MissingLiveDreggBlsThresholdVerifier,
     MissingLiveDreggRotatedReplayVerifier,
     StaleDreggRevocationRoot,
+    InvalidDreggRevocationProof,
     InvalidDreggFinalityQc,
     InvalidDreggRotatedProof,
     InvalidAdmission,
@@ -135,6 +136,7 @@ impl VerificationError {
                 "missing_live_dregg_rotated_replay_verifier"
             }
             Self::StaleDreggRevocationRoot => "stale_dregg_revocation_root",
+            Self::InvalidDreggRevocationProof => "invalid_dregg_revocation_proof",
             Self::InvalidDreggFinalityQc => "invalid_dregg_finality_qc",
             Self::InvalidDreggRotatedProof => "invalid_dregg_rotated_proof",
             Self::InvalidAdmission => "invalid_admission",

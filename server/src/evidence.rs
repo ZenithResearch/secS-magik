@@ -16,6 +16,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -150,6 +151,131 @@ pub trait LiveDreggVerifier: Send + Sync {
         &self,
         envelope: &LiveDreggEvidenceEnvelope,
     ) -> Result<Vec<String>, VerificationError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustedDreggRevocationRoot {
+    pub federation_id: String,
+    pub issuer_id: String,
+    pub root_ref: String,
+    pub root_fingerprint: String,
+    pub epoch_id: String,
+    pub not_before: u64,
+    pub not_after: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveDreggRevocationVerifierConfig {
+    pub trusted_roots: Vec<TrustedDreggRevocationRoot>,
+}
+
+impl LiveDreggRevocationVerifierConfig {
+    pub fn from_json_str(json: &str) -> Result<Self, String> {
+        let config: Self = serde_json::from_str(json).map_err(|error| error.to_string())?;
+        if config.trusted_roots.is_empty() {
+            return Err("live Dregg revocation verifier config has no trusted roots".to_string());
+        }
+        for root in &config.trusted_roots {
+            if root.federation_id.trim().is_empty()
+                || root.issuer_id.trim().is_empty()
+                || root.root_ref.trim().is_empty()
+                || root.root_fingerprint.trim().is_empty()
+                || root.epoch_id.trim().is_empty()
+                || root.not_before >= root.not_after
+            {
+                return Err("invalid live Dregg revocation trusted root".to_string());
+            }
+        }
+        Ok(config)
+    }
+
+    pub fn from_json_file(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
+        let json = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+        Self::from_json_str(&json)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveDreggRevocationVerifier {
+    config: LiveDreggRevocationVerifierConfig,
+    validation_time: u64,
+    non_membership_proof_refs: BTreeSet<String>,
+}
+
+impl LiveDreggRevocationVerifier {
+    pub fn new(config: LiveDreggRevocationVerifierConfig, validation_time: u64) -> Self {
+        Self {
+            config,
+            validation_time,
+            non_membership_proof_refs: BTreeSet::new(),
+        }
+    }
+
+    pub fn with_non_membership_proof_ref(mut self, proof_ref: String) -> Self {
+        self.non_membership_proof_refs.insert(proof_ref);
+        self
+    }
+
+    pub fn trusts_root(
+        &self,
+        federation_id: &str,
+        issuer_id: &str,
+        root_ref: &str,
+        root_fingerprint: &str,
+        epoch_id: &str,
+    ) -> bool {
+        self.config.trusted_roots.iter().any(|root| {
+            root.federation_id == federation_id
+                && root.issuer_id == issuer_id
+                && root.root_ref == root_ref
+                && root.root_fingerprint == root_fingerprint
+                && root.epoch_id == epoch_id
+                && self.validation_time >= root.not_before
+                && self.validation_time <= root.not_after
+        })
+    }
+}
+
+impl LiveDreggVerifier for LiveDreggRevocationVerifier {
+    fn verify_revocation(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        if envelope.proof_kind != LiveDreggProofKind::Revocation {
+            return Err(VerificationError::InvalidDreggRevocationProof);
+        }
+        if !self.trusts_root(
+            &envelope.federation_id,
+            &envelope.issuer_id,
+            &envelope.root_ref,
+            &envelope.root_fingerprint,
+            &envelope.epoch_id,
+        ) {
+            return Err(VerificationError::StaleDreggRevocationRoot);
+        }
+        if !self.non_membership_proof_refs.contains(&envelope.proof_ref) {
+            return Err(VerificationError::InvalidDreggRevocationProof);
+        }
+        Ok(vec![
+            "live_dregg_proof_kind:revocation".to_string(),
+            "live_revocation_status:non_member".to_string(),
+            redacted_reference_field("live_revocation_proof_ref", &envelope.proof_ref),
+        ])
+    }
+
+    fn verify_bls_threshold_finality(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggBlsThresholdVerifier)
+    }
+
+    fn verify_rotated_replay(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggRotatedReplayVerifier)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -1236,11 +1362,12 @@ fn parse_dregg_authority_token(
 /// from M12.3 `dregg_receipt` fixtures so shape + author signature can never be
 /// confused with production authority. Full revocation proof/finality semantics
 /// remain M15.4.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct DreggAuthorityEvidenceAdapter {
     grants: Vec<DreggAuthorityGrantFixture>,
     registry: DreggAuthorityRegistry,
     validation_time: u64,
+    live_verifier: Arc<dyn LiveDreggVerifier>,
 }
 
 impl DreggAuthorityEvidenceAdapter {
@@ -1253,7 +1380,13 @@ impl DreggAuthorityEvidenceAdapter {
             grants: grants.into_iter().collect(),
             registry,
             validation_time,
+            live_verifier: Arc::new(MissingLiveDreggVerifier),
         }
+    }
+
+    pub fn with_live_verifier(mut self, verifier: impl LiveDreggVerifier + 'static) -> Self {
+        self.live_verifier = Arc::new(verifier);
+        self
     }
 }
 
@@ -1295,6 +1428,69 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             Ok(entry) => entry,
             Err(error) => return EvidenceResult::Rejected(error),
         };
+        let mut live_summary_fields = Vec::new();
+        if entry.status_policy.revocation_verifier_mode
+            == DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired
+        {
+            let envelope = LiveDreggEvidenceEnvelope {
+                version: LiveDreggEvidenceEnvelope::VERSION,
+                proof_kind: LiveDreggProofKind::Revocation,
+                evidence_ref: evidence_ref.clone(),
+                federation_id: entry.federation_id.clone(),
+                issuer_id: grant.issuer_id.clone(),
+                root_ref: grant.root_ref.clone(),
+                root_fingerprint: grant.root_fingerprint.clone(),
+                epoch_id: grant.epoch_id.clone(),
+                proof_ref: grant
+                    .attested_revocation_root_ref
+                    .clone()
+                    .unwrap_or_else(|| evidence_ref.clone()),
+                verifier_mode: revocation_verifier_mode_name(
+                    entry.status_policy.revocation_verifier_mode,
+                )
+                .to_string(),
+            };
+            match self.live_verifier.verify_revocation(&envelope) {
+                Ok(fields) => live_summary_fields.extend(fields),
+                Err(error) => return EvidenceResult::Rejected(error),
+            }
+        }
+        if entry.status_policy.finality_mode == DreggAuthorityFinalityMode::BlsThresholdRequired {
+            let envelope = LiveDreggEvidenceEnvelope {
+                version: LiveDreggEvidenceEnvelope::VERSION,
+                proof_kind: LiveDreggProofKind::BlsThresholdFinality,
+                evidence_ref: evidence_ref.clone(),
+                federation_id: entry.federation_id.clone(),
+                issuer_id: grant.issuer_id.clone(),
+                root_ref: grant.root_ref.clone(),
+                root_fingerprint: grant.root_fingerprint.clone(),
+                epoch_id: grant.epoch_id.clone(),
+                proof_ref: evidence_ref.clone(),
+                verifier_mode: finality_mode_name(entry.status_policy.finality_mode).to_string(),
+            };
+            match self.live_verifier.verify_bls_threshold_finality(&envelope) {
+                Ok(fields) => live_summary_fields.extend(fields),
+                Err(error) => return EvidenceResult::Rejected(error),
+            }
+        }
+        if entry.status_policy.finality_mode == DreggAuthorityFinalityMode::RotatedReplayRequired {
+            let envelope = LiveDreggEvidenceEnvelope {
+                version: LiveDreggEvidenceEnvelope::VERSION,
+                proof_kind: LiveDreggProofKind::RotatedReplay,
+                evidence_ref: evidence_ref.clone(),
+                federation_id: entry.federation_id.clone(),
+                issuer_id: grant.issuer_id.clone(),
+                root_ref: grant.root_ref.clone(),
+                root_fingerprint: grant.root_fingerprint.clone(),
+                epoch_id: grant.epoch_id.clone(),
+                proof_ref: evidence_ref.clone(),
+                verifier_mode: finality_mode_name(entry.status_policy.finality_mode).to_string(),
+            };
+            match self.live_verifier.verify_rotated_replay(&envelope) {
+                Ok(fields) => live_summary_fields.extend(fields),
+                Err(error) => return EvidenceResult::Rejected(error),
+            }
+        }
         let parsed = match parse_dregg_authority_token(&grant.token) {
             Ok(parsed) => parsed,
             Err(error) => return EvidenceResult::Rejected(error),
@@ -1368,6 +1564,7 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 public_key_ref_for_hex(&entry.issuer_public_key_hex)
             ),
         ];
+        summary_fields.extend(live_summary_fields);
         if let Some(delegated_prefix) = parsed.delegated_resource_prefix {
             summary_fields.push("attenuation:non_amplifying".to_string());
             summary_fields.push(redacted_reference_field(
@@ -1399,9 +1596,8 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             operation: request.operation.clone(),
             resource: verified_resource_lock,
             local_dev_test_only: false,
-            // M15.3 admits against receiver-held Dregg policy, but M15.4 still
-            // owns revocation proofs/finality/public auditability.
-            public_proof: false,
+            public_proof: entry.status_policy.revocation_verifier_mode
+                == DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired,
             summary_fields,
         })
     }
