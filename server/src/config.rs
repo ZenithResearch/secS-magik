@@ -615,6 +615,8 @@ pub fn validate_dregg_authority_registry_file(path: Option<&Path>) -> Result<(),
         .map(|registry| {
             if registry.is_empty() {
                 Err("production Dregg authority registry has no issuer/root entries".to_string())
+            } else if registry.requires_live_verifier_dependency() {
+                Err("live Dregg verifier dependency is not configured for registry modes that require live verification".to_string())
             } else {
                 Ok(())
             }

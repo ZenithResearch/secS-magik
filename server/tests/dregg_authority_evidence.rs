@@ -48,8 +48,8 @@ fn request() -> EvidenceRequest {
     request
 }
 
-fn registry() -> DreggAuthorityRegistry {
-    DreggAuthorityRegistry::new([DreggAuthorityEntry {
+fn registry_entry() -> DreggAuthorityEntry {
+    DreggAuthorityEntry {
         issuer_id: "did:dregg:issuer:fixture".to_string(),
         issuer_key_id: "dregg-issuer-key:fixture-1".to_string(),
         issuer_public_key_hex: "1111111111111111111111111111111111111111111111111111111111111111"
@@ -75,8 +75,11 @@ fn registry() -> DreggAuthorityRegistry {
         },
         root_status: DreggAuthorityStatus::Active,
         issuer_status: DreggAuthorityStatus::Active,
-    }])
-    .unwrap()
+    }
+}
+
+fn registry() -> DreggAuthorityRegistry {
+    DreggAuthorityRegistry::new([registry_entry()]).unwrap()
 }
 
 fn valid_grant() -> DreggAuthorityGrantFixture {
@@ -472,7 +475,7 @@ fn live_revocation_bls_finality_and_rotated_replay_modes_fail_closed_without_ver
             VALIDATION_TIME
         )
         .verify(&request()),
-        EvidenceResult::Rejected(VerificationError::UnsupportedRevocationVerifier),
+        EvidenceResult::Rejected(VerificationError::MissingLiveDreggRevocationVerifier),
         "fixture root/status material must not fake a live Dregg RevocationVerifier/RevocationTree"
     );
 
@@ -490,7 +493,7 @@ fn live_revocation_bls_finality_and_rotated_replay_modes_fail_closed_without_ver
     assert_eq!(
         DreggAuthorityEvidenceAdapter::new([final_fixture], bls_registry, VALIDATION_TIME)
             .verify(&request()),
-        EvidenceResult::Rejected(VerificationError::UnsupportedBlsThresholdFinality),
+        EvidenceResult::Rejected(VerificationError::MissingLiveDreggBlsThresholdVerifier),
         "final fixture status must not fake ReceiptQc::Threshold/BLS FederationCommittee finality"
     );
 
@@ -508,7 +511,7 @@ fn live_revocation_bls_finality_and_rotated_replay_modes_fail_closed_without_ver
     assert_eq!(
         DreggAuthorityEvidenceAdapter::new([final_fixture], rotated_registry, VALIDATION_TIME)
             .verify(&request()),
-        EvidenceResult::Rejected(VerificationError::UnsupportedRotatedReplayVerifier),
+        EvidenceResult::Rejected(VerificationError::MissingLiveDreggRotatedReplayVerifier),
         "final fixture status must not fake rotated_replay::verify_rotated_replay_chain"
     );
 }
@@ -650,4 +653,54 @@ fn dregg_authority_summary_follows_m15_6_disclosure_boundary() {
             "Dregg authority disclosure summary leaked forbidden raw value: {forbidden}"
         );
     }
+}
+
+#[test]
+fn live_revocation_required_rejects_with_missing_live_verifier_not_fixture_status() {
+    let mut entry = registry_entry();
+    entry.status_policy.revocation_verifier_mode =
+        DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired;
+    let live_registry = DreggAuthorityRegistry::new([entry]).unwrap();
+    let live_adapter =
+        DreggAuthorityEvidenceAdapter::new([valid_grant()], live_registry, VALIDATION_TIME);
+
+    assert_eq!(
+        live_adapter.verify(&request()),
+        EvidenceResult::Rejected(VerificationError::MissingLiveDreggRevocationVerifier),
+        "live revocation-required policies must fail closed instead of falling back to fixture status"
+    );
+}
+
+#[test]
+fn live_bls_finality_required_rejects_with_missing_live_verifier() {
+    let mut entry = registry_entry();
+    entry.status_policy.require_finality = true;
+    entry.status_policy.finality_mode = DreggAuthorityFinalityMode::BlsThresholdRequired;
+    let live_registry = DreggAuthorityRegistry::new([entry]).unwrap();
+    let mut grant = valid_grant();
+    grant.finality_status = Some(DreggAuthorityFinalityStatus::Final);
+    let live_adapter = DreggAuthorityEvidenceAdapter::new([grant], live_registry, VALIDATION_TIME);
+
+    assert_eq!(
+        live_adapter.verify(&request()),
+        EvidenceResult::Rejected(VerificationError::MissingLiveDreggBlsThresholdVerifier),
+        "BLS-required policies must fail closed instead of accepting fixture finality flags"
+    );
+}
+
+#[test]
+fn live_rotated_replay_required_rejects_with_missing_live_verifier() {
+    let mut entry = registry_entry();
+    entry.status_policy.require_finality = true;
+    entry.status_policy.finality_mode = DreggAuthorityFinalityMode::RotatedReplayRequired;
+    let live_registry = DreggAuthorityRegistry::new([entry]).unwrap();
+    let mut grant = valid_grant();
+    grant.finality_status = Some(DreggAuthorityFinalityStatus::Final);
+    let live_adapter = DreggAuthorityEvidenceAdapter::new([grant], live_registry, VALIDATION_TIME);
+
+    assert_eq!(
+        live_adapter.verify(&request()),
+        EvidenceResult::Rejected(VerificationError::MissingLiveDreggRotatedReplayVerifier),
+        "rotated-replay-required policies must fail closed instead of accepting fixture finality flags"
+    );
 }
