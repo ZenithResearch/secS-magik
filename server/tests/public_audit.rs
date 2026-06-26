@@ -190,3 +190,51 @@ async fn public_audit_export_rejects_incomplete_or_unsigned_context_chains() {
 
     assert_eq!(error, PublicAuditExportError::IncompleteReceiptChain);
 }
+
+#[tokio::test]
+async fn local_public_audit_verifier_accepts_valid_bundle_and_rejects_tampering() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-audit-verify");
+    ledger
+        .record_receipt(&signed_receipt("r-verify-1", &context, 1_770_000_010))
+        .await
+        .unwrap();
+    ledger
+        .record_receipt(&signed_receipt("r-verify-2", &context, 1_770_000_011))
+        .await
+        .unwrap();
+    let bundle = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-audit-verify",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+
+    assert!(bundle.verify_local_public_audit().is_ok());
+
+    let mut tampered = bundle.clone();
+    tampered.receipts[0].decision = "rejected".to_string();
+    assert_eq!(
+        tampered.verify_local_public_audit().unwrap_err(),
+        server::public_audit::PublicAuditVerificationError::ReceiptEntryHashMismatch
+    );
+
+    let mut missing_signer = bundle.clone();
+    missing_signer.signer_keys.clear();
+    assert_eq!(
+        missing_signer.verify_local_public_audit().unwrap_err(),
+        server::public_audit::PublicAuditVerificationError::UnknownSignerKey
+    );
+
+    let mut tampered_root = bundle;
+    tampered_root.chain.root_hash_hex = "00".repeat(32);
+    assert_eq!(
+        tampered_root.verify_local_public_audit().unwrap_err(),
+        server::public_audit::PublicAuditVerificationError::ChainRootMismatch
+    );
+}
