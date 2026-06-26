@@ -116,6 +116,49 @@ impl LiveDreggEvidenceEnvelope {
     }
 }
 
+pub trait LiveDreggVerifier: Send + Sync {
+    fn verify_revocation(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError>;
+
+    fn verify_bls_threshold_finality(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError>;
+
+    fn verify_rotated_replay(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError>;
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MissingLiveDreggVerifier;
+
+impl LiveDreggVerifier for MissingLiveDreggVerifier {
+    fn verify_revocation(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggRevocationVerifier)
+    }
+
+    fn verify_bls_threshold_finality(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggBlsThresholdVerifier)
+    }
+
+    fn verify_rotated_replay(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggRotatedReplayVerifier)
+    }
+}
+
 /// Canonical caller/runtime evidence inputs (#79).
 ///
 /// The explicit, ordered, validated representation of what a caller or

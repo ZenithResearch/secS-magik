@@ -1,11 +1,13 @@
-use server::evidence::{EvidenceKind, LiveDreggEvidenceEnvelope, LiveDreggProofKind};
+use server::evidence::{
+    EvidenceKind, LiveDreggEvidenceEnvelope, LiveDreggProofKind, LiveDreggVerifier,
+    MissingLiveDreggVerifier,
+};
 use server::verifier::VerificationError;
 
-#[test]
-fn live_dregg_contracts_are_versioned_typed_and_redacted() {
-    let envelope = LiveDreggEvidenceEnvelope {
+fn live_envelope(proof_kind: LiveDreggProofKind) -> LiveDreggEvidenceEnvelope {
+    LiveDreggEvidenceEnvelope {
         version: LiveDreggEvidenceEnvelope::VERSION,
-        proof_kind: LiveDreggProofKind::Revocation,
+        proof_kind,
         evidence_ref: "dregg-live:raw-proof-ref-secret".to_string(),
         federation_id: "dregg-federation:fixture".to_string(),
         issuer_id: "did:dregg:issuer:fixture".to_string(),
@@ -14,7 +16,12 @@ fn live_dregg_contracts_are_versioned_typed_and_redacted() {
         epoch_id: "epoch:2026q2".to_string(),
         proof_ref: "proof-ref:do-not-leak".to_string(),
         verifier_mode: "live_revocation_verifier_required".to_string(),
-    };
+    }
+}
+
+#[test]
+fn live_dregg_contracts_are_versioned_typed_and_redacted() {
+    let envelope = live_envelope(LiveDreggProofKind::Revocation);
 
     assert_eq!(envelope.version, "secs-dregg-live-evidence-v1");
     assert_eq!(envelope.evidence_kind(), EvidenceKind::DreggAuthority);
@@ -79,4 +86,24 @@ fn live_dregg_reason_codes_are_specific_not_generic_invalid_presentation() {
         assert_eq!(error.reason_code(), expected);
         assert_ne!(error.reason_code(), "invalid_presentation");
     }
+}
+
+#[test]
+fn missing_live_dregg_verifier_trait_fails_closed_per_proof_kind() {
+    let missing = MissingLiveDreggVerifier;
+
+    assert_eq!(
+        missing.verify_revocation(&live_envelope(LiveDreggProofKind::Revocation)),
+        Err(VerificationError::MissingLiveDreggRevocationVerifier)
+    );
+    assert_eq!(
+        missing.verify_bls_threshold_finality(&live_envelope(
+            LiveDreggProofKind::BlsThresholdFinality
+        )),
+        Err(VerificationError::MissingLiveDreggBlsThresholdVerifier)
+    );
+    assert_eq!(
+        missing.verify_rotated_replay(&live_envelope(LiveDreggProofKind::RotatedReplay)),
+        Err(VerificationError::MissingLiveDreggRotatedReplayVerifier)
+    );
 }
