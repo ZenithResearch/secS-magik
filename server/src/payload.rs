@@ -1,6 +1,6 @@
 use crate::runtime_mode::RuntimeMode;
 use libsec_core::{
-    tunnel::{decrypt_payload, packet_aad},
+    tunnel::{decrypt_payload, packet_aad, parse_tunnel_key_hex},
     ZenithPacket,
 };
 
@@ -8,7 +8,15 @@ pub fn decrypt_machine_payload(
     packet: &ZenithPacket,
     mode: RuntimeMode,
 ) -> Result<Vec<u8>, String> {
-    match load_tunnel_key() {
+    decrypt_machine_payload_with_session_key(packet, mode, None)
+}
+
+pub fn decrypt_machine_payload_with_session_key(
+    packet: &ZenithPacket,
+    mode: RuntimeMode,
+    session_key: Option<[u8; 32]>,
+) -> Result<Vec<u8>, String> {
+    match session_key.or_else(load_tunnel_key) {
         Some(key) => {
             // Bind decryption to the envelope: a captured (nonce, ciphertext)
             // re-bound to a different session_id/opcode/claim_ttl must fail
@@ -30,23 +38,7 @@ pub fn load_tunnel_key() -> Option<[u8; 32]> {
 }
 
 pub fn parse_hex_32(input: &str) -> Option<[u8; 32]> {
-    let clean = input
-        .strip_prefix("0x")
-        .or_else(|| input.strip_prefix("0X"))
-        .unwrap_or(input)
-        .trim();
-
-    if clean.len() != 64 {
-        return None;
-    }
-
-    let mut out = [0u8; 32];
-    for (idx, byte) in out.iter_mut().enumerate() {
-        let start = idx * 2;
-        let end = start + 2;
-        *byte = u8::from_str_radix(&clean[start..end], 16).ok()?;
-    }
-    Some(out)
+    parse_tunnel_key_hex(input)
 }
 
 #[cfg(test)]

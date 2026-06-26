@@ -90,6 +90,9 @@ mod tests {
             IngressFrame::Legacy(_) => {
                 panic!("versioned ingress request must not decode as legacy packet")
             }
+            IngressFrame::V2(_) => {
+                panic!("v1 ingress request must not decode as v2 packet")
+            }
         }
     }
 
@@ -118,7 +121,9 @@ mod tests {
         let bytes = bincode::serialize(&packet).unwrap();
         match decode_ingress_frame(&bytes, bytes.len()).unwrap() {
             IngressFrame::Legacy(decoded) => assert_eq!(decoded, packet),
-            IngressFrame::V1(_) => panic!("bare ZenithPacket must remain v0-compatible"),
+            IngressFrame::V1(_) | IngressFrame::V2(_) => {
+                panic!("bare ZenithPacket must remain v0-compatible")
+            }
         }
     }
 

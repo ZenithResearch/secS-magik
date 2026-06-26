@@ -17,6 +17,7 @@ clap = { version = "4.4", features = ["derive"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }
 serial_test = "3.5"
 rand.workspace = true
+x25519-dalek = { version = "2.0", default-features = false, features = ["static_secrets"] }
 
 [[bin]]
 name = "secs-gateway"

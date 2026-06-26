@@ -4,10 +4,51 @@ use chacha20poly1305::{
     aead::{Aead, Payload},
     ChaCha20Poly1305, Key, KeyInit, Nonce,
 };
+use hkdf::Hkdf;
+use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
 pub fn derive_shared_secret(secret: EphemeralSecret, public_key: &PublicKey) -> [u8; 32] {
     secret.diffie_hellman(public_key).to_bytes()
+}
+
+const SECS_TUNNEL_HKDF_INFO_V1: &[u8] = b"secs-magik tunnel key v1";
+
+pub fn parse_tunnel_key_hex(input: &str) -> Option<[u8; 32]> {
+    let clean = input
+        .strip_prefix("0x")
+        .or_else(|| input.strip_prefix("0X"))
+        .unwrap_or(input)
+        .trim();
+
+    if clean.len() != 64 {
+        return None;
+    }
+
+    let mut out = [0u8; 32];
+    for (idx, byte) in out.iter_mut().enumerate() {
+        let start = idx * 2;
+        let end = start + 2;
+        *byte = u8::from_str_radix(&clean[start..end], 16).ok()?;
+    }
+    Some(out)
+}
+
+pub fn derive_tunnel_key_hkdf(
+    shared_secret: &[u8; 32],
+    session_id: &[u8; 16],
+    client_public: &[u8; 32],
+    server_public: &[u8; 32],
+) -> [u8; 32] {
+    let mut salt = [0u8; 80];
+    salt[..16].copy_from_slice(session_id);
+    salt[16..48].copy_from_slice(client_public);
+    salt[48..].copy_from_slice(server_public);
+    let hk = Hkdf::<Sha256>::new(Some(&salt), shared_secret);
+    let mut out = [0u8; 32];
+    hk.expand(SECS_TUNNEL_HKDF_INFO_V1, &mut out)
+        .expect("HKDF output length is fixed and valid");
+    out
 }
 
 /// Canonical AEAD associated data binding a tunnel ciphertext to its packet
@@ -262,5 +303,68 @@ mod tests {
         let ciphertext_b = encrypt_payload(&[9u8; 32], &nonce, plaintext, b"");
 
         assert_ne!(ciphertext_a, ciphertext_b);
+    }
+    #[test]
+    fn hkdf_derived_tunnel_key_matches_on_both_peers_and_binds_session() {
+        let alice_secret = EphemeralSecret::random_from_rng(OsRng);
+        let bob_secret = EphemeralSecret::random_from_rng(OsRng);
+        let alice_public = PublicKey::from(&alice_secret);
+        let bob_public = PublicKey::from(&bob_secret);
+        let alice_shared = derive_shared_secret(alice_secret, &bob_public);
+        let bob_shared = derive_shared_secret(bob_secret, &alice_public);
+        let session_a = [0xA1; 16];
+        let session_b = [0xB2; 16];
+        let alice_public_bytes = alice_public.to_bytes();
+        let bob_public_bytes = bob_public.to_bytes();
+
+        let alice_key = derive_tunnel_key_hkdf(
+            &alice_shared,
+            &session_a,
+            &alice_public_bytes,
+            &bob_public_bytes,
+        );
+        let bob_key = derive_tunnel_key_hkdf(
+            &bob_shared,
+            &session_a,
+            &alice_public_bytes,
+            &bob_public_bytes,
+        );
+        let other_session_key = derive_tunnel_key_hkdf(
+            &alice_shared,
+            &session_b,
+            &alice_public_bytes,
+            &bob_public_bytes,
+        );
+
+        assert_eq!(alice_key, bob_key);
+        assert_ne!(
+            alice_key, alice_shared,
+            "raw X25519 output must not be used directly as the AEAD key"
+        );
+        assert_ne!(
+            alice_key, other_session_key,
+            "session_id must domain-separate tunnel keys"
+        );
+    }
+
+    #[test]
+    fn parse_tunnel_key_hex_matches_server_contract() {
+        assert_eq!(
+            parse_tunnel_key_hex(
+                "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+            ),
+            Some([0xAB; 32])
+        );
+        assert_eq!(
+            parse_tunnel_key_hex(
+                "  0202020202020202020202020202020202020202020202020202020202020202  "
+            ),
+            Some([2u8; 32])
+        );
+        assert!(parse_tunnel_key_hex("00").is_none());
+        assert!(parse_tunnel_key_hex(
+            "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+        )
+        .is_none());
     }
 }

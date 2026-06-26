@@ -189,7 +189,7 @@ Rules:
 - Preserve current bincode round-trip compatibility while using bounded ingress decode for externally supplied frames.
 - The CLI parses opcodes as decimal `u8`; use `16`, not `0x10`.
 - Current prototype proof bytes are not real ZK verification. Treat them as a `PrototypeProofEnvelope` until replaced by a proof adapter with defined statements and public inputs. With a configured caller registry, `proof` additionally carries the versioned caller proof-of-origin envelope (M12.1).
-- `encrypted_payload` remains opaque to secS except for cryptographic/tunnel verification and handler handoff rules.
+- `encrypted_payload` remains opaque to secS except for cryptographic/tunnel verification and handler handoff rules. The local client can encrypt payloads with either the static local-dev tunnel key (`SECS_TUNNEL_KEY_HEX`) or the v2 per-session tunnel path (`SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX` client-side, `SECS_TUNNEL_X25519_SECRET_HEX` gateway-side); the latter derives the AEAD key via X25519 + HKDF and carries only the client ephemeral public key in the ingress envelope.
 - `mac` is **reserved and zeroed** (M12.6, option b). It is kept only for v0 byte-layout compatibility, is never verified, and provides no authentication — do not mistake it for a MAC. Caller authenticity comes from the caller proof envelope (M12.1); payload integrity under tunnel keys comes from ChaCha20Poly1305 AEAD bound to the envelope (M12.4). Making it a real verified MAC or removing it would be an explicit, owned wire-format migration.
 
 ## Opcode Governance
