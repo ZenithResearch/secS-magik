@@ -891,3 +891,32 @@ fn dregg_seam_migration_docs_remove_stale_live_ingress_and_future_authority_clai
         ],
     );
 }
+
+#[test]
+fn public_audit_bundle_docs_distinguish_local_export_from_external_anchoring() {
+    for required in [
+        "secs-public-audit-bundle-v1",
+        "Public audit bundle contract (#181)",
+        "local public-bundle verification, not external anchoring",
+        "SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH",
+    ] {
+        assert!(
+            README.contains(required)
+                || SERVER_README.contains(required)
+                || IMPLEMENTATION_STATUS.contains(required),
+            "docs should record #181 public audit bundle boundary: {required}"
+        );
+    }
+    for forbidden in [
+        "local SQLite receipts are public auditability",
+        "public auditability is complete after local receipt success",
+        "external anchoring implemented by #181",
+    ] {
+        assert!(
+            !README.contains(forbidden)
+                && !SERVER_README.contains(forbidden)
+                && !IMPLEMENTATION_STATUS.contains(forbidden),
+            "docs must not overclaim #181 local public bundle scope: {forbidden}"
+        );
+    }
+}
