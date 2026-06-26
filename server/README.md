@@ -176,3 +176,15 @@ cargo test -p server trust trusted_issuer -- --nocapture
 #144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.
 
 Tunnel key lifecycle: `SECS_TUNNEL_X25519_SECRET_HEX` remains private gateway config. The derived public key identity is `tunnel:x25519:<sha256-prefix>` and may be shared with clients as `SECS_TUNNEL_SERVER_X25519_PUBLIC_ID`; optional `SECS_TUNNEL_NEXT_X25519_SECRET_HEX` declares a bounded next-key rotation posture. Receipts/log surfaces must expose only the redacted key id, never the secret bytes.
+
+### Live Dregg verifier contract boundary (#177)
+
+`dregg_authority` can now name live-required verifier modes in the receiver-held registry, but #177 is only the contract/fail-closed slice. The server exposes versioned live-Dregg evidence DTOs and trait seams, returns specific `missing_live_dregg_*_verifier` reason codes, and rejects production readiness when `SECS_DREGG_AUTHORITY_REGISTRY_PATH` requires a live verifier dependency that is not configured. Fixture status/root/finality material cannot satisfy those live modes.
+
+Follow-up adapter issues own real verification:
+
+- #178 — live revocation roots / attested-root non-membership verification.
+- #179 — BLS threshold finality / QC verification.
+- #180 — rotated replay/full-turn proof verification.
+
+Do not describe #177 as live Dregg revocation/finality proof verification; it is the typed contract and fail-closed gate for those adapters.

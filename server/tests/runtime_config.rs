@@ -118,6 +118,41 @@ fn write_valid_dregg_authority_registry(name: &str) -> std::path::PathBuf {
     path
 }
 
+fn write_live_required_dregg_authority_registry(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"[
+          {
+            "issuer_id": "did:dregg:fixture:issuer",
+            "issuer_key_id": "dregg-issuer-key:fixture-1",
+            "issuer_public_key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+            "federation_id": "dregg-federation:fixture",
+            "root_ref": "dregg-root:fixture-root-2026q2",
+            "root_fingerprint": "root:sha256:fixture-root-2026q2",
+            "epoch_id": "epoch:2026q2",
+            "epoch_not_before": 1770000000,
+            "epoch_not_after": 1777776000,
+            "accepted_audiences": ["secS://operator-receiver"],
+            "accepted_operations": ["membership.provision"],
+            "accepted_resources": ["application/json"],
+            "accepted_suites": ["dregg_authority_fixture_v1"],
+            "status_policy": {
+              "require_status": true,
+              "max_status_age_seconds": 300,
+              "require_revocation_check": true,
+              "require_finality": false,
+              "revocation_verifier_mode": "live_revocation_verifier_required"
+            },
+            "root_status": "active",
+            "issuer_status": "active"
+          }
+        ]"#,
+    )
+    .expect("live-required Dregg authority registry fixture should be writable");
+    path
+}
+
 fn write_valid_permission_policy(name: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
     std::fs::write(
@@ -570,4 +605,38 @@ fn production_config_reports_current_and_next_tunnel_key_id_without_secret() {
     assert!(!debug.contains("0909090909090909"));
 
     clear_env();
+}
+
+#[test]
+fn production_startup_rejects_live_dregg_required_registry_without_live_verifier_dependency() {
+    let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-live-dregg");
+    let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-live-dregg");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-live-dregg");
+    let dregg_registry_path =
+        write_live_required_dregg_authority_registry("secs-magik-dregg-live-required");
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        trust_registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority",
+    )
+    .unwrap();
+    config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+
+    let _ = std::fs::remove_file(trust_registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(dregg_registry_path);
+    assert!(
+        error.to_string().contains("live Dregg verifier dependency"),
+        "production readiness must not report ready when registry requires a live Dregg verifier that is not configured: {error}"
+    );
 }

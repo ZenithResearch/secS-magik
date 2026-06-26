@@ -195,6 +195,19 @@ impl DreggAuthorityRegistry {
         self.entries.is_empty()
     }
 
+    pub fn requires_live_verifier_dependency(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
+                entry.status_policy.revocation_verifier_mode,
+                DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired
+            ) || matches!(
+                entry.status_policy.finality_mode,
+                DreggAuthorityFinalityMode::BlsThresholdRequired
+                    | DreggAuthorityFinalityMode::RotatedReplayRequired
+            )
+        })
+    }
+
     pub fn lookup_active_policy(
         &self,
         lookup: &DreggAuthorityLookup,
@@ -258,7 +271,7 @@ impl DreggAuthorityRegistry {
                 }
             }
             DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired => {
-                return Err(VerificationError::UnsupportedRevocationVerifier);
+                return Err(VerificationError::MissingLiveDreggRevocationVerifier);
             }
         }
         match entry.status_policy.finality_mode {
@@ -277,10 +290,10 @@ impl DreggAuthorityRegistry {
                 }
             }
             DreggAuthorityFinalityMode::BlsThresholdRequired => {
-                return Err(VerificationError::UnsupportedBlsThresholdFinality);
+                return Err(VerificationError::MissingLiveDreggBlsThresholdVerifier);
             }
             DreggAuthorityFinalityMode::RotatedReplayRequired => {
-                return Err(VerificationError::UnsupportedRotatedReplayVerifier);
+                return Err(VerificationError::MissingLiveDreggRotatedReplayVerifier);
             }
         }
         if !entry
