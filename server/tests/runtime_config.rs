@@ -17,6 +17,7 @@ fn clear_env() {
         "SECS_DREGG_AUTHORITY_REGISTRY_PATH",
         "SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH",
         "SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH",
+        "SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH",
         "SECS_MAX_WIRE_BYTES",
         "SECS_MAX_PAYLOAD_BYTES",
         "SECS_MAX_OUTPUT_BYTES",
@@ -152,6 +153,51 @@ fn write_live_required_dregg_authority_registry(name: &str) -> std::path::PathBu
         ]"#,
     )
     .expect("live-required Dregg authority registry fixture should be writable");
+    path
+}
+
+fn write_rotated_required_dregg_authority_registry(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"[
+          {
+            "issuer_id": "did:dregg:fixture:issuer",
+            "issuer_key_id": "dregg-issuer-key:fixture-1",
+            "issuer_public_key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+            "federation_id": "dregg-federation:fixture",
+            "root_ref": "dregg-root:fixture-root-2026q2",
+            "root_fingerprint": "root:sha256:fixture-root-2026q2",
+            "epoch_id": "epoch:2026q2",
+            "epoch_not_before": 1770000000,
+            "epoch_not_after": 1777776000,
+            "accepted_audiences": ["secS://operator-receiver"],
+            "accepted_operations": ["membership.provision"],
+            "accepted_resources": ["application/json"],
+            "accepted_suites": ["dregg_authority_fixture_v1"],
+            "status_policy": {
+              "require_status": true,
+              "max_status_age_seconds": 300,
+              "require_revocation_check": false,
+              "require_finality": true,
+              "finality_mode": "rotated_replay_required"
+            },
+            "root_status": "active",
+            "issuer_status": "active"
+          }
+        ]"#,
+    )
+    .expect("rotated-required Dregg registry fixture should be writable");
+    path
+}
+
+fn write_valid_rotated_replay_proofs(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"{"proofs":[{"federation_id":"dregg-federation:fixture","epoch_id":"epoch:2026q2","root_fingerprint":"root:sha256:fixture-root-2026q2","verifier_version":"rotated-replay-fixture-v1","proof_ref":"dga-rotated-proof-ref:fixture-secret","old_commitment":"commitment:old:fixture","new_commitment":"commitment:new:fixture","nullifiers":["nullifier:fixture:1"],"resource_hash":"resource:sha256:fixture","turn_hash":"turn:sha256:fixture","proof_digest":"proof:sha256:rotated-fixture","not_before":1770000000,"not_after":1777776000}]}"#,
+    )
+    .expect("rotated replay fixture should be writable");
     path
 }
 
@@ -808,5 +854,88 @@ fn production_startup_accepts_bls_required_registry_with_bls_committee_config() 
     let _ = std::fs::remove_file(permission_policy_path);
     let _ = std::fs::remove_file(dregg_registry_path);
     let _ = std::fs::remove_file(committee_path);
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn production_startup_rejects_rotated_required_registry_without_rotated_config() {
+    clear_env();
+    let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-rotated-dregg");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-rotated-dregg");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-rotated-dregg");
+    let dregg_registry_path =
+        write_rotated_required_dregg_authority_registry("secs-magik-dregg-rotated-required");
+    let committee_path = write_valid_bls_finality_committees("secs-magik-bls-committees-rotated");
+    std::env::set_var("SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH", &committee_path);
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        trust_registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority",
+    )
+    .unwrap();
+    config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+
+    let _ = std::fs::remove_file(trust_registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(dregg_registry_path);
+    let _ = std::fs::remove_file(committee_path);
+    clear_env();
+    assert!(
+        error.to_string().contains("live Dregg rotated replay verifier dependency"),
+        "production readiness must reject rotated-required Dregg registry without rotated proof config: {error}"
+    );
+}
+
+#[test]
+#[serial]
+fn production_startup_accepts_rotated_required_registry_with_bls_and_rotated_config() {
+    clear_env();
+    let trust_registry_path =
+        write_valid_trust_registry("secs-magik-trust-registry-rotated-dregg-ok");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-rotated-dregg-ok");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-rotated-dregg-ok");
+    let dregg_registry_path =
+        write_rotated_required_dregg_authority_registry("secs-magik-dregg-rotated-required-ok");
+    let committee_path =
+        write_valid_bls_finality_committees("secs-magik-bls-committees-rotated-ok");
+    let rotated_path = write_valid_rotated_replay_proofs("secs-magik-rotated-proofs-ok");
+    std::env::set_var("SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH", &committee_path);
+    std::env::set_var("SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH", &rotated_path);
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        trust_registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority",
+    )
+    .unwrap();
+    config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
+
+    server::config::validate_production_startup_readiness(&config).unwrap();
+
+    let _ = std::fs::remove_file(trust_registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(dregg_registry_path);
+    let _ = std::fs::remove_file(committee_path);
+    let _ = std::fs::remove_file(rotated_path);
     clear_env();
 }
