@@ -74,7 +74,7 @@ M15.5 (#141) wires `dregg_authority` into canonical `0x44 membership.provision` 
 - M12.3 shape-only `dregg_receipt` cannot satisfy the production `dregg_authority` requirement.
 - Receiver-local descriptor/resource/session/replay/TTL/permission/handler policy still applies before side effects.
 - #159 is resolved as explicit fail-closed blocker posture: no live Dregg revocation proof, BLS finality, or rotated-replay proof verification is claimed.
-- #160 remains future for Dregg-provisioned resource locks; #141/#162 do not claim resource-lock authority.
+- #160 implements bounded Dregg-provisioned resource locks; #141/#162 do not claim resource-lock authority.
 - #73 remains open until #144 finalizes the production-shaped E2E/demo/docs without overclaiming #159/#160.
 
 
@@ -1228,4 +1228,7 @@ Track A is now complete through A9. Preserve the repo workflow pattern going for
 
 ### #169 trusted requested-authority attenuation boundary
 
-#167 adds delegated attenuation / non-amplification: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` on the live evidence path before handler dispatch. #160 remains future for Dregg-provisioned resource locks, and #73 remains open until #144 reconciles this boundary without overclaim.
+#167 adds delegated attenuation / non-amplification: requested authority must not exceed held authority. Amplified requested resources reject as `authority_amplification` on the live evidence path before handler dispatch. #160 implements bounded Dregg-provisioned resource locks, and #73 remains open until #144 reconciles this boundary without overclaim.
+
+
+#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #73 remains open until #144 reconciles the finalizer.

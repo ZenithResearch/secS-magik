@@ -304,3 +304,6 @@ The verifier-facing protocol boundary is the packet/verifier/manifest/receipt pa
 ## License
 
 See [LICENSE](LICENSE).
+
+
+#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #73 remains open until #144 reconciles the finalizer.
