@@ -16,6 +16,7 @@ fn clear_env() {
         "SECS_PERMISSION_POLICY_PATH",
         "SECS_DREGG_AUTHORITY_REGISTRY_PATH",
         "SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH",
+        "SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH",
         "SECS_MAX_WIRE_BYTES",
         "SECS_MAX_PAYLOAD_BYTES",
         "SECS_MAX_OUTPUT_BYTES",
@@ -151,6 +152,51 @@ fn write_live_required_dregg_authority_registry(name: &str) -> std::path::PathBu
         ]"#,
     )
     .expect("live-required Dregg authority registry fixture should be writable");
+    path
+}
+
+fn write_bls_required_dregg_authority_registry(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"[
+          {
+            "issuer_id": "did:dregg:fixture:issuer",
+            "issuer_key_id": "dregg-issuer-key:fixture-1",
+            "issuer_public_key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+            "federation_id": "dregg-federation:fixture",
+            "root_ref": "dregg-root:fixture-root-2026q2",
+            "root_fingerprint": "root:sha256:fixture-root-2026q2",
+            "epoch_id": "epoch:2026q2",
+            "epoch_not_before": 1770000000,
+            "epoch_not_after": 1777776000,
+            "accepted_audiences": ["secS://operator-receiver"],
+            "accepted_operations": ["membership.provision"],
+            "accepted_resources": ["application/json"],
+            "accepted_suites": ["dregg_authority_fixture_v1"],
+            "status_policy": {
+              "require_status": true,
+              "max_status_age_seconds": 300,
+              "require_revocation_check": false,
+              "require_finality": true,
+              "finality_mode": "bls_threshold_required"
+            },
+            "root_status": "active",
+            "issuer_status": "active"
+          }
+        ]"#,
+    )
+    .expect("BLS-required Dregg registry fixture should be writable");
+    path
+}
+
+fn write_valid_bls_finality_committees(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"{"committees":[{"federation_id":"dregg-federation:fixture","committee_id":"committee:fixture-2026q2","epoch_id":"epoch:2026q2","root_fingerprint":"root:sha256:fixture-root-2026q2","quorum_threshold":3,"member_count":4,"not_before":1770000000,"not_after":1777776000}]}"#,
+    )
+    .expect("BLS committee fixture should be writable");
     path
 }
 
@@ -688,5 +734,79 @@ fn production_startup_accepts_live_dregg_revocation_registry_with_live_root_conf
     let _ = std::fs::remove_file(permission_policy_path);
     let _ = std::fs::remove_file(dregg_registry_path);
     let _ = std::fs::remove_file(live_roots_path);
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn production_startup_rejects_bls_required_registry_without_bls_committee_config() {
+    clear_env();
+    let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-bls-dregg");
+    let caller_registry_path = write_valid_caller_registry("secs-magik-caller-registry-bls-dregg");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-bls-dregg");
+    let dregg_registry_path =
+        write_bls_required_dregg_authority_registry("secs-magik-dregg-bls-required");
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        trust_registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority",
+    )
+    .unwrap();
+    config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+
+    let _ = std::fs::remove_file(trust_registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(dregg_registry_path);
+    clear_env();
+    assert!(
+        error.to_string().contains("live Dregg BLS finality verifier dependency"),
+        "production readiness must reject BLS-required Dregg registry without committee config: {error}"
+    );
+}
+
+#[test]
+#[serial]
+fn production_startup_accepts_bls_required_registry_with_bls_committee_config() {
+    clear_env();
+    let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-bls-dregg-ok");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-bls-dregg-ok");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-bls-dregg-ok");
+    let dregg_registry_path =
+        write_bls_required_dregg_authority_registry("secs-magik-dregg-bls-required-ok");
+    let committee_path = write_valid_bls_finality_committees("secs-magik-bls-committees-ok");
+    std::env::set_var("SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH", &committee_path);
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        trust_registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority",
+    )
+    .unwrap();
+    config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
+
+    server::config::validate_production_startup_readiness(&config).unwrap();
+
+    let _ = std::fs::remove_file(trust_registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(dregg_registry_path);
+    let _ = std::fs::remove_file(committee_path);
     clear_env();
 }

@@ -195,3 +195,10 @@ Do not describe #177 as live Dregg revocation/finality proof verification; it is
 #178 installs the first real live-Dregg verifier adapter slice. `LiveDreggRevocationVerifierConfig` loads trusted federation/issuer/root/epoch windows from JSON, and `LiveDreggRevocationVerifier` verifies `LiveDreggProofKind::Revocation` envelopes by binding the receiver-held Dregg authority registry entry to a trusted root and an accepted non-membership proof reference. Production readiness for `live_revocation_verifier_required` registries now requires `SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH`.
 
 This remains bounded revocation-root/non-membership verification only. It does not implement BLS threshold finality (#179), rotated replay/full-turn proof verification (#180), Cardano settlement, Midnight proof verification, public auditability, or production deployment.
+
+
+### Live Dregg BLS threshold finality (#179)
+
+#179 installs the bounded BLS-threshold finality adapter slice. `LiveDreggBlsFinalityVerifierConfig` loads trusted federation committee/epoch windows from JSON, and `LiveDreggBlsFinalityVerifier` verifies `LiveDreggProofKind::BlsThresholdFinality` envelopes by binding receiver-held Dregg authority registry state to trusted committee config and accepted threshold-QC refs. Production readiness for `bls_threshold_required` registries now requires `SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH`.
+
+This remains bounded threshold-QC fixture verification at the adapter seam. It does not implement rotated replay/full-turn proof verification (#180), Cardano settlement, Midnight proof verification, public auditability, or production deployment.
