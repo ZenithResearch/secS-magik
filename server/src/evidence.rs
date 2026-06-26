@@ -92,6 +92,8 @@ pub struct LiveDreggEvidenceEnvelope {
     pub epoch_id: String,
     pub proof_ref: String,
     pub verifier_mode: String,
+    pub resource_hash: Option<String>,
+    pub turn_hash: Option<String>,
 }
 
 impl LiveDreggEvidenceEnvelope {
@@ -113,6 +115,14 @@ impl LiveDreggEvidenceEnvelope {
             redacted_reference_field("epoch_id", &self.epoch_id),
             redacted_reference_field("proof_ref", &self.proof_ref),
             format!("verifier_mode:{}", self.verifier_mode),
+            self.resource_hash
+                .as_ref()
+                .map(|hash| redacted_reference_field("resource_hash", hash))
+                .unwrap_or_else(|| "resource_hash:not_bound".to_string()),
+            self.turn_hash
+                .as_ref()
+                .map(|hash| redacted_reference_field("turn_hash", hash))
+                .unwrap_or_else(|| "turn_hash:not_bound".to_string()),
         ]
     }
 
@@ -418,6 +428,7 @@ impl LiveDreggVerifier for LiveDreggBlsFinalityVerifier {
 pub struct LiveDreggCompositeVerifier {
     revocation: Option<LiveDreggRevocationVerifier>,
     bls_finality: Option<LiveDreggBlsFinalityVerifier>,
+    rotated_replay: Option<LiveDreggRotatedReplayVerifier>,
 }
 
 impl LiveDreggCompositeVerifier {
@@ -432,6 +443,14 @@ impl LiveDreggCompositeVerifier {
 
     pub fn with_bls_finality_verifier(mut self, verifier: LiveDreggBlsFinalityVerifier) -> Self {
         self.bls_finality = Some(verifier);
+        self
+    }
+
+    pub fn with_rotated_replay_verifier(
+        mut self,
+        verifier: LiveDreggRotatedReplayVerifier,
+    ) -> Self {
+        self.rotated_replay = Some(verifier);
         self
     }
 }
@@ -459,9 +478,204 @@ impl LiveDreggVerifier for LiveDreggCompositeVerifier {
 
     fn verify_rotated_replay(
         &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        self.rotated_replay
+            .as_ref()
+            .ok_or(VerificationError::MissingLiveDreggRotatedReplayVerifier)?
+            .verify_rotated_replay(envelope)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustedDreggRotatedReplayProof {
+    pub federation_id: String,
+    pub epoch_id: String,
+    pub root_fingerprint: String,
+    pub verifier_version: String,
+    pub proof_ref: String,
+    pub old_commitment: String,
+    pub new_commitment: String,
+    pub nullifiers: Vec<String>,
+    pub resource_hash: String,
+    pub turn_hash: String,
+    pub proof_digest: String,
+    pub not_before: u64,
+    pub not_after: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveDreggRotatedReplayVerifierConfig {
+    pub proofs: Vec<TrustedDreggRotatedReplayProof>,
+}
+
+impl LiveDreggRotatedReplayVerifierConfig {
+    pub fn from_json_str(json: &str) -> Result<Self, String> {
+        let config: Self = serde_json::from_str(json).map_err(|error| error.to_string())?;
+        if config.proofs.is_empty() {
+            return Err("live Dregg rotated replay verifier config has no proofs".to_string());
+        }
+        let mut global_nullifiers = BTreeSet::new();
+        for proof in &config.proofs {
+            let mut local_nullifiers = BTreeSet::new();
+            if proof.federation_id.trim().is_empty()
+                || proof.epoch_id.trim().is_empty()
+                || proof.root_fingerprint.trim().is_empty()
+                || proof.verifier_version != "rotated-replay-fixture-v1"
+                || proof.proof_ref.trim().is_empty()
+                || proof.old_commitment.trim().is_empty()
+                || proof.new_commitment.trim().is_empty()
+                || proof.old_commitment == proof.new_commitment
+                || proof.nullifiers.is_empty()
+                || proof.resource_hash.trim().is_empty()
+                || proof.turn_hash.trim().is_empty()
+                || proof.proof_digest.trim().is_empty()
+                || proof.not_before >= proof.not_after
+            {
+                return Err("invalid live Dregg rotated replay proof".to_string());
+            }
+            for nullifier in &proof.nullifiers {
+                if nullifier.trim().is_empty()
+                    || !local_nullifiers.insert(nullifier.clone())
+                    || !global_nullifiers.insert(nullifier.clone())
+                {
+                    return Err(
+                        "duplicate or invalid live Dregg rotated replay nullifier".to_string()
+                    );
+                }
+            }
+        }
+        Ok(config)
+    }
+
+    pub fn from_json_file(path: impl AsRef<Path>) -> Result<Self, String> {
+        let json = fs::read_to_string(path).map_err(|error| error.to_string())?;
+        Self::from_json_str(&json)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveDreggRotatedReplayVerifier {
+    config: LiveDreggRotatedReplayVerifierConfig,
+    validation_time: u64,
+}
+
+impl LiveDreggRotatedReplayVerifier {
+    pub fn new(config: LiveDreggRotatedReplayVerifierConfig, validation_time: u64) -> Self {
+        Self {
+            config,
+            validation_time,
+        }
+    }
+
+    pub fn resource_hash(resource: &str) -> String {
+        stable_prefixed_hash("resource", resource)
+    }
+
+    pub fn turn_hash(subject: &str, operation: &str, resource: &str) -> String {
+        stable_prefixed_hash(
+            "turn",
+            &format!("subject={subject}|operation={operation}|resource={resource}"),
+        )
+    }
+
+    pub fn trusts_rotated_proof(
+        &self,
+        federation_id: &str,
+        epoch_id: &str,
+        root_fingerprint: &str,
+        proof_ref: &str,
+        resource_hash: &str,
+        turn_hash: &str,
+    ) -> bool {
+        self.matching_proof_parts(
+            federation_id,
+            epoch_id,
+            root_fingerprint,
+            proof_ref,
+            resource_hash,
+            turn_hash,
+        )
+        .is_some()
+    }
+
+    fn matching_proof_parts(
+        &self,
+        federation_id: &str,
+        epoch_id: &str,
+        root_fingerprint: &str,
+        proof_ref: &str,
+        resource_hash: &str,
+        turn_hash: &str,
+    ) -> Option<&TrustedDreggRotatedReplayProof> {
+        self.config.proofs.iter().find(|proof| {
+            proof.federation_id == federation_id
+                && proof.epoch_id == epoch_id
+                && proof.root_fingerprint == root_fingerprint
+                && proof.proof_ref == proof_ref
+                && proof.resource_hash == resource_hash
+                && proof.turn_hash == turn_hash
+                && self.validation_time >= proof.not_before
+                && self.validation_time <= proof.not_after
+        })
+    }
+
+    fn matching_proof(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Option<&TrustedDreggRotatedReplayProof> {
+        let resource_hash = envelope.resource_hash.as_deref()?;
+        let turn_hash = envelope.turn_hash.as_deref()?;
+        self.matching_proof_parts(
+            &envelope.federation_id,
+            &envelope.epoch_id,
+            &envelope.root_fingerprint,
+            &envelope.proof_ref,
+            resource_hash,
+            turn_hash,
+        )
+    }
+}
+
+impl LiveDreggVerifier for LiveDreggRotatedReplayVerifier {
+    fn verify_revocation(
+        &self,
         _envelope: &LiveDreggEvidenceEnvelope,
     ) -> Result<Vec<String>, VerificationError> {
-        Err(VerificationError::MissingLiveDreggRotatedReplayVerifier)
+        Err(VerificationError::MissingLiveDreggRevocationVerifier)
+    }
+
+    fn verify_bls_threshold_finality(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggBlsThresholdVerifier)
+    }
+
+    fn verify_rotated_replay(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        if envelope.proof_kind != LiveDreggProofKind::RotatedReplay {
+            return Err(VerificationError::InvalidDreggRotatedProof);
+        }
+        let Some(proof) = self.matching_proof(envelope) else {
+            return Err(VerificationError::InvalidDreggRotatedProof);
+        };
+        let mut fields = vec![
+            "live_dregg_proof_kind:rotated_replay".to_string(),
+            "rotated_replay_status:proof_verified".to_string(),
+            format!("rotated_verifier_version:{}", proof.verifier_version),
+            redacted_reference_field("old_commitment", &proof.old_commitment),
+            redacted_reference_field("new_commitment", &proof.new_commitment),
+            redacted_reference_field("proof_digest", &proof.proof_digest),
+            redacted_reference_field("resource_hash", &proof.resource_hash),
+            redacted_reference_field("turn_hash", &proof.turn_hash),
+        ];
+        for nullifier in &proof.nullifiers {
+            fields.push(redacted_reference_field("nullifier", nullifier));
+        }
+        Ok(fields)
     }
 }
 
@@ -1636,6 +1850,8 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                     entry.status_policy.revocation_verifier_mode,
                 )
                 .to_string(),
+                resource_hash: None,
+                turn_hash: None,
             };
             match self.live_verifier.verify_revocation(&envelope) {
                 Ok(fields) => live_summary_fields.extend(fields),
@@ -1654,6 +1870,8 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 epoch_id: grant.epoch_id.clone(),
                 proof_ref: evidence_ref.clone(),
                 verifier_mode: finality_mode_name(entry.status_policy.finality_mode).to_string(),
+                resource_hash: None,
+                turn_hash: None,
             };
             match self.live_verifier.verify_bls_threshold_finality(&envelope) {
                 Ok(fields) => live_summary_fields.extend(fields),
@@ -1672,8 +1890,36 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 epoch_id: grant.epoch_id.clone(),
                 proof_ref: evidence_ref.clone(),
                 verifier_mode: finality_mode_name(entry.status_policy.finality_mode).to_string(),
+                resource_hash: Some(LiveDreggRotatedReplayVerifier::resource_hash(resource)),
+                turn_hash: Some(LiveDreggRotatedReplayVerifier::turn_hash(
+                    &request.subject,
+                    &request.operation,
+                    resource,
+                )),
             };
             match self.live_verifier.verify_rotated_replay(&envelope) {
+                Ok(fields) => live_summary_fields.extend(fields),
+                Err(error) => return EvidenceResult::Rejected(error),
+            }
+            let bls_envelope = LiveDreggEvidenceEnvelope {
+                version: LiveDreggEvidenceEnvelope::VERSION,
+                proof_kind: LiveDreggProofKind::BlsThresholdFinality,
+                evidence_ref: evidence_ref.clone(),
+                federation_id: entry.federation_id.clone(),
+                issuer_id: grant.issuer_id.clone(),
+                root_ref: grant.root_ref.clone(),
+                root_fingerprint: grant.root_fingerprint.clone(),
+                epoch_id: grant.epoch_id.clone(),
+                proof_ref: evidence_ref.clone(),
+                verifier_mode: finality_mode_name(DreggAuthorityFinalityMode::BlsThresholdRequired)
+                    .to_string(),
+                resource_hash: None,
+                turn_hash: None,
+            };
+            match self
+                .live_verifier
+                .verify_bls_threshold_finality(&bls_envelope)
+            {
                 Ok(fields) => live_summary_fields.extend(fields),
                 Err(error) => return EvidenceResult::Rejected(error),
             }
@@ -1785,8 +2031,11 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             local_dev_test_only: false,
             public_proof: entry.status_policy.revocation_verifier_mode
                 == DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired
-                || entry.status_policy.finality_mode
-                    == DreggAuthorityFinalityMode::BlsThresholdRequired,
+                || matches!(
+                    entry.status_policy.finality_mode,
+                    DreggAuthorityFinalityMode::BlsThresholdRequired
+                        | DreggAuthorityFinalityMode::RotatedReplayRequired
+                ),
             summary_fields,
         })
     }
@@ -1953,6 +2202,11 @@ impl EvidenceAdapter for DreggShapedEvidenceAdapter {
 pub fn public_key_ref_for_bytes(public_key_bytes: &[u8]) -> String {
     let digest = Sha256::digest(public_key_bytes);
     format!("pubkey:sha256:{}", hex_lower(&digest))
+}
+
+fn stable_prefixed_hash(prefix: &str, value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    format!("{prefix}:sha256:{}", hex_lower(&digest))
 }
 
 fn redacted_reference_field(name: &str, value: &str) -> String {

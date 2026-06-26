@@ -202,3 +202,10 @@ This remains bounded revocation-root/non-membership verification only. It does n
 #179 installs the bounded BLS-threshold finality adapter slice. `LiveDreggBlsFinalityVerifierConfig` loads trusted federation committee/epoch windows from JSON, and `LiveDreggBlsFinalityVerifier` verifies `LiveDreggProofKind::BlsThresholdFinality` envelopes by binding receiver-held Dregg authority registry state to trusted committee config and accepted threshold-QC refs. Production readiness for `bls_threshold_required` registries now requires `SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH`.
 
 This remains bounded threshold-QC fixture verification at the adapter seam. It does not implement rotated replay/full-turn proof verification (#180), Cardano settlement, Midnight proof verification, public auditability, or production deployment.
+
+
+### Live Dregg rotated replay/full-turn proof verification (#180)
+
+#180 installs the bounded rotated replay verifier adapter. `LiveDreggRotatedReplayVerifierConfig` loads typed proof fixtures from JSON, and `LiveDreggRotatedReplayVerifier` verifies `LiveDreggProofKind::RotatedReplay` envelopes by binding federation/epoch/root, proof refs, resource hashes, turn hashes, old/new commitments, and nullifier sets. `RotatedReplayRequired` composes with the #179 BLS finality seam and can also compose with #178 live revocation through `LiveDreggCompositeVerifier`. Production readiness for rotated replay registries requires both `SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH` and `SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH`.
+
+This remains bounded adapter-seam proof verification. It does not implement Cardano settlement, Midnight proof verification, public auditability, or production deployment.

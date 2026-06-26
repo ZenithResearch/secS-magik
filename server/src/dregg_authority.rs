@@ -219,6 +219,15 @@ impl DreggAuthorityRegistry {
         })
     }
 
+    pub fn requires_live_rotated_replay_verifier_dependency(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
+                entry.status_policy.finality_mode,
+                DreggAuthorityFinalityMode::RotatedReplayRequired
+            )
+        })
+    }
+
     pub fn lookup_active_policy(
         &self,
         lookup: &DreggAuthorityLookup,

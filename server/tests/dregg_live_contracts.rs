@@ -16,6 +16,8 @@ fn live_envelope(proof_kind: LiveDreggProofKind) -> LiveDreggEvidenceEnvelope {
         epoch_id: "epoch:2026q2".to_string(),
         proof_ref: "proof-ref:do-not-leak".to_string(),
         verifier_mode: "live_revocation_verifier_required".to_string(),
+        resource_hash: None,
+        turn_hash: None,
     }
 }
 
