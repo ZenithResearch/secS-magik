@@ -44,3 +44,6 @@ SECS_URL=127.0.0.1:9001 cargo run -p client -- hub 16 "Hello World"
 - If port `9001` is busy, stop the existing gateway before running the example.
 - If Cargo binary selection is ambiguous, prefer `SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secz` and `cargo run -p client -- ...`.
 - If the command hangs or fails, inspect the log at `SECZ_HELLO_LOG` or `/tmp/secz-hello-world.log`.
+
+
+#144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.

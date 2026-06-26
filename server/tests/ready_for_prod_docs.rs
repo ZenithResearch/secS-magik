@@ -246,7 +246,8 @@ fn membership_provision_runtime_guard_docs_preserve_live_ingress_boundary() {
         "handler binding is not authority",
         "live TCP ingress",
         "configured evidence adapter path",
-        "#144/#160",
+        "#144/M15.8",
+        "#160 implements bounded Dregg-provisioned resource locks",
         "not production deployment",
         "not public auditability",
         "not live Castalia/Dregg discovery",
@@ -304,8 +305,9 @@ fn membership_provision_docs_do_not_regress_active_binding_into_live_ingress_aut
         "live TCP ingress",
         "bounded evidence refs/public inputs",
         "public inputs",
-        "#144/#160",
-        "#73 remains open until #144",
+        "#144/M15.8",
+        "#160 implements bounded Dregg-provisioned resource locks",
+        "#144/M15.8 reconciles the bounded #73 finalizer",
     ] {
         assert!(
             docs.iter().any(|(_, text)| text.contains(required)),
@@ -337,7 +339,7 @@ fn dregg_authority_docs_preserve_169_trusted_requested_authority_without_resourc
         "delegated attenuation / non-amplification",
         "requested authority must not exceed held authority",
         "#160 implements bounded Dregg-provisioned resource locks",
-        "#73 remains open until #144",
+        "#144/M15.8 reconciles the bounded #73 finalizer",
     ] {
         assert!(
             docs.iter().any(|(_, text)| text.contains(required)),
@@ -349,7 +351,11 @@ fn dregg_authority_docs_preserve_169_trusted_requested_authority_without_resourc
         "#169 closes #160",
         "#167 closes #160",
         "attenuation implements Dregg resource locks",
-        "Dregg resource-lock authority is implemented",
+        "still gate closing #73",
+        "authority rail remains open",
+        "#73 remains open until the finalizer",
+        "#73 remains open",
+        "Dregg resource locks prove live Dregg finality",
         "Dregg admit verdict grants resource scope",
         "Call.args.resource is a trusted authorization gate",
         "live runtime ingress remains descriptor-only",
@@ -391,7 +397,7 @@ fn dregg_authority_docs_record_160_resource_locks_without_finality_or_parent_ove
         "resource_lock_violation",
         "separate from #169 trusted requested-authority attenuation",
         "#159 remains fail-closed blocker posture only",
-        "#73 remains open until #144",
+        "#144/M15.8 reconciles the bounded #73 finalizer",
     ] {
         assert!(
             docs.iter().any(|(_, text)| text.contains(required)),
@@ -414,6 +420,69 @@ fn dregg_authority_docs_record_160_resource_locks_without_finality_or_parent_ove
             assert!(
                 !text.contains(forbidden),
                 "{name} contains overclaimed #160 resource-lock wording: {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
+fn dregg_authority_docs_record_144_finalizer_and_demo_without_live_proof_overclaim() {
+    let docs = [
+        ("README.md", README),
+        ("server/README.md", SERVER_README),
+        ("docs/README.md", DOCS_README),
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        ("docs/specs/dregg-authority-rail.md", DREGG_AUTHORITY_SPEC),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+        (
+            "docs/issues/secs-magik-phases/track-i-production-membership-provision-e2e.md",
+            TRACK_I_STATUS,
+        ),
+    ];
+
+    for required in [
+        "#144/M15.8 reconciles the bounded #73 finalizer",
+        "#167 delegated attenuation / non-amplification",
+        "#169 trusted requested-authority attenuation",
+        "#160 implements bounded Dregg-provisioned resource locks",
+        "resource_lock_violation",
+        "examples/m15-dregg-authority-demo.sh",
+        "not deployment proof",
+        "not public auditability",
+        "not live Dregg revocation proof",
+        "not BLS threshold finality",
+        "not rotated-replay proof verification",
+    ] {
+        assert!(
+            docs.iter().any(|(_, text)| text.contains(required)),
+            "#144 finalizer docs should contain bounded finalizer phrase: {required}"
+        );
+    }
+
+    for forbidden in [
+        "#160 remains future",
+        "#144/#160 remain open",
+        "#162/#144",
+        "#160/#144",
+        "#73 remains open until #144",
+        "live Dregg revocation proof implemented",
+        "BLS threshold finality implemented",
+        "rotated-replay proof verification implemented",
+        "public auditability implemented",
+        "production deployment proof implemented",
+        "still gate closing #73",
+        "authority rail remains open",
+        "#73 remains open until the finalizer",
+        "#73 remains open",
+        "Dregg resource locks prove live Dregg finality",
+    ] {
+        for (name, text) in docs {
+            assert!(
+                !text.contains(forbidden),
+                "{name} contains stale or overclaimed #144 finalizer wording: {forbidden}"
             );
         }
     }
@@ -653,7 +722,7 @@ fn dregg_authority_docs_record_m15_4_fail_closed_posture_and_blockers() {
             "Missing revocation check material rejects as `missing_status`",
             "Required finality without finality material rejects as `not_final`",
             "Equivocation rejects as `equivocated`",
-            "#73 remains open",
+            "bounded #73 finalizer",
         ],
     );
 }
@@ -736,7 +805,7 @@ fn dregg_authority_docs_record_m15_7_proof_finality_blockers_without_overclaim()
         "no BLS threshold finality",
         "no rotated-replay proof verification",
         "#144",
-        "#73 remains open",
+        "bounded #73 finalizer",
     ] {
         assert!(
             docs.iter().any(|(_, text)| text.contains(required)),
@@ -801,8 +870,9 @@ fn dregg_seam_migration_docs_remove_stale_live_ingress_and_future_authority_clai
         TRACK_I_STATUS,
         &[
             "wallet + issuer + Dregg authority",
-            "#162/#144",
-            "#73 remains open until #144",
+            "#162",
+            "#144/M15.8",
+            "#144/M15.8 reconciles the bounded #73 finalizer",
             "#159",
             "#160",
             "bounded static receiver-held Dregg policy-admission",
@@ -816,7 +886,8 @@ fn dregg_seam_migration_docs_remove_stale_live_ingress_and_future_authority_clai
             "M14 `dregg_backed`",
             "M15 `dregg_authority`",
             "M15.2–M15.6 now implement",
-            "#160/#144",
+            "#160 implements bounded Dregg-provisioned resource locks",
+            "#144/M15.8",
         ],
     );
 }

@@ -274,6 +274,7 @@ const DREGG_AUTHORITY_ROOT_REF: &str = "dregg-root:membership-fixture-2026q2";
 const DREGG_AUTHORITY_ROOT_FINGERPRINT: &str = "root:sha256:membership-fixture-2026q2";
 const DREGG_AUTHORITY_EPOCH_ID: &str = "epoch:2026q2";
 const DREGG_AUTHORITY_SUITE: &str = "dregg_authority_fixture_v1";
+const DREGG_LOCKED_MEMBER_RESOURCE: &str = "urn:secs:member:alice/profile";
 
 fn dregg_authority_registry(require_finality: bool) -> DreggAuthorityRegistry {
     DreggAuthorityRegistry::new([DreggAuthorityEntry {
@@ -339,6 +340,43 @@ fn dregg_authority_adapter() -> DreggAuthorityEvidenceAdapter {
         dregg_authority_registry(true),
         TRUSTED_VALIDATION_TIME,
     )
+}
+fn dregg_authority_resource_lock_fixture(locked_resource: &str) -> DreggAuthorityGrantFixture {
+    DreggAuthorityGrantFixture {
+        evidence_ref: DREGG_AUTHORITY_EVIDENCE_REF.to_string(),
+        token: DreggAuthorityGrantFixture::fixture_token_with_resource_lock(
+            TRUSTED_SUBJECT,
+            MEMBERSHIP_OPERATION,
+            locked_resource,
+            TRUSTED_VALIDATION_TIME + 300,
+        ),
+        issuer_id: DREGG_AUTHORITY_ISSUER_ID.to_string(),
+        issuer_key_id: DREGG_AUTHORITY_ISSUER_KEY_ID.to_string(),
+        root_ref: DREGG_AUTHORITY_ROOT_REF.to_string(),
+        root_fingerprint: DREGG_AUTHORITY_ROOT_FINGERPRINT.to_string(),
+        epoch_id: DREGG_AUTHORITY_EPOCH_ID.to_string(),
+        suite: DREGG_AUTHORITY_SUITE.to_string(),
+        status_checked_at: Some(TRUSTED_VALIDATION_TIME - 10),
+        revocation_status: Some(DreggAuthorityRevocationStatus::Active),
+        finality_status: Some(DreggAuthorityFinalityStatus::Final),
+        attested_revocation_root_ref: Some("dregg-revocation-root:membership-fixture".to_string()),
+    }
+}
+
+fn dregg_authority_resource_lock_adapter(locked_resource: &str) -> DreggAuthorityEvidenceAdapter {
+    DreggAuthorityEvidenceAdapter::new(
+        [dregg_authority_resource_lock_fixture(locked_resource)],
+        dregg_authority_registry(true),
+        TRUSTED_VALIDATION_TIME,
+    )
+}
+
+fn production_packet_with_requested_resource(opcode: u8, requested_resource: &str) -> ZenithPacket {
+    let mut packet = production_packet(opcode);
+    packet.encrypted_payload =
+        format!(r#"{{"membership":"requested","requested_resource":"{requested_resource}"}}"#)
+            .into_bytes();
+    packet
 }
 
 fn hex_lower(bytes: &[u8]) -> String {
@@ -1463,6 +1501,116 @@ fn membership_provision_descriptor_only_guard_is_production_runtime_only() {
             "local/dev descriptor summaries should preserve the manifest evidence contract"
         );
     }
+}
+
+#[tokio::test]
+async fn m15_8_finalizer_binds_resource_locked_dregg_authority_into_signed_context() {
+    let manifest = ReceiverManifest::default_v0();
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let dregg = dregg_authority_resource_lock_adapter(DREGG_LOCKED_MEMBER_RESOURCE);
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
+    let packet = production_packet_with_requested_resource(
+        WALLET_AND_MEMBERSHIP_OPCODE,
+        DREGG_LOCKED_MEMBER_RESOURCE,
+    );
+
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &membership_evidence_inputs_with_dregg(),
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect(
+        "#144 finalizer should compose wallet + issuer + Dregg authority with #160 resource locks",
+    );
+
+    assert_eq!(signed.context.operation, MEMBERSHIP_OPERATION);
+    assert_eq!(
+        signed.context.resource.as_deref(),
+        Some(DREGG_LOCKED_MEMBER_RESOURCE),
+        "#144 finalizer must propagate the #160 verified locked resource into the signed context for handler/policy use"
+    );
+    assert!(
+        signed
+            .context
+            .evidence_summary
+            .iter()
+            .any(|field| field == "resource_lock:verified"),
+        "signed context should preserve the bounded resource-lock proof marker"
+    );
+    assert!(
+        signed
+            .context
+            .evidence_summary
+            .iter()
+            .any(|field| field == &format!("resource:{DREGG_LOCKED_MEMBER_RESOURCE}")),
+        "signed context evidence summary should carry the verified locked resource for handler/policy use"
+    );
+
+    let mismatched_packet = production_packet_with_requested_resource(
+        WALLET_AND_MEMBERSHIP_OPCODE,
+        "urn:secs:member:bob/profile",
+    );
+    let rejected = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &mismatched_packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &membership_evidence_inputs_with_dregg(),
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect_err("mismatched trusted requested resource must fail closed before context signing");
+    assert_eq!(rejected, VerificationError::ResourceLockViolation);
+}
+
+#[test]
+fn m15_8_finalizer_does_not_promote_generic_evidence_resource_without_resource_lock() {
+    let manifest = ReceiverManifest::default_v0();
+    let wallet = membership_wallet_adapter();
+    let credential = FederatedCredentialAdapter::new(
+        [membership_credential_fixture()],
+        trusted_registry(),
+        TRUSTED_VALIDATION_TIME,
+    );
+    let dregg = dregg_authority_adapter();
+    let composite = composite_adapter_with_dregg(&wallet, &credential, &dregg);
+    let packet = production_packet(WALLET_AND_MEMBERSHIP_OPCODE);
+
+    let signed = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &packet,
+        &manifest,
+        TRUSTED_AUDIENCE,
+        TRUSTED_SUBJECT,
+        &membership_evidence_inputs_with_dregg(),
+        &composite,
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect("wallet + issuer + Dregg authority without #160 lock should still verify");
+
+    assert_eq!(
+        signed.context.resource, None,
+        "#144 must not promote generic descriptor/evidence resources into context.resource without resource_lock:verified"
+    );
+    assert!(!signed
+        .context
+        .evidence_summary
+        .iter()
+        .any(|field| field == "resource_lock:verified"));
 }
 
 #[tokio::test]

@@ -330,6 +330,7 @@ impl Verifier {
             audience,
             prototype_subject(),
             descriptor_evidence_summary(descriptor),
+            None,
             now,
         )
     }
@@ -395,6 +396,7 @@ impl Verifier {
             audience,
             subject,
             descriptor_evidence_summary(descriptor),
+            None,
             now,
         )
     }
@@ -446,12 +448,14 @@ impl Verifier {
             EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
             EvidenceResult::Rejected(error) => return Err(error),
         };
+        let context_resource = context_resource_from_evidence_summary(&evidence_summary)?;
         let context = verified_context_for_descriptor(
             packet,
             descriptor,
             audience,
             subject,
             evidence_summary,
+            context_resource,
             now,
         )?;
         identity.sign_context(context)
@@ -509,6 +513,7 @@ impl Verifier {
             EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
             EvidenceResult::Rejected(error) => return Err(error),
         };
+        let context_resource = context_resource_from_evidence_summary(&evidence_summary)?;
         let context = verified_context_for_descriptor(
             packet,
             descriptor,
@@ -518,6 +523,7 @@ impl Verifier {
                 key_id: format!("{subject}#key"),
             },
             evidence_summary,
+            context_resource,
             now,
         )?;
 
@@ -637,6 +643,28 @@ fn prototype_subject() -> VerifiedSubject {
     }
 }
 
+fn context_resource_from_evidence_summary(
+    evidence_summary: &[String],
+) -> Result<Option<String>, VerificationError> {
+    if !evidence_summary
+        .iter()
+        .any(|field| field == "resource_lock:verified")
+    {
+        return Ok(None);
+    }
+
+    let Some(value) = evidence_summary
+        .iter()
+        .find_map(|field| field.strip_prefix("resource:"))
+    else {
+        return Err(VerificationError::ResourceLockViolation);
+    };
+    if value.is_empty() {
+        return Err(VerificationError::WrongResource);
+    }
+    Ok(Some(value.to_string()))
+}
+
 fn trusted_requested_resource_from_payload(
     payload: &[u8],
 ) -> Result<Option<String>, VerificationError> {
@@ -667,6 +695,7 @@ fn verified_context_for_descriptor(
     audience: &str,
     subject: VerifiedSubject,
     evidence_summary: Vec<String>,
+    resource: Option<String>,
     now: u64,
 ) -> Result<VerifiedCallContext, VerificationError> {
     if packet.claim_ttl > descriptor.max_ttl_seconds {
@@ -690,9 +719,10 @@ fn verified_context_for_descriptor(
         nonce: packet.nonce,
         opcode: packet.opcode,
         operation: descriptor.name.as_str().to_string(),
-        // Resource is injected by the resource-aware sign path (M13.3) before
-        // signing; the base verification path binds no resource.
-        resource: None,
+        // Evidence-backed sign paths promote a verifier-derived resource only
+        // after the evidence adapter has accepted it (M15.8/#144). Descriptor-only
+        // verification continues to bind no resource.
+        resource,
         subject,
         audience: audience.to_string(),
         evidence_summary,

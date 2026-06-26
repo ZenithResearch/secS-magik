@@ -4,7 +4,7 @@ Status: M15.1 / #137 specification. This rewrites #73 acceptance criteria, but #
 
 ## Purpose
 
-This spec defines the M15 `dregg_authority` semantics gate. It separates M12.3 Dregg-shaped evidence, M14 `dregg_backed`, and the bounded M15 production-shaped authority seam while preserving the original receiver-held root/trust data, epoch-scoped root policy, and freshness/revocation/finality/non-amplification posture. M15.2–M15.6 now implement static receiver-held registry, policy-admission, descriptor-composition, and local-operator disclosure; #159 has resolved proof/finality as explicit fail-closed blocker posture and #162 wires live TCP evidence propagation into the canonical evidence adapter path; Dregg resource locks and finalizer closure remain #160/#144 work.
+This spec defines the M15 `dregg_authority` semantics gate. It separates M12.3 Dregg-shaped evidence, M14 `dregg_backed`, and the bounded M15 production-shaped authority seam while preserving the original receiver-held root/trust data, epoch-scoped root policy, and freshness/revocation/finality/non-amplification posture. M15.2–M15.6 now implement static receiver-held registry, policy-admission, descriptor-composition, and local-operator disclosure; #159 has resolved proof/finality as explicit fail-closed blocker posture and #162 wires live TCP evidence propagation into the canonical evidence adapter path; Dregg resource locks and finalizer closure remain #160 and #144/M15.8 work.
 
 ## Tier boundary
 
@@ -54,7 +54,7 @@ A future production `dregg_authority` adapter must define which Dregg API verifi
 
 The upstream live verifier surfaces remain named blockers because this repository does not yet import or wire Dregg federation proof APIs: `credentials::VerificationOptions.expected_revocation_root`, federation `RevocationVerifier` / `RevocationTree`, `ReceiptQc::Threshold` with BLS FederationCommittee plumbing, and `rotated_replay::verify_rotated_replay_chain`. If a registry policy requires those live surfaces, the current adapter rejects with `unsupported_revocation_verifier`, `unsupported_bls_threshold_finality`, or `unsupported_rotated_replay_verifier` rather than accepting fixture status as proof.
 
-This is no live Dregg revocation proof, no BLS threshold finality, and no rotated-replay proof verification. #162 live ingress evidence refs do not change that blocker posture; #144 may only close #73 by either implementing those verifier paths later or explicitly documenting them as finalizer non-goals; #73 remains open until #144 lands.
+This is no live Dregg revocation proof, no BLS threshold finality, and no rotated-replay proof verification. #162 live ingress evidence refs do not change that blocker posture; #144/M15.8 closes only the bounded #73 production-shaped seam by explicitly documenting those live verifier paths as finalizer non-goals for this repository; live Dregg revocation proof, BLS threshold finality, and rotated-replay proof verification remain unsupported.
 
 ## Composition rules
 
@@ -182,4 +182,7 @@ Out of scope for M15.1 and not proven by this spec:
 - treating M12.3 shape-only or M14 fixture-backed admission as M15 production `dregg_authority`.
 
 
-#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #73 remains open until #144 reconciles the finalizer.
+#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #144/M15.8 reconciles the bounded #73 finalizer.
+
+
+#144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.
