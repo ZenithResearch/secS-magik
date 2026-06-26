@@ -24,6 +24,8 @@ fn clear_env() {
         "SECS_ALLOWED_EVIDENCE_ADAPTERS",
         "SECS_TUNNEL_X25519_SECRET_HEX",
         "SECZ_TUNNEL_X25519_SECRET_HEX",
+        "SECS_TUNNEL_NEXT_X25519_SECRET_HEX",
+        "SECZ_TUNNEL_NEXT_X25519_SECRET_HEX",
         "SECS_FIXTURE_ONLY_SMOKE",
         "SECS_RUNTIME_MODE",
         "SECZ_RUNTIME_MODE",
@@ -536,4 +538,36 @@ fn production_startup_rejects_empty_dregg_authority_registry() {
             .contains("production Dregg authority registry has no issuer/root entries"),
         "production startup must reject empty Dregg authority registries: {error}"
     );
+}
+
+#[test]
+#[serial]
+fn production_config_reports_current_and_next_tunnel_key_id_without_secret() {
+    clear_env();
+    set_required_production_env();
+    std::env::set_var(
+        "SECS_TUNNEL_NEXT_X25519_SECRET_HEX",
+        "0909090909090909090909090909090909090909090909090909090909090909",
+    );
+
+    let config = GatewayRuntimeConfig::from_env().expect("production config should load");
+    let summary = config
+        .tunnel_key_lifecycle_summary()
+        .expect("summary should exist");
+
+    assert!(summary.current_key_id.starts_with("tunnel:x25519:"));
+    assert!(summary
+        .next_key_id
+        .as_ref()
+        .unwrap()
+        .starts_with("tunnel:x25519:"));
+    assert_ne!(
+        summary.current_key_id,
+        *summary.next_key_id.as_ref().unwrap()
+    );
+    let debug = format!("{summary:?}");
+    assert!(!debug.contains("0808080808080808"));
+    assert!(!debug.contains("0909090909090909"));
+
+    clear_env();
 }

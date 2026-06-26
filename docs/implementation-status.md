@@ -156,3 +156,5 @@ Avoid these phrases unless code proves them:
 
 
 #144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.
+
+- #175 complete: tunnel gateway key lifecycle is explicit at the bounded current/next level with public key ids, client-side id pinning, production config summary, and redacted verify-receipt key-id observability. This does not claim TLS, PKI, or full rotation automation.

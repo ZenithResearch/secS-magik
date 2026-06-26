@@ -5,7 +5,8 @@ use libsec_core::ingress_request::{encode_ingress_request_v2, IngressRequestV2};
 use libsec_core::packet_builder::PacketBuilder;
 use libsec_core::response::{DecisionResponse, MAX_DECISION_RESPONSE_BYTES};
 use libsec_core::tunnel::{
-    derive_shared_secret, derive_tunnel_key_hkdf, encrypt_payload, packet_aad, parse_tunnel_key_hex,
+    derive_shared_secret, derive_tunnel_key_hkdf, encrypt_payload, packet_aad,
+    parse_tunnel_key_hex, tunnel_public_key_id,
 };
 use libsec_core::zk::generate_proof;
 use libsec_core::ZenithPacket;
@@ -201,12 +202,14 @@ enum TunnelMode {
 #[derive(Debug, PartialEq, Eq)]
 enum TunnelKeyConfigError {
     Malformed,
+    PinnedKeyIdMismatch,
 }
 
 impl std::fmt::Display for TunnelKeyConfigError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Malformed => write!(formatter, "tunnel key env var must hold 64 hex characters"),
+            Self::PinnedKeyIdMismatch => write!(formatter, "gateway tunnel public key id does not match pinned SECS_TUNNEL_SERVER_X25519_PUBLIC_ID"),
         }
     }
 }
@@ -217,6 +220,15 @@ fn load_tunnel_mode_from_env() -> Result<TunnelMode, TunnelKeyConfigError> {
     {
         let server_public_key =
             parse_tunnel_key_hex(&value).ok_or(TunnelKeyConfigError::Malformed)?;
+        if let Ok(expected_key_id) = std::env::var("SECS_TUNNEL_SERVER_X25519_PUBLIC_ID")
+            .or_else(|_| std::env::var("SECZ_TUNNEL_SERVER_X25519_PUBLIC_ID"))
+        {
+            if !expected_key_id.trim().is_empty()
+                && expected_key_id.trim() != tunnel_public_key_id(&server_public_key)
+            {
+                return Err(TunnelKeyConfigError::PinnedKeyIdMismatch);
+            }
+        }
         return Ok(TunnelMode::SessionKey { server_public_key });
     }
     if let Ok(value) =
@@ -722,5 +734,48 @@ mod tests {
         )
         .unwrap();
         assert_eq!(decrypted, b"session secret");
+    }
+    #[test]
+    fn load_tunnel_mode_rejects_mismatched_pinned_gateway_key_id() {
+        let server_secret = x25519_dalek::StaticSecret::from([8u8; 32]);
+        let server_public = PublicKey::from(&server_secret).to_bytes();
+        let public_hex = server_public
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        std::env::set_var("SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX", public_hex);
+        std::env::set_var(
+            "SECS_TUNNEL_SERVER_X25519_PUBLIC_ID",
+            "tunnel:x25519:00000000000000000000000000000000",
+        );
+
+        assert_eq!(
+            load_tunnel_mode_from_env(),
+            Err(TunnelKeyConfigError::PinnedKeyIdMismatch)
+        );
+
+        std::env::remove_var("SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX");
+        std::env::remove_var("SECS_TUNNEL_SERVER_X25519_PUBLIC_ID");
+    }
+
+    #[test]
+    fn load_tunnel_mode_accepts_matching_pinned_gateway_key_id() {
+        let server_secret = x25519_dalek::StaticSecret::from([9u8; 32]);
+        let server_public = PublicKey::from(&server_secret).to_bytes();
+        let public_hex = server_public
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let key_id = libsec_core::tunnel::tunnel_public_key_id(&server_public);
+        std::env::set_var("SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX", public_hex);
+        std::env::set_var("SECS_TUNNEL_SERVER_X25519_PUBLIC_ID", key_id);
+
+        assert!(matches!(
+            load_tunnel_mode_from_env(),
+            Ok(TunnelMode::SessionKey { .. })
+        ));
+
+        std::env::remove_var("SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX");
+        std::env::remove_var("SECS_TUNNEL_SERVER_X25519_PUBLIC_ID");
     }
 }

@@ -1,12 +1,39 @@
 extern crate alloc;
+use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use chacha20poly1305::{
     aead::{Aead, Payload},
     ChaCha20Poly1305, Key, KeyInit, Nonce,
 };
 use hkdf::Hkdf;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use x25519_dalek::{EphemeralSecret, PublicKey};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelPublicKeySummary {
+    pub key_id: String,
+    pub public_key_hex: String,
+}
+
+pub fn tunnel_public_key_id(public_key: &[u8; 32]) -> String {
+    let digest = Sha256::digest(public_key);
+    let hex: String = digest[..16]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    format!("tunnel:x25519:{hex}")
+}
+
+pub fn tunnel_public_key_summary(public_key: &[u8; 32]) -> TunnelPublicKeySummary {
+    TunnelPublicKeySummary {
+        key_id: tunnel_public_key_id(public_key),
+        public_key_hex: public_key
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+    }
+}
 
 pub fn derive_shared_secret(secret: EphemeralSecret, public_key: &PublicKey) -> [u8; 32] {
     secret.diffie_hellman(public_key).to_bytes()
@@ -366,5 +393,34 @@ mod tests {
             "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
         )
         .is_none());
+    }
+    #[test]
+    fn tunnel_public_key_id_is_stable_redacted_and_public_key_bound() {
+        let public_a = [0xA5; 32];
+        let public_b = [0x5A; 32];
+
+        let id_a = tunnel_public_key_id(&public_a);
+        let id_a_again = tunnel_public_key_id(&public_a);
+        let id_b = tunnel_public_key_id(&public_b);
+
+        assert_eq!(id_a, id_a_again);
+        assert_ne!(id_a, id_b);
+        assert!(id_a.starts_with("tunnel:x25519:"));
+        assert_eq!(id_a.len(), "tunnel:x25519:".len() + 32);
+        assert!(!id_a.contains("a5a5a5a5a5a5a5a5"));
+    }
+
+    #[test]
+    fn tunnel_public_key_summary_exposes_only_key_id_and_public_key() {
+        let public = [0x23; 32];
+        let summary = tunnel_public_key_summary(&public);
+
+        assert_eq!(summary.key_id, tunnel_public_key_id(&public));
+        assert_eq!(summary.public_key_hex.len(), 64);
+        assert!(summary
+            .public_key_hex
+            .chars()
+            .all(|ch| ch.is_ascii_hexdigit()));
+        assert!(!format!("{summary:?}").contains("secret"));
     }
 }
