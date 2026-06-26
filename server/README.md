@@ -209,3 +209,10 @@ This remains bounded threshold-QC fixture verification at the adapter seam. It d
 #180 installs the bounded rotated replay verifier adapter. `LiveDreggRotatedReplayVerifierConfig` loads typed proof fixtures from JSON, and `LiveDreggRotatedReplayVerifier` verifies `LiveDreggProofKind::RotatedReplay` envelopes by binding federation/epoch/root, proof refs, resource hashes, turn hashes, old/new commitments, and nullifier sets. `RotatedReplayRequired` composes with the #179 BLS finality seam and can also compose with #178 live revocation through `LiveDreggCompositeVerifier`. Production readiness for rotated replay registries requires both `SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH` and `SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH`.
 
 This remains bounded adapter-seam proof verification. It does not implement Cardano settlement, Midnight proof verification, public auditability, or production deployment.
+
+
+### Public audit bundle contract (#181)
+
+The server now exposes the `secs-public-audit-bundle-v1` contract for redacted local public-bundle export and verification. `Ledger::export_public_audit_bundle_for_context(...)` exports complete signed receipt chains with signer public-key refs, receipt signatures, redacted evidence summaries, and deterministic bundle root metadata. `PublicAuditBundle::verify_local_public_audit()` verifies the exported bundle without SQLite/private-key access.
+
+This is local public-bundle verification, not external anchoring, public immutable publication, Cardano/Midnight settlement, or production deployment proof. External publication/anchoring remains a later #185-style rail.

@@ -96,6 +96,12 @@ client / local tool / service
 
 This is local/operator evidence. It is not public chain anchoring, public auditability, or production deployment proof.
 
+
+### Public audit bundle contract (#181)
+
+#181 defines `secs-public-audit-bundle-v1`, a redacted local export bundle and local verifier contract for complete signed receipt chains. The bundle includes receipt ids, context ids, receipt signatures, signer public-key material, redacted evidence summaries, and deterministic chain metadata. This is local public-bundle verification, not external anchoring, immutable publication, chain settlement, or production deployment proof; #182-#185 continue the public-audit train beyond this first contract slice.
+
+
 ## Components / Repository Map
 
 | Path | Responsibility | Boundary |
@@ -110,7 +116,7 @@ This is local/operator evidence. It is not public chain anchoring, public audita
 | `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics are wired into signed-context creation and receiver-local bounded handler routing; this is not final global opcode ratification. |
 | `server/src/evidence.rs` | Evidence adapter seam. | Defines typed evidence requests/results, deterministic `local_static` local-dev-test adapter, cryptographic `wallet_presentation` proof-of-possession for the claimed subject using the explicitly temporary minimal-equivalent secS challenge contract, receiver-held `TrustedIssuerEntry` registry policy, and signed `membership_credential` / `provisioning_credential` verification against static fixture roots. Track D alone remains not trusted issuer/root/registry policy; Track E supplies the separate static trusted-issuer fixture policy on this phase branch. Full Castalia Wallet wallet-core import, live Castalia/Dregg discovery, Midnight/Cardano authority, public auditability, and deployment proof remain outside this repo-local Track E branch. |
 | `server/src/receipt.rs` | Typed receipt/event objects. | Defines reject/verify/execute/forward receipt kinds, typed decisions/reasons/authenticator kinds, stable event names, and Ed25519 receipt signing helpers. |
-| `server/src/ledger.rs` | Event/receipt ledger. | Persists events and receipts with runtime SQL; does not store payload content by default. |
+| `server/src/ledger.rs` | Event/receipt ledger. | Persists events and receipts with runtime SQL; exports `secs-public-audit-bundle-v1` redacted public-audit bundles for local public-bundle verification, not external anchoring; does not store payload content by default. |
 | `docs/` | Specs, plans, status ledgers, and external-language drafts. | Docs must distinguish implemented behavior from target/planned behavior. |
 | `AGENTS.md` | Contributor/agent rules. | Internal editing conventions for future automated work. |
 

@@ -164,3 +164,8 @@ Docs content checks:
 - [ ] Specs/plans/status ledger are linked from README.
 - [ ] Docs distinguish solid implemented, partial/prototype, planned next, future/optional, and out-of-scope surfaces.
 - [ ] No secrets, real keys, tokens, DB files, or private operator paths are introduced.
+
+
+## Public audit bundle contract (#181)
+
+`secs-public-audit-bundle-v1` is the first redacted public-audit export contract. It projects complete signed local receipt chains into JSON containing receipt ids, context ids, signature hex, signer public-key material, redacted evidence summaries, and deterministic chain/root metadata. The verifier contract is local public-bundle verification, not external anchoring or immutable public publication.
