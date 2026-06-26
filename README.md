@@ -75,7 +75,7 @@ Important boundaries:
 - secS verifies packets and produces typed handoff/audit objects.
 - Receiver-local manifests bind verified operations to local handlers.
 - External proof, federation, and settlement systems enter through typed evidence adapters or anchors; they do not replace the secS verifier boundary. The current Dregg-shaped adapter verifies envelope **shape + author signature only** (`secs-dregg-receipt-shape-v1`, a temporary minimal-equivalent contract); it is not Dregg blocklace finality, capability, nullifier, CapTP, or revocation authority — the earlier M12.3 shape-only seam is superseded by the bounded #144/M15.8 #73 finalizer; live Dregg proof/finality remains unsupported.
-- #177 adds only the live-Dregg contract/fail-closed seam: versioned DTOs, verifier traits, stable missing-live-verifier reason codes, and production readiness rejection when live verifier modes are required but no live dependency is configured. Live revocation roots (#178) now verify against explicit trusted-root/non-membership proof refs; BLS finality (#179) and rotated replay proofs (#180) remain follow-up adapter issues.
+- #177 adds only the live-Dregg contract/fail-closed seam: versioned DTOs, verifier traits, stable missing-live-verifier reason codes, and production readiness rejection when live verifier modes are required but no live dependency is configured. Live revocation roots (#178) now verify against explicit trusted-root/non-membership proof refs; BLS threshold finality (#179) now verifies typed QC refs against explicit committee/epoch config; rotated replay proofs (#180) remain a follow-up adapter issue.
 - Browser/app login is separate from secS internal RPC.
 
 ## System Architecture

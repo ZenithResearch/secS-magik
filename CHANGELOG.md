@@ -1,4 +1,5 @@
 # Changelog
+- #179: Added bounded live Dregg BLS threshold-finality verification: trusted committee config via `SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH`, `LiveDreggBlsFinalityVerifier`, composite verifier composition with #178 revocation, fail-closed finality-flag-only rejection, redaction-safe QC summaries, and docs/non-claims for #180.
 - #178: Added bounded live Dregg revocation-root/non-membership verification: trusted root config via `SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH`, `LiveDreggRevocationVerifier`, adapter injection with `DreggAuthorityEvidenceAdapter::with_live_verifier(...)`, fail-closed fixture fallback preservation, redaction-safe live proof summaries, and docs/non-claims for #179/#180.
 
 All notable changes to this project are documented here.

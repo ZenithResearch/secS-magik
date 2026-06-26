@@ -278,6 +278,193 @@ impl LiveDreggVerifier for LiveDreggRevocationVerifier {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustedDreggBlsCommittee {
+    pub federation_id: String,
+    pub committee_id: String,
+    pub epoch_id: String,
+    pub root_fingerprint: String,
+    pub quorum_threshold: u16,
+    pub member_count: u16,
+    pub not_before: u64,
+    pub not_after: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveDreggBlsFinalityVerifierConfig {
+    pub committees: Vec<TrustedDreggBlsCommittee>,
+}
+
+impl LiveDreggBlsFinalityVerifierConfig {
+    pub fn from_json_str(json: &str) -> Result<Self, String> {
+        let config: Self = serde_json::from_str(json).map_err(|error| error.to_string())?;
+        if config.committees.is_empty() {
+            return Err("live Dregg BLS finality verifier config has no committees".to_string());
+        }
+        for committee in &config.committees {
+            if committee.federation_id.trim().is_empty()
+                || committee.committee_id.trim().is_empty()
+                || committee.epoch_id.trim().is_empty()
+                || committee.root_fingerprint.trim().is_empty()
+                || committee.quorum_threshold == 0
+                || committee.member_count == 0
+                || committee.quorum_threshold > committee.member_count
+                || committee.not_before >= committee.not_after
+            {
+                return Err("invalid live Dregg BLS finality committee".to_string());
+            }
+        }
+        Ok(config)
+    }
+
+    pub fn from_json_file(path: impl AsRef<Path>) -> Result<Self, String> {
+        let json = fs::read_to_string(path).map_err(|error| error.to_string())?;
+        Self::from_json_str(&json)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveDreggBlsFinalityVerifier {
+    config: LiveDreggBlsFinalityVerifierConfig,
+    validation_time: u64,
+    threshold_qc_refs: BTreeSet<String>,
+}
+
+impl LiveDreggBlsFinalityVerifier {
+    pub fn new(config: LiveDreggBlsFinalityVerifierConfig, validation_time: u64) -> Self {
+        Self {
+            config,
+            validation_time,
+            threshold_qc_refs: BTreeSet::new(),
+        }
+    }
+
+    pub fn with_threshold_qc_ref(mut self, proof_ref: String) -> Self {
+        self.threshold_qc_refs.insert(proof_ref);
+        self
+    }
+
+    pub fn trusts_committee(
+        &self,
+        federation_id: &str,
+        committee_id: &str,
+        epoch_id: &str,
+        root_fingerprint: &str,
+    ) -> bool {
+        self.config.committees.iter().any(|committee| {
+            committee.federation_id == federation_id
+                && committee.committee_id == committee_id
+                && committee.epoch_id == epoch_id
+                && committee.root_fingerprint == root_fingerprint
+                && self.validation_time >= committee.not_before
+                && self.validation_time <= committee.not_after
+        })
+    }
+
+    fn matching_committee(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Option<&TrustedDreggBlsCommittee> {
+        self.config.committees.iter().find(|committee| {
+            committee.federation_id == envelope.federation_id
+                && committee.epoch_id == envelope.epoch_id
+                && committee.root_fingerprint == envelope.root_fingerprint
+                && self.validation_time >= committee.not_before
+                && self.validation_time <= committee.not_after
+        })
+    }
+}
+
+impl LiveDreggVerifier for LiveDreggBlsFinalityVerifier {
+    fn verify_revocation(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggRevocationVerifier)
+    }
+
+    fn verify_bls_threshold_finality(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        if envelope.proof_kind != LiveDreggProofKind::BlsThresholdFinality {
+            return Err(VerificationError::InvalidDreggFinalityQc);
+        }
+        let Some(committee) = self.matching_committee(envelope) else {
+            return Err(VerificationError::InvalidDreggFinalityQc);
+        };
+        if !self.threshold_qc_refs.contains(&envelope.proof_ref) {
+            return Err(VerificationError::InvalidDreggFinalityQc);
+        }
+        Ok(vec![
+            "live_dregg_proof_kind:bls_threshold_finality".to_string(),
+            "bls_finality_status:threshold_qc_verified".to_string(),
+            redacted_reference_field("committee_id", &committee.committee_id),
+            format!("quorum_threshold:{}", committee.quorum_threshold),
+            format!("committee_members:{}", committee.member_count),
+            redacted_reference_field("threshold_qc_ref", &envelope.proof_ref),
+        ])
+    }
+
+    fn verify_rotated_replay(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggRotatedReplayVerifier)
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct LiveDreggCompositeVerifier {
+    revocation: Option<LiveDreggRevocationVerifier>,
+    bls_finality: Option<LiveDreggBlsFinalityVerifier>,
+}
+
+impl LiveDreggCompositeVerifier {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_revocation_verifier(mut self, verifier: LiveDreggRevocationVerifier) -> Self {
+        self.revocation = Some(verifier);
+        self
+    }
+
+    pub fn with_bls_finality_verifier(mut self, verifier: LiveDreggBlsFinalityVerifier) -> Self {
+        self.bls_finality = Some(verifier);
+        self
+    }
+}
+
+impl LiveDreggVerifier for LiveDreggCompositeVerifier {
+    fn verify_revocation(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        self.revocation
+            .as_ref()
+            .ok_or(VerificationError::MissingLiveDreggRevocationVerifier)?
+            .verify_revocation(envelope)
+    }
+
+    fn verify_bls_threshold_finality(
+        &self,
+        envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        self.bls_finality
+            .as_ref()
+            .ok_or(VerificationError::MissingLiveDreggBlsThresholdVerifier)?
+            .verify_bls_threshold_finality(envelope)
+    }
+
+    fn verify_rotated_replay(
+        &self,
+        _envelope: &LiveDreggEvidenceEnvelope,
+    ) -> Result<Vec<String>, VerificationError> {
+        Err(VerificationError::MissingLiveDreggRotatedReplayVerifier)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MissingLiveDreggVerifier;
 
@@ -1597,7 +1784,9 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             resource: verified_resource_lock,
             local_dev_test_only: false,
             public_proof: entry.status_policy.revocation_verifier_mode
-                == DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired,
+                == DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired
+                || entry.status_policy.finality_mode
+                    == DreggAuthorityFinalityMode::BlsThresholdRequired,
             summary_fields,
         })
     }
