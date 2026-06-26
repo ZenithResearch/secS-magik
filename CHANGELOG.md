@@ -1,4 +1,5 @@
 # Changelog
+- #178: Added bounded live Dregg revocation-root/non-membership verification: trusted root config via `SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH`, `LiveDreggRevocationVerifier`, adapter injection with `DreggAuthorityEvidenceAdapter::with_live_verifier(...)`, fail-closed fixture fallback preservation, redaction-safe live proof summaries, and docs/non-claims for #179/#180.
 
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)

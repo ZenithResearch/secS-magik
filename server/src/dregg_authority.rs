@@ -196,11 +196,22 @@ impl DreggAuthorityRegistry {
     }
 
     pub fn requires_live_verifier_dependency(&self) -> bool {
+        self.requires_live_revocation_verifier_dependency()
+            || self.requires_live_finality_verifier_dependency()
+    }
+
+    pub fn requires_live_revocation_verifier_dependency(&self) -> bool {
         self.entries.iter().any(|entry| {
             matches!(
                 entry.status_policy.revocation_verifier_mode,
                 DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired
-            ) || matches!(
+            )
+        })
+    }
+
+    pub fn requires_live_finality_verifier_dependency(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            matches!(
                 entry.status_policy.finality_mode,
                 DreggAuthorityFinalityMode::BlsThresholdRequired
                     | DreggAuthorityFinalityMode::RotatedReplayRequired
@@ -270,9 +281,7 @@ impl DreggAuthorityRegistry {
                     return Err(VerificationError::WrongRevocationRoot);
                 }
             }
-            DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired => {
-                return Err(VerificationError::MissingLiveDreggRevocationVerifier);
-            }
+            DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired => {}
         }
         match entry.status_policy.finality_mode {
             DreggAuthorityFinalityMode::NotRequired => {}
@@ -289,12 +298,8 @@ impl DreggAuthorityRegistry {
                     }
                 }
             }
-            DreggAuthorityFinalityMode::BlsThresholdRequired => {
-                return Err(VerificationError::MissingLiveDreggBlsThresholdVerifier);
-            }
-            DreggAuthorityFinalityMode::RotatedReplayRequired => {
-                return Err(VerificationError::MissingLiveDreggRotatedReplayVerifier);
-            }
+            DreggAuthorityFinalityMode::BlsThresholdRequired => {}
+            DreggAuthorityFinalityMode::RotatedReplayRequired => {}
         }
         if !entry
             .accepted_audiences

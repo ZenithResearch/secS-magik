@@ -1,4 +1,5 @@
 use crate::dregg_authority::DreggAuthorityRegistry;
+use crate::evidence::LiveDreggRevocationVerifierConfig;
 use crate::gateway::ExecutionLimits;
 use crate::ingress::{DEFAULT_INGRESS_READ_TIMEOUT, DEFAULT_MAX_WIRE_BYTES};
 use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
@@ -615,13 +616,23 @@ pub fn validate_dregg_authority_registry_file(path: Option<&Path>) -> Result<(),
         .map(|registry| {
             if registry.is_empty() {
                 Err("production Dregg authority registry has no issuer/root entries".to_string())
-            } else if registry.requires_live_verifier_dependency() {
-                Err("live Dregg verifier dependency is not configured for registry modes that require live verification".to_string())
+            } else if registry.requires_live_revocation_verifier_dependency()
+                && validate_live_dregg_revocation_config_from_env().is_err()
+            {
+                Err("live Dregg revocation verifier dependency is not configured for registry modes that require live revocation verification".to_string())
+            } else if registry.requires_live_finality_verifier_dependency() {
+                Err("live Dregg verifier dependency is not configured for registry modes that require live finality verification".to_string())
             } else {
                 Ok(())
             }
         })
         .map_err(|error| error.to_string())?
+}
+
+fn validate_live_dregg_revocation_config_from_env() -> Result<(), String> {
+    let path = std::env::var("SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH")
+        .map_err(|_| "missing SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH".to_string())?;
+    LiveDreggRevocationVerifierConfig::from_json_file(path).map(|_| ())
 }
 
 fn validate_trust_registry_file(
