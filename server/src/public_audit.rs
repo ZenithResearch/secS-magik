@@ -5,6 +5,7 @@
 //! ledger and from any future external anchoring or publication rail.
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 pub const PUBLIC_AUDIT_BUNDLE_VERSION: &str = "secs-public-audit-bundle-v1";
 
@@ -78,4 +79,34 @@ pub struct PublicAuditBundle {
 
 impl PublicAuditBundle {
     pub const VERSION: &'static str = PUBLIC_AUDIT_BUNDLE_VERSION;
+}
+
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    hex_lower(&Sha256::digest(bytes))
+}
+
+pub fn hex_lower(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+pub fn public_audit_entry_hash(entry: &PublicAuditReceiptEntry) -> String {
+    let mut entry = entry.clone();
+    entry.entry_hash_hex.clear();
+    let bytes = serde_json::to_vec(&entry).unwrap_or_default();
+    sha256_hex(&bytes)
+}
+
+pub fn public_audit_root_hash(entries: &[PublicAuditReceiptEntry]) -> String {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(PUBLIC_AUDIT_BUNDLE_VERSION.as_bytes());
+    for entry in entries {
+        bytes.extend_from_slice(entry.entry_hash_hex.as_bytes());
+    }
+    sha256_hex(&bytes)
 }

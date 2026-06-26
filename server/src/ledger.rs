@@ -4,6 +4,11 @@
 //! export. It uses runtime SQL so the repo does not need to maintain SQLx
 //! offline metadata yet.
 
+use crate::public_audit::{
+    public_audit_entry_hash, public_audit_root_hash, PublicAuditBundle, PublicAuditBundleStatus,
+    PublicAuditChainMetadata, PublicAuditReceiptEntry, PublicAuditRedactionPolicy,
+    PublicAuditSignerKey,
+};
 use crate::receipt::{Receipt, ReceiptEventKind};
 use crate::schema::{apply_schema, LEDGER_TABLES};
 use crate::verifier::VerifiedCallContext;
@@ -49,6 +54,41 @@ impl OperatorReceiptInspection {
 pub enum ReplayReservationOutcome {
     Reserved,
     Duplicate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PublicAuditExportError {
+    NotFound,
+    IncompleteReceiptChain,
+    UnknownSignerKey,
+    Database(String),
+}
+
+impl From<sqlx::Error> for PublicAuditExportError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::Database(error.to_string())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct PublicAuditReceiptRow {
+    receipt_id: String,
+    schema_version: u16,
+    context_id: Option<String>,
+    timestamp: u64,
+    kind: String,
+    packet_hash: Vec<u8>,
+    session_id: Vec<u8>,
+    nonce: Vec<u8>,
+    opcode: u8,
+    operation: Option<String>,
+    decision: String,
+    reason: Option<String>,
+    handler_id: Option<String>,
+    authenticator_kind: String,
+    signer_key_id: String,
+    evidence_summary: Vec<String>,
+    signature: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -282,6 +322,154 @@ impl Ledger {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    pub async fn export_public_audit_bundle_for_context<'a>(
+        &self,
+        context_id: &str,
+        signer_keys: impl IntoIterator<Item = (&'a str, &'a [u8; 32])>,
+        exported_at: u64,
+    ) -> Result<PublicAuditBundle, PublicAuditExportError> {
+        let mut signer_keys: Vec<PublicAuditSignerKey> = signer_keys
+            .into_iter()
+            .map(|(signer_key_id, public_key)| PublicAuditSignerKey {
+                signer_key_id: signer_key_id.to_string(),
+                public_key_hex: hex_lower(public_key),
+            })
+            .collect();
+        signer_keys.sort_by(|left, right| left.signer_key_id.cmp(&right.signer_key_id));
+
+        let rows = self.public_audit_receipts_for_context(context_id).await?;
+        if rows.is_empty() {
+            return Err(PublicAuditExportError::NotFound);
+        }
+        if rows.iter().any(|row| row.signature.is_empty()) {
+            return Err(PublicAuditExportError::IncompleteReceiptChain);
+        }
+        if rows.iter().any(|row| {
+            !signer_keys
+                .iter()
+                .any(|signer| signer.signer_key_id == row.signer_key_id)
+        }) {
+            return Err(PublicAuditExportError::UnknownSignerKey);
+        }
+
+        let mut receipts = Vec::with_capacity(rows.len());
+        for row in rows {
+            let mut entry = PublicAuditReceiptEntry {
+                receipt_id: row.receipt_id,
+                schema_version: row.schema_version,
+                context_id: row.context_id,
+                timestamp: row.timestamp,
+                kind: row.kind,
+                decision: row.decision,
+                reason: row.reason,
+                operation: row.operation,
+                handler_id: row.handler_id,
+                opcode: row.opcode,
+                packet_hash_hex: hex_lower(&row.packet_hash),
+                session_id_hex: hex_lower(&row.session_id),
+                nonce_hex: hex_lower(&row.nonce),
+                authenticator_kind: row.authenticator_kind,
+                signer_key_id: row.signer_key_id,
+                signature_hex: hex_lower(&row.signature),
+                evidence_summary: row.evidence_summary,
+                entry_hash_hex: String::new(),
+            };
+            entry.entry_hash_hex = public_audit_entry_hash(&entry);
+            receipts.push(entry);
+        }
+        let first_receipt_id = receipts
+            .first()
+            .map(|entry| entry.receipt_id.clone())
+            .ok_or(PublicAuditExportError::NotFound)?;
+        let last_receipt_id = receipts
+            .last()
+            .map(|entry| entry.receipt_id.clone())
+            .ok_or(PublicAuditExportError::NotFound)?;
+        let root_hash_hex = public_audit_root_hash(&receipts);
+        Ok(PublicAuditBundle {
+            version: PublicAuditBundle::VERSION.to_string(),
+            redaction_policy: PublicAuditRedactionPolicy::DefaultNoPayloadOrPrivateEvidence,
+            status: PublicAuditBundleStatus::Complete,
+            exported_at,
+            chain: PublicAuditChainMetadata {
+                root_hash_hex,
+                first_receipt_id,
+                last_receipt_id,
+                receipt_count: receipts.len(),
+                complete: true,
+            },
+            signer_keys,
+            receipts,
+        })
+    }
+
+    async fn public_audit_receipts_for_context(
+        &self,
+        context_id: &str,
+    ) -> Result<Vec<PublicAuditReceiptRow>, sqlx::Error> {
+        let rows = sqlx::query(
+            "SELECT
+                receipt_id,
+                schema_version,
+                context_id,
+                timestamp,
+                kind,
+                packet_hash,
+                session_id,
+                nonce,
+                opcode,
+                operation,
+                decision,
+                reason,
+                handler_id,
+                authenticator_kind,
+                signer_key_id,
+                evidence_summary,
+                signature
+            FROM receipts
+            WHERE context_id = ?
+            ORDER BY timestamp ASC,
+                CASE kind
+                    WHEN 'verify' THEN 0
+                    WHEN 'execute' THEN 1
+                    WHEN 'reject' THEN 2
+                    WHEN 'forward' THEN 3
+                    ELSE 4
+                END,
+                receipt_id ASC",
+        )
+        .bind(context_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|row| {
+                let evidence_summary = row.try_get::<String, _>("evidence_summary")?;
+                let evidence_summary =
+                    serde_json::from_str::<Vec<String>>(&evidence_summary).unwrap_or_default();
+                Ok(PublicAuditReceiptRow {
+                    receipt_id: row.try_get("receipt_id")?,
+                    schema_version: row.try_get::<i64, _>("schema_version")? as u16,
+                    context_id: row.try_get("context_id")?,
+                    timestamp: row.try_get::<i64, _>("timestamp")? as u64,
+                    kind: row.try_get("kind")?,
+                    packet_hash: row.try_get("packet_hash")?,
+                    session_id: row.try_get("session_id")?,
+                    nonce: row.try_get("nonce")?,
+                    opcode: row.try_get::<i64, _>("opcode")? as u8,
+                    operation: row.try_get("operation")?,
+                    decision: row.try_get("decision")?,
+                    reason: row.try_get("reason")?,
+                    handler_id: row.try_get("handler_id")?,
+                    authenticator_kind: row.try_get("authenticator_kind")?,
+                    signer_key_id: row.try_get("signer_key_id")?,
+                    evidence_summary,
+                    signature: row.try_get("signature")?,
+                })
+            })
+            .collect()
     }
 
     pub async fn inspect_receipt_by_id(
