@@ -920,3 +920,27 @@ fn public_audit_bundle_docs_distinguish_local_export_from_external_anchoring() {
         );
     }
 }
+
+#[test]
+fn audit_chain_export_docs_record_versioned_root_semantics_without_anchor_claims() {
+    for required in [
+        "secs-public-audit-chain-v1",
+        "Receipt-chain audit export model (#182)",
+        "chain_index",
+        "previous_entry_hash_hex",
+        "context-scoped range export",
+    ] {
+        assert!(
+            README.contains(required)
+                || SERVER_README.contains(required)
+                || IMPLEMENTATION_STATUS.contains(required),
+            "docs should record #182 audit chain export semantics: {required}"
+        );
+    }
+    assert!(
+        !README.contains("#182 implements external anchoring")
+            && !SERVER_README.contains("#182 implements external anchoring")
+            && !IMPLEMENTATION_STATUS.contains("#182 implements external anchoring"),
+        "#182 docs must not claim external anchoring"
+    );
+}

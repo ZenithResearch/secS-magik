@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub const PUBLIC_AUDIT_BUNDLE_VERSION: &str = "secs-public-audit-bundle-v1";
+pub const PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION: &str = "secs-public-audit-chain-v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -39,6 +40,8 @@ pub struct PublicAuditSignerKey {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicAuditChainMetadata {
+    pub algorithm_version: String,
+    pub chain_scope: String,
     pub root_hash_hex: String,
     pub first_receipt_id: String,
     pub last_receipt_id: String,
@@ -48,6 +51,8 @@ pub struct PublicAuditChainMetadata {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicAuditReceiptEntry {
+    pub chain_index: usize,
+    pub previous_entry_hash_hex: Option<String>,
     pub receipt_id: String,
     pub schema_version: u16,
     pub context_id: Option<String>,
@@ -121,6 +126,7 @@ pub enum PublicAuditVerificationError {
     ChainEndpointMismatch,
     ChainRootMismatch,
     ReceiptEntryHashMismatch,
+    ReceiptChainLinkMismatch,
     UnknownSignerKey,
     InvalidSignerPublicKey,
     InvalidReceiptField,
@@ -147,12 +153,18 @@ impl PublicAuditBundle {
             .receipts
             .last()
             .ok_or(PublicAuditVerificationError::IncompleteBundle)?;
-        if self.chain.first_receipt_id != first.receipt_id
-            || self.chain.last_receipt_id != last.receipt_id
-        {
-            return Err(PublicAuditVerificationError::ChainEndpointMismatch);
-        }
-        for entry in &self.receipts {
+        for (index, entry) in self.receipts.iter().enumerate() {
+            if entry.chain_index != index {
+                return Err(PublicAuditVerificationError::ReceiptChainLinkMismatch);
+            }
+            let expected_previous = if index == 0 {
+                None
+            } else {
+                Some(self.receipts[index - 1].entry_hash_hex.as_str())
+            };
+            if entry.previous_entry_hash_hex.as_deref() != expected_previous {
+                return Err(PublicAuditVerificationError::ReceiptChainLinkMismatch);
+            }
             if entry.entry_hash_hex != public_audit_entry_hash(entry) {
                 return Err(PublicAuditVerificationError::ReceiptEntryHashMismatch);
             }
@@ -170,6 +182,11 @@ impl PublicAuditBundle {
             receipt
                 .verify_ed25519_with_key(&public_key)
                 .map_err(|_| PublicAuditVerificationError::InvalidReceiptSignature)?;
+        }
+        if self.chain.first_receipt_id != first.receipt_id
+            || self.chain.last_receipt_id != last.receipt_id
+        {
+            return Err(PublicAuditVerificationError::ChainEndpointMismatch);
         }
         if self.chain.root_hash_hex != public_audit_root_hash(&self.receipts) {
             return Err(PublicAuditVerificationError::ChainRootMismatch);

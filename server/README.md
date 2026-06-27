@@ -216,3 +216,8 @@ This remains bounded adapter-seam proof verification. It does not implement Card
 The server now exposes the `secs-public-audit-bundle-v1` contract for redacted local public-bundle export and verification. `Ledger::export_public_audit_bundle_for_context(...)` exports complete signed receipt chains with signer public-key refs, receipt signatures, redacted evidence summaries, and deterministic bundle root metadata. `PublicAuditBundle::verify_local_public_audit()` verifies the exported bundle without SQLite/private-key access.
 
 This is local public-bundle verification, not external anchoring, public immutable publication, Cardano/Midnight settlement, or production deployment proof. External publication/anchoring remains a later #185-style rail.
+
+
+### Receipt-chain audit export model (#182)
+
+#182 strengthens `secs-public-audit-bundle-v1` with the versioned `secs-public-audit-chain-v1` root algorithm. Every exported receipt entry carries a `chain_index` and `previous_entry_hash_hex`, and the bundle chain metadata records a deterministic context-scoped range export (`chain_scope: context:<id>`). Context-scoped range export rejects missing endpoints and local bundle verification rejects reordered or broken hash-link chains. This is still local public-bundle verification, not external anchoring or immutable public publication.

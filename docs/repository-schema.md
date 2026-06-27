@@ -169,3 +169,8 @@ Docs content checks:
 ## Public audit bundle contract (#181)
 
 `secs-public-audit-bundle-v1` is the first redacted public-audit export contract. It projects complete signed local receipt chains into JSON containing receipt ids, context ids, signature hex, signer public-key material, redacted evidence summaries, and deterministic chain/root metadata. The verifier contract is local public-bundle verification, not external anchoring or immutable public publication.
+
+
+### Receipt-chain audit export model (#182)
+
+#182 strengthens `secs-public-audit-bundle-v1` with the versioned `secs-public-audit-chain-v1` root algorithm. Every exported receipt entry carries a `chain_index` and `previous_entry_hash_hex`, and the bundle chain metadata records a deterministic context-scoped range export (`chain_scope: context:<id>`). Context-scoped range export rejects missing endpoints and local bundle verification rejects reordered or broken hash-link chains. This is still local public-bundle verification, not external anchoring or immutable public publication.

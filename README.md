@@ -319,3 +319,8 @@ See [LICENSE](LICENSE).
 #144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.
 
 - Tunnel key lifecycle (#175): v2 session-key clients may pin `SECS_TUNNEL_SERVER_X25519_PUBLIC_ID`, while gateways expose redacted `tunnel:x25519:<hash>` identities for current/next X25519 keys and record accepted v2 key ids in verify receipts.
+
+
+### Receipt-chain audit export model (#182)
+
+#182 strengthens `secs-public-audit-bundle-v1` with the versioned `secs-public-audit-chain-v1` root algorithm. Every exported receipt entry carries a `chain_index` and `previous_entry_hash_hex`, and the bundle chain metadata records a deterministic context-scoped range export (`chain_scope: context:<id>`). Context-scoped range export rejects missing endpoints and local bundle verification rejects reordered or broken hash-link chains. This is still local public-bundle verification, not external anchoring or immutable public publication.
