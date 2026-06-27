@@ -7,7 +7,7 @@
 use crate::public_audit::{
     public_audit_entry_hash, public_audit_root_hash, PublicAuditBundle, PublicAuditBundleStatus,
     PublicAuditChainMetadata, PublicAuditReceiptEntry, PublicAuditRedactionPolicy,
-    PublicAuditSignerKey,
+    PublicAuditSignerKey, PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION,
 };
 use crate::receipt::{Receipt, ReceiptEventKind};
 use crate::schema::{apply_schema, LEDGER_TABLES};
@@ -330,6 +330,41 @@ impl Ledger {
         signer_keys: impl IntoIterator<Item = (&'a str, &'a [u8; 32])>,
         exported_at: u64,
     ) -> Result<PublicAuditBundle, PublicAuditExportError> {
+        let rows = self.public_audit_receipts_for_context(context_id).await?;
+        self.public_audit_bundle_from_rows(context_id, signer_keys, exported_at, rows)
+    }
+
+    pub async fn export_public_audit_bundle_for_context_range<'a>(
+        &self,
+        context_id: &str,
+        first_receipt_id: &str,
+        last_receipt_id: &str,
+        signer_keys: impl IntoIterator<Item = (&'a str, &'a [u8; 32])>,
+        exported_at: u64,
+    ) -> Result<PublicAuditBundle, PublicAuditExportError> {
+        let rows = self.public_audit_receipts_for_context(context_id).await?;
+        let start = rows
+            .iter()
+            .position(|row| row.receipt_id == first_receipt_id)
+            .ok_or(PublicAuditExportError::IncompleteReceiptChain)?;
+        let end = rows
+            .iter()
+            .position(|row| row.receipt_id == last_receipt_id)
+            .ok_or(PublicAuditExportError::IncompleteReceiptChain)?;
+        if end < start {
+            return Err(PublicAuditExportError::IncompleteReceiptChain);
+        }
+        let rows = rows[start..=end].to_vec();
+        self.public_audit_bundle_from_rows(context_id, signer_keys, exported_at, rows)
+    }
+
+    fn public_audit_bundle_from_rows<'a>(
+        &self,
+        context_id: &str,
+        signer_keys: impl IntoIterator<Item = (&'a str, &'a [u8; 32])>,
+        exported_at: u64,
+        rows: Vec<PublicAuditReceiptRow>,
+    ) -> Result<PublicAuditBundle, PublicAuditExportError> {
         let mut signer_keys: Vec<PublicAuditSignerKey> = signer_keys
             .into_iter()
             .map(|(signer_key_id, public_key)| PublicAuditSignerKey {
@@ -339,7 +374,6 @@ impl Ledger {
             .collect();
         signer_keys.sort_by(|left, right| left.signer_key_id.cmp(&right.signer_key_id));
 
-        let rows = self.public_audit_receipts_for_context(context_id).await?;
         if rows.is_empty() {
             return Err(PublicAuditExportError::NotFound);
         }
@@ -355,8 +389,11 @@ impl Ledger {
         }
 
         let mut receipts = Vec::with_capacity(rows.len());
-        for row in rows {
+        let mut previous_entry_hash_hex = None;
+        for (chain_index, row) in rows.into_iter().enumerate() {
             let mut entry = PublicAuditReceiptEntry {
+                chain_index,
+                previous_entry_hash_hex: previous_entry_hash_hex.clone(),
                 receipt_id: row.receipt_id,
                 schema_version: row.schema_version,
                 context_id: row.context_id,
@@ -377,6 +414,7 @@ impl Ledger {
                 entry_hash_hex: String::new(),
             };
             entry.entry_hash_hex = public_audit_entry_hash(&entry);
+            previous_entry_hash_hex = Some(entry.entry_hash_hex.clone());
             receipts.push(entry);
         }
         let first_receipt_id = receipts
@@ -394,6 +432,8 @@ impl Ledger {
             status: PublicAuditBundleStatus::Complete,
             exported_at,
             chain: PublicAuditChainMetadata {
+                algorithm_version: PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION.to_string(),
+                chain_scope: format!("context:{context_id}"),
                 root_hash_hex,
                 first_receipt_id,
                 last_receipt_id,

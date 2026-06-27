@@ -11,6 +11,8 @@ fn public_audit_bundle_schema_is_versioned_redacted_and_serializable() {
         status: PublicAuditBundleStatus::Complete,
         exported_at: 1_770_000_000,
         chain: PublicAuditChainMetadata {
+            algorithm_version: "secs-public-audit-chain-v1".to_string(),
+            chain_scope: "context:ctx-1".to_string(),
             root_hash_hex: "root-hash".to_string(),
             first_receipt_id: "r-1".to_string(),
             last_receipt_id: "r-2".to_string(),
@@ -22,6 +24,8 @@ fn public_audit_bundle_schema_is_versioned_redacted_and_serializable() {
             public_key_hex: "11".repeat(32),
         }],
         receipts: vec![PublicAuditReceiptEntry {
+            chain_index: 0,
+            previous_entry_hash_hex: None,
             receipt_id: "r-1".to_string(),
             schema_version: 2,
             context_id: Some("ctx-1".to_string()),
@@ -236,5 +240,106 @@ async fn local_public_audit_verifier_accepts_valid_bundle_and_rejects_tampering(
     assert_eq!(
         tampered_root.verify_local_public_audit().unwrap_err(),
         server::public_audit::PublicAuditVerificationError::ChainRootMismatch
+    );
+}
+
+#[tokio::test]
+async fn audit_chain_export_records_versioned_ordered_hash_links() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-audit-chain-links");
+    ledger
+        .record_receipt(&signed_receipt("r-chain-1", &context, 1_770_000_010))
+        .await
+        .unwrap();
+    ledger
+        .record_receipt(&signed_receipt("r-chain-2", &context, 1_770_000_011))
+        .await
+        .unwrap();
+
+    let bundle = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-audit-chain-links",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(bundle.chain.algorithm_version, "secs-public-audit-chain-v1");
+    assert_eq!(
+        bundle.chain.chain_scope,
+        "context:ctx-public-audit-chain-links"
+    );
+    assert_eq!(bundle.receipts[0].chain_index, 0);
+    assert_eq!(bundle.receipts[0].previous_entry_hash_hex, None);
+    assert_eq!(bundle.receipts[1].chain_index, 1);
+    assert_eq!(
+        bundle.receipts[1].previous_entry_hash_hex.as_deref(),
+        Some(bundle.receipts[0].entry_hash_hex.as_str())
+    );
+
+    let second = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-audit-chain-links",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.chain.root_hash_hex, bundle.chain.root_hash_hex);
+    assert_eq!(second.receipts, bundle.receipts);
+}
+
+#[tokio::test]
+async fn audit_chain_range_export_rejects_missing_endpoints_and_verifier_rejects_reorder() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-audit-range");
+    ledger
+        .record_receipt(&signed_receipt("r-range-1", &context, 1_770_000_010))
+        .await
+        .unwrap();
+    ledger
+        .record_receipt(&signed_receipt("r-range-2", &context, 1_770_000_011))
+        .await
+        .unwrap();
+
+    let missing = ledger
+        .export_public_audit_bundle_for_context_range(
+            "ctx-public-audit-range",
+            "r-range-1",
+            "r-range-missing",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(missing, PublicAuditExportError::IncompleteReceiptChain);
+
+    let mut bundle = ledger
+        .export_public_audit_bundle_for_context_range(
+            "ctx-public-audit-range",
+            "r-range-1",
+            "r-range-2",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+    bundle.receipts.swap(0, 1);
+    assert_eq!(
+        bundle.verify_local_public_audit().unwrap_err(),
+        server::public_audit::PublicAuditVerificationError::ReceiptChainLinkMismatch
     );
 }
