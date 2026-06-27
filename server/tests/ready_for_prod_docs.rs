@@ -999,3 +999,34 @@ fn public_audit_verifier_cli_docs_include_runbook_without_anchor_claims() {
         );
     }
 }
+
+#[test]
+fn external_audit_anchor_docs_name_github_gist_target_and_non_claims() {
+    for required in [
+        "external audit anchor adapter (#185)",
+        "github-gist",
+        "secs-public-audit-github-gist-anchor-v1",
+        "secz audit anchor verify <bundle.json> <anchor.json>",
+        "secz audit verify <bundle.json>",
+        "not blockchain immutability",
+    ] {
+        assert!(
+            README.contains(required)
+                || SERVER_README.contains(required)
+                || IMPLEMENTATION_STATUS.contains(required),
+            "docs should include #185 external anchor runbook detail: {required}"
+        );
+    }
+    for forbidden in [
+        "#185 proves blockchain immutability",
+        "#185 publishes raw payloads",
+        "#185 requires private signing material",
+    ] {
+        assert!(
+            !README.contains(forbidden)
+                && !SERVER_README.contains(forbidden)
+                && !IMPLEMENTATION_STATUS.contains(forbidden),
+            "#185 docs must not overclaim: {forbidden}"
+        );
+    }
+}
