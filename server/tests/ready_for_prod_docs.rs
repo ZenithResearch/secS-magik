@@ -968,3 +968,34 @@ fn audit_publisher_docs_record_status_model_without_external_anchor_claims() {
         "#183 docs must not claim external anchoring"
     );
 }
+
+#[test]
+fn public_audit_verifier_cli_docs_include_runbook_without_anchor_claims() {
+    for required in [
+        "public audit verifier CLI (#184)",
+        "secz audit verify <bundle.json>",
+        "valid=true",
+        "UnsupportedBundleVersion",
+        "ReceiptChainLinkMismatch",
+        "does not require SQLite database access",
+    ] {
+        assert!(
+            README.contains(required)
+                || SERVER_README.contains(required)
+                || IMPLEMENTATION_STATUS.contains(required),
+            "docs should include public audit verifier runbook detail: {required}"
+        );
+    }
+    for forbidden in [
+        "#184 implements external anchoring",
+        "secz audit verify proves public immutability",
+        "secz audit verify requires private signing material",
+    ] {
+        assert!(
+            !README.contains(forbidden)
+                && !SERVER_README.contains(forbidden)
+                && !IMPLEMENTATION_STATUS.contains(forbidden),
+            "#184 docs must not overclaim: {forbidden}"
+        );
+    }
+}

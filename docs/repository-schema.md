@@ -179,3 +179,24 @@ Docs content checks:
 ### Audit publisher abstraction (#183) — audit publisher abstraction (#183)
 
 #183 adds a local audit publisher abstraction and persisted `audit_publication_status` table for public audit bundles. Publication status is keyed by an `idempotency_key` over bundle version, chain algorithm version, chain scope, root hash, receipt count, and target kind. Target references are stored as `target_ref_digest_hex`, never raw target refs. The included local/no-op publisher proves status, retry, idempotency, and failure semantics without external anchoring claims. Publication verifies the local public audit bundle before recording success or failure, and publication failures do not rewrite receipt rows or bundle contents.
+
+
+### Public audit verifier CLI (#184) — public audit verifier CLI (#184)
+
+#184 adds the redaction-safe public audit verifier CLI. Use:
+
+```bash
+cargo run -p server --bin secz -- audit verify <bundle.json>
+# installed binary form:
+secz audit verify <bundle.json>
+```
+
+A valid local public audit bundle prints a single summary line such as:
+
+```text
+valid=true bundle_version=secs-public-audit-bundle-v1 chain_algorithm_version=secs-public-audit-chain-v1 chain_scope=context:example root_hash_hex=<hex> receipt_count=2
+```
+
+The verifier does not require SQLite database access or private signing material. It loads the JSON `PublicAuditBundle`, verifies bundle version, signer public keys, signatures, entry hashes, receipt chain links, endpoints, root hash, and redaction boundaries, then exits 0 only when all checks pass. Invalid bundles exit nonzero and print stable error names such as `UnsupportedBundleVersion`, `ReceiptChainLinkMismatch`, `ChainRootMismatch`, `ReceiptEntryHashMismatch`, `UnknownSignerKey`, or `RedactionViolation` without printing raw payloads, private evidence, raw target refs, or local SQLite rows.
+
+This is not external anchoring, public immutability, settlement finality, or production publication proof.
