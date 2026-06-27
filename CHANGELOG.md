@@ -1,4 +1,5 @@
 # Changelog
+- #184: Added `secz audit verify <bundle.json>` public audit verifier CLI with redaction-safe success/failure output and no external anchoring claim.
 - #183: Added local audit publisher abstraction with `audit_publication_status`, idempotent status keying, redacted target references, and failure/retry semantics without external anchoring.
 - #182: Added `secs-public-audit-chain-v1` deterministic chain/root metadata with `chain_index`, `previous_entry_hash_hex`, context-scoped range export, and reorder/missing-endpoint rejection.
 - #181: Added `secs-public-audit-bundle-v1` for redacted local public-audit bundle export and DB/private-key-free local verification; external anchoring/publication remains out of scope.
