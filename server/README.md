@@ -221,3 +221,8 @@ This is local public-bundle verification, not external anchoring, public immutab
 ### Receipt-chain audit export model (#182)
 
 #182 strengthens `secs-public-audit-bundle-v1` with the versioned `secs-public-audit-chain-v1` root algorithm. Every exported receipt entry carries a `chain_index` and `previous_entry_hash_hex`, and the bundle chain metadata records a deterministic context-scoped range export (`chain_scope: context:<id>`). Context-scoped range export rejects missing endpoints and local bundle verification rejects reordered or broken hash-link chains. This is still local public-bundle verification, not external anchoring or immutable public publication.
+
+
+### Audit publisher abstraction (#183) — audit publisher abstraction (#183)
+
+#183 adds a local audit publisher abstraction and persisted `audit_publication_status` table for public audit bundles. Publication status is keyed by an `idempotency_key` over bundle version, chain algorithm version, chain scope, root hash, receipt count, and target kind. Target references are stored as `target_ref_digest_hex`, never raw target refs. The included local/no-op publisher proves status, retry, idempotency, and failure semantics without external anchoring claims. Publication verifies the local public audit bundle before recording success or failure, and publication failures do not rewrite receipt rows or bundle contents.

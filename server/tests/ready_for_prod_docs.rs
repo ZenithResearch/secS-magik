@@ -944,3 +944,27 @@ fn audit_chain_export_docs_record_versioned_root_semantics_without_anchor_claims
         "#182 docs must not claim external anchoring"
     );
 }
+
+#[test]
+fn audit_publisher_docs_record_status_model_without_external_anchor_claims() {
+    for required in [
+        "audit publisher abstraction (#183)",
+        "audit_publication_status",
+        "idempotency_key",
+        "target_ref_digest_hex",
+        "local/no-op publisher",
+    ] {
+        assert!(
+            README.contains(required)
+                || SERVER_README.contains(required)
+                || IMPLEMENTATION_STATUS.contains(required),
+            "docs should record #183 audit publisher abstraction semantics: {required}"
+        );
+    }
+    assert!(
+        !README.contains("#183 implements external anchoring")
+            && !SERVER_README.contains("#183 implements external anchoring")
+            && !IMPLEMENTATION_STATUS.contains("#183 implements external anchoring"),
+        "#183 docs must not claim external anchoring"
+    );
+}
