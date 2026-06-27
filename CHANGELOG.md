@@ -1,4 +1,5 @@
 # Changelog
+- #182: Added `secs-public-audit-chain-v1` deterministic chain/root metadata with `chain_index`, `previous_entry_hash_hex`, context-scoped range export, and reorder/missing-endpoint rejection.
 - #181: Added `secs-public-audit-bundle-v1` for redacted local public-audit bundle export and DB/private-key-free local verification; external anchoring/publication remains out of scope.
 - #180: Added bounded live Dregg rotated replay/full-turn proof verification: typed proof fixture config via `SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH`, verifier-derived resource/turn hashes, nullifier/replay boundaries, composite verifier composition with #178/#179, redaction-safe proof summaries, and docs/non-claims for settlement/audit rails.
 - #179: Added bounded live Dregg BLS threshold-finality verification: trusted committee config via `SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH`, `LiveDreggBlsFinalityVerifier`, composite verifier composition with #178 revocation, fail-closed finality-flag-only rejection, redaction-safe QC summaries, and docs/non-claims for #180.
