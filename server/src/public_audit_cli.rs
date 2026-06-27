@@ -1,4 +1,7 @@
-use crate::public_audit::{PublicAuditBundle, PublicAuditVerificationError};
+use crate::public_audit::{
+    verify_external_audit_anchor_record, ExternalAuditAnchorRecord, PublicAuditBundle,
+    PublicAuditVerificationError,
+};
 use std::fmt;
 use std::fs;
 use std::path::Path;
@@ -80,6 +83,51 @@ pub fn verify_public_audit_bundle(
         receipt_count: bundle.chain.receipt_count,
         error: None,
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicAuditCliAnchorVerification {
+    pub valid: bool,
+    pub target_kind: String,
+    pub target_ref: String,
+    pub root_hash_hex: String,
+    pub receipt_count: usize,
+}
+
+pub fn verify_public_audit_anchor_files(
+    bundle_path: impl AsRef<Path>,
+    anchor_path: impl AsRef<Path>,
+) -> Result<PublicAuditCliAnchorVerification, PublicAuditCliError> {
+    let bundle_path = bundle_path.as_ref();
+    let anchor_path = anchor_path.as_ref();
+    let bundle_bytes =
+        fs::read(bundle_path).map_err(|error| PublicAuditCliError::io(bundle_path, error))?;
+    let anchor_bytes =
+        fs::read(anchor_path).map_err(|error| PublicAuditCliError::io(anchor_path, error))?;
+    let bundle: PublicAuditBundle =
+        serde_json::from_slice(&bundle_bytes).map_err(PublicAuditCliError::parse)?;
+    let anchor: ExternalAuditAnchorRecord =
+        serde_json::from_slice(&anchor_bytes).map_err(PublicAuditCliError::parse)?;
+    verify_external_audit_anchor_record(&bundle, &anchor).map_err(|error| PublicAuditCliError {
+        verification_error: None,
+        message: error.to_string(),
+    })?;
+    Ok(PublicAuditCliAnchorVerification {
+        valid: true,
+        target_kind: anchor.target_kind,
+        target_ref: anchor.target_ref,
+        root_hash_hex: anchor.root_hash_hex,
+        receipt_count: anchor.receipt_count,
+    })
+}
+
+impl PublicAuditCliAnchorVerification {
+    pub fn render_summary(&self) -> String {
+        format!(
+            "external_anchor_valid={} target_kind={} target_ref={} root_hash_hex={} receipt_count={}",
+            self.valid, self.target_kind, self.target_ref, self.root_hash_hex, self.receipt_count
+        )
+    }
 }
 
 impl PublicAuditCliVerification {

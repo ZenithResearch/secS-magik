@@ -1,6 +1,9 @@
 use ed25519_dalek::SigningKey;
 use server::ledger::Ledger;
-use server::public_audit::{PublicAuditBundle, PublicAuditVerificationError};
+use server::public_audit::{
+    ExternalAuditAnchorRecord, GitHubGistAuditPublisher, PublicAuditBundle,
+    PublicAuditVerificationError,
+};
 use server::public_audit_cli::{verify_public_audit_bundle_file, PublicAuditCliVerification};
 use server::receipt::{AuthenticatorKind, Decision, Receipt};
 use server::verifier::{VerifiedCallContext, VerifiedSubject};
@@ -172,4 +175,58 @@ async fn secz_audit_verify_exits_zero_for_valid_and_nonzero_for_invalid_bundle()
     assert!(stderr.contains("UnsupportedBundleVersion"));
     assert!(!stderr.contains("raw_payload"));
     assert!(!stderr.contains("raw_private_evidence"));
+}
+
+fn write_anchor(label: &str, anchor: &ExternalAuditAnchorRecord) -> PathBuf {
+    let path = temp_bundle_path(label);
+    fs::write(&path, serde_json::to_vec_pretty(anchor).unwrap()).unwrap();
+    path
+}
+
+#[tokio::test]
+async fn secz_audit_anchor_verify_compares_external_anchor_to_bundle_root() {
+    let bundle = fixture_bundle("ctx-public-audit-cli-anchor").await;
+    let bundle_path = write_bundle("anchor-bundle", &bundle);
+    let publisher =
+        GitHubGistAuditPublisher::dry_run("https://gist.github.com/ZenithResearch/example-anchor");
+    let anchor = publisher.anchor_record(&bundle, 1_770_000_200).unwrap();
+    let anchor_path = write_anchor("anchor-record", &anchor);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_secz"))
+        .args([
+            "audit",
+            "anchor",
+            "verify",
+            bundle_path.to_str().unwrap(),
+            anchor_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("external_anchor_valid=true"));
+    assert!(stdout.contains("target_kind=github-gist"));
+    assert!(!stdout.contains("raw_payload"));
+    assert!(!stdout.contains("raw_private_evidence"));
+
+    let mut tampered = anchor;
+    tampered.receipt_count += 1;
+    let tampered_path = write_anchor("anchor-tampered", &tampered);
+    let rejected = Command::new(env!("CARGO_BIN_EXE_secz"))
+        .args([
+            "audit",
+            "anchor",
+            "verify",
+            bundle_path.to_str().unwrap(),
+            tampered_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    let stderr = String::from_utf8_lossy(&rejected.stderr);
+    assert!(stderr.contains("external_anchor_mismatch=receipt_count"));
 }

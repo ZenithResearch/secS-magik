@@ -192,6 +192,162 @@ fn redact_publication_error(error: &str) -> String {
         .to_string()
 }
 
+pub const GITHUB_GIST_ANCHOR_SCHEMA_VERSION: &str = "secs-public-audit-github-gist-anchor-v1";
+pub const GITHUB_GIST_TARGET_KIND: &str = "github-gist";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExternalAuditAnchorRecord {
+    pub anchor_schema_version: String,
+    pub target_kind: String,
+    pub target_ref: String,
+    pub bundle_version: String,
+    pub chain_algorithm_version: String,
+    pub chain_scope: String,
+    pub root_hash_hex: String,
+    pub receipt_count: usize,
+    pub published_at: u64,
+    pub verifier_command: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalAuditAnchorError {
+    field: &'static str,
+}
+
+impl std::fmt::Display for ExternalAuditAnchorError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "external_anchor_mismatch={}", self.field)
+    }
+}
+
+impl std::error::Error for ExternalAuditAnchorError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubGistAuditPublisher {
+    target_ref: String,
+    failure: Option<String>,
+}
+
+impl GitHubGistAuditPublisher {
+    pub fn dry_run(target_ref: impl Into<String>) -> Self {
+        Self {
+            target_ref: target_ref.into(),
+            failure: None,
+        }
+    }
+
+    pub fn dry_run_failure(target_ref: impl Into<String>, error: impl Into<String>) -> Self {
+        Self {
+            target_ref: target_ref.into(),
+            failure: Some(error.into()),
+        }
+    }
+
+    pub fn anchor_record(
+        &self,
+        bundle: &PublicAuditBundle,
+        published_at: u64,
+    ) -> Result<ExternalAuditAnchorRecord, PublicAuditVerificationError> {
+        bundle.verify_local_public_audit()?;
+        Ok(ExternalAuditAnchorRecord::from_bundle(
+            bundle,
+            GITHUB_GIST_TARGET_KIND,
+            &self.target_ref,
+            published_at,
+        ))
+    }
+}
+
+impl AuditPublisher for GitHubGistAuditPublisher {
+    fn publish_public_audit_bundle(
+        &self,
+        _bundle: &PublicAuditBundle,
+    ) -> PublicAuditPublishOutcome {
+        let target_ref_digest_hex = Some(sha256_hex(self.target_ref.as_bytes()));
+        match &self.failure {
+            Some(error) => PublicAuditPublishOutcome {
+                target_kind: GITHUB_GIST_TARGET_KIND.to_string(),
+                target_ref_digest_hex,
+                status: PublicAuditPublicationStatus::Failed,
+                error: Some(redact_publication_error(error)),
+            },
+            None => PublicAuditPublishOutcome {
+                target_kind: GITHUB_GIST_TARGET_KIND.to_string(),
+                target_ref_digest_hex,
+                status: PublicAuditPublicationStatus::Published,
+                error: None,
+            },
+        }
+    }
+}
+
+impl ExternalAuditAnchorRecord {
+    pub fn from_bundle(
+        bundle: &PublicAuditBundle,
+        target_kind: impl Into<String>,
+        target_ref: impl Into<String>,
+        published_at: u64,
+    ) -> Self {
+        Self {
+            anchor_schema_version: GITHUB_GIST_ANCHOR_SCHEMA_VERSION.to_string(),
+            target_kind: target_kind.into(),
+            target_ref: target_ref.into(),
+            bundle_version: bundle.version.clone(),
+            chain_algorithm_version: bundle.chain.algorithm_version.clone(),
+            chain_scope: bundle.chain.chain_scope.clone(),
+            root_hash_hex: bundle.chain.root_hash_hex.clone(),
+            receipt_count: bundle.chain.receipt_count,
+            published_at,
+            verifier_command: "secz audit verify <bundle.json>".to_string(),
+        }
+    }
+}
+
+pub fn verify_external_audit_anchor_record(
+    bundle: &PublicAuditBundle,
+    anchor: &ExternalAuditAnchorRecord,
+) -> Result<(), ExternalAuditAnchorError> {
+    if bundle.verify_local_public_audit().is_err() {
+        return Err(ExternalAuditAnchorError { field: "bundle" });
+    }
+    if anchor.anchor_schema_version != GITHUB_GIST_ANCHOR_SCHEMA_VERSION {
+        return Err(ExternalAuditAnchorError {
+            field: "anchor_schema_version",
+        });
+    }
+    if anchor.target_kind != GITHUB_GIST_TARGET_KIND {
+        return Err(ExternalAuditAnchorError {
+            field: "target_kind",
+        });
+    }
+    if anchor.bundle_version != bundle.version {
+        return Err(ExternalAuditAnchorError {
+            field: "bundle_version",
+        });
+    }
+    if anchor.chain_algorithm_version != bundle.chain.algorithm_version {
+        return Err(ExternalAuditAnchorError {
+            field: "chain_algorithm_version",
+        });
+    }
+    if anchor.chain_scope != bundle.chain.chain_scope {
+        return Err(ExternalAuditAnchorError {
+            field: "chain_scope",
+        });
+    }
+    if anchor.root_hash_hex != bundle.chain.root_hash_hex {
+        return Err(ExternalAuditAnchorError {
+            field: "root_hash_hex",
+        });
+    }
+    if anchor.receipt_count != bundle.chain.receipt_count {
+        return Err(ExternalAuditAnchorError {
+            field: "receipt_count",
+        });
+    }
+    Ok(())
+}
+
 impl PublicAuditBundle {
     pub const VERSION: &'static str = PUBLIC_AUDIT_BUNDLE_VERSION;
 }

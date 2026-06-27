@@ -1,5 +1,5 @@
 use server::ingress::run_prototype_gateway;
-use server::public_audit_cli::verify_public_audit_bundle_file;
+use server::public_audit_cli::{verify_public_audit_anchor_files, verify_public_audit_bundle_file};
 
 #[tokio::main]
 async fn main() {
@@ -30,8 +30,20 @@ fn run_audit_command(args: &[String]) -> i32 {
                 }
             }
         }
+        [scope, command, bundle_path, anchor_path] if scope == "anchor" && command == "verify" => {
+            match verify_public_audit_anchor_files(bundle_path, anchor_path) {
+                Ok(report) => {
+                    println!("{}", report.render_summary());
+                    0
+                }
+                Err(error) => {
+                    eprintln!("{error}");
+                    2
+                }
+            }
+        }
         _ => {
-            eprintln!("usage: secz audit verify <bundle.json>");
+            eprintln!("usage: secz audit verify <bundle.json> | secz audit anchor verify <bundle.json> <anchor.json>");
             64
         }
     }

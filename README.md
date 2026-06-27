@@ -350,3 +350,19 @@ valid=true bundle_version=secs-public-audit-bundle-v1 chain_algorithm_version=se
 The verifier does not require SQLite database access or private signing material. It loads the JSON `PublicAuditBundle`, verifies bundle version, signer public keys, signatures, entry hashes, receipt chain links, endpoints, root hash, and redaction boundaries, then exits 0 only when all checks pass. Invalid bundles exit nonzero and print stable error names such as `UnsupportedBundleVersion`, `ReceiptChainLinkMismatch`, `ChainRootMismatch`, `ReceiptEntryHashMismatch`, `UnknownSignerKey`, or `RedactionViolation` without printing raw payloads, private evidence, raw target refs, or local SQLite rows.
 
 This is not external anchoring, public immutability, settlement finality, or production publication proof.
+
+
+### External audit anchor adapter (#185) — external audit anchor adapter (#185)
+
+#185 locks the first external publication target as `github-gist`. The anchor record schema is `secs-public-audit-github-gist-anchor-v1` and contains only public/redacted metadata: target kind, public target ref, bundle version, chain algorithm version, chain scope, root hash, receipt count, publication timestamp, and verifier command.
+
+Run local verification before publishing or accepting an anchor:
+
+```bash
+secz audit verify <bundle.json>
+secz audit anchor verify <bundle.json> <anchor.json>
+```
+
+`secz audit anchor verify <bundle.json> <anchor.json>` first verifies the local public audit bundle, then compares the external anchor record against the bundle version, chain algorithm version, chain scope, root hash, and receipt count. The GitHub Gist adapter records publication status through `Ledger::publish_public_audit_bundle(...)` using target kind `github-gist` and persists only `target_ref_digest_hex` in local status rows.
+
+The GitHub Gist target is a public publication witness, not blockchain immutability, Cardano/Midnight settlement finality, censorship-proof storage, or production deployment proof. The adapter and runbook must not publish raw payloads, private evidence, local SQLite rows, or private signing material.
