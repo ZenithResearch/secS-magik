@@ -67,6 +67,26 @@ pub const REPLAY_RESERVATIONS_TABLE: RuntimeTable = RuntimeTable {
     );",
 };
 
+pub const AUDIT_PUBLICATION_STATUS_TABLE: RuntimeTable = RuntimeTable {
+    name: "audit_publication_status",
+    ddl: "CREATE TABLE IF NOT EXISTS audit_publication_status (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        bundle_version TEXT NOT NULL,
+        chain_algorithm_version TEXT NOT NULL,
+        chain_scope TEXT NOT NULL,
+        root_hash_hex TEXT NOT NULL,
+        receipt_count INTEGER NOT NULL,
+        target_kind TEXT NOT NULL,
+        target_ref_digest_hex TEXT,
+        status TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        published_at INTEGER,
+        updated_at INTEGER NOT NULL
+    );",
+};
+
 pub const NODE_TELEMETRY_TABLE: RuntimeTable = RuntimeTable {
     name: "node_telemetry",
     ddl: "CREATE TABLE IF NOT EXISTS node_telemetry (
@@ -78,8 +98,12 @@ pub const NODE_TELEMETRY_TABLE: RuntimeTable = RuntimeTable {
     );",
 };
 
-pub const LEDGER_TABLES: &[RuntimeTable] =
-    &[EVENTS_TABLE, RECEIPTS_TABLE, REPLAY_RESERVATIONS_TABLE];
+pub const LEDGER_TABLES: &[RuntimeTable] = &[
+    EVENTS_TABLE,
+    RECEIPTS_TABLE,
+    REPLAY_RESERVATIONS_TABLE,
+    AUDIT_PUBLICATION_STATUS_TABLE,
+];
 pub const TELEMETRY_TABLES: &[RuntimeTable] = &[NODE_TELEMETRY_TABLE];
 
 pub async fn apply_schema(pool: &SqlitePool, tables: &[RuntimeTable]) -> Result<(), sqlx::Error> {

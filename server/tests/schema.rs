@@ -9,7 +9,15 @@ async fn ledger_schema_ontology_names_all_runtime_tables() {
     assert_eq!(REPLAY_RESERVATIONS_TABLE.name, "replay_reservations");
 
     let names: Vec<&str> = LEDGER_TABLES.iter().map(|table| table.name).collect();
-    assert_eq!(names, vec!["events", "receipts", "replay_reservations"]);
+    assert_eq!(
+        names,
+        vec![
+            "events",
+            "receipts",
+            "replay_reservations",
+            "audit_publication_status"
+        ]
+    );
 }
 
 #[tokio::test]
@@ -55,4 +63,43 @@ async fn ledger_schema_ontology_applies_as_a_unit() {
             table.name
         );
     }
+}
+
+#[tokio::test]
+async fn ledger_schema_ontology_names_audit_publication_status_table() {
+    use server::schema::AUDIT_PUBLICATION_STATUS_TABLE;
+
+    assert_eq!(
+        AUDIT_PUBLICATION_STATUS_TABLE.name,
+        "audit_publication_status"
+    );
+    assert!(AUDIT_PUBLICATION_STATUS_TABLE
+        .ddl
+        .contains("idempotency_key TEXT NOT NULL UNIQUE"));
+    assert!(AUDIT_PUBLICATION_STATUS_TABLE
+        .ddl
+        .contains("bundle_version TEXT NOT NULL"));
+    assert!(AUDIT_PUBLICATION_STATUS_TABLE
+        .ddl
+        .contains("chain_algorithm_version TEXT NOT NULL"));
+    assert!(AUDIT_PUBLICATION_STATUS_TABLE
+        .ddl
+        .contains("chain_scope TEXT NOT NULL"));
+    assert!(AUDIT_PUBLICATION_STATUS_TABLE
+        .ddl
+        .contains("root_hash_hex TEXT NOT NULL"));
+    assert!(AUDIT_PUBLICATION_STATUS_TABLE
+        .ddl
+        .contains("target_ref_digest_hex TEXT"));
+
+    let names: Vec<&str> = LEDGER_TABLES.iter().map(|table| table.name).collect();
+    assert_eq!(
+        names,
+        vec![
+            "events",
+            "receipts",
+            "replay_reservations",
+            "audit_publication_status"
+        ]
+    );
 }
