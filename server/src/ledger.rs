@@ -5,8 +5,9 @@
 //! offline metadata yet.
 
 use crate::public_audit::{
-    public_audit_entry_hash, public_audit_root_hash, PublicAuditBundle, PublicAuditBundleStatus,
-    PublicAuditChainMetadata, PublicAuditReceiptEntry, PublicAuditRedactionPolicy,
+    public_audit_entry_hash, public_audit_root_hash, sha256_hex, AuditPublisher, PublicAuditBundle,
+    PublicAuditBundleStatus, PublicAuditChainMetadata, PublicAuditPublicationRecord,
+    PublicAuditPublicationStatus, PublicAuditReceiptEntry, PublicAuditRedactionPolicy,
     PublicAuditSignerKey, PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION,
 };
 use crate::receipt::{Receipt, ReceiptEventKind};
@@ -65,6 +66,18 @@ pub enum PublicAuditExportError {
 }
 
 impl From<sqlx::Error> for PublicAuditExportError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::Database(error.to_string())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PublicAuditPublicationError {
+    BundleVerificationFailed,
+    Database(String),
+}
+
+impl From<sqlx::Error> for PublicAuditPublicationError {
     fn from(error: sqlx::Error) -> Self {
         Self::Database(error.to_string())
     }
@@ -512,6 +525,133 @@ impl Ledger {
             .collect()
     }
 
+    pub async fn publish_public_audit_bundle(
+        &self,
+        bundle: &PublicAuditBundle,
+        publisher: &impl AuditPublisher,
+        now: u64,
+    ) -> Result<PublicAuditPublicationRecord, PublicAuditPublicationError> {
+        bundle
+            .verify_local_public_audit()
+            .map_err(|_| PublicAuditPublicationError::BundleVerificationFailed)?;
+        let outcome = publisher.publish_public_audit_bundle(bundle);
+        let idempotency_key = public_audit_publication_idempotency_key(
+            &bundle.version,
+            &bundle.chain.algorithm_version,
+            &bundle.chain.chain_scope,
+            &bundle.chain.root_hash_hex,
+            bundle.chain.receipt_count,
+            &outcome.target_kind,
+        );
+        let published_at = if outcome.status == PublicAuditPublicationStatus::Published {
+            Some(now)
+        } else {
+            None
+        };
+        sqlx::query(
+            "INSERT INTO audit_publication_status (
+                idempotency_key,
+                bundle_version,
+                chain_algorithm_version,
+                chain_scope,
+                root_hash_hex,
+                receipt_count,
+                target_kind,
+                target_ref_digest_hex,
+                status,
+                attempt_count,
+                last_error,
+                published_at,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+            ON CONFLICT(idempotency_key) DO UPDATE SET
+                target_ref_digest_hex = excluded.target_ref_digest_hex,
+                status = excluded.status,
+                attempt_count = audit_publication_status.attempt_count + 1,
+                last_error = excluded.last_error,
+                published_at = COALESCE(excluded.published_at, audit_publication_status.published_at),
+                updated_at = excluded.updated_at",
+        )
+        .bind(&idempotency_key)
+        .bind(&bundle.version)
+        .bind(&bundle.chain.algorithm_version)
+        .bind(&bundle.chain.chain_scope)
+        .bind(&bundle.chain.root_hash_hex)
+        .bind(bundle.chain.receipt_count as i64)
+        .bind(&outcome.target_kind)
+        .bind(&outcome.target_ref_digest_hex)
+        .bind(outcome.status.as_str())
+        .bind(&outcome.error)
+        .bind(published_at.map(|value| value as i64))
+        .bind(now as i64)
+        .execute(&self.pool)
+        .await?;
+        self.audit_publication_status_by_idempotency_key(&idempotency_key)
+            .await?
+            .ok_or_else(|| {
+                PublicAuditPublicationError::Database(
+                    "missing publication status after upsert".to_string(),
+                )
+            })
+    }
+
+    pub async fn audit_publication_statuses_for_root(
+        &self,
+        root_hash_hex: &str,
+    ) -> Result<Vec<PublicAuditPublicationRecord>, PublicAuditPublicationError> {
+        let rows = sqlx::query(
+            "SELECT
+                idempotency_key,
+                bundle_version,
+                chain_algorithm_version,
+                chain_scope,
+                root_hash_hex,
+                receipt_count,
+                target_kind,
+                target_ref_digest_hex,
+                status,
+                attempt_count,
+                last_error,
+                published_at,
+                updated_at
+            FROM audit_publication_status
+            WHERE root_hash_hex = ?
+            ORDER BY target_kind ASC, idempotency_key ASC",
+        )
+        .bind(root_hash_hex)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter().map(publication_record_from_row).collect()
+    }
+
+    async fn audit_publication_status_by_idempotency_key(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<PublicAuditPublicationRecord>, PublicAuditPublicationError> {
+        let row = sqlx::query(
+            "SELECT
+                idempotency_key,
+                bundle_version,
+                chain_algorithm_version,
+                chain_scope,
+                root_hash_hex,
+                receipt_count,
+                target_kind,
+                target_ref_digest_hex,
+                status,
+                attempt_count,
+                last_error,
+                published_at,
+                updated_at
+            FROM audit_publication_status
+            WHERE idempotency_key = ?",
+        )
+        .bind(idempotency_key)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(publication_record_from_row).transpose()
+    }
+
     pub async fn inspect_receipt_by_id(
         &self,
         receipt_id: &str,
@@ -587,6 +727,55 @@ const OPERATOR_RECEIPT_SELECT_SQL: &str = "SELECT
     signature
 FROM receipts
 WHERE receipt_id = ?";
+
+fn public_audit_publication_idempotency_key(
+    bundle_version: &str,
+    chain_algorithm_version: &str,
+    chain_scope: &str,
+    root_hash_hex: &str,
+    receipt_count: usize,
+    target_kind: &str,
+) -> String {
+    sha256_hex(
+        format!(
+            "{bundle_version}|{chain_algorithm_version}|{chain_scope}|{root_hash_hex}|{receipt_count}|{target_kind}"
+        )
+        .as_bytes(),
+    )
+}
+
+fn publication_record_from_row(
+    row: sqlx::sqlite::SqliteRow,
+) -> Result<PublicAuditPublicationRecord, PublicAuditPublicationError> {
+    let status: String = row.try_get("status")?;
+    let status = match status.as_str() {
+        "pending" => PublicAuditPublicationStatus::Pending,
+        "published" => PublicAuditPublicationStatus::Published,
+        "failed" => PublicAuditPublicationStatus::Failed,
+        other => {
+            return Err(PublicAuditPublicationError::Database(format!(
+                "unknown audit publication status: {other}"
+            )))
+        }
+    };
+    Ok(PublicAuditPublicationRecord {
+        idempotency_key: row.try_get("idempotency_key")?,
+        bundle_version: row.try_get("bundle_version")?,
+        chain_algorithm_version: row.try_get("chain_algorithm_version")?,
+        chain_scope: row.try_get("chain_scope")?,
+        root_hash_hex: row.try_get("root_hash_hex")?,
+        receipt_count: row.try_get::<i64, _>("receipt_count")? as usize,
+        target_kind: row.try_get("target_kind")?,
+        target_ref_digest_hex: row.try_get("target_ref_digest_hex")?,
+        status,
+        attempt_count: row.try_get::<i64, _>("attempt_count")? as u64,
+        last_error: row.try_get("last_error")?,
+        published_at: row
+            .try_get::<Option<i64>, _>("published_at")?
+            .map(|value| value as u64),
+        updated_at: row.try_get::<i64, _>("updated_at")? as u64,
+    })
+}
 
 fn operator_inspection_from_row(
     row: sqlx::sqlite::SqliteRow,

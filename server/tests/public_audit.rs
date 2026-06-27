@@ -343,3 +343,126 @@ async fn audit_chain_range_export_rejects_missing_endpoints_and_verifier_rejects
         server::public_audit::PublicAuditVerificationError::ReceiptChainLinkMismatch
     );
 }
+
+#[tokio::test]
+async fn local_audit_publisher_records_idempotent_redacted_publication_status() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-audit-publisher-ok");
+    ledger
+        .record_receipt(&signed_receipt("r-publish-1", &context, 1_770_000_010))
+        .await
+        .unwrap();
+    ledger
+        .record_receipt(&signed_receipt("r-publish-2", &context, 1_770_000_011))
+        .await
+        .unwrap();
+    let bundle = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-audit-publisher-ok",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+
+    let publisher =
+        server::public_audit::LocalAuditPublisher::success("local-noop", "target-ref:do-not-leak");
+    let first = ledger
+        .publish_public_audit_bundle(&bundle, &publisher, 1_770_000_200)
+        .await
+        .unwrap();
+    let second = ledger
+        .publish_public_audit_bundle(&bundle, &publisher, 1_770_000_201)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        first.status,
+        server::public_audit::PublicAuditPublicationStatus::Published
+    );
+    assert_eq!(second.idempotency_key, first.idempotency_key);
+    assert_eq!(second.attempt_count, 2);
+    assert_eq!(second.bundle_version, "secs-public-audit-bundle-v1");
+    assert_eq!(second.chain_algorithm_version, "secs-public-audit-chain-v1");
+    assert_eq!(second.chain_scope, "context:ctx-public-audit-publisher-ok");
+    assert_eq!(second.root_hash_hex, bundle.chain.root_hash_hex);
+    assert_eq!(second.receipt_count, 2);
+    assert_eq!(second.target_kind, "local-noop");
+    assert_ne!(
+        second.target_ref_digest_hex.as_deref(),
+        Some("target-ref:do-not-leak")
+    );
+
+    let rows = ledger
+        .audit_publication_statuses_for_root(&bundle.chain.root_hash_hex)
+        .await
+        .unwrap();
+    assert_eq!(
+        rows.len(),
+        1,
+        "duplicate publish attempts must converge on one status row"
+    );
+}
+
+#[tokio::test]
+async fn audit_publication_failure_is_visible_and_does_not_rewrite_receipts() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-audit-publisher-fail");
+    ledger
+        .record_receipt(&signed_receipt("r-publish-fail-1", &context, 1_770_000_010))
+        .await
+        .unwrap();
+    let before = ledger
+        .inspect_receipt_chain_by_context_id("ctx-public-audit-publisher-fail")
+        .await
+        .unwrap();
+    let bundle = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-audit-publisher-fail",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+
+    let publisher = server::public_audit::LocalAuditPublisher::failure(
+        "local-noop",
+        "target-ref:do-not-leak",
+        "simulated outage: private fragment should not leak",
+    );
+    let status = ledger
+        .publish_public_audit_bundle(&bundle, &publisher, 1_770_000_200)
+        .await
+        .unwrap();
+    let after = ledger
+        .inspect_receipt_chain_by_context_id("ctx-public-audit-publisher-fail")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        status.status,
+        server::public_audit::PublicAuditPublicationStatus::Failed
+    );
+    assert_eq!(status.last_error.as_deref(), Some("simulated outage"));
+    assert_eq!(
+        before, after,
+        "publication failure must not rewrite local receipts"
+    );
+
+    let mut tampered = bundle.clone();
+    tampered.chain.root_hash_hex = "00".repeat(32);
+    let rejected = ledger
+        .publish_public_audit_bundle(&tampered, &publisher, 1_770_000_201)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        rejected,
+        server::ledger::PublicAuditPublicationError::BundleVerificationFailed
+    );
+}

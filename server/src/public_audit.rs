@@ -84,6 +84,114 @@ pub struct PublicAuditBundle {
     pub receipts: Vec<PublicAuditReceiptEntry>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicAuditPublicationStatus {
+    Pending,
+    Published,
+    Failed,
+}
+
+impl PublicAuditPublicationStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Published => "published",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicAuditPublicationRecord {
+    pub idempotency_key: String,
+    pub bundle_version: String,
+    pub chain_algorithm_version: String,
+    pub chain_scope: String,
+    pub root_hash_hex: String,
+    pub receipt_count: usize,
+    pub target_kind: String,
+    pub target_ref_digest_hex: Option<String>,
+    pub status: PublicAuditPublicationStatus,
+    pub attempt_count: u64,
+    pub last_error: Option<String>,
+    pub published_at: Option<u64>,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicAuditPublishOutcome {
+    pub target_kind: String,
+    pub target_ref_digest_hex: Option<String>,
+    pub status: PublicAuditPublicationStatus,
+    pub error: Option<String>,
+}
+
+pub trait AuditPublisher {
+    fn publish_public_audit_bundle(&self, bundle: &PublicAuditBundle) -> PublicAuditPublishOutcome;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalAuditPublisher {
+    target_kind: String,
+    target_ref: String,
+    failure: Option<String>,
+}
+
+impl LocalAuditPublisher {
+    pub fn success(target_kind: impl Into<String>, target_ref: impl Into<String>) -> Self {
+        Self {
+            target_kind: target_kind.into(),
+            target_ref: target_ref.into(),
+            failure: None,
+        }
+    }
+
+    pub fn failure(
+        target_kind: impl Into<String>,
+        target_ref: impl Into<String>,
+        error: impl Into<String>,
+    ) -> Self {
+        Self {
+            target_kind: target_kind.into(),
+            target_ref: target_ref.into(),
+            failure: Some(error.into()),
+        }
+    }
+}
+
+impl AuditPublisher for LocalAuditPublisher {
+    fn publish_public_audit_bundle(
+        &self,
+        _bundle: &PublicAuditBundle,
+    ) -> PublicAuditPublishOutcome {
+        let target_ref_digest_hex = Some(sha256_hex(self.target_ref.as_bytes()));
+        match &self.failure {
+            Some(error) => PublicAuditPublishOutcome {
+                target_kind: self.target_kind.clone(),
+                target_ref_digest_hex,
+                status: PublicAuditPublicationStatus::Failed,
+                error: Some(redact_publication_error(error)),
+            },
+            None => PublicAuditPublishOutcome {
+                target_kind: self.target_kind.clone(),
+                target_ref_digest_hex,
+                status: PublicAuditPublicationStatus::Published,
+                error: None,
+            },
+        }
+    }
+}
+
+fn redact_publication_error(error: &str) -> String {
+    error
+        .split(':')
+        .next()
+        .unwrap_or("publication failed")
+        .trim()
+        .to_string()
+}
+
 impl PublicAuditBundle {
     pub const VERSION: &'static str = PUBLIC_AUDIT_BUNDLE_VERSION;
 }
