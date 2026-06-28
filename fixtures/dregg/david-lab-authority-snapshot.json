@@ -1,0 +1,39 @@
+{
+  "schema_version": "secs-dregg-authority-snapshot-v1",
+  "snapshot_id": "dregg-snapshot:local-demo:001",
+  "source_node_id": "dregg-node:local-demo",
+  "federation_id": "castalia-demo",
+  "entity_id": "did:example:david-lab",
+  "namespace_id": "castalia-demo:david-lab",
+  "entity_display_name": "David Lab Demo Entity",
+  "observed_at": 1770000200,
+  "expires_at": 1770000600,
+  "authority_mode": "fixture_snapshot",
+  "issuers": [
+    {
+      "issuer_id": "did:example:david-lab#issuer-1",
+      "issuer_key_id": "pubkey:sha256:david-lab-issuer-1",
+      "trust_root_ref": "trust-root:david-lab-demo",
+      "authority_root_ref": "dregg-root:local-demo",
+      "accepted_evidence": ["membership_credential", "provisioning_credential"],
+      "accepted_audiences": ["secS://local-demo"],
+      "accepted_operations": ["resource.provision", "membership.provision"],
+      "accepted_resources": ["resource://david-lab/*"],
+      "status": "active",
+      "not_before": 1770000000,
+      "not_after": 1770000600,
+      "status_ref": "dregg-status:david-lab-issuer-active"
+    }
+  ],
+  "resources": [
+    {
+      "resource_id": "resource://david-lab/demo-agent",
+      "resource_kind": "agent",
+      "controller_entity_id": "did:example:david-lab",
+      "allowed_operations": ["resource.provision", "resource.invoke"],
+      "required_evidence": ["provisioning_credential"],
+      "status": "active",
+      "status_ref": "dregg-status:david-lab-resource-active"
+    }
+  ]
+}

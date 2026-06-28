@@ -1,6 +1,7 @@
 use server::dregg_authority::{
     DreggAuthorityFinalityStatus, DreggAuthorityLookup, DreggAuthorityRegistry,
-    DreggAuthorityRegistryError, DreggAuthorityRevocationStatus,
+    DreggAuthorityRegistryError, DreggAuthorityRevocationStatus, DreggAuthoritySnapshot,
+    DreggAuthoritySnapshotLookup,
 };
 use server::verifier::VerificationError;
 
@@ -194,4 +195,133 @@ fn dregg_authority_registry_rejects_root_epoch_status_and_binding_failures() {
         registry.lookup_active_policy(&lookup).unwrap_err(),
         VerificationError::WrongResource
     );
+}
+
+fn david_lab_snapshot_json() -> String {
+    r#"{
+      "schema_version": "secs-dregg-authority-snapshot-v1",
+      "snapshot_id": "dregg-snapshot:local-demo:001",
+      "source_node_id": "dregg-node:local-demo",
+      "federation_id": "castalia-demo",
+      "entity_id": "did:example:david-lab",
+      "namespace_id": "castalia-demo:david-lab",
+      "entity_display_name": "David Lab Demo Entity",
+      "observed_at": 1770000200,
+      "expires_at": 1770000600,
+      "authority_mode": "fixture_snapshot",
+      "issuers": [
+        {
+          "issuer_id": "did:example:david-lab#issuer-1",
+          "issuer_key_id": "pubkey:sha256:david-lab-issuer-1",
+          "trust_root_ref": "trust-root:david-lab-demo",
+          "authority_root_ref": "dregg-root:local-demo",
+          "accepted_evidence": ["membership_credential", "provisioning_credential"],
+          "accepted_audiences": ["secS://local-demo"],
+          "accepted_operations": ["resource.provision", "membership.provision"],
+          "accepted_resources": ["resource://david-lab/*"],
+          "status": "active",
+          "not_before": 1770000000,
+          "not_after": 1770000600,
+          "status_ref": "dregg-status:david-lab-issuer-active"
+        }
+      ],
+      "resources": [
+        {
+          "resource_id": "resource://david-lab/demo-agent",
+          "resource_kind": "agent",
+          "controller_entity_id": "did:example:david-lab",
+          "allowed_operations": ["resource.provision", "resource.invoke"],
+          "required_evidence": ["provisioning_credential"],
+          "status": "active",
+          "status_ref": "dregg-status:david-lab-resource-active"
+        }
+      ]
+    }"#
+    .to_string()
+}
+
+fn david_lab_lookup() -> DreggAuthoritySnapshotLookup {
+    DreggAuthoritySnapshotLookup {
+        entity_id: "did:example:david-lab".to_string(),
+        namespace_id: "castalia-demo:david-lab".to_string(),
+        issuer_id: "did:example:david-lab#issuer-1".to_string(),
+        audience: "secS://local-demo".to_string(),
+        operation: "resource.provision".to_string(),
+        resource: "resource://david-lab/demo-agent".to_string(),
+        evidence_kind: "provisioning_credential".to_string(),
+        validation_time: 1770000300,
+    }
+}
+
+#[test]
+fn dregg_authority_snapshot_accepts_arbitrary_entity_resource_scope() {
+    let snapshot = DreggAuthoritySnapshot::from_json_str(&david_lab_snapshot_json()).unwrap();
+
+    let decision = snapshot
+        .lookup_entity_resource_authority(&david_lab_lookup())
+        .unwrap();
+
+    assert_eq!(decision.entity_id, "did:example:david-lab");
+    assert_eq!(decision.namespace_id, "castalia-demo:david-lab");
+    assert_eq!(decision.authority_mode, "fixture_snapshot");
+    assert_eq!(decision.matched_resource_scope, "resource://david-lab/*");
+}
+
+#[test]
+fn dregg_authority_snapshot_rejects_stale_revoked_wrong_namespace_and_wrong_resource() {
+    let snapshot = DreggAuthoritySnapshot::from_json_str(&david_lab_snapshot_json()).unwrap();
+
+    let mut lookup = david_lab_lookup();
+    lookup.validation_time = 1770000601;
+    assert_eq!(
+        snapshot
+            .lookup_entity_resource_authority(&lookup)
+            .unwrap_err(),
+        VerificationError::Stale
+    );
+
+    let revoked_snapshot = DreggAuthoritySnapshot::from_json_str(
+        &david_lab_snapshot_json().replace("\"status\": \"active\"", "\"status\": \"revoked\""),
+    )
+    .unwrap();
+    assert_eq!(
+        revoked_snapshot
+            .lookup_entity_resource_authority(&david_lab_lookup())
+            .unwrap_err(),
+        VerificationError::Revoked
+    );
+
+    let mut lookup = david_lab_lookup();
+    lookup.namespace_id = "castalia-demo:other-lab".to_string();
+    assert_eq!(
+        snapshot
+            .lookup_entity_resource_authority(&lookup)
+            .unwrap_err(),
+        VerificationError::WrongBinding
+    );
+
+    let mut lookup = david_lab_lookup();
+    lookup.resource = "resource://other-lab/demo-agent".to_string();
+    assert_eq!(
+        snapshot
+            .lookup_entity_resource_authority(&lookup)
+            .unwrap_err(),
+        VerificationError::WrongResource
+    );
+}
+
+#[test]
+fn dregg_authority_snapshot_loads_david_lab_demo_fixture_file() {
+    let fixture_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../fixtures/dregg/david-lab-authority-snapshot.json"
+    );
+    let snapshot = DreggAuthoritySnapshot::from_json_file(fixture_path).unwrap();
+
+    let decision = snapshot
+        .lookup_entity_resource_authority(&david_lab_lookup())
+        .unwrap();
+
+    assert_eq!(decision.entity_id, "did:example:david-lab");
+    assert_eq!(decision.matched_resource_scope, "resource://david-lab/*");
 }
