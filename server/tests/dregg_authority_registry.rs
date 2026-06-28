@@ -325,3 +325,26 @@ fn dregg_authority_snapshot_loads_david_lab_demo_fixture_file() {
     assert_eq!(decision.entity_id, "did:example:david-lab");
     assert_eq!(decision.matched_resource_scope, "resource://david-lab/*");
 }
+
+#[test]
+fn dregg_authority_snapshot_rejects_missing_source_and_unknown_issuer() {
+    let missing_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../fixtures/dregg/missing-david-lab-authority-snapshot.json"
+    );
+    assert!(matches!(
+        DreggAuthoritySnapshot::from_json_file(missing_path).unwrap_err(),
+        DreggAuthorityRegistryError::Unreadable(_)
+    ));
+
+    let snapshot = DreggAuthoritySnapshot::from_json_str(&david_lab_snapshot_json()).unwrap();
+    let mut lookup = david_lab_lookup();
+    lookup.issuer_id = "did:example:david-lab#unknown-issuer".to_string();
+
+    assert_eq!(
+        snapshot
+            .lookup_entity_resource_authority(&lookup)
+            .unwrap_err(),
+        VerificationError::UnknownIssuer
+    );
+}
