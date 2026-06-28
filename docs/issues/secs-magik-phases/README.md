@@ -8,7 +8,7 @@ This directory contains repo-local, issue-ready phase specs for secS-magik ready
 |---|---:|---|---|
 | Track E — trusted issuer/root policy | #63 / underlying #35 | [`track-e-trusted-issuer-root-policy.md`](track-e-trusted-issuer-root-policy.md) | complete; PR #69 merged to `main` at `baee35b`, post-merge CI run 27050361282 passed |
 | Track I — production-shaped `membership.provision` E2E | #70 | [`track-i-production-membership-provision-e2e.md`](track-i-production-membership-provision-e2e.md) | complete for local production-shaped E2E; PR #76 merged to `main` at `5e5bb71`, post-merge CI run 27071532041 passed |
-| Tier 1 Dregg authority snapshot smoke | #72/#195 | [`tier-1-dregg-authority-snapshot-smoke.md`](tier-1-dregg-authority-snapshot-smoke.md) | in progress; fixture-backed arbitrary-entity snapshot consumer tests added for `did:example:david-lab` |
+| Tier 1 Dregg authority snapshot smoke | #72/#195 | [`tier-1-dregg-authority-snapshot-smoke.md`](tier-1-dregg-authority-snapshot-smoke.md) | in progress; redaction-safe `scripts/tier-1-dregg-authority-snapshot-smoke.sh` evidence command added for `did:example:david-lab` |
 
 ## Proposed demoable milestone (M12)
 

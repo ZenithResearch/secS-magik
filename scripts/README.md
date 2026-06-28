@@ -7,6 +7,7 @@
 | Script | Purpose |
 |---|---|
 | `production-gateway-smoke.sh` | Builds the real `secs-gateway`, starts it with fixture-only `production_verified` env, sends malformed and oversized TCP input, and verifies the gateway rejects those frames without exiting. |
+| `tier-1-dregg-authority-snapshot-smoke.sh` | Prints redaction-safe #72/#195 evidence for the David Lab Dregg-shaped authority snapshot, audits the fixture for secret/private-token markers, and runs the active/negative authority snapshot tests. |
 
 ## production-gateway-smoke.sh
 
@@ -58,3 +59,23 @@ The smoke creates temporary fixture files and exports local env vars including:
 - It does not prove federated trusted issuer/root evidence.
 - It does not make `local_static` production authority.
 - It does not make the local SQLite ledger public auditability.
+
+
+## tier-1-dregg-authority-snapshot-smoke.sh
+
+Run from the repository root:
+
+```bash
+./scripts/tier-1-dregg-authority-snapshot-smoke.sh
+```
+
+Expected output includes:
+
+```text
+fixture_ok: secs-dregg-authority-snapshot-v1 did:example:david-lab castalia-demo:david-lab
+resource_ok: resource://david-lab/demo-agent controller=did:example:david-lab status=active
+redaction_ok: fixture contains no raw secret/private-token markers
+smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, and unknown issuer reject.
+```
+
+The script is deterministic and local. It does not start a gateway, contact a Dregg node, require external services, or prove production Castalia federation/finality/deployment/public-auditability.

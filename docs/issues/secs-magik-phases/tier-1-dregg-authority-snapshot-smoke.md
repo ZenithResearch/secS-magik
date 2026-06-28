@@ -19,6 +19,12 @@ This is a Dregg-shaped export/snapshot consumed by secS. It is not a claim that 
 ## Current smoke command
 
 ```bash
+./scripts/tier-1-dregg-authority-snapshot-smoke.sh
+```
+
+The script prints a redaction-safe evidence summary, audits the fixture for raw secret/private-token markers, and runs:
+
+```bash
 cargo test -p server --test dregg_authority_registry dregg_authority_snapshot -- --nocapture
 ```
 
@@ -30,6 +36,8 @@ The smoke covers:
 - revoked issuer/resource status rejects;
 - wrong namespace rejects;
 - wrong resource rejects;
+- missing source rejects;
+- unknown issuer rejects;
 - the checked-in fixture file loads and produces the same authority decision.
 
 ## Non-claims
@@ -42,3 +50,17 @@ This smoke proves a local Tier 1 consumption seam only. It does not prove:
 - Midnight or Cardano evidence rails;
 - production deployment proof;
 - public auditability beyond the separate audit-bundle/anchor rails.
+
+
+## Expected smoke output
+
+The stable evidence lines are:
+
+```text
+fixture_ok: secs-dregg-authority-snapshot-v1 did:example:david-lab castalia-demo:david-lab
+resource_ok: resource://david-lab/demo-agent controller=did:example:david-lab status=active
+redaction_ok: fixture contains no raw secret/private-token markers
+smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, and unknown issuer reject.
+```
+
+These lines are suitable for a redacted Tier 1 evidence packet because they expose only fixture identifiers, entity/resource/controller IDs, status, and reason classes. They do not expose private keys, bearer tokens, raw authority tokens, credential bodies, local ledger rows, or production endpoints.
