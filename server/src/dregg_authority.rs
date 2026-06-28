@@ -103,6 +103,69 @@ pub struct DreggAuthorityLookup {
     pub attested_revocation_root_ref: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DreggAuthoritySnapshot {
+    pub schema_version: String,
+    pub snapshot_id: String,
+    pub source_node_id: String,
+    pub federation_id: String,
+    pub entity_id: String,
+    pub namespace_id: String,
+    pub entity_display_name: String,
+    pub observed_at: u64,
+    pub expires_at: u64,
+    pub authority_mode: String,
+    pub issuers: Vec<DreggAuthoritySnapshotIssuer>,
+    pub resources: Vec<DreggAuthoritySnapshotResource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DreggAuthoritySnapshotIssuer {
+    pub issuer_id: String,
+    pub issuer_key_id: String,
+    pub trust_root_ref: String,
+    pub authority_root_ref: String,
+    pub accepted_evidence: Vec<String>,
+    pub accepted_audiences: Vec<String>,
+    pub accepted_operations: Vec<String>,
+    pub accepted_resources: Vec<String>,
+    pub status: DreggAuthorityStatus,
+    pub not_before: u64,
+    pub not_after: u64,
+    pub status_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DreggAuthoritySnapshotResource {
+    pub resource_id: String,
+    pub resource_kind: String,
+    pub controller_entity_id: String,
+    pub allowed_operations: Vec<String>,
+    pub required_evidence: Vec<String>,
+    pub status: DreggAuthorityStatus,
+    pub status_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggAuthoritySnapshotLookup {
+    pub entity_id: String,
+    pub namespace_id: String,
+    pub issuer_id: String,
+    pub audience: String,
+    pub operation: String,
+    pub resource: String,
+    pub evidence_kind: String,
+    pub validation_time: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggAuthoritySnapshotDecision {
+    pub entity_id: String,
+    pub namespace_id: String,
+    pub authority_mode: String,
+    pub matched_resource_scope: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DreggAuthorityRegistryError {
     Empty,
@@ -140,6 +203,178 @@ impl fmt::Display for DreggAuthorityRegistryError {
 }
 
 impl std::error::Error for DreggAuthorityRegistryError {}
+
+impl DreggAuthoritySnapshot {
+    pub const SCHEMA_VERSION: &'static str = "secs-dregg-authority-snapshot-v1";
+
+    pub fn from_json_str(json: &str) -> Result<Self, DreggAuthorityRegistryError> {
+        if json.trim().is_empty() {
+            return Err(DreggAuthorityRegistryError::Empty);
+        }
+        let snapshot: Self = serde_json::from_str(json)
+            .map_err(|error| DreggAuthorityRegistryError::Malformed(error.to_string()))?;
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn from_json_file(path: impl AsRef<Path>) -> Result<Self, DreggAuthorityRegistryError> {
+        let json = std::fs::read_to_string(path)
+            .map_err(|error| DreggAuthorityRegistryError::Unreadable(error.to_string()))?;
+        Self::from_json_str(&json)
+    }
+
+    pub fn lookup_entity_resource_authority(
+        &self,
+        lookup: &DreggAuthoritySnapshotLookup,
+    ) -> Result<DreggAuthoritySnapshotDecision, VerificationError> {
+        if lookup.validation_time > self.expires_at || lookup.validation_time < self.observed_at {
+            return Err(VerificationError::Stale);
+        }
+        if self.entity_id != lookup.entity_id || self.namespace_id != lookup.namespace_id {
+            return Err(VerificationError::WrongBinding);
+        }
+
+        let issuer = self
+            .issuers
+            .iter()
+            .find(|issuer| issuer.issuer_id == lookup.issuer_id)
+            .ok_or(VerificationError::UnknownIssuer)?;
+        if issuer.status != DreggAuthorityStatus::Active {
+            return Err(VerificationError::Revoked);
+        }
+        if lookup.validation_time < issuer.not_before || lookup.validation_time > issuer.not_after {
+            return Err(VerificationError::Stale);
+        }
+        if !contains_exact(&issuer.accepted_audiences, &lookup.audience) {
+            return Err(VerificationError::WrongAudience);
+        }
+        if !contains_exact(&issuer.accepted_operations, &lookup.operation) {
+            return Err(VerificationError::WrongOperation);
+        }
+        if !contains_exact(&issuer.accepted_evidence, &lookup.evidence_kind) {
+            return Err(VerificationError::InsufficientEvidence);
+        }
+        let Some(matched_scope) = issuer
+            .accepted_resources
+            .iter()
+            .find(|scope| resource_scope_matches(scope, &lookup.resource))
+        else {
+            return Err(VerificationError::WrongResource);
+        };
+
+        let resource = self
+            .resources
+            .iter()
+            .find(|resource| resource.resource_id == lookup.resource)
+            .ok_or(VerificationError::WrongResource)?;
+        if resource.status != DreggAuthorityStatus::Active {
+            return Err(VerificationError::Revoked);
+        }
+        if resource.controller_entity_id != lookup.entity_id {
+            return Err(VerificationError::WrongBinding);
+        }
+        if !contains_exact(&resource.allowed_operations, &lookup.operation) {
+            return Err(VerificationError::WrongOperation);
+        }
+        if !contains_exact(&resource.required_evidence, &lookup.evidence_kind) {
+            return Err(VerificationError::InsufficientEvidence);
+        }
+
+        Ok(DreggAuthoritySnapshotDecision {
+            entity_id: self.entity_id.clone(),
+            namespace_id: self.namespace_id.clone(),
+            authority_mode: self.authority_mode.clone(),
+            matched_resource_scope: matched_scope.clone(),
+        })
+    }
+
+    fn validate(&self) -> Result<(), DreggAuthorityRegistryError> {
+        if self.schema_version != Self::SCHEMA_VERSION {
+            return Err(DreggAuthorityRegistryError::InvalidEntry(
+                "unsupported Dregg authority snapshot schema_version".to_string(),
+            ));
+        }
+        for (field, value) in [
+            ("snapshot_id", &self.snapshot_id),
+            ("source_node_id", &self.source_node_id),
+            ("federation_id", &self.federation_id),
+            ("entity_id", &self.entity_id),
+            ("namespace_id", &self.namespace_id),
+            ("authority_mode", &self.authority_mode),
+        ] {
+            if value.trim().is_empty() {
+                return Err(DreggAuthorityRegistryError::InvalidEntry(format!(
+                    "{field} is required"
+                )));
+            }
+        }
+        if self.observed_at >= self.expires_at {
+            return Err(DreggAuthorityRegistryError::InvalidEntry(
+                "observed_at must be less than expires_at".to_string(),
+            ));
+        }
+        if self.issuers.is_empty() || self.resources.is_empty() {
+            return Err(DreggAuthorityRegistryError::InvalidEntry(
+                "authority snapshot requires at least one issuer and one resource".to_string(),
+            ));
+        }
+        let mut issuer_ids = BTreeSet::new();
+        for issuer in &self.issuers {
+            if !issuer_ids.insert(issuer.issuer_id.clone()) {
+                return Err(DreggAuthorityRegistryError::DuplicateIssuer(
+                    issuer.issuer_id.clone(),
+                ));
+            }
+            if issuer.not_before >= issuer.not_after {
+                return Err(DreggAuthorityRegistryError::InvalidEntry(
+                    "issuer not_before must be less than not_after".to_string(),
+                ));
+            }
+            for (field, values) in [
+                ("accepted_evidence", &issuer.accepted_evidence),
+                ("accepted_audiences", &issuer.accepted_audiences),
+                ("accepted_operations", &issuer.accepted_operations),
+                ("accepted_resources", &issuer.accepted_resources),
+            ] {
+                if values.is_empty() || values.iter().any(|value| value.trim().is_empty()) {
+                    return Err(DreggAuthorityRegistryError::InvalidEntry(format!(
+                        "{field} must contain at least one non-empty value"
+                    )));
+                }
+            }
+        }
+        let mut resource_ids = BTreeSet::new();
+        for resource in &self.resources {
+            if !resource_ids.insert(resource.resource_id.clone()) {
+                return Err(DreggAuthorityRegistryError::InvalidEntry(format!(
+                    "duplicate Dregg resource id {:?}",
+                    resource.resource_id
+                )));
+            }
+            if resource.controller_entity_id.trim().is_empty()
+                || resource.allowed_operations.is_empty()
+                || resource.required_evidence.is_empty()
+            {
+                return Err(DreggAuthorityRegistryError::InvalidEntry(
+                    "resources require controller_entity_id, allowed_operations, and required_evidence".to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn contains_exact(values: &[String], value: &str) -> bool {
+    values.iter().any(|candidate| candidate == value)
+}
+
+fn resource_scope_matches(scope: &str, resource: &str) -> bool {
+    if let Some(prefix) = scope.strip_suffix('*') {
+        resource.starts_with(prefix)
+    } else {
+        scope == resource
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DreggAuthorityRegistry {
