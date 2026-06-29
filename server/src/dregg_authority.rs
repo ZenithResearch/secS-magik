@@ -2,7 +2,7 @@ use crate::verifier::VerificationError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -225,6 +225,18 @@ impl DreggAuthoritySnapshot {
         Self::from_json_str(&json)
     }
 
+    pub fn validate_fresh_at(
+        &self,
+        validation_time: u64,
+    ) -> Result<(), DreggAuthorityRegistryError> {
+        if validation_time < self.observed_at || validation_time > self.expires_at {
+            return Err(DreggAuthorityRegistryError::InvalidEntry(
+                "stale Dregg authority snapshot".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn lookup_entity_resource_authority(
         &self,
         lookup: &DreggAuthoritySnapshotLookup,
@@ -394,6 +406,58 @@ impl DreggAuthoritySnapshot {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileDreggAuthoritySnapshotSource {
+    path: PathBuf,
+}
+
+impl FileDreggAuthoritySnapshotSource {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn load_at(
+        &self,
+        validation_time: u64,
+    ) -> Result<DreggAuthoritySnapshot, DreggAuthorityRegistryError> {
+        let snapshot = DreggAuthoritySnapshot::from_json_file(&self.path)?;
+        snapshot.validate_fresh_at(validation_time)?;
+        Ok(snapshot)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CachedDreggAuthoritySnapshotSource {
+    source: FileDreggAuthoritySnapshotSource,
+    cached_snapshot: Option<DreggAuthoritySnapshot>,
+}
+
+impl CachedDreggAuthoritySnapshotSource {
+    pub fn new(source: FileDreggAuthoritySnapshotSource) -> Self {
+        Self {
+            source,
+            cached_snapshot: None,
+        }
+    }
+
+    pub fn load_at(
+        &mut self,
+        validation_time: u64,
+    ) -> Result<DreggAuthoritySnapshot, DreggAuthorityRegistryError> {
+        let snapshot = self.source.load_at(validation_time)?;
+        self.cached_snapshot = Some(snapshot.clone());
+        Ok(snapshot)
+    }
+
+    pub fn cached_snapshot(&self) -> Option<&DreggAuthoritySnapshot> {
+        self.cached_snapshot.as_ref()
     }
 }
 

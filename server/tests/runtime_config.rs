@@ -15,6 +15,7 @@ fn clear_env() {
         "SECS_CALLER_REGISTRY_PATH",
         "SECS_PERMISSION_POLICY_PATH",
         "SECS_DREGG_AUTHORITY_REGISTRY_PATH",
+        "SECS_DREGG_AUTHORITY_SNAPSHOT_PATH",
         "SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH",
         "SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH",
         "SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH",
@@ -938,4 +939,116 @@ fn production_startup_accepts_rotated_required_registry_with_bls_and_rotated_con
     let _ = std::fs::remove_file(committee_path);
     let _ = std::fs::remove_file(rotated_path);
     clear_env();
+}
+
+fn write_valid_dregg_authority_snapshot(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("{name}-{}.json", std::process::id()));
+    std::fs::write(
+        &path,
+        r#"{
+          "schema_version": "secs-dregg-authority-snapshot-v1",
+          "snapshot_id": "dregg-snapshot:runtime-config:001",
+          "source_node_id": "dregg-node:runtime-config",
+          "federation_id": "castalia-demo",
+          "entity_id": "did:example:david-lab",
+          "namespace_id": "castalia-demo:david-lab",
+          "entity_display_name": "David Lab Demo Entity",
+          "observed_at": 0,
+          "expires_at": 4102444800,
+          "authority_mode": "fixture_snapshot",
+          "issuers": [{
+            "issuer_id": "did:example:david-lab#issuer-1",
+            "issuer_key_id": "pubkey:sha256:david-lab-issuer-1",
+            "trust_root_ref": "trust-root:david-lab-demo",
+            "authority_root_ref": "dregg-root:local-demo",
+            "accepted_evidence": ["provisioning_credential"],
+            "accepted_audiences": ["secS://operator-receiver"],
+            "accepted_operations": ["resource.provision"],
+            "accepted_resources": ["resource://david-lab/*"],
+            "status": "active",
+            "not_before": 0,
+            "not_after": 4102444800,
+            "status_ref": "dregg-status:david-lab-issuer-active"
+          }],
+          "resources": [{
+            "resource_id": "resource://david-lab/demo-agent",
+            "resource_kind": "agent",
+            "controller_entity_id": "did:example:david-lab",
+            "allowed_operations": ["resource.provision"],
+            "required_evidence": ["provisioning_credential"],
+            "status": "active",
+            "status_ref": "dregg-status:david-lab-resource-active"
+          }]
+        }"#,
+    )
+    .expect("Dregg authority snapshot fixture should be writable");
+    path
+}
+
+#[test]
+fn production_startup_rejects_missing_dregg_authority_snapshot_source() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-snapshot-missing");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-snapshot-missing");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-snapshot-missing");
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority_snapshot",
+    )
+    .unwrap();
+    config.dregg_authority_snapshot_path =
+        Some(std::env::temp_dir().join("missing-dregg-authority-snapshot.json"));
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    assert!(
+        error.to_string().contains("Dregg authority snapshot"),
+        "production startup must reject missing snapshot source when dregg_authority_snapshot is enabled: {error}"
+    );
+}
+
+#[test]
+fn production_startup_accepts_valid_dregg_authority_snapshot_source() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-snapshot-valid");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-snapshot-valid");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-snapshot-valid");
+    let snapshot_path =
+        write_valid_dregg_authority_snapshot("secs-magik-dregg-authority-snapshot-valid");
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_authority_snapshot",
+    )
+    .unwrap();
+    config.dregg_authority_snapshot_path = Some(snapshot_path.clone());
+
+    let result = server::config::validate_production_startup_readiness(&config);
+
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(snapshot_path);
+    assert!(
+        result.is_ok(),
+        "valid snapshot source should pass startup readiness: {result:?}"
+    );
 }
