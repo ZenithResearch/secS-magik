@@ -1,9 +1,14 @@
 use server::dregg_live_source::{
-    cache_entry_is_fresh_for_request, should_replace_cache_entry, validate_live_source_response,
+    cache_entry_is_fresh_for_request, execute_live_source_lookup, load_live_source_auth_token,
+    should_replace_cache_entry, validate_live_source_response, DreggLiveSourceAuthMaterial,
     DreggLiveSourceCacheEntry, DreggLiveSourceClientError, DreggLiveSourceDuplicatePolicy,
-    DreggLiveSourceRequest, DreggLiveSourceResponse, DreggLiveSourceStatus,
+    DreggLiveSourceLookupPolicy, DreggLiveSourceRequest, DreggLiveSourceResponse,
+    DreggLiveSourceStatus, DreggLiveSourceTransport, DreggLiveSourceTransportError,
     DREGG_LIVE_SOURCE_CONTRACT_VERSION,
 };
+use std::collections::VecDeque;
+use std::path::Path;
+use std::time::Duration;
 
 const NOW: u64 = 1_770_000_300;
 
@@ -44,6 +49,61 @@ fn response() -> DreggLiveSourceResponse {
         duplicate_policy: DreggLiveSourceDuplicatePolicy::Unique,
         redacted_summary: "source=dregg-source:operator root=root:sha256:fixture".to_string(),
     }
+}
+
+struct FixtureTransport {
+    outcomes: VecDeque<Result<DreggLiveSourceResponse, DreggLiveSourceTransportError>>,
+    calls: usize,
+    observed_auth_summary: Option<String>,
+    observed_timeout: Option<Duration>,
+}
+
+impl FixtureTransport {
+    fn new(outcomes: Vec<Result<DreggLiveSourceResponse, DreggLiveSourceTransportError>>) -> Self {
+        Self {
+            outcomes: outcomes.into(),
+            calls: 0,
+            observed_auth_summary: None,
+            observed_timeout: None,
+        }
+    }
+}
+
+impl DreggLiveSourceTransport for FixtureTransport {
+    fn fetch_authority(
+        &mut self,
+        _request: &DreggLiveSourceRequest,
+        auth: &DreggLiveSourceAuthMaterial,
+        timeout: Duration,
+    ) -> Result<DreggLiveSourceResponse, DreggLiveSourceTransportError> {
+        self.calls += 1;
+        self.observed_auth_summary = Some(auth.redacted_summary());
+        self.observed_timeout = Some(timeout);
+        self.outcomes
+            .pop_front()
+            .expect("fixture transport outcome should be queued")
+    }
+}
+
+fn token_path(name: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("secs-magik-{name}-{}-{}", std::process::id(), NOW))
+}
+
+fn write_owner_private_token(path: &Path, token: &str) {
+    std::fs::write(path, token).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+}
+
+fn auth_material(name: &str) -> DreggLiveSourceAuthMaterial {
+    let path = token_path(name);
+    write_owner_private_token(&path, "live-secret-token\n");
+    let auth = load_live_source_auth_token(Path::new(&path)).unwrap();
+    let _ = std::fs::remove_file(&path);
+    auth
 }
 
 #[test]
@@ -185,4 +245,145 @@ fn cache_replacement_prefers_newer_observed_status_or_generation() {
     duplicate_conflict.status_observed_at = NOW - 10;
     duplicate_conflict.duplicate_policy = DreggLiveSourceDuplicatePolicy::Conflict;
     assert!(!should_replace_cache_entry(&old_entry, &duplicate_conflict));
+}
+
+#[test]
+fn live_source_auth_material_loads_without_exposing_token_contents() {
+    let path = token_path("auth-material");
+    write_owner_private_token(&path, "live-secret-token\n");
+
+    let auth = load_live_source_auth_token(Path::new(&path)).unwrap();
+    let _ = std::fs::remove_file(&path);
+
+    assert_eq!(auth.redacted_summary(), "auth_token:<redacted>");
+    assert!(!auth.redacted_summary().contains("live-secret-token"));
+    assert!(!format!("{auth:?}").contains("live-secret-token"));
+}
+
+#[test]
+fn live_source_auth_material_rejects_missing_or_empty_token_files() {
+    let missing = token_path("missing-auth-material");
+    let _ = std::fs::remove_file(&missing);
+    assert_eq!(
+        load_live_source_auth_token(Path::new(&missing)),
+        Err(DreggLiveSourceClientError::MissingAuthMaterial)
+    );
+
+    let empty = token_path("empty-auth-material");
+    write_owner_private_token(&empty, "  \n");
+    assert_eq!(
+        load_live_source_auth_token(Path::new(&empty)),
+        Err(DreggLiveSourceClientError::MissingAuthMaterial)
+    );
+    let _ = std::fs::remove_file(&empty);
+}
+
+#[test]
+fn live_source_lookup_does_not_call_transport_when_adapter_disabled_or_auth_missing() {
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+    };
+    let mut transport = FixtureTransport::new(vec![Ok(response())]);
+
+    let disabled_result =
+        execute_live_source_lookup(None::<&mut FixtureTransport>, None, &request(), policy);
+    assert_eq!(
+        disabled_result,
+        Err(DreggLiveSourceClientError::TransportDisabled)
+    );
+    assert_eq!(transport.calls, 0);
+
+    let missing_auth_result =
+        execute_live_source_lookup(Some(&mut transport), None, &request(), policy);
+    assert_eq!(
+        missing_auth_result,
+        Err(DreggLiveSourceClientError::MissingAuthMaterial)
+    );
+    assert_eq!(transport.calls, 0);
+}
+
+#[test]
+fn live_source_lookup_retries_transport_timeouts_then_validates_response() {
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+    };
+    let auth = auth_material("lookup-timeout-success");
+    let mut transport = FixtureTransport::new(vec![
+        Err(DreggLiveSourceTransportError::Timeout),
+        Err(DreggLiveSourceTransportError::Timeout),
+        Ok(response()),
+    ]);
+
+    let decision =
+        execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy)
+            .expect("lookup should retry transport timeouts then validate the successful response");
+
+    assert_eq!(decision.source_id, "dregg-source:operator");
+    assert_eq!(transport.calls, 3);
+    assert_eq!(transport.observed_timeout, Some(Duration::from_millis(250)));
+    assert_eq!(
+        transport.observed_auth_summary.as_deref(),
+        Some("auth_token:<redacted>")
+    );
+}
+
+#[test]
+fn live_source_lookup_returns_transport_timeout_after_bounded_retry_exhaustion() {
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+    };
+    let auth = auth_material("lookup-timeout-exhausted");
+    let mut transport = FixtureTransport::new(vec![
+        Err(DreggLiveSourceTransportError::Timeout),
+        Err(DreggLiveSourceTransportError::Timeout),
+        Err(DreggLiveSourceTransportError::Timeout),
+    ]);
+
+    let result = execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy);
+
+    assert_eq!(result, Err(DreggLiveSourceClientError::TransportTimeout));
+    assert_eq!(transport.calls, 3);
+}
+
+#[test]
+fn live_source_lookup_does_not_retry_source_unavailable_transport_failure() {
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+    };
+    let auth = auth_material("lookup-source-unavailable");
+    let mut transport = FixtureTransport::new(vec![
+        Err(DreggLiveSourceTransportError::SourceUnavailable),
+        Ok(response()),
+    ]);
+
+    let result = execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy);
+
+    assert_eq!(result, Err(DreggLiveSourceClientError::SourceUnavailable));
+    assert_eq!(transport.calls, 1);
+}
+
+#[test]
+fn live_source_lookup_does_not_retry_semantic_rejects() {
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+    };
+    let auth = auth_material("lookup-semantic-reject");
+    let mut malformed = response();
+    malformed.source_id = "".to_string();
+    let mut transport = FixtureTransport::new(vec![Ok(malformed), Ok(response())]);
+
+    let result = execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy);
+
+    assert_eq!(result, Err(DreggLiveSourceClientError::MalformedResponse));
+    assert_eq!(transport.calls, 1);
 }

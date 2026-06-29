@@ -89,7 +89,7 @@ Common gateway variables include:
 - `SECZ_TUNNEL_X25519_SECRET_HEX` (legacy fallback)
 - Client-side v2 session-key packets use `SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX` / `SECZ_TUNNEL_SERVER_X25519_PUBLIC_HEX`; do not publish the gateway secret.
 
-The #206 `server::dregg_live_source` module currently provides no-network request/response/cache decision helpers for `secs-dregg-live-source-client-v1`; it rejects stale/future/wrong-binding/inactive/duplicate live-source material before any future transport client can map a response into receiver-held authority state. It is not an HTTP client and does not contact a Castalia Dregg source yet.
+The #206 `server::dregg_live_source` module currently provides no-network request/response/cache decision helpers plus a no-network authenticated transport seam for `secs-dregg-live-source-client-v1`; it rejects stale/future/wrong-binding/inactive/duplicate live-source material before any future transport client can map a response into receiver-held authority, and it distinguishes disabled transport, missing auth material, timeouts, unavailable sources, unauthorized sources, and semantic validation rejects. It is not an HTTP client and does not contact a Castalia Dregg source yet.
 
 Do not document real operator keys, bearer tokens, packet captures, production DB URLs, or private runtime config in this repository.
 
