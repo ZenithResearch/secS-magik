@@ -1,6 +1,6 @@
 # Live Castalia Dregg source/client contract (#206)
 
-Status: specification plus first config/readiness placeholder slice. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, and startup readiness fail-closes on missing/unreadable local credential configuration. It still does not implement a network client or close #206 by itself.
+Status: specification plus no-network config/readiness and typed decision-helper slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache decision semantics with in-memory tests. It still does not implement a network client or close #206 by itself.
 
 ## Purpose
 
@@ -13,7 +13,7 @@ This is not a full Dregg node requirement, not production deployment proof, not 
 - Contract id: `secs-dregg-live-source-client-v1`
 - Owning receiver mode: secS `production_verified` when explicitly configured
 - Mapping target: existing `DreggAuthoritySnapshot` lookup semantics unless a later PR introduces a versioned successor with migration tests
-- Compatibility boundary: additive docs/spec contract; no runtime network calls are implied until a code PR adds config, client, tests, and readiness wiring
+- Compatibility boundary: additive docs/spec contract plus no-network typed helper module; no runtime network calls are implied until a later code PR adds an HTTP/signed-request client, source authentication, and verification-path wiring
 
 ## Configuration surface
 
@@ -113,7 +113,7 @@ Until a versioned successor is approved, the live source maps into `DreggAuthori
 
 ## Failure matrix
 
-A future runtime PR must test these cases before claiming #206 implementation:
+Runtime work must keep these cases tested before claiming #206 implementation. The current helper slice covers the deterministic in-memory decision/cache cases; transport/authentication/readiness wiring remains future work.
 
 | Case | Required result |
 |---|---|
