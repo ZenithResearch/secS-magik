@@ -72,6 +72,9 @@ Common gateway variables include:
 - `SECS_PERMISSION_POLICY_PATH`
 - `SECS_DREGG_AUTHORITY_REGISTRY_PATH` (required only when `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`)
 - `SECS_DREGG_AUTHORITY_SNAPSHOT_PATH` (required only when `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority_snapshot`)
+- `SECS_DREGG_LIVE_SOURCE_URL` (reserved #206 live-source base URL; required only when `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_live_source`)
+- `SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH` (owner-private credential file path for the #206 live source; readiness checks the file without printing token contents)
+- `SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS`, `SECS_DREGG_LIVE_SOURCE_RETRY_MAX`, `SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS`, `SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS` (bounded #206 live-source policy placeholders; no network calls are made by this config/readiness slice)
 - `SECS_ALLOWED_EVIDENCE_ADAPTERS`
 - `SECS_FIXTURE_ONLY_SMOKE`
 - `SECS_MAX_WIRE_BYTES`
