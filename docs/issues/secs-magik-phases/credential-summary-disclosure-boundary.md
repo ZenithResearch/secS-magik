@@ -13,7 +13,7 @@ It is a **local/operator inspection** boundary only. It is **not**:
 
 - public auditability (#37),
 - production deployment proof (#33),
-- live Castalia registry discovery (#72), wallet-core parity (#71), or
+- live Castalia Dregg authority source/client (#206), wallet-core parity (#71), or
   Dregg/Midnight/Cardano authority (#73/#74/#75).
 
 It refines — it does not replace — the redaction proof from #70/PR #76 and the

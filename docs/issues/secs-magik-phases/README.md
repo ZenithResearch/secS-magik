@@ -18,7 +18,7 @@ and a boundary-preserving Castalia-over-Dregg-shaped evidence seam — plus the
 correctness/supply-chain hardening a credible demo needs. Filed as GitHub issues
 2026-06-09: umbrella #88, children #89-#95 (linked in the table below). They are complementary to (not duplicates of) the
 `membership.provision` live-ingress hardening tracked in #78–#83, and they must
-not be used to close the unresolved authority rails #71–#75.
+not be used to close the remaining unresolved authority rails #71, #73, #74, #75, or the live Castalia Dregg source follow-up #206.
 
 | Spec | GitHub issue | Local file | Demo role |
 |---|---:|---|---|
@@ -36,11 +36,11 @@ not be used to close the unresolved authority rails #71–#75.
 | Gap / forbidden claim | GitHub issue | Status |
 |---|---:|---|
 | Production-shaped `membership.provision` E2E | #70 | closed by PR #76 at `5e5bb71` with post-merge CI 27071532041; #77/#84 are closed guard/negative-proof slices and remaining post-merge review follow-ups are #78-#83 |
-| Full Castalia Wallet wallet-core parity | #71 | open |
-| Live Castalia trusted issuer registry discovery | follow-up after #72 | future; #72 implements bounded fixture/file Dregg-shaped authority snapshot consumption, not live Castalia registry discovery |
+| Full Castalia Wallet wallet-core parity | #71 | open; must satisfy [`evidence-adapter-readiness-disclosure.md`](../../specs/evidence-adapter-readiness-disclosure.md) before runtime wiring |
+| Live Castalia Dregg authority source/client | #206 | open; follows the closed #72 bounded fixture/file snapshot seam and must not require every normal Hub to run a full Dregg node |
 | Dregg capability/proof/revocation authority | #73 | open |
-| Midnight proof verification | #74 | open |
-| Cardano settlement/finality evidence | #75 | open |
+| Midnight proof verification | #74 | open; must satisfy [`evidence-adapter-readiness-disclosure.md`](../../specs/evidence-adapter-readiness-disclosure.md) before runtime wiring |
+| Cardano settlement/finality evidence | #75 | open; must satisfy [`evidence-adapter-readiness-disclosure.md`](../../specs/evidence-adapter-readiness-disclosure.md) before runtime wiring |
 | Production deployment proof | #33 | open |
 | Public auditability beyond local SQLite receipts | #37 | open |
 

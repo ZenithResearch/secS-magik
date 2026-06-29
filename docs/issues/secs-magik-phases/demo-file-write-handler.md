@@ -23,7 +23,8 @@ this surface cannot be reached as production authority.
   and non-`file://` URIs are rejected before any write.
 - **Not** shell execution or a general file manager.
 - **Not** production deployment proof (#33), public auditability (#37), Dregg
-  capability/revocation authority (#73), or live registry discovery (#72).
+  capability/revocation authority (#73), or live Castalia Dregg authority
+  source/client discovery (#206).
 - Permission acceptance happens before the side effect; every failure emits a
   typed reject reason (`demo_file_write_*`) for the execution receipt without
   echoing payload content or the target path.
