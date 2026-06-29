@@ -1,6 +1,6 @@
 # Live Castalia Dregg source/client contract (#206)
 
-Status: specification plus no-network config/readiness, typed decision-helper, source-authentication, and transport-seam slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache/source-signature/transport-seam semantics with in-memory tests. It still does not implement an HTTP client, make live network calls, wire live responses into verification, or close #206 by itself.
+Status: specification plus no-network config/readiness, typed decision-helper, source-authentication, HTTP request-builder, and transport-seam slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache/source-signature/HTTP-request/transport-seam semantics with in-memory tests. It still does not implement an HTTP client, make live network calls, wire live responses into verification, or close #206 by itself.
 
 ## Purpose
 
@@ -86,9 +86,10 @@ Minimum remaining authentication posture for implementation:
 
 1. Load source credentials from `SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH` or a stricter signed-request mechanism.
 2. Require HTTPS or an explicitly documented local test transport that cannot be enabled in `production_verified`.
-3. Bind request authentication to `contract_version`, `receiver_audience`, `operation`, `opcode`, `entity_ref`, `resource_ref`, `subject`, and `request_nonce`.
-4. Redact credentials from logs, receipts, readiness, error strings, and operator summaries.
-5. Fail closed on missing credential, missing trusted source key, wrong source identity/key id, unauthorized source response, or replayed/rebound source response.
+3. Build the pre-network HTTP request deterministically: POST JSON to the configured source URL's `/lookup` endpoint, strip non-secret query/fragment material from the authority URL, reject userinfo, control-character/whitespace injection, or secret-bearing query strings, include the contract id header, and keep bearer/signed-request credentials out of request JSON, debug output, logs, readiness, and receipts.
+4. Bind request authentication to `contract_version`, `receiver_audience`, `operation`, `opcode`, `entity_ref`, `resource_ref`, `subject`, and `request_nonce`.
+5. Redact credentials from logs, receipts, readiness, error strings, and operator summaries.
+6. Fail closed on missing credential, missing trusted source key, wrong source identity/key id, unauthorized source response, or replayed/rebound source response.
 
 ## Freshness/status semantics
 
@@ -123,7 +124,7 @@ Until a versioned successor is approved, the live source maps into `DreggAuthori
 
 ## Failure matrix
 
-Runtime work must keep these cases tested before claiming #206 implementation. The current helper slice covers the deterministic in-memory decision/cache cases; transport/authentication/readiness wiring remains future work.
+Runtime work must keep these cases tested before claiming #206 implementation. The current helper slices cover deterministic in-memory decision/cache cases, config/readiness placeholders, source authentication, pre-network HTTP request building, and the transport seam; real live HTTP transport, verification-path wiring, persistent cache storage, and operator diagnostics remain future work.
 
 | Case | Required result |
 |---|---|
