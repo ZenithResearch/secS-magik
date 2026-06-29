@@ -38,6 +38,9 @@ The smoke covers:
 - wrong resource rejects;
 - missing source rejects;
 - unknown issuer rejects;
+- unsupported schema/mode rejects;
+- duplicate issuer keys and duplicate resources reject;
+- wrong trust root and wrong authority root reject;
 - the checked-in fixture file loads and produces the same authority decision.
 
 ## Non-claims
@@ -60,7 +63,7 @@ The stable evidence lines are:
 fixture_ok: secs-dregg-authority-snapshot-v1 did:example:david-lab castalia-demo:david-lab
 resource_ok: resource://david-lab/demo-agent controller=did:example:david-lab status=active
 redaction_ok: fixture contains no raw secret/private-token markers
-smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, and unknown issuer reject.
+smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, unknown issuer, unsupported schema/mode, duplicate issuer key/resource, wrong trust root, and wrong authority root reject.
 ```
 
 These lines are suitable for a redacted Tier 1 evidence packet because they expose only fixture identifiers, entity/resource/controller IDs, status, and reason classes. They do not expose private keys, bearer tokens, raw authority tokens, credential bodies, local ledger rows, or production endpoints.
