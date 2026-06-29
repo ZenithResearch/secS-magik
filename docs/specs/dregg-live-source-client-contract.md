@@ -1,6 +1,6 @@
 # Live Castalia Dregg source/client contract (#206)
 
-Status: specification plus no-network config/readiness and typed decision-helper slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache decision semantics with in-memory tests. It still does not implement a network client or close #206 by itself.
+Status: specification plus no-network config/readiness, typed decision-helper, and transport-seam slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache/transport-seam semantics with in-memory tests. It still does not implement an HTTP client, make live network calls, wire live responses into verification, or close #206 by itself.
 
 ## Purpose
 
@@ -98,6 +98,7 @@ The timeout/retry/cache policy must be deterministic and bounded:
 
 - A live source outage rejects once the fresh cache window is exceeded.
 - Transport timeout may retry up to `SECS_DREGG_LIVE_SOURCE_RETRY_MAX`; semantic rejects must not be retried as if transient.
+- The no-network `DreggLiveSourceTransport` seam requires explicit auth material before any adapter call and distinguishes disabled transport, missing auth material, timeout, source-unavailable, unauthorized-source, malformed-response, and semantic validation rejects.
 - Fresh cache use is allowed only when the cache entry matches the same entity/resource/operation/opcode/subject/root binding and is within `SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS`.
 - Stale cache fail closed: stale cache may support diagnostics, but cannot authorize production calls.
 - Cache replacement must prefer newer `snapshot_generation` / status timestamp and must reject duplicate issuer/resource ambiguity.

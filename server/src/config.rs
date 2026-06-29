@@ -768,10 +768,17 @@ pub fn validate_dregg_live_source_config(
             "SECS_DREGG_LIVE_SOURCE_URL must use https:// in production_verified".to_string(),
         );
     }
-    let metadata = std::fs::metadata(&config.auth_token_path)
+    let metadata = std::fs::symlink_metadata(&config.auth_token_path)
         .map_err(|error| format!("auth token path is not readable: {error}"))?;
-    if !metadata.is_file() {
-        return Err("auth token path is not a regular file".to_string());
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err("auth token path is not a regular owner-private file".to_string());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 {
+            return Err("auth token path is not a regular owner-private file".to_string());
+        }
     }
     if config.timeout.is_zero() {
         return Err("SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS must be positive".to_string());

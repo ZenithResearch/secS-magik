@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- #206: added a no-network authenticated `DreggLiveSourceTransport` seam, local auth-token loader/redaction helper, disabled/missing-auth guards, bounded timeout retry classification, and fixture-backed tests that semantic rejects are not retried, so future HTTP/signed-request work has a fail-closed adapter boundary before any live network client is introduced.
 - #206: added no-network `dregg_live_source` request/response/cache decision helpers with fail-closed tests for contract-version drift, wrong binding/root, stale/future status, inactive/degraded source state, duplicate authority conflicts, same-binding cache reuse, and deterministic cache replacement, so the live Dregg client runtime can be wired later without inventing authority semantics during transport work.
 - #206: added `dregg_live_source` runtime config/readiness placeholders for `SECS_DREGG_LIVE_SOURCE_URL`, owner-private auth token path, timeout/retry/cache/stale policy, and fail-closed token-file readiness checks, so the live source rail can be configured and rejected safely before any network client exists.
 - #206: added `docs/specs/dregg-live-source-client-contract.md` plus docs-contract coverage for the `secs-dregg-live-source-client-v1` request/response, authentication, freshness/status, timeout/retry/cache, fail-closed readiness, and disclosure boundary, so runtime work has a deterministic live Castalia Dregg source/client contract before implementation.

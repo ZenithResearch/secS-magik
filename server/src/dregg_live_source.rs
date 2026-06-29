@@ -7,6 +7,9 @@
 //! receiver-held authority.
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::path::Path;
+use std::time::Duration;
 
 pub const DREGG_LIVE_SOURCE_CONTRACT_VERSION: &str = "secs-dregg-live-source-client-v1";
 
@@ -81,11 +84,63 @@ pub struct DreggLiveSourceCacheEntry {
     pub cached_at: u64,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct DreggLiveSourceAuthMaterial {
+    token: String,
+}
+
+impl fmt::Debug for DreggLiveSourceAuthMaterial {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DreggLiveSourceAuthMaterial")
+            .field("token", &"<redacted>")
+            .finish()
+    }
+}
+
+impl DreggLiveSourceAuthMaterial {
+    pub fn redacted_summary(&self) -> String {
+        "auth_token:<redacted>".to_string()
+    }
+
+    pub fn bearer_token(&self) -> &str {
+        &self.token
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DreggLiveSourceLookupPolicy {
+    pub timeout: Duration,
+    pub retry_max: u64,
+    pub stale_max_seconds: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DreggLiveSourceTransportError {
+    Timeout,
+    SourceUnavailable,
+    Unauthorized,
+    MalformedResponse,
+}
+
+pub trait DreggLiveSourceTransport {
+    fn fetch_authority(
+        &mut self,
+        request: &DreggLiveSourceRequest,
+        auth: &DreggLiveSourceAuthMaterial,
+        timeout: Duration,
+    ) -> Result<DreggLiveSourceResponse, DreggLiveSourceTransportError>;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DreggLiveSourceClientError {
     UnsupportedContractVersion,
     MalformedResponse,
     SourceUnavailable,
+    TransportDisabled,
+    MissingAuthMaterial,
+    TransportTimeout,
+    UnauthorizedSource,
     WrongBinding,
     WrongRoot,
     RevokedOrInactive,
@@ -93,6 +148,65 @@ pub enum DreggLiveSourceClientError {
     UnredactedSummary,
     FutureStatus,
     StaleStatus,
+}
+
+pub fn load_live_source_auth_token(
+    path: &Path,
+) -> Result<DreggLiveSourceAuthMaterial, DreggLiveSourceClientError> {
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|_| DreggLiveSourceClientError::MissingAuthMaterial)?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(DreggLiveSourceClientError::MissingAuthMaterial);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 {
+            return Err(DreggLiveSourceClientError::MissingAuthMaterial);
+        }
+    }
+    let token = std::fs::read_to_string(path)
+        .map_err(|_| DreggLiveSourceClientError::MissingAuthMaterial)?;
+    let token = token.trim().to_string();
+    if token.is_empty() {
+        return Err(DreggLiveSourceClientError::MissingAuthMaterial);
+    }
+    Ok(DreggLiveSourceAuthMaterial { token })
+}
+
+pub fn execute_live_source_lookup<T: DreggLiveSourceTransport>(
+    mut transport: Option<&mut T>,
+    auth: Option<&DreggLiveSourceAuthMaterial>,
+    request: &DreggLiveSourceRequest,
+    policy: DreggLiveSourceLookupPolicy,
+) -> Result<DreggLiveSourceDecision, DreggLiveSourceClientError> {
+    let transport = transport
+        .as_mut()
+        .ok_or(DreggLiveSourceClientError::TransportDisabled)?;
+    let auth = auth.ok_or(DreggLiveSourceClientError::MissingAuthMaterial)?;
+    let mut attempts = 0_u64;
+    loop {
+        attempts += 1;
+        match transport.fetch_authority(request, auth, policy.timeout) {
+            Ok(response) => {
+                return validate_live_source_response(request, &response, policy.stale_max_seconds);
+            }
+            Err(DreggLiveSourceTransportError::Timeout) => {
+                if attempts > policy.retry_max {
+                    return Err(DreggLiveSourceClientError::TransportTimeout);
+                }
+            }
+            Err(DreggLiveSourceTransportError::SourceUnavailable) => {
+                return Err(DreggLiveSourceClientError::SourceUnavailable);
+            }
+            Err(DreggLiveSourceTransportError::Unauthorized) => {
+                return Err(DreggLiveSourceClientError::UnauthorizedSource);
+            }
+            Err(DreggLiveSourceTransportError::MalformedResponse) => {
+                return Err(DreggLiveSourceClientError::MalformedResponse);
+            }
+        }
+    }
 }
 
 pub fn validate_live_source_response(
