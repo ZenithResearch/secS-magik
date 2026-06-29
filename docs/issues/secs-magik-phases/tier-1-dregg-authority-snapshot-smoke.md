@@ -26,6 +26,7 @@ The script prints a redaction-safe evidence summary, audits the fixture for raw 
 
 ```bash
 cargo test -p server --test dregg_authority_registry dregg_authority_snapshot -- --nocapture
+cargo test -p server --test dregg_authority_evidence dregg_authority_snapshot_adapter -- --nocapture
 ```
 
 Production startup/readiness can require the file-backed snapshot source by setting:
@@ -50,7 +51,9 @@ The smoke covers:
 - unsupported schema/mode rejects;
 - duplicate issuer keys and duplicate resources reject;
 - wrong trust root and wrong authority root reject;
-- the checked-in fixture file loads and produces the same authority decision.
+- the checked-in fixture file loads and produces the same authority decision;
+- the snapshot-backed evidence adapter accepts only a trusted requested resource controlled by `did:example:david-lab`;
+- spoofed subjects and caller-declared `requested_resource` public inputs cannot amplify authority.
 
 ## Non-claims
 
@@ -72,7 +75,7 @@ The stable evidence lines are:
 fixture_ok: secs-dregg-authority-snapshot-v1 did:example:david-lab castalia-demo:david-lab
 resource_ok: resource://david-lab/demo-agent controller=did:example:david-lab status=active
 redaction_ok: fixture contains no raw secret/private-token markers
-smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, unknown issuer, unsupported schema/mode, duplicate issuer key/resource, wrong trust root, and wrong authority root reject.
+smoke_ok: active snapshot accepts the controlled David Lab resource through direct lookup and the evidence adapter; stale, revoked, wrong namespace, wrong resource, missing source, unknown issuer, unsupported schema/mode, duplicate issuer key/resource, wrong trust root, wrong authority root, spoofed subject, and caller-declared resource amplification reject.
 ```
 
 These lines are suitable for a redacted Tier 1 evidence packet because they expose only fixture identifiers, entity/resource/controller IDs, status, and reason classes. They do not expose private keys, bearer tokens, raw authority tokens, credential bodies, local ledger rows, or production endpoints.
