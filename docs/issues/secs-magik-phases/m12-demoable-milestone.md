@@ -95,7 +95,7 @@ land any time.
 
 Do not claim, on the basis of this milestone: production deployment proof (#33);
 public auditability beyond local SQLite (#37); full Castalia wallet-core parity
-(#71); live Castalia registry discovery (#72); **Dregg
+(#71); live Castalia Dregg authority source/client (#206); **Dregg
 capability/proof/revocation/finality authority (#73)** — the Dregg seam here is
 shape+signature only; Midnight (#74) or Cardano (#75) authority; or that caller
 proof-of-origin is membership/issuer/root authority.
@@ -107,4 +107,4 @@ proof-of-origin is membership/issuer/root authority.
   Ed25519-authenticated inserts, capabilities-as-witnesses, strands, receipts,
   revocation, finality).
 - Complementary live-ingress hardening: #78, #79, #80, #81, #82, #83.
-- Future authority rails (out of scope here): #33, #37, #71, #72, #73, #74, #75.
+- Future authority rails (out of scope here): #33, #37, #71, #73, #74, #75, #206. #72 is closed as the bounded fixture/file Dregg-shaped snapshot seam.

@@ -10,6 +10,7 @@ Specs define the intended/current architecture. They are not, by themselves, imp
 |---|---|
 | [2026-06-01-secs-magik-objectives-spec.md](2026-06-01-secs-magik-objectives-spec.md) | Corrected secS-magik architecture, v0 packet compatibility, client-vs-verifier boundary, receiver-local manifests, target verifier pipeline, evidence adapters, receipts, and non-goals. |
 | [dregg-authority-rail.md](dregg-authority-rail.md) | Dregg authority rail M15.1 / #137 spec that rewrites #73 acceptance criteria while keeping `dregg_authority` distinct from shape-only and fixture-backed rails. |
+| [evidence-adapter-readiness-disclosure.md](evidence-adapter-readiness-disclosure.md) | Shared readiness/config/disclosure gate for future production-facing evidence adapters: #71, #74, #75, and #206. |
 
 ## How to read specs
 

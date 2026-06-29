@@ -174,7 +174,7 @@ Out of scope for M15.1 and not proven by this spec:
 - production deployment proof (#33);
 - public auditability or public anchoring (#37);
 - full Castalia Wallet wallet-core parity (#71), except for composition language with wallet PoP;
-- live Castalia registry discovery (#72), unless later promoted explicitly;
+- live Castalia Dregg authority source/client (#206); #72 is closed as the bounded fixture/file snapshot seam only;
 - Midnight proof verification (#74);
 - Cardano settlement/finality (#75);
 - treating local SQLite receipts as public Dregg authority evidence;
