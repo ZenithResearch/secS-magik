@@ -1132,7 +1132,7 @@ Boundaries preserved:
 
 ### A8 — Remaining future issues to pick
 
-Track B, Track C, Track D, Track E, Track F, Track G, Track H, and Track I local production-shaped E2E now have completion checkpoints in this checklist. Remaining first-prod path blockers are separate follow-up rails: deployment proof (#33), public auditability (#37), wallet-core parity (#71), live registry discovery (#72), Dregg/Midnight/Cardano rails (#73-#75), and remaining post-merge review hardening #78-#83 (#77/#84 are closed). Pick the next issue from the earliest incomplete dependency in that E/I chain unless a later decision explicitly changes the first-prod authority model.
+Track B, Track C, Track D, Track E, Track F, Track G, Track H, and Track I local production-shaped E2E now have completion checkpoints in this checklist. Remaining first-prod path blockers are separate follow-up rails: deployment proof (#33), public auditability (#37), wallet-core parity (#71), live Castalia registry discovery beyond the bounded #72 snapshot seam, Dregg/Midnight/Cardano rails (#73-#75), and remaining post-merge review hardening #78-#83 (#77/#84 are closed). Pick the next issue from the earliest incomplete dependency in that E/I chain unless a later decision explicitly changes the first-prod authority model.
 
 ### A8 — Acceptance
 

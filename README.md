@@ -146,7 +146,7 @@ replay and expiry rejects, wallet + Dregg-shaped evidence composition at the
 adapter seam, and operator inspection of the verify/execute/reject receipt
 chain. The demo proves local verifier behavior only — not production
 deployment (#33), public auditability (#37), wallet-core parity (#71), live
-registry discovery (#72), or Dregg/Midnight/Cardano authority (#73-#75);
+Castalia registry discovery beyond the bounded #72 Dregg-shaped snapshot seam, or Dregg/Midnight/Cardano authority (#73-#75);
 live evidence-aware ingress is the #162 rail, while trusted requested-authority attenuation is bounded to #169 and resource locks remain #160.
 
 ## How It Works
