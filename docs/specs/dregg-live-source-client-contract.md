@@ -1,6 +1,6 @@
 # Live Castalia Dregg source/client contract (#206)
 
-Status: specification plus no-network config/readiness, typed decision-helper, and transport-seam slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache/transport-seam semantics with in-memory tests. It still does not implement an HTTP client, make live network calls, wire live responses into verification, or close #206 by itself.
+Status: specification plus no-network config/readiness, typed decision-helper, source-authentication, and transport-seam slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache/source-signature/transport-seam semantics with in-memory tests. It still does not implement an HTTP client, make live network calls, wire live responses into verification, or close #206 by itself.
 
 ## Purpose
 
@@ -56,6 +56,7 @@ Every response fields set must be deterministic enough to map into `DreggAuthori
 |---|---|
 | `contract_version` | Must equal `secs-dregg-live-source-client-v1`. |
 | `source_id` | Stable live source identifier for operator diagnostics. |
+| `source_key_id` | Stable receiver-trusted live source signing key id; wrong or missing key ids reject before mapping to authority. |
 | `source_status` | `active`, `degraded`, or `unavailable`; only `active` may satisfy production readiness. |
 | `entity_ref` / `resource_ref` | Must match the request after canonicalization; wrong entity/namespace/resource rejects. |
 | `issuer_key_id` / `issuer_status` | Issuer identity and status; revoked/inactive issuer/resource rejects. |
@@ -66,6 +67,7 @@ Every response fields set must be deterministic enough to map into `DreggAuthori
 | `snapshot_generation` | Monotonic/source generation or opaque digest for cache replacement. |
 | `duplicate_policy` | Explicit result if duplicate issuer/resource entries are detected; duplicates reject unless the source returns a deterministic conflict status. |
 | `redacted_summary` | Operator-safe refs/fingerprints/status only; no bearer tokens or raw proof material. |
+| `response_signature` | Ed25519 signature over the request/response binding payload, including contract version, receiver audience, operation, opcode, entity/resource, subject, nonce, source id/key id, status fields, validity window, generation, duplicate policy, and redacted summary. |
 
 A malformed response, unsupported contract version, missing required field, duplicate issuer/resource conflict, stale response, or wrong binding must reject with typed failures.
 
@@ -73,13 +75,20 @@ A malformed response, unsupported contract version, missing required field, dupl
 
 The live source must be authenticated as a receiver-approved authority source before any response can influence verification.
 
-Minimum authentication posture for implementation:
+Current no-network helper posture:
+
+- `DreggLiveSourceTrustedKey` holds the receiver-configured `source_id`, `source_key_id`, active flag, and Ed25519 verifying key.
+- `DreggLiveSourceResponse::signature_payload(...)` builds deterministic length-prefixed bytes over the source response and the request binding fields.
+- `validate_live_source_response(..., Some(trusted_key))` rejects wrong source id, wrong source key id, inactive/unconfigured trust, malformed signature length, bad signature, and request/response rebinding as `UnauthorizedSource`.
+- `execute_live_source_lookup(...)` requires auth material and a trusted source key before calling the transport seam, so missing trust cannot trigger a live adapter call.
+
+Minimum remaining authentication posture for implementation:
 
 1. Load source credentials from `SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH` or a stricter signed-request mechanism.
 2. Require HTTPS or an explicitly documented local test transport that cannot be enabled in `production_verified`.
 3. Bind request authentication to `contract_version`, `receiver_audience`, `operation`, `opcode`, `entity_ref`, `resource_ref`, `subject`, and `request_nonce`.
 4. Redact credentials from logs, receipts, readiness, error strings, and operator summaries.
-5. Fail closed on missing credential, wrong source identity, unauthorized source response, or replayed source response.
+5. Fail closed on missing credential, missing trusted source key, wrong source identity/key id, unauthorized source response, or replayed/rebound source response.
 
 ## Freshness/status semantics
 
@@ -127,6 +136,7 @@ Runtime work must keep these cases tested before claiming #206 implementation. T
 | revoked/inactive issuer/resource | Reject with revoked/inactive status. |
 | duplicate issuer/resource | Reject unless deterministic conflict policy returns a typed reject. |
 | missing authentication | Reject/readiness failure without printing the secret path contents. |
+| missing source trust or bad source signature | Reject as unauthorized source before authority mapping; do not make or continue a transport call when trust config is absent. |
 | disabled live adapter | Do not call network; continue using only explicitly configured non-live sources. |
 
 ## Readiness and disclosure

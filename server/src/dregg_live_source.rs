@@ -6,6 +6,7 @@
 //! stale, degraded, duplicate, or wrong-binding live source material into
 //! receiver-held authority.
 
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
@@ -49,6 +50,7 @@ pub enum DreggLiveSourceDuplicatePolicy {
 pub struct DreggLiveSourceResponse {
     pub contract_version: String,
     pub source_id: String,
+    pub source_key_id: String,
     pub source_status: DreggLiveSourceStatus,
     pub entity_ref: String,
     pub resource_ref: String,
@@ -65,6 +67,73 @@ pub struct DreggLiveSourceResponse {
     pub snapshot_generation: String,
     pub duplicate_policy: DreggLiveSourceDuplicatePolicy,
     pub redacted_summary: String,
+    pub response_signature: Vec<u8>,
+}
+
+impl DreggLiveSourceResponse {
+    pub fn signature_payload(&self, request: &DreggLiveSourceRequest) -> Vec<u8> {
+        let mut payload = Vec::new();
+        for value in [
+            DREGG_LIVE_SOURCE_CONTRACT_VERSION,
+            &request.contract_version,
+            &request.receiver_audience,
+            &request.operation,
+            &request.opcode.to_string(),
+            &request.entity_ref,
+            &request.resource_ref,
+            &request.subject,
+            request.issuer_key_id.as_deref().unwrap_or(""),
+            request.authority_root_ref.as_deref().unwrap_or(""),
+            &request.validation_time.to_string(),
+            &request.request_nonce,
+            &self.contract_version,
+            &self.source_id,
+            &self.source_key_id,
+            &format!("{:?}", self.source_status),
+            &self.entity_ref,
+            &self.resource_ref,
+            &self.issuer_key_id,
+            &format!("{:?}", self.issuer_status),
+            &self.authority_root_ref,
+            &self.root_fingerprint,
+            &format!("{:?}", self.root_status),
+            &format!("{:?}", self.namespace_status),
+            &format!("{:?}", self.resource_status),
+            &self.status_observed_at.to_string(),
+            &self.valid_from.to_string(),
+            &self.valid_until.to_string(),
+            &self.snapshot_generation,
+            &format!("{:?}", self.duplicate_policy),
+            &self.redacted_summary,
+        ] {
+            payload.extend_from_slice(&(value.len() as u64).to_be_bytes());
+            payload.extend_from_slice(value.as_bytes());
+        }
+        payload
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DreggLiveSourceTrustedKey {
+    pub source_id: String,
+    pub source_key_id: String,
+    pub public_key: VerifyingKey,
+    pub active: bool,
+}
+
+impl DreggLiveSourceTrustedKey {
+    pub fn active(
+        source_id: impl Into<String>,
+        source_key_id: impl Into<String>,
+        public_key: VerifyingKey,
+    ) -> Self {
+        Self {
+            source_id: source_id.into(),
+            source_key_id: source_key_id.into(),
+            public_key,
+            active: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,6 +208,7 @@ pub enum DreggLiveSourceClientError {
     SourceUnavailable,
     TransportDisabled,
     MissingAuthMaterial,
+    MissingSourceTrust,
     TransportTimeout,
     UnauthorizedSource,
     WrongBinding,
@@ -177,6 +247,7 @@ pub fn load_live_source_auth_token(
 pub fn execute_live_source_lookup<T: DreggLiveSourceTransport>(
     mut transport: Option<&mut T>,
     auth: Option<&DreggLiveSourceAuthMaterial>,
+    trusted_key: Option<&DreggLiveSourceTrustedKey>,
     request: &DreggLiveSourceRequest,
     policy: DreggLiveSourceLookupPolicy,
 ) -> Result<DreggLiveSourceDecision, DreggLiveSourceClientError> {
@@ -184,12 +255,18 @@ pub fn execute_live_source_lookup<T: DreggLiveSourceTransport>(
         .as_mut()
         .ok_or(DreggLiveSourceClientError::TransportDisabled)?;
     let auth = auth.ok_or(DreggLiveSourceClientError::MissingAuthMaterial)?;
+    let trusted_key = trusted_key.ok_or(DreggLiveSourceClientError::MissingSourceTrust)?;
     let mut attempts = 0_u64;
     loop {
         attempts += 1;
         match transport.fetch_authority(request, auth, policy.timeout) {
             Ok(response) => {
-                return validate_live_source_response(request, &response, policy.stale_max_seconds);
+                return validate_live_source_response(
+                    request,
+                    &response,
+                    policy.stale_max_seconds,
+                    Some(trusted_key),
+                );
             }
             Err(DreggLiveSourceTransportError::Timeout) => {
                 if attempts > policy.retry_max {
@@ -213,13 +290,24 @@ pub fn validate_live_source_response(
     request: &DreggLiveSourceRequest,
     response: &DreggLiveSourceResponse,
     max_status_age_seconds: u64,
+    trusted_key: Option<&DreggLiveSourceTrustedKey>,
 ) -> Result<DreggLiveSourceDecision, DreggLiveSourceClientError> {
+    let trusted_key = trusted_key.ok_or(DreggLiveSourceClientError::MissingSourceTrust)?;
     if request.contract_version != DREGG_LIVE_SOURCE_CONTRACT_VERSION
         || response.contract_version != DREGG_LIVE_SOURCE_CONTRACT_VERSION
     {
         return Err(DreggLiveSourceClientError::UnsupportedContractVersion);
     }
     validate_required_response_fields(response)?;
+    verify_live_source_signature(request, response, trusted_key)?;
+    validate_live_source_response_semantics(request, response, max_status_age_seconds)
+}
+
+fn validate_live_source_response_semantics(
+    request: &DreggLiveSourceRequest,
+    response: &DreggLiveSourceResponse,
+    max_status_age_seconds: u64,
+) -> Result<DreggLiveSourceDecision, DreggLiveSourceClientError> {
     if response.source_status != DreggLiveSourceStatus::Active {
         return Err(DreggLiveSourceClientError::SourceUnavailable);
     }
@@ -280,9 +368,21 @@ pub fn cache_entry_is_fresh_for_request(
 
 pub fn should_replace_cache_entry(
     old_entry: &DreggLiveSourceCacheEntry,
+    candidate_request: &DreggLiveSourceRequest,
     candidate_response: &DreggLiveSourceResponse,
+    trusted_key: &DreggLiveSourceTrustedKey,
 ) -> bool {
-    if validate_live_source_response(&old_entry.request, candidate_response, u64::MAX).is_err() {
+    if !cache_key_matches(&old_entry.request, candidate_request) {
+        return false;
+    }
+    if validate_live_source_response(
+        candidate_request,
+        candidate_response,
+        u64::MAX,
+        Some(trusted_key),
+    )
+    .is_err()
+    {
         return false;
     }
     candidate_response.status_observed_at > old_entry.response.status_observed_at
@@ -314,6 +414,7 @@ fn validate_required_response_fields(
 ) -> Result<(), DreggLiveSourceClientError> {
     for value in [
         &response.source_id,
+        &response.source_key_id,
         &response.entity_ref,
         &response.resource_ref,
         &response.issuer_key_id,
@@ -345,4 +446,24 @@ fn validate_required_response_fields(
         }
     }
     Ok(())
+}
+
+fn verify_live_source_signature(
+    request: &DreggLiveSourceRequest,
+    response: &DreggLiveSourceResponse,
+    trusted_key: &DreggLiveSourceTrustedKey,
+) -> Result<(), DreggLiveSourceClientError> {
+    if !trusted_key.active
+        || trusted_key.source_id != response.source_id
+        || trusted_key.source_key_id != response.source_key_id
+        || response.response_signature.len() != 64
+    {
+        return Err(DreggLiveSourceClientError::UnauthorizedSource);
+    }
+    let signature = Signature::from_slice(&response.response_signature)
+        .map_err(|_| DreggLiveSourceClientError::UnauthorizedSource)?;
+    trusted_key
+        .public_key
+        .verify(&response.signature_payload(request), &signature)
+        .map_err(|_| DreggLiveSourceClientError::UnauthorizedSource)
 }
