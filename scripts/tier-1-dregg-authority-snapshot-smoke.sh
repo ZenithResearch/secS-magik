@@ -48,7 +48,8 @@ print("redaction_ok: fixture contains no raw secret/private-token markers")
 PY
 
 cargo test -p server --test dregg_authority_registry dregg_authority_snapshot -- --nocapture
+cargo test -p server --test dregg_authority_evidence dregg_authority_snapshot_adapter -- --nocapture
 
 cat <<'EOF'
-smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, unknown issuer, unsupported schema/mode, duplicate issuer key/resource, wrong trust root, and wrong authority root reject.
+smoke_ok: active snapshot accepts the controlled David Lab resource through direct lookup and the evidence adapter; stale, revoked, wrong namespace, wrong resource, missing source, unknown issuer, unsupported schema/mode, duplicate issuer key/resource, wrong trust root, wrong authority root, spoofed subject, and caller-declared resource amplification reject.
 EOF

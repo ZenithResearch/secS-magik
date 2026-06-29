@@ -1,11 +1,14 @@
 use server::dregg_authority::{
     DreggAuthorityEntry, DreggAuthorityFinalityMode, DreggAuthorityFinalityStatus,
     DreggAuthorityLookup, DreggAuthorityRegistry, DreggAuthorityRevocationStatus,
-    DreggAuthorityRevocationVerifierMode, DreggAuthorityStatus, DreggAuthorityStatusPolicy,
+    DreggAuthorityRevocationVerifierMode, DreggAuthoritySnapshot, DreggAuthorityStatus,
+    DreggAuthorityStatusPolicy,
 };
 use server::evidence::{
-    DreggAuthorityEvidenceAdapter, DreggAuthorityGrantFixture, DreggReceiptFixture,
-    DreggShapedEvidenceAdapter, EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult,
+    DreggAuthorityEvidenceAdapter, DreggAuthorityGrantFixture,
+    DreggAuthoritySnapshotEvidenceAdapter, DreggAuthoritySnapshotEvidenceFixture,
+    DreggReceiptFixture, DreggShapedEvidenceAdapter, EvidenceAdapter, EvidenceKind,
+    EvidenceRequest, EvidenceResult,
 };
 use server::manifest::{OpcodeRange, OperationDescriptor, OperationName, ReplayScope, TargetKind};
 use server::verifier::VerificationError;
@@ -702,5 +705,208 @@ fn live_rotated_replay_required_rejects_with_missing_live_verifier() {
         live_adapter.verify(&request()),
         EvidenceResult::Rejected(VerificationError::MissingLiveDreggRotatedReplayVerifier),
         "rotated-replay-required policies must fail closed instead of accepting fixture finality flags"
+    );
+}
+
+fn david_lab_snapshot() -> DreggAuthoritySnapshot {
+    DreggAuthoritySnapshot::from_json_str(
+        r#"{
+          "schema_version": "secs-dregg-authority-snapshot-v1",
+          "snapshot_id": "castalia-demo:david-lab",
+          "source_node_id": "did:example:dregg-node:fixture",
+          "federation_id": "castalia-demo",
+          "entity_id": "did:example:david-lab",
+          "namespace_id": "castalia-demo:david-lab",
+          "entity_display_name": "David Lab",
+          "observed_at": 1770000000,
+          "expires_at": 1777776000,
+          "authority_mode": "fixture_snapshot",
+          "issuers": [
+            {
+              "issuer_id": "did:example:david-lab#issuer-1",
+              "issuer_key_id": "did:example:david-lab#issuer-key-1",
+              "trust_root_ref": "castalia-demo:trust-root:david-lab",
+              "authority_root_ref": "castalia-demo:authority-root:david-lab",
+              "accepted_evidence": ["dregg_authority"],
+              "accepted_audiences": ["secS://operator-receiver"],
+              "accepted_operations": ["membership.provision"],
+              "accepted_resources": ["resource://david-lab/*"],
+              "status": "active",
+              "not_before": 1770000000,
+              "not_after": 1777776000,
+              "status_ref": "castalia-demo:status:david-lab:issuer-1"
+            }
+          ],
+          "resources": [
+            {
+              "resource_id": "resource://david-lab/demo-agent",
+              "resource_kind": "agent",
+              "controller_entity_id": "did:example:david-lab",
+              "allowed_operations": ["membership.provision"],
+              "required_evidence": ["dregg_authority"],
+              "status": "active",
+              "status_ref": "castalia-demo:status:david-lab:demo-agent"
+            }
+          ]
+        }"#,
+    )
+    .unwrap()
+}
+
+fn david_lab_snapshot_fixture() -> DreggAuthoritySnapshotEvidenceFixture {
+    DreggAuthoritySnapshotEvidenceFixture {
+        evidence_ref: "dregg-authority-snapshot:fixture:david-lab".to_string(),
+        entity_id: "did:example:david-lab".to_string(),
+        namespace_id: "castalia-demo:david-lab".to_string(),
+        issuer_id: "did:example:david-lab#issuer-1".to_string(),
+        trust_root_ref: "castalia-demo:trust-root:david-lab".to_string(),
+        authority_root_ref: "castalia-demo:authority-root:david-lab".to_string(),
+    }
+}
+
+fn david_lab_snapshot_request(resource: &str) -> EvidenceRequest {
+    let mut request = EvidenceRequest::from_descriptor_with_refs(
+        &descriptor(),
+        "did:example:david-lab",
+        AUDIENCE,
+        ["dregg-authority-snapshot:fixture:david-lab"],
+    );
+    request.trusted_requested_resource = Some(resource.to_string());
+    request
+}
+
+#[test]
+fn dregg_authority_snapshot_adapter_accepts_controlled_resource_with_redacted_summary() {
+    let adapter = DreggAuthoritySnapshotEvidenceAdapter::new(
+        david_lab_snapshot(),
+        [david_lab_snapshot_fixture()],
+        VALIDATION_TIME,
+    );
+
+    let EvidenceResult::Satisfied(summary) = adapter.verify(&david_lab_snapshot_request(
+        "resource://david-lab/demo-agent",
+    )) else {
+        panic!("snapshot authority should satisfy dregg_authority for the controlled resource");
+    };
+
+    assert_eq!(summary.kind, EvidenceKind::DreggAuthority);
+    assert_eq!(summary.subject, "did:example:david-lab");
+    assert_eq!(
+        summary.resource.as_deref(),
+        Some("resource://david-lab/demo-agent")
+    );
+    assert!(
+        !summary.public_proof,
+        "fixture snapshots are receiver-held local authority, not public proof"
+    );
+    for expected in [
+        "admission:admitted",
+        "authority_class:dregg_authority_snapshot",
+        "snapshot_schema:secs-dregg-authority-snapshot-v1",
+        "entity_id:did:example:david-lab",
+        "namespace_id:castalia-demo:david-lab",
+        "authority_mode:fixture_snapshot",
+        "matched_resource_scope:resource://david-lab/*",
+        "resource_lock:verified",
+    ] {
+        assert!(
+            summary.summary_fields.iter().any(|field| field == expected),
+            "missing summary field {expected}"
+        );
+    }
+    assert!(summary.summary_fields.iter().all(|field| {
+        !field.contains("private") && !field.contains("bearer") && !field.contains("token:")
+    }));
+}
+
+#[test]
+fn dregg_authority_snapshot_adapter_fails_closed_for_wrong_resource_missing_ref_and_stale_snapshot()
+{
+    let adapter = DreggAuthoritySnapshotEvidenceAdapter::new(
+        david_lab_snapshot(),
+        [david_lab_snapshot_fixture()],
+        VALIDATION_TIME,
+    );
+
+    assert_eq!(
+        adapter.verify(&david_lab_snapshot_request("resource://david-lab/unknown")),
+        EvidenceResult::Rejected(VerificationError::WrongResource)
+    );
+
+    let mut missing = david_lab_snapshot_request("resource://david-lab/demo-agent");
+    missing.evidence_refs = vec!["dregg-authority-snapshot:fixture:missing".to_string()];
+    assert_eq!(
+        adapter.verify(&missing),
+        EvidenceResult::Rejected(VerificationError::InsufficientEvidence)
+    );
+
+    let stale_adapter = DreggAuthoritySnapshotEvidenceAdapter::new(
+        david_lab_snapshot(),
+        [david_lab_snapshot_fixture()],
+        1777776001,
+    );
+    assert_eq!(
+        stale_adapter.verify(&david_lab_snapshot_request(
+            "resource://david-lab/demo-agent"
+        )),
+        EvidenceResult::Rejected(VerificationError::Stale)
+    );
+}
+
+#[test]
+fn dregg_authority_snapshot_adapter_rejects_spoofed_entity_and_caller_declared_resource() {
+    let adapter = DreggAuthoritySnapshotEvidenceAdapter::new(
+        david_lab_snapshot(),
+        [david_lab_snapshot_fixture()],
+        VALIDATION_TIME,
+    );
+
+    let mut spoofed = david_lab_snapshot_request("resource://david-lab/demo-agent");
+    spoofed.subject = "did:example:attacker".to_string();
+    assert_eq!(
+        adapter.verify(&spoofed),
+        EvidenceResult::Rejected(VerificationError::WrongSubject)
+    );
+
+    let mut untrusted_resource = david_lab_snapshot_request("resource://david-lab/demo-agent");
+    untrusted_resource.trusted_requested_resource = None;
+    untrusted_resource
+        .public_inputs
+        .push("requested_resource:resource://david-lab/demo-agent".to_string());
+    assert_eq!(
+        adapter.verify(&untrusted_resource),
+        EvidenceResult::Rejected(VerificationError::AuthorityAmplification),
+        "caller-declared public inputs must not create a trusted resource binding"
+    );
+}
+
+#[test]
+fn dregg_authority_snapshot_adapter_rejects_revoked_issuer_and_wrong_namespace() {
+    let mut revoked = david_lab_snapshot();
+    revoked.issuers[0].status = DreggAuthorityStatus::Revoked;
+    let revoked_adapter = DreggAuthoritySnapshotEvidenceAdapter::new(
+        revoked,
+        [david_lab_snapshot_fixture()],
+        VALIDATION_TIME,
+    );
+    assert_eq!(
+        revoked_adapter.verify(&david_lab_snapshot_request(
+            "resource://david-lab/demo-agent"
+        )),
+        EvidenceResult::Rejected(VerificationError::Revoked)
+    );
+
+    let mut wrong_namespace = david_lab_snapshot_fixture();
+    wrong_namespace.namespace_id = "castalia-demo:other".to_string();
+    let wrong_namespace_adapter = DreggAuthoritySnapshotEvidenceAdapter::new(
+        david_lab_snapshot(),
+        [wrong_namespace],
+        VALIDATION_TIME,
+    );
+    assert_eq!(
+        wrong_namespace_adapter.verify(&david_lab_snapshot_request(
+            "resource://david-lab/demo-agent"
+        )),
+        EvidenceResult::Rejected(VerificationError::WrongBinding)
     );
 }

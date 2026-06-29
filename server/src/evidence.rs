@@ -7,6 +7,7 @@
 use crate::dregg_authority::{
     DreggAuthorityFinalityMode, DreggAuthorityFinalityStatus, DreggAuthorityLookup,
     DreggAuthorityRegistry, DreggAuthorityRevocationStatus, DreggAuthorityRevocationVerifierMode,
+    DreggAuthoritySnapshot, DreggAuthoritySnapshotLookup,
 };
 use crate::manifest::OperationDescriptor;
 use crate::verifier::VerificationError;
@@ -2037,6 +2038,104 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                         | DreggAuthorityFinalityMode::RotatedReplayRequired
                 ),
             summary_fields,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggAuthoritySnapshotEvidenceFixture {
+    pub evidence_ref: String,
+    pub entity_id: String,
+    pub namespace_id: String,
+    pub issuer_id: String,
+    pub trust_root_ref: String,
+    pub authority_root_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggAuthoritySnapshotEvidenceAdapter {
+    snapshot: DreggAuthoritySnapshot,
+    fixtures: Vec<DreggAuthoritySnapshotEvidenceFixture>,
+    validation_time: u64,
+}
+
+impl DreggAuthoritySnapshotEvidenceAdapter {
+    pub fn new(
+        snapshot: DreggAuthoritySnapshot,
+        fixtures: impl IntoIterator<Item = DreggAuthoritySnapshotEvidenceFixture>,
+        validation_time: u64,
+    ) -> Self {
+        Self {
+            snapshot,
+            fixtures: fixtures.into_iter().collect(),
+            validation_time,
+        }
+    }
+}
+
+impl EvidenceAdapter for DreggAuthoritySnapshotEvidenceAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::DreggAuthority
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        if !request.accepts(self.kind()) {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        }
+        let Some((evidence_ref, fixture)) = request.evidence_refs.iter().find_map(|evidence_ref| {
+            self.fixtures
+                .iter()
+                .find(|fixture| &fixture.evidence_ref == evidence_ref)
+                .map(|fixture| (evidence_ref, fixture))
+        }) else {
+            return EvidenceResult::Rejected(VerificationError::InsufficientEvidence);
+        };
+        if request.subject != fixture.entity_id {
+            return EvidenceResult::Rejected(VerificationError::WrongSubject);
+        }
+        let Some(resource) = request.trusted_requested_resource.as_deref() else {
+            return EvidenceResult::Rejected(VerificationError::AuthorityAmplification);
+        };
+        let lookup = DreggAuthoritySnapshotLookup {
+            entity_id: fixture.entity_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
+            issuer_id: fixture.issuer_id.clone(),
+            trust_root_ref: fixture.trust_root_ref.clone(),
+            authority_root_ref: fixture.authority_root_ref.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: resource.to_string(),
+            evidence_kind: self.kind().as_str().to_string(),
+            validation_time: self.validation_time,
+        };
+        let decision = match self.snapshot.lookup_entity_resource_authority(&lookup) {
+            Ok(decision) => decision,
+            Err(error) => return EvidenceResult::Rejected(error),
+        };
+
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: self.kind(),
+            subject: request.subject.clone(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: Some(resource.to_string()),
+            local_dev_test_only: false,
+            public_proof: false,
+            summary_fields: vec![
+                "admission:admitted".to_string(),
+                "authority_class:dregg_authority_snapshot".to_string(),
+                format!("snapshot_schema:{}", DreggAuthoritySnapshot::SCHEMA_VERSION),
+                redacted_reference_field("evidence_ref", evidence_ref),
+                format!("entity_id:{}", decision.entity_id),
+                format!("namespace_id:{}", decision.namespace_id),
+                format!("authority_mode:{}", decision.authority_mode),
+                format!("matched_resource_scope:{}", decision.matched_resource_scope),
+                redacted_reference_field("issuer_id", &fixture.issuer_id),
+                redacted_reference_field("trust_root_ref", &fixture.trust_root_ref),
+                redacted_reference_field("authority_root_ref", &fixture.authority_root_ref),
+                redacted_reference_field("requested_resource", resource),
+                "resource_lock:verified".to_string(),
+            ],
         })
     }
 }
