@@ -1,10 +1,10 @@
 //! No-network decision helpers for the `secs-dregg-live-source-client-v1`
 //! contract.
 //!
-//! This module intentionally stops before HTTP/signed-request transport. It
-//! pins request/response/cache semantics so future transport wiring cannot turn
-//! stale, degraded, duplicate, or wrong-binding live source material into
-//! receiver-held authority.
+//! This module intentionally stops before live HTTP transport. It pins
+//! request/response/cache/source-authentication/pre-network HTTP request
+//! semantics so future transport wiring cannot turn stale, degraded, duplicate,
+//! or wrong-binding live source material into receiver-held authority.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
@@ -201,6 +201,37 @@ pub trait DreggLiveSourceTransport {
     ) -> Result<DreggLiveSourceResponse, DreggLiveSourceTransportError>;
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct DreggLiveSourceHttpRequest {
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub body_json: String,
+}
+
+impl fmt::Debug for DreggLiveSourceHttpRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let redacted_headers: Vec<(String, String)> = self
+            .headers
+            .iter()
+            .map(|(name, value)| {
+                if name.eq_ignore_ascii_case("authorization") {
+                    (name.clone(), "<redacted>".to_string())
+                } else {
+                    (name.clone(), value.clone())
+                }
+            })
+            .collect();
+        formatter
+            .debug_struct("DreggLiveSourceHttpRequest")
+            .field("method", &self.method)
+            .field("url", &self.url)
+            .field("headers", &redacted_headers)
+            .field("body_json", &self.body_json)
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DreggLiveSourceClientError {
     UnsupportedContractVersion,
@@ -209,6 +240,7 @@ pub enum DreggLiveSourceClientError {
     TransportDisabled,
     MissingAuthMaterial,
     MissingSourceTrust,
+    InsecureSourceUrl,
     TransportTimeout,
     UnauthorizedSource,
     WrongBinding,
@@ -218,6 +250,101 @@ pub enum DreggLiveSourceClientError {
     UnredactedSummary,
     FutureStatus,
     StaleStatus,
+}
+
+pub fn build_live_source_http_request(
+    source_url: &str,
+    request: &DreggLiveSourceRequest,
+    auth: &DreggLiveSourceAuthMaterial,
+) -> Result<DreggLiveSourceHttpRequest, DreggLiveSourceClientError> {
+    let url = normalize_live_source_lookup_url(source_url)?;
+    let body_json = serde_json::to_string(request)
+        .map_err(|_| DreggLiveSourceClientError::MalformedResponse)?;
+    Ok(DreggLiveSourceHttpRequest {
+        method: "POST".to_string(),
+        url,
+        headers: vec![
+            (
+                "authorization".to_string(),
+                format!("Bearer {}", auth.bearer_token()),
+            ),
+            ("content-type".to_string(), "application/json".to_string()),
+            (
+                "x-secs-contract".to_string(),
+                DREGG_LIVE_SOURCE_CONTRACT_VERSION.to_string(),
+            ),
+        ],
+        body_json,
+    })
+}
+
+fn normalize_live_source_lookup_url(
+    source_url: &str,
+) -> Result<String, DreggLiveSourceClientError> {
+    if source_url
+        .chars()
+        .any(|character| character.is_control() || character.is_whitespace())
+    {
+        return Err(DreggLiveSourceClientError::InsecureSourceUrl);
+    }
+    if !source_url.starts_with("https://") {
+        return Err(DreggLiveSourceClientError::InsecureSourceUrl);
+    }
+
+    let after_scheme = &source_url["https://".len()..];
+    let authority_end = after_scheme
+        .find(['/', '?', '#'])
+        .unwrap_or(after_scheme.len());
+    let authority = &after_scheme[..authority_end];
+    if authority.is_empty() || authority.contains('@') {
+        return Err(DreggLiveSourceClientError::InsecureSourceUrl);
+    }
+    if let Some((_, query_and_fragment)) = source_url.split_once('?') {
+        let query = query_and_fragment
+            .split('#')
+            .next()
+            .unwrap_or(query_and_fragment);
+        if query.split('&').any(query_key_is_secret_bearing) {
+            return Err(DreggLiveSourceClientError::InsecureSourceUrl);
+        }
+    }
+    let without_fragment = source_url.split('#').next().unwrap_or(source_url);
+    let without_query = without_fragment
+        .split('?')
+        .next()
+        .unwrap_or(without_fragment);
+    let base = without_query.trim_end_matches('/');
+    Ok(format!("{base}/lookup"))
+}
+
+fn query_key_is_secret_bearing(pair: &str) -> bool {
+    let key = pair
+        .split_once('=')
+        .map(|(key, _)| key)
+        .unwrap_or(pair)
+        .to_ascii_lowercase()
+        .replace("%5f", "_")
+        .replace("%2d", "-");
+    let compact_key: String = key
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect();
+    [
+        "token",
+        "secret",
+        "password",
+        "auth",
+        "authorization",
+        "bearer",
+        "signature",
+        "sig",
+        "jwt",
+        "credential",
+        "apikey",
+    ]
+    .iter()
+    .any(|needle| compact_key.contains(needle))
+        || matches!(key.as_str(), "key")
 }
 
 pub fn load_live_source_auth_token(
@@ -238,7 +365,7 @@ pub fn load_live_source_auth_token(
     let token = std::fs::read_to_string(path)
         .map_err(|_| DreggLiveSourceClientError::MissingAuthMaterial)?;
     let token = token.trim().to_string();
-    if token.is_empty() {
+    if token.is_empty() || token.chars().any(|character| character.is_control()) {
         return Err(DreggLiveSourceClientError::MissingAuthMaterial);
     }
     Ok(DreggLiveSourceAuthMaterial { token })

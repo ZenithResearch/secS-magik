@@ -1,11 +1,11 @@
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use server::dregg_live_source::{
-    cache_entry_is_fresh_for_request, execute_live_source_lookup, load_live_source_auth_token,
-    should_replace_cache_entry, validate_live_source_response, DreggLiveSourceAuthMaterial,
-    DreggLiveSourceCacheEntry, DreggLiveSourceClientError, DreggLiveSourceDuplicatePolicy,
-    DreggLiveSourceLookupPolicy, DreggLiveSourceRequest, DreggLiveSourceResponse,
-    DreggLiveSourceStatus, DreggLiveSourceTransport, DreggLiveSourceTransportError,
-    DreggLiveSourceTrustedKey, DREGG_LIVE_SOURCE_CONTRACT_VERSION,
+    build_live_source_http_request, cache_entry_is_fresh_for_request, execute_live_source_lookup,
+    load_live_source_auth_token, should_replace_cache_entry, validate_live_source_response,
+    DreggLiveSourceAuthMaterial, DreggLiveSourceCacheEntry, DreggLiveSourceClientError,
+    DreggLiveSourceDuplicatePolicy, DreggLiveSourceLookupPolicy, DreggLiveSourceRequest,
+    DreggLiveSourceResponse, DreggLiveSourceStatus, DreggLiveSourceTransport,
+    DreggLiveSourceTransportError, DreggLiveSourceTrustedKey, DREGG_LIVE_SOURCE_CONTRACT_VERSION,
 };
 use std::collections::VecDeque;
 use std::path::Path;
@@ -135,6 +135,91 @@ fn auth_material(name: &str) -> DreggLiveSourceAuthMaterial {
     let auth = load_live_source_auth_token(Path::new(&path)).unwrap();
     let _ = std::fs::remove_file(&path);
     auth
+}
+
+#[test]
+fn live_source_http_request_builder_serializes_signed_no_network_contract() {
+    let auth = auth_material("http-request-builder");
+
+    let http_request = build_live_source_http_request(
+        "https://dregg.example.test/api/v1/authority?ignored=true#fragment",
+        &request(),
+        &auth,
+    )
+    .expect("valid HTTPS base URL should build a deterministic no-network HTTP request");
+
+    assert_eq!(http_request.method, "POST");
+    assert_eq!(
+        http_request.url,
+        "https://dregg.example.test/api/v1/authority/lookup"
+    );
+    assert_eq!(
+        http_request.headers,
+        vec![
+            (
+                "authorization".to_string(),
+                "Bearer live-secret-token".to_string()
+            ),
+            ("content-type".to_string(), "application/json".to_string()),
+            (
+                "x-secs-contract".to_string(),
+                DREGG_LIVE_SOURCE_CONTRACT_VERSION.to_string()
+            ),
+        ]
+    );
+    assert!(http_request
+        .body_json
+        .contains("\"request_nonce\":\"nonce-1\""));
+    assert!(http_request
+        .body_json
+        .contains("\"receiver_audience\":\"secS://operator-receiver\""));
+    assert!(!http_request.body_json.contains("live-secret-token"));
+    assert!(!format!("{http_request:?}").contains("live-secret-token"));
+}
+
+#[test]
+fn live_source_http_request_builder_rejects_non_https_or_secret_bearing_urls() {
+    let auth = auth_material("http-request-builder-rejects");
+
+    for source_url in [
+        "http://dregg.example.test/api",
+        "https://user:secret@dregg.example.test/api",
+        "https://dregg.example.test/api?token=secret",
+        "https://dregg.example.test/api?api_key=secret",
+        "https://dregg.example.test/api?client_secret=secret",
+        "https://dregg.example.test/api?refresh_token=secret",
+        "https://dregg.example.test/api?x-api-key=secret",
+        "https://dregg.example.test/api?api%5Fkey=secret",
+        "https://dregg.example.test/api?password=secret",
+        "https://dregg.example.test/api?signature=secret",
+        " https://dregg.example.test/api",
+        "https://dregg.example.test/api\r\nX-Injected: yes",
+    ] {
+        assert_eq!(
+            build_live_source_http_request(source_url, &request(), &auth),
+            Err(DreggLiveSourceClientError::InsecureSourceUrl),
+            "source URL should fail closed: {source_url:?}"
+        );
+    }
+}
+
+#[test]
+fn live_source_auth_material_rejects_header_control_characters() {
+    let newline = token_path("newline-auth-material");
+    write_owner_private_token(&newline, "live-secret-token\nX-Injected: yes\n");
+    assert_eq!(
+        load_live_source_auth_token(Path::new(&newline)),
+        Err(DreggLiveSourceClientError::MissingAuthMaterial)
+    );
+    let _ = std::fs::remove_file(&newline);
+
+    let carriage_return = token_path("carriage-return-auth-material");
+    write_owner_private_token(&carriage_return, "live-secret-token\rX-Injected: yes\n");
+    assert_eq!(
+        load_live_source_auth_token(Path::new(&carriage_return)),
+        Err(DreggLiveSourceClientError::MissingAuthMaterial)
+    );
+    let _ = std::fs::remove_file(&carriage_return);
 }
 
 #[test]
