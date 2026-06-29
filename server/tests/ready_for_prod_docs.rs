@@ -10,6 +10,8 @@ const CHANGELOG: &str = include_str!("../../CHANGELOG.md");
 const SPECS_README: &str = include_str!("../../docs/specs/README.md");
 const DOCS_README: &str = include_str!("../../docs/README.md");
 const DREGG_AUTHORITY_SPEC: &str = include_str!("../../docs/specs/dregg-authority-rail.md");
+const DREGG_LIVE_SOURCE_CONTRACT: &str =
+    include_str!("../../docs/specs/dregg-live-source-client-contract.md");
 const PRODUCTION_DEPLOYMENT_PROOF: &str =
     include_str!("../../docs/ops/production-deployment-proof.md");
 
@@ -21,6 +23,57 @@ fn detailed_track_h_section() -> &'static str {
         .split("### Track I — first production-shaped membership-provisioning E2E")
         .next()
         .expect("Track H section should be bounded by Track I")
+}
+
+#[test]
+fn live_dregg_source_client_contract_is_defined_before_runtime_implementation() {
+    for required in [
+        "Live Castalia Dregg source/client contract (#206)",
+        "secs-dregg-live-source-client-v1",
+        "request fields",
+        "response fields",
+        "authentication",
+        "freshness/status semantics",
+        "timeout/retry/cache policy",
+        "fail closed",
+        "DreggAuthoritySnapshot",
+        "production_verified",
+        "SECS_DREGG_LIVE_SOURCE_URL",
+        "SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH",
+        "live source outage",
+        "malformed response",
+        "stale response",
+        "wrong entity/namespace/resource",
+        "wrong root",
+        "revoked/inactive issuer/resource",
+        "duplicate issuer/resource",
+        "no fixture fallback",
+        "not a full Dregg node",
+        "not production deployment proof",
+    ] {
+        assert!(
+            DREGG_LIVE_SOURCE_CONTRACT.contains(required),
+            "#206 live Dregg source contract should define: {required}"
+        );
+    }
+
+    assert!(
+        DREGG_AUTHORITY_SPEC.contains("live Castalia Dregg authority source/client (#206)")
+            && DREGG_AUTHORITY_SPEC.contains("docs/specs/dregg-live-source-client-contract.md"),
+        "Dregg authority rail should link #206 without treating it as already implemented"
+    );
+
+    for forbidden in [
+        "secS-magik is the Castalia registry",
+        "every Hub must run a full Dregg node",
+        "fixture fallback in production_verified",
+        "live Dregg finality is implemented by #206",
+    ] {
+        assert!(
+            !DREGG_LIVE_SOURCE_CONTRACT.contains(forbidden),
+            "#206 contract must not overclaim: {forbidden}"
+        );
+    }
 }
 
 #[test]
