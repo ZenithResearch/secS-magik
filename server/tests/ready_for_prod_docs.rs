@@ -10,6 +10,8 @@ const CHANGELOG: &str = include_str!("../../CHANGELOG.md");
 const SPECS_README: &str = include_str!("../../docs/specs/README.md");
 const DOCS_README: &str = include_str!("../../docs/README.md");
 const DREGG_AUTHORITY_SPEC: &str = include_str!("../../docs/specs/dregg-authority-rail.md");
+const PRODUCTION_DEPLOYMENT_PROOF: &str =
+    include_str!("../../docs/ops/production-deployment-proof.md");
 
 fn detailed_track_h_section() -> &'static str {
     READY_FOR_PROD_CHECKLIST
@@ -19,6 +21,46 @@ fn detailed_track_h_section() -> &'static str {
         .split("### Track I — first production-shaped membership-provisioning E2E")
         .next()
         .expect("Track H section should be bounded by Track I")
+}
+
+#[test]
+fn production_deployment_proof_docs_define_profile_without_local_smoke_overclaim() {
+    for required in [
+        "Production deployment proof profile (#33)",
+        "secs-gateway-production-v1",
+        "artifact/source version",
+        "config source",
+        "service manager/host target",
+        "health/readiness check",
+        "rollback",
+        "no-secret handling",
+        "source build",
+        "local smoke",
+        "deployed runtime",
+        "production authority",
+        "scripts/production-gateway-smoke.sh is fixture-only local smoke",
+    ] {
+        assert!(
+            PRODUCTION_DEPLOYMENT_PROOF.contains(required)
+                || IMPLEMENTATION_STATUS.contains(required)
+                || DOCS_README.contains(required),
+            "#33 docs should define deployment proof term: {required}"
+        );
+    }
+
+    for forbidden in [
+        "scripts/production-gateway-smoke.sh proves deployed production",
+        "fixture-only local smoke is production deployment",
+        "local production-shaped smoke is deployed runtime",
+    ] {
+        assert!(
+            !PRODUCTION_DEPLOYMENT_PROOF.contains(forbidden)
+                && !README.contains(forbidden)
+                && !SERVER_README.contains(forbidden)
+                && !IMPLEMENTATION_STATUS.contains(forbidden),
+            "docs must not overclaim #33 local smoke boundary: {forbidden}"
+        );
+    }
 }
 
 #[test]

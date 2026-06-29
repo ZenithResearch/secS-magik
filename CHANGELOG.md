@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- #33: added `docs/ops/production-deployment-proof.md` and docs-contract coverage for the `secs-gateway-production-v1` deployment proof profile, so local fixture-only smoke remains distinct from future deployed-runtime/production-authority claims.
 - #200: wired Tier 1 Dregg authority snapshots into the evidence authorization seam with `DreggAuthoritySnapshotEvidenceAdapter`, which maps verifier-trusted subject/resource context into `DreggAuthoritySnapshotLookup`, emits redaction-safe `dregg_authority` summaries, rejects wrong-resource/missing/stale/revoked/wrong-namespace/spoofed-subject/caller-declared-resource cases fail-closed, and keeps the existing M15 registry/grant adapter distinct.
 - #199: added the file-backed `dregg_authority_snapshot` authority source/readiness seam: `FileDreggAuthoritySnapshotSource`, strict source/cache fail-closed behavior, `SECS_DREGG_AUTHORITY_SNAPSHOT_PATH`, and production startup/readiness validation when `SECS_ALLOWED_EVIDENCE_ADAPTERS` enables `dregg_authority_snapshot`; no HTTP/live Dregg API claim is introduced.
 - #198: hardened `secs-dregg-authority-snapshot-v1` validation for the local Dregg-shaped authority snapshot seam: unsupported authority modes, duplicate issuer key IDs, duplicate resources, missing required vectors, wrong trust roots, and wrong authority roots now fail closed before a snapshot can act as receiver-held trust input.

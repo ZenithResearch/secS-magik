@@ -25,6 +25,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | Where should code live? | [repository-schema.md](repository-schema.md) |
 | What is client vs verifier? | [client-surfaces.md](client-surfaces.md) |
 | What is the current production-readiness plan? | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) |
+| What proof packet is required before deployed-production claims? | [ops/production-deployment-proof.md](ops/production-deployment-proof.md) |
 | What is the Track E local phase status? | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) |
 | What was the original issue-slice sequence? | [plans/2026-06-01-secs-magik-implementation-issue-slices.md](plans/2026-06-01-secs-magik-implementation-issue-slices.md) |
 | What is public-language draft material? | [announcement-thread.md](announcement-thread.md) |
@@ -38,6 +39,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | [client-surfaces.md](client-surfaces.md) | Current boundary doc | Client-side local Hermes/secC/secZ packet-construction boundary. |
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Architecture/objectives spec. Check status ledger before treating target behavior as implemented. |
 | [specs/dregg-authority-rail.md](specs/dregg-authority-rail.md) | Current M15.1 spec | Dregg authority rail spec for `dregg_authority`; #137 rewrote #73 acceptance, M15.2–M15.6 now provide a bounded static receiver-held policy-admission/operator-inspection seam, and #144/M15.8 reconciles the bounded #73 finalizer after #160 implements bounded Dregg-provisioned resource locks; #169 is the trusted requested-authority attenuation seam and #159/#162/#167 are landed bounded postures. |
+| [ops/production-deployment-proof.md](ops/production-deployment-proof.md) | Planned / contract-only | Production deployment proof profile (#33) defining the `secs-gateway-production-v1` deployment evidence packet; it keeps `scripts/production-gateway-smoke.sh` scoped as fixture-only local smoke until an operator deployment is actually evidenced. |
 | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) | Current control surface | Ready-for-prod track checklist and completion checkpoints through the current implementation train. |
 | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E trusted issuer/root policy implementation spec; Track E is complete on `main` after PR #69. |
 | [issues/secs-magik-phases/track-i-production-membership-provision-e2e.md](issues/secs-magik-phases/track-i-production-membership-provision-e2e.md) | Local phase spec/status | Track I local production-shaped `membership.provision` E2E spec; complete on `main` after PR #76 / post-merge CI run 27071532041. |
@@ -47,6 +49,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | Directory | README | Owns |
 |---|---|---|
 | `specs/` | [specs/README.md](specs/README.md) | Architecture/objective specifications. |
+| `ops/` | [ops/production-deployment-proof.md](ops/production-deployment-proof.md) | Operator-facing proof/runbook contracts for deployment claims. |
 | `plans/` | [plans/README.md](plans/README.md) | Plans, checklists, issue-slice history, and phase controls. |
 
 The root repository also has child READMEs for [../core/](../core/README.md), [../client/](../client/README.md), [../server/](../server/README.md), [../examples/](../examples/README.md), and [../scripts/](../scripts/README.md).
