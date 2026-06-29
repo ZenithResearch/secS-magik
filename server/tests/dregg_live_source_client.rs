@@ -1,10 +1,11 @@
+use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use server::dregg_live_source::{
     cache_entry_is_fresh_for_request, execute_live_source_lookup, load_live_source_auth_token,
     should_replace_cache_entry, validate_live_source_response, DreggLiveSourceAuthMaterial,
     DreggLiveSourceCacheEntry, DreggLiveSourceClientError, DreggLiveSourceDuplicatePolicy,
     DreggLiveSourceLookupPolicy, DreggLiveSourceRequest, DreggLiveSourceResponse,
     DreggLiveSourceStatus, DreggLiveSourceTransport, DreggLiveSourceTransportError,
-    DREGG_LIVE_SOURCE_CONTRACT_VERSION,
+    DreggLiveSourceTrustedKey, DREGG_LIVE_SOURCE_CONTRACT_VERSION,
 };
 use std::collections::VecDeque;
 use std::path::Path;
@@ -32,6 +33,7 @@ fn response() -> DreggLiveSourceResponse {
     DreggLiveSourceResponse {
         contract_version: DREGG_LIVE_SOURCE_CONTRACT_VERSION.to_string(),
         source_id: "dregg-source:operator".to_string(),
+        source_key_id: "dregg-source-key:1".to_string(),
         source_status: DreggLiveSourceStatus::Active,
         entity_ref: "castalia:entity:example".to_string(),
         resource_ref: "application/json".to_string(),
@@ -48,7 +50,36 @@ fn response() -> DreggLiveSourceResponse {
         snapshot_generation: "generation:42".to_string(),
         duplicate_policy: DreggLiveSourceDuplicatePolicy::Unique,
         redacted_summary: "source=dregg-source:operator root=root:sha256:fixture".to_string(),
+        response_signature: Vec::new(),
     }
+}
+
+fn source_signing_key() -> SigningKey {
+    SigningKey::from_bytes(&[7_u8; 32])
+}
+
+fn source_trusted_key() -> DreggLiveSourceTrustedKey {
+    DreggLiveSourceTrustedKey::active(
+        "dregg-source:operator",
+        "dregg-source-key:1",
+        VerifyingKey::from(&source_signing_key()),
+    )
+}
+
+fn signed_response() -> DreggLiveSourceResponse {
+    sign_response_for_request(&request(), response())
+}
+
+fn sign_response_for_request(
+    request: &DreggLiveSourceRequest,
+    mut response: DreggLiveSourceResponse,
+) -> DreggLiveSourceResponse {
+    let signature_payload = response.signature_payload(request);
+    response.response_signature = source_signing_key()
+        .sign(&signature_payload)
+        .to_bytes()
+        .to_vec();
+    response
 }
 
 struct FixtureTransport {
@@ -108,8 +139,13 @@ fn auth_material(name: &str) -> DreggLiveSourceAuthMaterial {
 
 #[test]
 fn live_source_response_must_match_request_binding_and_freshness() {
-    let decision = validate_live_source_response(&request(), &response(), 300)
-        .expect("active matching response should validate");
+    let decision = validate_live_source_response(
+        &request(),
+        &signed_response(),
+        300,
+        Some(&source_trusted_key()),
+    )
+    .expect("active matching response should validate");
 
     assert_eq!(decision.source_id, "dregg-source:operator");
     assert_eq!(decision.cache_generation, "generation:42");
@@ -120,32 +156,99 @@ fn live_source_response_must_match_request_binding_and_freshness() {
 }
 
 #[test]
+fn live_source_response_signature_binds_nonce_contract_audience_operation_resource_and_subject() {
+    let trusted_key = source_trusted_key();
+    let signed = signed_response();
+
+    validate_live_source_response(&request(), &signed, 300, Some(&trusted_key))
+        .expect("matching trusted source signature should verify");
+    assert_eq!(
+        validate_live_source_response(&request(), &signed, 300, None),
+        Err(DreggLiveSourceClientError::MissingSourceTrust)
+    );
+
+    let mut bad_signature = signed.clone();
+    bad_signature.response_signature[0] ^= 0x01;
+    assert_eq!(
+        validate_live_source_response(&request(), &bad_signature, 300, Some(&trusted_key)),
+        Err(DreggLiveSourceClientError::UnauthorizedSource)
+    );
+
+    let mut tampered_nonce = request();
+    tampered_nonce.request_nonce = "nonce-2".to_string();
+    assert_eq!(
+        validate_live_source_response(&tampered_nonce, &signed, 300, Some(&trusted_key)),
+        Err(DreggLiveSourceClientError::UnauthorizedSource)
+    );
+
+    let mut tampered_subject = request();
+    tampered_subject.subject = "did:example:bob".to_string();
+    assert_eq!(
+        validate_live_source_response(&tampered_subject, &signed, 300, Some(&trusted_key)),
+        Err(DreggLiveSourceClientError::UnauthorizedSource)
+    );
+
+    let wrong_key = DreggLiveSourceTrustedKey::active(
+        "dregg-source:operator",
+        "dregg-source-key:other",
+        VerifyingKey::from(&SigningKey::from_bytes(&[8_u8; 32])),
+    );
+    assert_eq!(
+        validate_live_source_response(&request(), &signed, 300, Some(&wrong_key)),
+        Err(DreggLiveSourceClientError::UnauthorizedSource)
+    );
+}
+
+#[test]
 fn live_source_response_rejects_wrong_contract_wrong_binding_and_status() {
     let mut wrong_contract = response();
     wrong_contract.contract_version = "secs-dregg-live-source-client-v0".to_string();
     assert_eq!(
-        validate_live_source_response(&request(), &wrong_contract, 300),
+        validate_live_source_response(
+            &request(),
+            &wrong_contract,
+            300,
+            Some(&source_trusted_key())
+        ),
         Err(DreggLiveSourceClientError::UnsupportedContractVersion)
     );
 
     let mut wrong_resource = response();
     wrong_resource.resource_ref = "text/plain".to_string();
+    let wrong_resource = sign_response_for_request(&request(), wrong_resource);
     assert_eq!(
-        validate_live_source_response(&request(), &wrong_resource, 300),
+        validate_live_source_response(
+            &request(),
+            &wrong_resource,
+            300,
+            Some(&source_trusted_key())
+        ),
         Err(DreggLiveSourceClientError::WrongBinding)
     );
 
     let mut degraded_source = response();
     degraded_source.source_status = DreggLiveSourceStatus::Degraded;
+    let degraded_source = sign_response_for_request(&request(), degraded_source);
     assert_eq!(
-        validate_live_source_response(&request(), &degraded_source, 300),
+        validate_live_source_response(
+            &request(),
+            &degraded_source,
+            300,
+            Some(&source_trusted_key())
+        ),
         Err(DreggLiveSourceClientError::SourceUnavailable)
     );
 
     let mut duplicate_conflict = response();
     duplicate_conflict.duplicate_policy = DreggLiveSourceDuplicatePolicy::Conflict;
+    let duplicate_conflict = sign_response_for_request(&request(), duplicate_conflict);
     assert_eq!(
-        validate_live_source_response(&request(), &duplicate_conflict, 300),
+        validate_live_source_response(
+            &request(),
+            &duplicate_conflict,
+            300,
+            Some(&source_trusted_key())
+        ),
         Err(DreggLiveSourceClientError::DuplicateAuthorityConflict)
     );
 }
@@ -154,22 +257,25 @@ fn live_source_response_rejects_wrong_contract_wrong_binding_and_status() {
 fn live_source_response_rejects_stale_future_or_invalid_windows() {
     let mut stale = response();
     stale.status_observed_at = NOW - 301;
+    let stale = sign_response_for_request(&request(), stale);
     assert_eq!(
-        validate_live_source_response(&request(), &stale, 300),
+        validate_live_source_response(&request(), &stale, 300, Some(&source_trusted_key())),
         Err(DreggLiveSourceClientError::StaleStatus)
     );
 
     let mut future = response();
     future.status_observed_at = NOW + 1;
+    let future = sign_response_for_request(&request(), future);
     assert_eq!(
-        validate_live_source_response(&request(), &future, 300),
+        validate_live_source_response(&request(), &future, 300, Some(&source_trusted_key())),
         Err(DreggLiveSourceClientError::FutureStatus)
     );
 
     let mut expired = response();
     expired.valid_until = NOW - 1;
+    let expired = sign_response_for_request(&request(), expired);
     assert_eq!(
-        validate_live_source_response(&request(), &expired, 300),
+        validate_live_source_response(&request(), &expired, 300, Some(&source_trusted_key())),
         Err(DreggLiveSourceClientError::StaleStatus)
     );
 }
@@ -179,7 +285,12 @@ fn live_source_response_rejects_malformed_or_unredacted_operator_summary() {
     let mut missing_source_id = response();
     missing_source_id.source_id = "".to_string();
     assert_eq!(
-        validate_live_source_response(&request(), &missing_source_id, 300),
+        validate_live_source_response(
+            &request(),
+            &missing_source_id,
+            300,
+            Some(&source_trusted_key())
+        ),
         Err(DreggLiveSourceClientError::MalformedResponse)
     );
 
@@ -187,14 +298,19 @@ fn live_source_response_rejects_malformed_or_unredacted_operator_summary() {
     invalid_window.valid_from = NOW + 10;
     invalid_window.valid_until = NOW + 10;
     assert_eq!(
-        validate_live_source_response(&request(), &invalid_window, 300),
+        validate_live_source_response(
+            &request(),
+            &invalid_window,
+            300,
+            Some(&source_trusted_key())
+        ),
         Err(DreggLiveSourceClientError::MalformedResponse)
     );
 
     let mut unredacted = response();
     unredacted.redacted_summary = "Authorization: Bearer live-source-secret".to_string();
     assert_eq!(
-        validate_live_source_response(&request(), &unredacted, 300),
+        validate_live_source_response(&request(), &unredacted, 300, Some(&source_trusted_key())),
         Err(DreggLiveSourceClientError::UnredactedSummary)
     );
 }
@@ -224,27 +340,74 @@ fn cache_reuse_requires_same_binding_and_fresh_ttl() {
 fn cache_replacement_prefers_newer_observed_status_or_generation() {
     let old_entry = DreggLiveSourceCacheEntry {
         request: request(),
-        response: response(),
+        response: signed_response(),
         cached_at: NOW - 20,
     };
+    let trusted_key = source_trusted_key();
+    let mut candidate_request = request();
+    candidate_request.request_nonce = "nonce-2".to_string();
     let mut newer = response();
     newer.status_observed_at = NOW - 10;
-    assert!(should_replace_cache_entry(&old_entry, &newer));
+    let newer = sign_response_for_request(&candidate_request, newer);
+    assert!(should_replace_cache_entry(
+        &old_entry,
+        &candidate_request,
+        &newer,
+        &trusted_key
+    ));
+
+    let mut unsigned_newer = response();
+    unsigned_newer.status_observed_at = NOW - 5;
+    assert!(!should_replace_cache_entry(
+        &old_entry,
+        &candidate_request,
+        &unsigned_newer,
+        &trusted_key
+    ));
+
+    let mut different_subject_request = candidate_request.clone();
+    different_subject_request.subject = "did:example:bob".to_string();
+    let different_subject_response =
+        sign_response_for_request(&different_subject_request, response());
+    assert!(!should_replace_cache_entry(
+        &old_entry,
+        &different_subject_request,
+        &different_subject_response,
+        &trusted_key
+    ));
 
     let mut older = response();
     older.status_observed_at = NOW - 40;
     older.snapshot_generation = "generation:99".to_string();
-    assert!(!should_replace_cache_entry(&old_entry, &older));
+    let older = sign_response_for_request(&candidate_request, older);
+    assert!(!should_replace_cache_entry(
+        &old_entry,
+        &candidate_request,
+        &older,
+        &trusted_key
+    ));
 
     let mut wrong_binding = response();
     wrong_binding.status_observed_at = NOW - 10;
     wrong_binding.resource_ref = "text/plain".to_string();
-    assert!(!should_replace_cache_entry(&old_entry, &wrong_binding));
+    let wrong_binding = sign_response_for_request(&candidate_request, wrong_binding);
+    assert!(!should_replace_cache_entry(
+        &old_entry,
+        &candidate_request,
+        &wrong_binding,
+        &trusted_key
+    ));
 
     let mut duplicate_conflict = response();
     duplicate_conflict.status_observed_at = NOW - 10;
     duplicate_conflict.duplicate_policy = DreggLiveSourceDuplicatePolicy::Conflict;
-    assert!(!should_replace_cache_entry(&old_entry, &duplicate_conflict));
+    let duplicate_conflict = sign_response_for_request(&candidate_request, duplicate_conflict);
+    assert!(!should_replace_cache_entry(
+        &old_entry,
+        &candidate_request,
+        &duplicate_conflict,
+        &trusted_key
+    ));
 }
 
 #[test]
@@ -279,16 +442,23 @@ fn live_source_auth_material_rejects_missing_or_empty_token_files() {
 }
 
 #[test]
-fn live_source_lookup_does_not_call_transport_when_adapter_disabled_or_auth_missing() {
+fn live_source_lookup_does_not_call_transport_when_adapter_disabled_auth_missing_or_trust_missing()
+{
     let policy = DreggLiveSourceLookupPolicy {
         timeout: Duration::from_millis(250),
         retry_max: 2,
         stale_max_seconds: 300,
     };
-    let mut transport = FixtureTransport::new(vec![Ok(response())]);
+    let mut transport = FixtureTransport::new(vec![Ok(signed_response())]);
+    let auth = auth_material("lookup-preflight");
 
-    let disabled_result =
-        execute_live_source_lookup(None::<&mut FixtureTransport>, None, &request(), policy);
+    let disabled_result = execute_live_source_lookup(
+        None::<&mut FixtureTransport>,
+        None,
+        None,
+        &request(),
+        policy,
+    );
     assert_eq!(
         disabled_result,
         Err(DreggLiveSourceClientError::TransportDisabled)
@@ -296,10 +466,18 @@ fn live_source_lookup_does_not_call_transport_when_adapter_disabled_or_auth_miss
     assert_eq!(transport.calls, 0);
 
     let missing_auth_result =
-        execute_live_source_lookup(Some(&mut transport), None, &request(), policy);
+        execute_live_source_lookup(Some(&mut transport), None, None, &request(), policy);
     assert_eq!(
         missing_auth_result,
         Err(DreggLiveSourceClientError::MissingAuthMaterial)
+    );
+    assert_eq!(transport.calls, 0);
+
+    let missing_trust_result =
+        execute_live_source_lookup(Some(&mut transport), Some(&auth), None, &request(), policy);
+    assert_eq!(
+        missing_trust_result,
+        Err(DreggLiveSourceClientError::MissingSourceTrust)
     );
     assert_eq!(transport.calls, 0);
 }
@@ -315,12 +493,17 @@ fn live_source_lookup_retries_transport_timeouts_then_validates_response() {
     let mut transport = FixtureTransport::new(vec![
         Err(DreggLiveSourceTransportError::Timeout),
         Err(DreggLiveSourceTransportError::Timeout),
-        Ok(response()),
+        Ok(signed_response()),
     ]);
 
-    let decision =
-        execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy)
-            .expect("lookup should retry transport timeouts then validate the successful response");
+    let decision = execute_live_source_lookup(
+        Some(&mut transport),
+        Some(&auth),
+        Some(&source_trusted_key()),
+        &request(),
+        policy,
+    )
+    .expect("lookup should retry transport timeouts then validate the successful response");
 
     assert_eq!(decision.source_id, "dregg-source:operator");
     assert_eq!(transport.calls, 3);
@@ -345,7 +528,13 @@ fn live_source_lookup_returns_transport_timeout_after_bounded_retry_exhaustion()
         Err(DreggLiveSourceTransportError::Timeout),
     ]);
 
-    let result = execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy);
+    let result = execute_live_source_lookup(
+        Some(&mut transport),
+        Some(&auth),
+        Some(&source_trusted_key()),
+        &request(),
+        policy,
+    );
 
     assert_eq!(result, Err(DreggLiveSourceClientError::TransportTimeout));
     assert_eq!(transport.calls, 3);
@@ -364,7 +553,13 @@ fn live_source_lookup_does_not_retry_source_unavailable_transport_failure() {
         Ok(response()),
     ]);
 
-    let result = execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy);
+    let result = execute_live_source_lookup(
+        Some(&mut transport),
+        Some(&auth),
+        Some(&source_trusted_key()),
+        &request(),
+        policy,
+    );
 
     assert_eq!(result, Err(DreggLiveSourceClientError::SourceUnavailable));
     assert_eq!(transport.calls, 1);
@@ -382,7 +577,13 @@ fn live_source_lookup_does_not_retry_semantic_rejects() {
     malformed.source_id = "".to_string();
     let mut transport = FixtureTransport::new(vec![Ok(malformed), Ok(response())]);
 
-    let result = execute_live_source_lookup(Some(&mut transport), Some(&auth), &request(), policy);
+    let result = execute_live_source_lookup(
+        Some(&mut transport),
+        Some(&auth),
+        Some(&source_trusted_key()),
+        &request(),
+        policy,
+    );
 
     assert_eq!(result, Err(DreggLiveSourceClientError::MalformedResponse));
     assert_eq!(transport.calls, 1);
