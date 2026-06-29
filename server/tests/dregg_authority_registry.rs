@@ -245,11 +245,26 @@ fn david_lab_lookup() -> DreggAuthoritySnapshotLookup {
         entity_id: "did:example:david-lab".to_string(),
         namespace_id: "castalia-demo:david-lab".to_string(),
         issuer_id: "did:example:david-lab#issuer-1".to_string(),
+        trust_root_ref: "trust-root:david-lab-demo".to_string(),
+        authority_root_ref: "dregg-root:local-demo".to_string(),
         audience: "secS://local-demo".to_string(),
         operation: "resource.provision".to_string(),
         resource: "resource://david-lab/demo-agent".to_string(),
         evidence_kind: "provisioning_credential".to_string(),
         validation_time: 1770000300,
+    }
+}
+
+fn assert_snapshot_invalid(json: String, expected_fragment: &str) {
+    let error = DreggAuthoritySnapshot::from_json_str(&json).unwrap_err();
+    match error {
+        DreggAuthorityRegistryError::InvalidEntry(message) => {
+            assert!(
+                message.contains(expected_fragment),
+                "expected invalid entry containing {expected_fragment:?}, got {message:?}"
+            );
+        }
+        other => panic!("expected invalid entry error, got {other:?}"),
     }
 }
 
@@ -346,5 +361,66 @@ fn dregg_authority_snapshot_rejects_missing_source_and_unknown_issuer() {
             .lookup_entity_resource_authority(&lookup)
             .unwrap_err(),
         VerificationError::UnknownIssuer
+    );
+}
+
+#[test]
+fn dregg_authority_snapshot_rejects_unsupported_schema_mode_and_duplicate_keys() {
+    assert_snapshot_invalid(
+        david_lab_snapshot_json().replace(
+            "\"schema_version\": \"secs-dregg-authority-snapshot-v1\"",
+            "\"schema_version\": \"secs-dregg-authority-snapshot-v2\"",
+        ),
+        "schema_version",
+    );
+
+    assert_snapshot_invalid(
+        david_lab_snapshot_json().replace(
+            "\"authority_mode\": \"fixture_snapshot\"",
+            "\"authority_mode\": \"live_dregg\"",
+        ),
+        "authority_mode",
+    );
+
+    let duplicate_issuer_key = david_lab_snapshot_json().replace(
+        "          \"status_ref\": \"dregg-status:david-lab-issuer-active\"\n        }",
+        "          \"status_ref\": \"dregg-status:david-lab-issuer-active\"\n        },\n        {\n          \"issuer_id\": \"did:example:david-lab#issuer-2\",\n          \"issuer_key_id\": \"pubkey:sha256:david-lab-issuer-1\",\n          \"trust_root_ref\": \"trust-root:david-lab-demo\",\n          \"authority_root_ref\": \"dregg-root:local-demo\",\n          \"accepted_evidence\": [\"provisioning_credential\"],\n          \"accepted_audiences\": [\"secS://local-demo\"],\n          \"accepted_operations\": [\"resource.provision\"],\n          \"accepted_resources\": [\"resource://david-lab/*\"],\n          \"status\": \"active\",\n          \"not_before\": 1770000000,\n          \"not_after\": 1770000600,\n          \"status_ref\": \"dregg-status:david-lab-issuer-2-active\"\n        }",
+    );
+    assert_snapshot_invalid(duplicate_issuer_key, "duplicate Dregg issuer key id");
+}
+
+#[test]
+fn dregg_authority_snapshot_rejects_missing_vectors_duplicate_resources_and_wrong_roots() {
+    assert_snapshot_invalid(
+        david_lab_snapshot_json().replace(
+            "\"accepted_evidence\": [\"membership_credential\", \"provisioning_credential\"]",
+            "\"accepted_evidence\": []",
+        ),
+        "accepted_evidence",
+    );
+
+    let duplicate_resource = david_lab_snapshot_json().replace(
+        "          \"status_ref\": \"dregg-status:david-lab-resource-active\"\n        }",
+        "          \"status_ref\": \"dregg-status:david-lab-resource-active\"\n        },\n        {\n          \"resource_id\": \"resource://david-lab/demo-agent\",\n          \"resource_kind\": \"agent\",\n          \"controller_entity_id\": \"did:example:david-lab\",\n          \"allowed_operations\": [\"resource.provision\"],\n          \"required_evidence\": [\"provisioning_credential\"],\n          \"status\": \"active\",\n          \"status_ref\": \"dregg-status:david-lab-resource-duplicate\"\n        }",
+    );
+    assert_snapshot_invalid(duplicate_resource, "duplicate Dregg resource id");
+
+    let snapshot = DreggAuthoritySnapshot::from_json_str(&david_lab_snapshot_json()).unwrap();
+    let mut lookup = david_lab_lookup();
+    lookup.trust_root_ref = "trust-root:caller-supplied".to_string();
+    assert_eq!(
+        snapshot
+            .lookup_entity_resource_authority(&lookup)
+            .unwrap_err(),
+        VerificationError::WrongTrustRoot
+    );
+
+    let mut lookup = david_lab_lookup();
+    lookup.authority_root_ref = "dregg-root:caller-supplied".to_string();
+    assert_eq!(
+        snapshot
+            .lookup_entity_resource_authority(&lookup)
+            .unwrap_err(),
+        VerificationError::WrongRoot
     );
 }

@@ -50,5 +50,5 @@ PY
 cargo test -p server --test dregg_authority_registry dregg_authority_snapshot -- --nocapture
 
 cat <<'EOF'
-smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, and unknown issuer reject.
+smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revoked, wrong namespace, wrong resource, missing source, unknown issuer, unsupported schema/mode, duplicate issuer key/resource, wrong trust root, and wrong authority root reject.
 EOF

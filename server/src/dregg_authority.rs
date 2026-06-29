@@ -151,6 +151,8 @@ pub struct DreggAuthoritySnapshotLookup {
     pub entity_id: String,
     pub namespace_id: String,
     pub issuer_id: String,
+    pub trust_root_ref: String,
+    pub authority_root_ref: String,
     pub audience: String,
     pub operation: String,
     pub resource: String,
@@ -242,6 +244,12 @@ impl DreggAuthoritySnapshot {
         if issuer.status != DreggAuthorityStatus::Active {
             return Err(VerificationError::Revoked);
         }
+        if issuer.trust_root_ref != lookup.trust_root_ref {
+            return Err(VerificationError::WrongTrustRoot);
+        }
+        if issuer.authority_root_ref != lookup.authority_root_ref {
+            return Err(VerificationError::WrongRoot);
+        }
         if lookup.validation_time < issuer.not_before || lookup.validation_time > issuer.not_after {
             return Err(VerificationError::Stale);
         }
@@ -313,17 +321,42 @@ impl DreggAuthoritySnapshot {
                 "observed_at must be less than expires_at".to_string(),
             ));
         }
+        if self.authority_mode != "fixture_snapshot" {
+            return Err(DreggAuthorityRegistryError::InvalidEntry(
+                "unsupported Dregg authority snapshot authority_mode".to_string(),
+            ));
+        }
         if self.issuers.is_empty() || self.resources.is_empty() {
             return Err(DreggAuthorityRegistryError::InvalidEntry(
                 "authority snapshot requires at least one issuer and one resource".to_string(),
             ));
         }
         let mut issuer_ids = BTreeSet::new();
+        let mut issuer_key_ids = BTreeSet::new();
         for issuer in &self.issuers {
             if !issuer_ids.insert(issuer.issuer_id.clone()) {
                 return Err(DreggAuthorityRegistryError::DuplicateIssuer(
                     issuer.issuer_id.clone(),
                 ));
+            }
+            if !issuer_key_ids.insert(issuer.issuer_key_id.clone()) {
+                return Err(DreggAuthorityRegistryError::InvalidEntry(format!(
+                    "duplicate Dregg issuer key id {:?}",
+                    issuer.issuer_key_id
+                )));
+            }
+            for (field, value) in [
+                ("issuer_id", &issuer.issuer_id),
+                ("issuer_key_id", &issuer.issuer_key_id),
+                ("trust_root_ref", &issuer.trust_root_ref),
+                ("authority_root_ref", &issuer.authority_root_ref),
+                ("status_ref", &issuer.status_ref),
+            ] {
+                if value.trim().is_empty() {
+                    return Err(DreggAuthorityRegistryError::InvalidEntry(format!(
+                        "{field} is required"
+                    )));
+                }
             }
             if issuer.not_before >= issuer.not_after {
                 return Err(DreggAuthorityRegistryError::InvalidEntry(
