@@ -8,7 +8,7 @@ This directory contains repo-local, issue-ready phase specs for secS-magik ready
 |---|---:|---|---|
 | Track E — trusted issuer/root policy | #63 / underlying #35 | [`track-e-trusted-issuer-root-policy.md`](track-e-trusted-issuer-root-policy.md) | complete; PR #69 merged to `main` at `baee35b`, post-merge CI run 27050361282 passed |
 | Track I — production-shaped `membership.provision` E2E | #70 | [`track-i-production-membership-provision-e2e.md`](track-i-production-membership-provision-e2e.md) | complete for local production-shaped E2E; PR #76 merged to `main` at `5e5bb71`, post-merge CI run 27071532041 passed |
-| Tier 1 Dregg authority snapshot smoke | #72/#195 | [`tier-1-dregg-authority-snapshot-smoke.md`](tier-1-dregg-authority-snapshot-smoke.md) | in progress; redaction-safe `scripts/tier-1-dregg-authority-snapshot-smoke.sh` evidence command added for `did:example:david-lab` |
+| Tier 1 Dregg authority snapshot smoke | #72/#195/#198/#199/#200/#201 | [`tier-1-dregg-authority-snapshot-smoke.md`](tier-1-dregg-authority-snapshot-smoke.md) | implemented; #72 bounded fixture snapshot model/source/readiness/evidence seam complete, final closure tracked by #201 |
 
 ## Proposed demoable milestone (M12)
 
@@ -37,7 +37,7 @@ not be used to close the unresolved authority rails #71–#75.
 |---|---:|---|
 | Production-shaped `membership.provision` E2E | #70 | closed by PR #76 at `5e5bb71` with post-merge CI 27071532041; #77/#84 are closed guard/negative-proof slices and remaining post-merge review follow-ups are #78-#83 |
 | Full Castalia Wallet wallet-core parity | #71 | open |
-| Live Castalia trusted issuer registry discovery | #72 | open |
+| Live Castalia trusted issuer registry discovery | follow-up after #72 | future; #72 implements bounded fixture/file Dregg-shaped authority snapshot consumption, not live Castalia registry discovery |
 | Dregg capability/proof/revocation authority | #73 | open |
 | Midnight proof verification | #74 | open |
 | Cardano settlement/finality evidence | #75 | open |

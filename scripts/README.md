@@ -7,7 +7,7 @@
 | Script | Purpose |
 |---|---|
 | `production-gateway-smoke.sh` | Builds the real `secs-gateway`, starts it with fixture-only `production_verified` env, sends malformed and oversized TCP input, and verifies the gateway rejects those frames without exiting. |
-| `tier-1-dregg-authority-snapshot-smoke.sh` | Prints redaction-safe #72/#195 evidence for the David Lab Dregg-shaped authority snapshot, audits the fixture for secret/private-token markers, and runs the active/negative authority snapshot tests. |
+| `tier-1-dregg-authority-snapshot-smoke.sh` | Prints redaction-safe #72/#195 evidence for the David Lab Dregg-shaped authority snapshot, audits the fixture for secret/private-token markers, and runs the active/negative direct lookup and evidence-adapter authority snapshot tests. |
 
 ## production-gateway-smoke.sh
 
