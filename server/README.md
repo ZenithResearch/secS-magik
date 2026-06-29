@@ -31,7 +31,7 @@ Status: production-shaped local hardening is implemented for the current prototy
 
 | Mode | Current use |
 |---|---|
-| `production_verified` | Default canonical gateway mode. Fails closed unless explicit `SECS_*` runtime, key, ledger, trust-registry, caller-registry, permission-policy, audience, tunnel X25519 secret, and limits are supplied. When `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`, it also requires `SECS_DREGG_AUTHORITY_REGISTRY_PATH`. Fixture-only smoke must opt in with `SECS_FIXTURE_ONLY_SMOKE=1`. |
+| `production_verified` | Default canonical gateway mode. Fails closed unless explicit `SECS_*` runtime, key, ledger, trust-registry, caller-registry, permission-policy, audience, tunnel X25519 secret, and limits are supplied. When `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`, it also requires `SECS_DREGG_AUTHORITY_REGISTRY_PATH`; when it includes `dregg_authority_snapshot`, it requires `SECS_DREGG_AUTHORITY_SNAPSHOT_PATH`. Fixture-only smoke must opt in with `SECS_FIXTURE_ONLY_SMOKE=1`. |
 | `local_dev_plaintext` | Explicit local development mode. Allows plaintext local testing without silently looking like production. |
 | `local_dev_tunnel` | Explicit local tunnel mode. Requires tunnel key material. |
 
@@ -71,6 +71,7 @@ Common gateway variables include:
 - `SECS_CALLER_REGISTRY_PATH`
 - `SECS_PERMISSION_POLICY_PATH`
 - `SECS_DREGG_AUTHORITY_REGISTRY_PATH` (required only when `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`)
+- `SECS_DREGG_AUTHORITY_SNAPSHOT_PATH` (required only when `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority_snapshot`)
 - `SECS_ALLOWED_EVIDENCE_ADAPTERS`
 - `SECS_FIXTURE_ONLY_SMOKE`
 - `SECS_MAX_WIRE_BYTES`

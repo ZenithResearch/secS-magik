@@ -1,4 +1,4 @@
-use crate::dregg_authority::DreggAuthorityRegistry;
+use crate::dregg_authority::{DreggAuthorityRegistry, FileDreggAuthoritySnapshotSource};
 use crate::evidence::{
     LiveDreggBlsFinalityVerifierConfig, LiveDreggRevocationVerifierConfig,
     LiveDreggRotatedReplayVerifierConfig,
@@ -12,7 +12,7 @@ use libsec_core::tunnel::{parse_tunnel_key_hex, tunnel_public_key_id};
 use sqlx::SqlitePool;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use x25519_dalek::{PublicKey, StaticSecret};
 
 pub const MAX_CONFIGURED_WIRE_BYTES: usize = DEFAULT_MAX_WIRE_BYTES;
@@ -36,6 +36,7 @@ pub struct GatewayRuntimeConfig {
     pub caller_registry_path: Option<PathBuf>,
     pub permission_policy_path: Option<PathBuf>,
     pub dregg_authority_registry_path: Option<PathBuf>,
+    pub dregg_authority_snapshot_path: Option<PathBuf>,
     pub max_wire_bytes: usize,
     pub max_payload_bytes: usize,
     pub max_output_bytes: usize,
@@ -110,6 +111,7 @@ pub struct GatewayReadiness {
     pub trust_registry_ready: ReadinessStatus,
     pub caller_registry_ready: ReadinessStatus,
     pub dregg_authority_registry_ready: ReadinessStatus,
+    pub dregg_authority_snapshot_ready: ReadinessStatus,
 }
 
 impl GatewayReadiness {
@@ -128,6 +130,10 @@ impl GatewayReadiness {
                 self.dregg_authority_registry_ready,
                 ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
             )
+            && matches!(
+                self.dregg_authority_snapshot_ready,
+                ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
+            )
     }
 }
 
@@ -137,6 +143,7 @@ pub enum StartupReadinessError {
     CallerRegistryNotReady { path: PathBuf, reason: String },
     PermissionPolicyNotReady { path: PathBuf, reason: String },
     DreggAuthorityRegistryNotReady { path: PathBuf, reason: String },
+    DreggAuthoritySnapshotNotReady { path: PathBuf, reason: String },
 }
 
 impl fmt::Display for StartupReadinessError {
@@ -164,6 +171,11 @@ impl fmt::Display for StartupReadinessError {
             Self::DreggAuthorityRegistryNotReady { path, reason } => write!(
                 formatter,
                 "production Dregg authority registry {:?} is not ready: {reason}",
+                path
+            ),
+            Self::DreggAuthoritySnapshotNotReady { path, reason } => write!(
+                formatter,
+                "production Dregg authority snapshot {:?} is not ready: {reason}",
                 path
             ),
         }
@@ -194,6 +206,8 @@ impl GatewayRuntimeConfig {
             std::env::var_os("SECS_PERMISSION_POLICY_PATH").map(PathBuf::from);
         let dregg_authority_registry_path =
             std::env::var_os("SECS_DREGG_AUTHORITY_REGISTRY_PATH").map(PathBuf::from);
+        let dregg_authority_snapshot_path =
+            std::env::var_os("SECS_DREGG_AUTHORITY_SNAPSHOT_PATH").map(PathBuf::from);
         let ledger_path = std::env::var_os("SECS_LEDGER_PATH").map(PathBuf::from);
         let max_wire_bytes = parse_usize_env(
             "SECS_MAX_WIRE_BYTES",
@@ -250,6 +264,7 @@ impl GatewayRuntimeConfig {
                     caller_registry_path,
                     permission_policy_path,
                     dregg_authority_registry_path,
+                    dregg_authority_snapshot_path,
                     max_wire_bytes,
                     max_payload_bytes,
                     max_output_bytes,
@@ -275,6 +290,7 @@ impl GatewayRuntimeConfig {
                 caller_registry_path,
                 permission_policy_path,
                 dregg_authority_registry_path,
+                dregg_authority_snapshot_path,
                 max_wire_bytes,
                 max_payload_bytes,
                 max_output_bytes,
@@ -312,6 +328,7 @@ impl GatewayRuntimeConfig {
             Some(PathBuf::from(caller_registry_path)),
             Some(PathBuf::from(permission_policy_path)),
             None,
+            None,
             DEFAULT_MAX_WIRE_BYTES,
             1024 * 1024,
             1024 * 1024,
@@ -336,6 +353,7 @@ impl GatewayRuntimeConfig {
             caller_registry_path: None,
             permission_policy_path: None,
             dregg_authority_registry_path: None,
+            dregg_authority_snapshot_path: None,
             max_wire_bytes: DEFAULT_MAX_WIRE_BYTES,
             max_payload_bytes: 1024 * 1024,
             max_output_bytes: 1024 * 1024,
@@ -424,12 +442,38 @@ impl GatewayRuntimeConfig {
             }
         };
 
+        let dregg_authority_snapshot_ready = match self.runtime_mode {
+            RuntimeMode::ProductionVerified => {
+                if self
+                    .allowed_evidence_adapters
+                    .iter()
+                    .any(|adapter| adapter == "dregg_authority_snapshot")
+                {
+                    if validate_dregg_authority_snapshot_file(
+                        self.dregg_authority_snapshot_path.as_deref(),
+                    )
+                    .is_ok()
+                    {
+                        ReadinessStatus::Ready
+                    } else {
+                        ReadinessStatus::NotReady
+                    }
+                } else {
+                    ReadinessStatus::FixtureOnly
+                }
+            }
+            RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => {
+                ReadinessStatus::FixtureOnly
+            }
+        };
+
         Ok(GatewayReadiness {
             config_loaded: ReadinessStatus::Ready,
             ledger_ready,
             trust_registry_ready,
             caller_registry_ready,
             dregg_authority_registry_ready,
+            dregg_authority_snapshot_ready,
         })
     }
 
@@ -445,6 +489,7 @@ impl GatewayRuntimeConfig {
         caller_registry_path: Option<PathBuf>,
         permission_policy_path: Option<PathBuf>,
         dregg_authority_registry_path: Option<PathBuf>,
+        dregg_authority_snapshot_path: Option<PathBuf>,
         max_wire_bytes: usize,
         max_payload_bytes: usize,
         max_output_bytes: usize,
@@ -503,6 +548,7 @@ impl GatewayRuntimeConfig {
             caller_registry_path: Some(caller_registry_path),
             permission_policy_path: Some(permission_policy_path),
             dregg_authority_registry_path,
+            dregg_authority_snapshot_path,
             max_wire_bytes,
             max_payload_bytes,
             max_output_bytes,
@@ -581,6 +627,22 @@ pub fn validate_production_startup_readiness(
                 },
             )?;
     }
+    if config
+        .allowed_evidence_adapters
+        .iter()
+        .any(|adapter| adapter == "dregg_authority_snapshot")
+    {
+        validate_dregg_authority_snapshot_file(config.dregg_authority_snapshot_path.as_deref())
+            .map_err(
+                |reason| StartupReadinessError::DreggAuthoritySnapshotNotReady {
+                    path: config
+                        .dregg_authority_snapshot_path
+                        .clone()
+                        .unwrap_or_default(),
+                    reason,
+                },
+            )?;
+    }
     validate_caller_registry_file(
         config.caller_registry_path.as_deref(),
         config.fixture_only_smoke,
@@ -636,6 +698,15 @@ pub fn validate_dregg_authority_registry_file(path: Option<&Path>) -> Result<(),
             }
         })
         .map_err(|error| error.to_string())?
+}
+
+pub fn validate_dregg_authority_snapshot_file(path: Option<&Path>) -> Result<(), String> {
+    let path = path.ok_or_else(|| "missing Dregg authority snapshot path".to_string())?;
+    let source = FileDreggAuthoritySnapshotSource::new(path.to_path_buf());
+    source
+        .load_at(current_unix_seconds())
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn validate_live_dregg_revocation_config_from_env() -> Result<(), String> {
@@ -721,7 +792,10 @@ fn validate_allowed_evidence_adapters(config: &GatewayRuntimeConfig) -> Result<(
     }
     for adapter in &config.allowed_evidence_adapters {
         match adapter.as_str() {
-            "local_static" | "wallet_presentation" | "dregg_authority" => {}
+            "local_static"
+            | "wallet_presentation"
+            | "dregg_authority"
+            | "dregg_authority_snapshot" => {}
             _ => {
                 return Err(format!(
                     "unknown evidence adapter {adapter:?} in SECS_ALLOWED_EVIDENCE_ADAPTERS"
@@ -866,4 +940,11 @@ fn parse_adapter_list(value: String) -> Vec<String> {
         .filter(|item| !item.is_empty())
         .map(str::to_string)
         .collect()
+}
+
+fn current_unix_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(u64::MAX)
 }

@@ -28,6 +28,15 @@ The script prints a redaction-safe evidence summary, audits the fixture for raw 
 cargo test -p server --test dregg_authority_registry dregg_authority_snapshot -- --nocapture
 ```
 
+Production startup/readiness can require the file-backed snapshot source by setting:
+
+```bash
+SECS_ALLOWED_EVIDENCE_ADAPTERS=dregg_authority_snapshot
+SECS_DREGG_AUTHORITY_SNAPSHOT_PATH=/path/to/dregg-authority-snapshot.json
+```
+
+The current source is synchronous and file-backed only. Missing, unreadable, malformed, unsupported, or stale snapshots fail closed; cached snapshots are retained only for inspection and do not bypass an unavailable source.
+
 The smoke covers:
 
 - active fixture snapshot accepts `did:example:david-lab` for `resource://david-lab/demo-agent`;

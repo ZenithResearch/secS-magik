@@ -267,3 +267,92 @@ fn temp_path(name: &str) -> std::path::PathBuf {
         .as_nanos();
     std::env::temp_dir().join(format!("secs-magik-{name}-{nanos}"))
 }
+
+fn write_valid_dregg_authority_snapshot_fixture(name: &str) -> std::path::PathBuf {
+    let path = temp_path(name);
+    fs::write(
+        &path,
+        br#"{
+          "schema_version": "secs-dregg-authority-snapshot-v1",
+          "snapshot_id": "dregg-snapshot:readiness:001",
+          "source_node_id": "dregg-node:readiness",
+          "federation_id": "castalia-demo",
+          "entity_id": "did:example:david-lab",
+          "namespace_id": "castalia-demo:david-lab",
+          "entity_display_name": "David Lab Demo Entity",
+          "observed_at": 0,
+          "expires_at": 4102444800,
+          "authority_mode": "fixture_snapshot",
+          "issuers": [{
+            "issuer_id": "did:example:david-lab#issuer-1",
+            "issuer_key_id": "pubkey:sha256:david-lab-issuer-1",
+            "trust_root_ref": "trust-root:david-lab-demo",
+            "authority_root_ref": "dregg-root:local-demo",
+            "accepted_evidence": ["provisioning_credential"],
+            "accepted_audiences": ["secS://operator-receiver"],
+            "accepted_operations": ["resource.provision"],
+            "accepted_resources": ["resource://david-lab/*"],
+            "status": "active",
+            "not_before": 0,
+            "not_after": 4102444800,
+            "status_ref": "dregg-status:david-lab-issuer-active"
+          }],
+          "resources": [{
+            "resource_id": "resource://david-lab/demo-agent",
+            "resource_kind": "agent",
+            "controller_entity_id": "did:example:david-lab",
+            "allowed_operations": ["resource.provision"],
+            "required_evidence": ["provisioning_credential"],
+            "status": "active",
+            "status_ref": "dregg-status:david-lab-resource-active"
+          }]
+        }"#,
+    )
+    .unwrap();
+    path
+}
+
+#[tokio::test]
+async fn readiness_reports_snapshot_source_status_when_snapshot_adapter_is_enabled() {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let registry = temp_path("readiness-trust-registry-snapshot.json");
+    fs::write(
+        &registry,
+        br#"{"trusted_verifiers":[{"key_id":"verifier:operator"}]}"#,
+    )
+    .unwrap();
+    let caller_registry =
+        write_caller_registry_fixture("readiness-caller-registry-snapshot", false);
+    let permission_policy = write_permission_policy_fixture("readiness-permission-policy-snapshot");
+    let snapshot = write_valid_dregg_authority_snapshot_fixture("readiness-dregg-snapshot-valid");
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:0",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry.to_str().unwrap(),
+        caller_registry.to_str().unwrap(),
+        permission_policy.to_str().unwrap(),
+        "dregg_authority_snapshot",
+    )
+    .unwrap();
+    config.dregg_authority_snapshot_path = Some(snapshot.clone());
+
+    let readiness = config.readiness(&pool).await.unwrap();
+
+    let _ = fs::remove_file(registry);
+    let _ = fs::remove_file(caller_registry);
+    let _ = fs::remove_file(permission_policy);
+    let _ = fs::remove_file(snapshot);
+    assert_eq!(
+        readiness.dregg_authority_snapshot_ready,
+        ReadinessStatus::Ready
+    );
+    assert!(readiness.is_ready_for_local_smoke());
+}

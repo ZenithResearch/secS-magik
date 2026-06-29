@@ -424,3 +424,52 @@ fn dregg_authority_snapshot_rejects_missing_vectors_duplicate_resources_and_wron
         VerificationError::WrongRoot
     );
 }
+
+#[test]
+fn dregg_authority_snapshot_file_source_loads_valid_and_rejects_stale_or_missing() {
+    use server::dregg_authority::FileDreggAuthoritySnapshotSource;
+
+    let fixture_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../fixtures/dregg/david-lab-authority-snapshot.json"
+    );
+    let source = FileDreggAuthoritySnapshotSource::new(fixture_path);
+    let snapshot = source.load_at(1770000300).unwrap();
+    assert_eq!(snapshot.entity_id, "did:example:david-lab");
+
+    assert!(matches!(
+        source.load_at(1770000601).unwrap_err(),
+        DreggAuthorityRegistryError::InvalidEntry(message) if message.contains("stale")
+    ));
+
+    let missing =
+        FileDreggAuthoritySnapshotSource::new("/tmp/missing-dregg-authority-snapshot.json");
+    assert!(matches!(
+        missing.load_at(1770000300).unwrap_err(),
+        DreggAuthorityRegistryError::Unreadable(_)
+    ));
+}
+
+#[test]
+fn dregg_authority_snapshot_cache_fails_closed_when_source_disappears() {
+    use server::dregg_authority::{
+        CachedDreggAuthoritySnapshotSource, FileDreggAuthoritySnapshotSource,
+    };
+
+    let temp_path = std::env::temp_dir().join(format!(
+        "david-lab-authority-snapshot-cache-{}.json",
+        std::process::id()
+    ));
+    std::fs::write(&temp_path, david_lab_snapshot_json()).unwrap();
+    let source = FileDreggAuthoritySnapshotSource::new(&temp_path);
+    let mut cached = CachedDreggAuthoritySnapshotSource::new(source);
+
+    cached.load_at(1770000300).unwrap();
+    std::fs::remove_file(&temp_path).unwrap();
+
+    assert!(matches!(
+        cached.load_at(1770000300).unwrap_err(),
+        DreggAuthorityRegistryError::Unreadable(_)
+    ));
+    assert!(cached.cached_snapshot().is_some());
+}
