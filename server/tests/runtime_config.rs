@@ -1,5 +1,5 @@
 use serial_test::serial;
-use server::config::{GatewayRuntimeConfig, RuntimeConfigError};
+use server::config::{DreggLiveSourceConfig, GatewayRuntimeConfig, RuntimeConfigError};
 use server::runtime_mode::RuntimeMode;
 use std::time::Duration;
 
@@ -16,6 +16,12 @@ fn clear_env() {
         "SECS_PERMISSION_POLICY_PATH",
         "SECS_DREGG_AUTHORITY_REGISTRY_PATH",
         "SECS_DREGG_AUTHORITY_SNAPSHOT_PATH",
+        "SECS_DREGG_LIVE_SOURCE_URL",
+        "SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH",
+        "SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS",
+        "SECS_DREGG_LIVE_SOURCE_RETRY_MAX",
+        "SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS",
+        "SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS",
         "SECS_DREGG_LIVE_REVOCATION_ROOTS_PATH",
         "SECS_DREGG_BLS_FINALITY_COMMITTEES_PATH",
         "SECS_DREGG_ROTATED_REPLAY_PROOFS_PATH",
@@ -555,6 +561,121 @@ fn production_config_accepts_explicit_operator_runtime_fields() {
         Some(std::path::Path::new("/tmp/permission-policy.json"))
     );
     assert!(!config.fixture_only);
+}
+
+#[test]
+#[serial]
+fn production_config_requires_explicit_live_dregg_source_fields_when_adapter_enabled() {
+    for field in [
+        "SECS_DREGG_LIVE_SOURCE_URL",
+        "SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH",
+        "SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS",
+        "SECS_DREGG_LIVE_SOURCE_RETRY_MAX",
+        "SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS",
+        "SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS",
+    ] {
+        clear_env();
+        set_required_production_env();
+        std::env::set_var("SECS_ALLOWED_EVIDENCE_ADAPTERS", "dregg_live_source");
+        std::env::set_var(
+            "SECS_DREGG_LIVE_SOURCE_URL",
+            "https://dregg.example.test/authority",
+        );
+        std::env::set_var("SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH", "/tmp/dregg-token");
+        std::env::set_var("SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS", "5000");
+        std::env::set_var("SECS_DREGG_LIVE_SOURCE_RETRY_MAX", "2");
+        std::env::set_var("SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS", "30");
+        std::env::set_var("SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS", "300");
+        std::env::remove_var(field);
+
+        let config = GatewayRuntimeConfig::from_env();
+
+        assert_eq!(
+            config,
+            Err(RuntimeConfigError::MissingProductionField(field)),
+            "live Dregg source adapter must fail closed when {field} is missing"
+        );
+    }
+    clear_env();
+}
+
+#[test]
+#[serial]
+fn production_config_loads_live_dregg_source_placeholders_without_network_calls() {
+    clear_env();
+    set_required_production_env();
+    std::env::set_var("SECS_ALLOWED_EVIDENCE_ADAPTERS", "dregg_live_source");
+    std::env::set_var(
+        "SECS_DREGG_LIVE_SOURCE_URL",
+        "https://dregg.example.test/authority",
+    );
+    std::env::set_var("SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH", "/tmp/dregg-token");
+    std::env::set_var("SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS", "5000");
+    std::env::set_var("SECS_DREGG_LIVE_SOURCE_RETRY_MAX", "2");
+    std::env::set_var("SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS", "30");
+    std::env::set_var("SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS", "300");
+
+    let config = GatewayRuntimeConfig::from_env().unwrap();
+    let live_source = config
+        .dregg_live_source
+        .as_ref()
+        .expect("live source placeholders should be present when adapter is enabled");
+
+    assert_eq!(live_source.url, "https://dregg.example.test/authority");
+    assert_eq!(
+        live_source.auth_token_path.as_path(),
+        std::path::Path::new("/tmp/dregg-token")
+    );
+    assert_eq!(live_source.timeout, Duration::from_secs(5));
+    assert_eq!(live_source.retry_max, 2);
+    assert_eq!(live_source.cache_ttl, Duration::from_secs(30));
+    assert_eq!(live_source.stale_max, Duration::from_secs(300));
+    clear_env();
+}
+
+#[test]
+fn production_startup_rejects_dregg_live_source_with_missing_token_file() {
+    let registry_path = write_valid_trust_registry("secs-magik-trust-registry-live-source-token");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-live-source-token");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-live-source-token");
+    let missing_token_path = std::env::temp_dir().join(format!(
+        "missing-dregg-live-source-token-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&missing_token_path);
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_live_source",
+    )
+    .unwrap();
+    config.dregg_live_source = Some(DreggLiveSourceConfig {
+        url: "https://dregg.example.test/authority".to_string(),
+        auth_token_path: missing_token_path,
+        timeout: Duration::from_secs(5),
+        retry_max: 2,
+        cache_ttl: Duration::from_secs(30),
+        stale_max: Duration::from_secs(300),
+    });
+
+    let error = server::config::validate_production_startup_readiness(&config).unwrap_err();
+
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    assert!(
+        error.to_string().contains("Dregg live source")
+            && error.to_string().contains("auth token path"),
+        "production readiness must reject dregg_live_source without a readable token file and must not attempt a live network call: {error}"
+    );
 }
 
 #[test]

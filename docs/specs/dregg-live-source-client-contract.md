@@ -1,6 +1,6 @@
 # Live Castalia Dregg source/client contract (#206)
 
-Status: specification / contract slice only. This document defines `secs-dregg-live-source-client-v1` before any runtime HTTP/client implementation. It does not close #206 by itself.
+Status: specification plus first config/readiness placeholder slice. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, and startup readiness fail-closes on missing/unreadable local credential configuration. It still does not implement a network client or close #206 by itself.
 
 ## Purpose
 

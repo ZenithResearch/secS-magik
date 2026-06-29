@@ -22,6 +22,20 @@ pub const MAX_HANDLER_TIMEOUT_MS: u64 = 300_000;
 pub const MAX_INGRESS_READ_TIMEOUT_MS: u64 = 60_000;
 pub const DEFAULT_MAX_IN_FLIGHT_CONNECTIONS: usize = 64;
 pub const MAX_CONFIGURED_IN_FLIGHT_CONNECTIONS: usize = 4096;
+pub const MAX_DREGG_LIVE_SOURCE_TIMEOUT_MS: u64 = 60_000;
+pub const MAX_DREGG_LIVE_SOURCE_RETRY_MAX: u64 = 5;
+pub const MAX_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS: u64 = 3600;
+pub const MAX_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS: u64 = 86_400;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggLiveSourceConfig {
+    pub url: String,
+    pub auth_token_path: PathBuf,
+    pub timeout: Duration,
+    pub retry_max: u64,
+    pub cache_ttl: Duration,
+    pub stale_max: Duration,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GatewayRuntimeConfig {
@@ -37,6 +51,7 @@ pub struct GatewayRuntimeConfig {
     pub permission_policy_path: Option<PathBuf>,
     pub dregg_authority_registry_path: Option<PathBuf>,
     pub dregg_authority_snapshot_path: Option<PathBuf>,
+    pub dregg_live_source: Option<DreggLiveSourceConfig>,
     pub max_wire_bytes: usize,
     pub max_payload_bytes: usize,
     pub max_output_bytes: usize,
@@ -97,6 +112,45 @@ impl fmt::Display for RuntimeConfigError {
 
 impl std::error::Error for RuntimeConfigError {}
 
+impl DreggLiveSourceConfig {
+    fn from_env() -> Result<Self, RuntimeConfigError> {
+        require_env_present("SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS")?;
+        require_env_present("SECS_DREGG_LIVE_SOURCE_RETRY_MAX")?;
+        require_env_present("SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS")?;
+        require_env_present("SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS")?;
+        Ok(Self {
+            url: required_env_string(
+                std::env::var("SECS_DREGG_LIVE_SOURCE_URL").ok(),
+                "SECS_DREGG_LIVE_SOURCE_URL",
+            )?,
+            auth_token_path: required_env_path(
+                std::env::var_os("SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH").map(PathBuf::from),
+                "SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH",
+            )?,
+            timeout: Duration::from_millis(parse_u64_env(
+                "SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS",
+                0,
+                MAX_DREGG_LIVE_SOURCE_TIMEOUT_MS,
+            )?),
+            retry_max: parse_u64_env(
+                "SECS_DREGG_LIVE_SOURCE_RETRY_MAX",
+                0,
+                MAX_DREGG_LIVE_SOURCE_RETRY_MAX,
+            )?,
+            cache_ttl: Duration::from_secs(parse_u64_env(
+                "SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS",
+                0,
+                MAX_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS,
+            )?),
+            stale_max: Duration::from_secs(parse_u64_env(
+                "SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS",
+                0,
+                MAX_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS,
+            )?),
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReadinessStatus {
     Ready,
@@ -144,6 +198,7 @@ pub enum StartupReadinessError {
     PermissionPolicyNotReady { path: PathBuf, reason: String },
     DreggAuthorityRegistryNotReady { path: PathBuf, reason: String },
     DreggAuthoritySnapshotNotReady { path: PathBuf, reason: String },
+    DreggLiveSourceNotReady { reason: String },
 }
 
 impl fmt::Display for StartupReadinessError {
@@ -178,6 +233,12 @@ impl fmt::Display for StartupReadinessError {
                 "production Dregg authority snapshot {:?} is not ready: {reason}",
                 path
             ),
+            Self::DreggLiveSourceNotReady { reason } => {
+                write!(
+                    formatter,
+                    "production Dregg live source is not ready: {reason}"
+                )
+            }
         }
     }
 }
@@ -243,6 +304,15 @@ impl GatewayRuntimeConfig {
             std::env::var("SECS_ALLOWED_EVIDENCE_ADAPTERS")
                 .unwrap_or_else(|_| "local_static".to_string()),
         );
+        let dregg_live_source = if runtime_mode == RuntimeMode::ProductionVerified
+            && allowed_evidence_adapters
+                .iter()
+                .any(|adapter| adapter == "dregg_live_source")
+        {
+            Some(DreggLiveSourceConfig::from_env()?)
+        } else {
+            None
+        };
         let fixture_only_smoke = parse_bool_env("SECS_FIXTURE_ONLY_SMOKE");
 
         match runtime_mode {
@@ -265,6 +335,7 @@ impl GatewayRuntimeConfig {
                     permission_policy_path,
                     dregg_authority_registry_path,
                     dregg_authority_snapshot_path,
+                    dregg_live_source,
                     max_wire_bytes,
                     max_payload_bytes,
                     max_output_bytes,
@@ -291,6 +362,7 @@ impl GatewayRuntimeConfig {
                 permission_policy_path,
                 dregg_authority_registry_path,
                 dregg_authority_snapshot_path,
+                dregg_live_source,
                 max_wire_bytes,
                 max_payload_bytes,
                 max_output_bytes,
@@ -329,6 +401,7 @@ impl GatewayRuntimeConfig {
             Some(PathBuf::from(permission_policy_path)),
             None,
             None,
+            None,
             DEFAULT_MAX_WIRE_BYTES,
             1024 * 1024,
             1024 * 1024,
@@ -354,6 +427,7 @@ impl GatewayRuntimeConfig {
             permission_policy_path: None,
             dregg_authority_registry_path: None,
             dregg_authority_snapshot_path: None,
+            dregg_live_source: None,
             max_wire_bytes: DEFAULT_MAX_WIRE_BYTES,
             max_payload_bytes: 1024 * 1024,
             max_output_bytes: 1024 * 1024,
@@ -490,6 +564,7 @@ impl GatewayRuntimeConfig {
         permission_policy_path: Option<PathBuf>,
         dregg_authority_registry_path: Option<PathBuf>,
         dregg_authority_snapshot_path: Option<PathBuf>,
+        dregg_live_source: Option<DreggLiveSourceConfig>,
         max_wire_bytes: usize,
         max_payload_bytes: usize,
         max_output_bytes: usize,
@@ -549,6 +624,7 @@ impl GatewayRuntimeConfig {
             permission_policy_path: Some(permission_policy_path),
             dregg_authority_registry_path,
             dregg_authority_snapshot_path,
+            dregg_live_source,
             max_wire_bytes,
             max_payload_bytes,
             max_output_bytes,
@@ -614,6 +690,14 @@ pub fn validate_production_startup_readiness(
     if config
         .allowed_evidence_adapters
         .iter()
+        .any(|adapter| adapter == "dregg_live_source")
+    {
+        validate_dregg_live_source_config(config.dregg_live_source.as_ref())
+            .map_err(|reason| StartupReadinessError::DreggLiveSourceNotReady { reason })?;
+    }
+    if config
+        .allowed_evidence_adapters
+        .iter()
         .any(|adapter| adapter == "dregg_authority")
     {
         validate_dregg_authority_registry_file(config.dregg_authority_registry_path.as_deref())
@@ -673,6 +757,32 @@ pub fn validate_permission_policy_file(path: Option<&Path>) -> Result<(), String
     PermissionPolicy::from_json_file(path)
         .map(|_| ())
         .map_err(|error| format!("{error:?}"))
+}
+
+pub fn validate_dregg_live_source_config(
+    config: Option<&DreggLiveSourceConfig>,
+) -> Result<(), String> {
+    let config = config.ok_or_else(|| "missing Dregg live source config".to_string())?;
+    if !config.url.starts_with("https://") {
+        return Err(
+            "SECS_DREGG_LIVE_SOURCE_URL must use https:// in production_verified".to_string(),
+        );
+    }
+    let metadata = std::fs::metadata(&config.auth_token_path)
+        .map_err(|error| format!("auth token path is not readable: {error}"))?;
+    if !metadata.is_file() {
+        return Err("auth token path is not a regular file".to_string());
+    }
+    if config.timeout.is_zero() {
+        return Err("SECS_DREGG_LIVE_SOURCE_TIMEOUT_MS must be positive".to_string());
+    }
+    if config.cache_ttl.is_zero() {
+        return Err("SECS_DREGG_LIVE_SOURCE_CACHE_TTL_SECONDS must be positive".to_string());
+    }
+    if config.stale_max.is_zero() {
+        return Err("SECS_DREGG_LIVE_SOURCE_STALE_MAX_SECONDS must be positive".to_string());
+    }
+    Ok(())
 }
 
 pub fn validate_dregg_authority_registry_file(path: Option<&Path>) -> Result<(), String> {
@@ -795,7 +905,8 @@ fn validate_allowed_evidence_adapters(config: &GatewayRuntimeConfig) -> Result<(
             "local_static"
             | "wallet_presentation"
             | "dregg_authority"
-            | "dregg_authority_snapshot" => {}
+            | "dregg_authority_snapshot"
+            | "dregg_live_source" => {}
             _ => {
                 return Err(format!(
                     "unknown evidence adapter {adapter:?} in SECS_ALLOWED_EVIDENCE_ADAPTERS"
