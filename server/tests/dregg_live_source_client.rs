@@ -3,9 +3,10 @@ use server::dregg_live_source::{
     build_live_source_http_request, cache_entry_is_fresh_for_request, execute_live_source_lookup,
     load_live_source_auth_token, should_replace_cache_entry, validate_live_source_response,
     DreggLiveSourceAuthMaterial, DreggLiveSourceCacheEntry, DreggLiveSourceClientError,
-    DreggLiveSourceDuplicatePolicy, DreggLiveSourceLookupPolicy, DreggLiveSourceRequest,
-    DreggLiveSourceResponse, DreggLiveSourceStatus, DreggLiveSourceTransport,
-    DreggLiveSourceTransportError, DreggLiveSourceTrustedKey, DREGG_LIVE_SOURCE_CONTRACT_VERSION,
+    DreggLiveSourceDuplicatePolicy, DreggLiveSourceFileCache, DreggLiveSourceLookupPolicy,
+    DreggLiveSourceRequest, DreggLiveSourceResponse, DreggLiveSourceStatus,
+    DreggLiveSourceTransport, DreggLiveSourceTransportError, DreggLiveSourceTrustedKey,
+    DREGG_LIVE_SOURCE_CONTRACT_VERSION,
 };
 use std::collections::VecDeque;
 use std::path::Path;
@@ -118,6 +119,14 @@ impl DreggLiveSourceTransport for FixtureTransport {
 
 fn token_path(name: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("secs-magik-{name}-{}-{}", std::process::id(), NOW))
+}
+
+fn cache_path(name: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "secs-magik-live-source-cache-{name}-{}-{}.json",
+        std::process::id(),
+        NOW
+    ))
 }
 
 fn write_owner_private_token(path: &Path, token: &str) {
@@ -493,6 +502,106 @@ fn cache_replacement_prefers_newer_observed_status_or_generation() {
         &duplicate_conflict,
         &trusted_key
     ));
+}
+
+#[test]
+fn file_cache_persists_signed_candidate_and_reuses_only_fresh_matching_cache() {
+    let path = cache_path("fresh-reuse");
+    let _ = std::fs::remove_file(&path);
+    let cache = DreggLiveSourceFileCache::new(&path);
+    let trusted_key = source_trusted_key();
+    let mut candidate_request = request();
+    candidate_request.request_nonce = "nonce-cache-candidate".to_string();
+    let candidate_response = sign_response_for_request(&candidate_request, response());
+
+    let stored = cache
+        .store_replacement_if_newer(&candidate_request, &candidate_response, NOW, &trusted_key)
+        .expect("valid signed cache candidate should persist");
+    assert!(stored, "initial valid candidate should populate the cache");
+
+    let decision = cache
+        .load_fresh_decision(&request(), NOW + 10, 30, 300, &trusted_key)
+        .expect("fresh matching persistent cache should authorize via validated decision")
+        .expect("fresh matching persistent cache entry should be present");
+    assert_eq!(decision.source_id, "dregg-source:operator");
+    assert_eq!(decision.cache_generation, "generation:42");
+
+    let mut different_subject = request();
+    different_subject.subject = "did:example:bob".to_string();
+    assert!(cache
+        .load_fresh_decision(&different_subject, NOW + 10, 30, 300, &trusted_key)
+        .expect("non-matching cache keys should not authorize or error")
+        .is_none());
+
+    let mut older_request = request();
+    older_request.request_nonce = "nonce-cache-older".to_string();
+    let mut older_response = response();
+    older_response.status_observed_at = NOW - 120;
+    older_response.snapshot_generation = "generation:1".to_string();
+    let older_response = sign_response_for_request(&older_request, older_response);
+    let replaced = cache
+        .store_replacement_if_newer(&older_request, &older_response, NOW + 20, &trusted_key)
+        .expect("older signed candidate should be evaluated without corrupting cache");
+    assert!(
+        !replaced,
+        "older candidate must not replace newer cache authority"
+    );
+
+    let decision_after_older_candidate = cache
+        .load_fresh_decision(&request(), NOW + 20, 30, 300, &trusted_key)
+        .expect("cache should remain readable after rejected replacement")
+        .expect("newer original cache entry should remain present");
+    assert_eq!(
+        decision_after_older_candidate.cache_generation,
+        "generation:42"
+    );
+
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn file_cache_fails_closed_on_stale_entries_and_redacts_diagnostics() {
+    let path = cache_path("stale-redacted-diagnostics");
+    let _ = std::fs::remove_file(&path);
+    let cache = DreggLiveSourceFileCache::new(&path);
+    let trusted_key = source_trusted_key();
+    let mut candidate_request = request();
+    candidate_request.request_nonce = "nonce-cache-stale".to_string();
+    let candidate_response = sign_response_for_request(&candidate_request, response());
+    cache
+        .store_replacement_if_newer(
+            &candidate_request,
+            &candidate_response,
+            NOW - 120,
+            &trusted_key,
+        )
+        .expect("valid stale fixture should persist for fail-closed diagnostics");
+
+    assert_eq!(
+        cache.load_fresh_decision(&request(), NOW, 30, 300, &trusted_key),
+        Err(DreggLiveSourceClientError::StaleStatus)
+    );
+
+    let diagnostics = cache
+        .diagnostics_for_request(&request(), NOW, 30)
+        .expect("cache diagnostics should be readable without secrets");
+    assert!(diagnostics.present);
+    assert!(!diagnostics.fresh);
+    assert_eq!(diagnostics.cache_age_seconds, Some(120));
+    assert_eq!(
+        diagnostics.source_id.as_deref(),
+        Some("dregg-source:operator")
+    );
+    assert_eq!(
+        diagnostics.cache_generation.as_deref(),
+        Some("generation:42")
+    );
+    let debug = format!("{diagnostics:?}");
+    assert!(!debug.to_ascii_lowercase().contains("bearer"));
+    assert!(!debug.to_ascii_lowercase().contains("token"));
+    assert!(!debug.to_ascii_lowercase().contains("response_signature"));
+
+    let _ = std::fs::remove_file(&path);
 }
 
 #[test]

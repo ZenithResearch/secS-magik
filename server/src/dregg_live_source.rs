@@ -9,7 +9,7 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub const DREGG_LIVE_SOURCE_CONTRACT_VERSION: &str = "secs-dregg-live-source-client-v1";
@@ -146,11 +146,166 @@ pub struct DreggLiveSourceDecision {
     pub redacted_summary: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DreggLiveSourceCacheEntry {
     pub request: DreggLiveSourceRequest,
     pub response: DreggLiveSourceResponse,
     pub cached_at: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggLiveSourceCacheDiagnostics {
+    pub present: bool,
+    pub fresh: bool,
+    pub cache_age_seconds: Option<u64>,
+    pub source_id: Option<String>,
+    pub cache_generation: Option<String>,
+}
+
+impl DreggLiveSourceCacheDiagnostics {
+    fn absent() -> Self {
+        Self {
+            present: false,
+            fresh: false,
+            cache_age_seconds: None,
+            source_id: None,
+            cache_generation: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreggLiveSourceFileCache {
+    path: PathBuf,
+}
+
+impl DreggLiveSourceFileCache {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn load_fresh_decision(
+        &self,
+        request: &DreggLiveSourceRequest,
+        now: u64,
+        cache_ttl_seconds: u64,
+        max_status_age_seconds: u64,
+        trusted_key: &DreggLiveSourceTrustedKey,
+    ) -> Result<Option<DreggLiveSourceDecision>, DreggLiveSourceClientError> {
+        let Some(entry) = self.load_entry()? else {
+            return Ok(None);
+        };
+        if !cache_key_matches(&entry.request, request) {
+            return Ok(None);
+        }
+        if !cache_entry_is_fresh_for_request(&entry, request, now, cache_ttl_seconds) {
+            return Err(DreggLiveSourceClientError::StaleStatus);
+        }
+        let decision = validate_live_source_response(
+            &entry.request,
+            &entry.response,
+            max_status_age_seconds,
+            Some(trusted_key),
+        )?;
+        validate_cache_entry_current_request_window(
+            request,
+            &entry.response,
+            max_status_age_seconds,
+        )?;
+        Ok(Some(decision))
+    }
+
+    pub fn store_replacement_if_newer(
+        &self,
+        candidate_request: &DreggLiveSourceRequest,
+        candidate_response: &DreggLiveSourceResponse,
+        cached_at: u64,
+        trusted_key: &DreggLiveSourceTrustedKey,
+    ) -> Result<bool, DreggLiveSourceClientError> {
+        validate_live_source_response(
+            candidate_request,
+            candidate_response,
+            u64::MAX,
+            Some(trusted_key),
+        )?;
+        let candidate = DreggLiveSourceCacheEntry {
+            request: candidate_request.clone(),
+            response: candidate_response.clone(),
+            cached_at,
+        };
+        match self.load_entry()? {
+            None => {
+                self.store_entry(&candidate)?;
+                Ok(true)
+            }
+            Some(existing) => {
+                if should_replace_cache_entry(
+                    &existing,
+                    candidate_request,
+                    candidate_response,
+                    trusted_key,
+                ) {
+                    self.store_entry(&candidate)?;
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+
+    pub fn diagnostics_for_request(
+        &self,
+        request: &DreggLiveSourceRequest,
+        now: u64,
+        cache_ttl_seconds: u64,
+    ) -> Result<DreggLiveSourceCacheDiagnostics, DreggLiveSourceClientError> {
+        let Some(entry) = self.load_entry()? else {
+            return Ok(DreggLiveSourceCacheDiagnostics::absent());
+        };
+        if !cache_key_matches(&entry.request, request) {
+            return Ok(DreggLiveSourceCacheDiagnostics::absent());
+        }
+        Ok(DreggLiveSourceCacheDiagnostics {
+            present: true,
+            fresh: cache_entry_is_fresh_for_request(&entry, request, now, cache_ttl_seconds),
+            cache_age_seconds: now.checked_sub(entry.cached_at),
+            source_id: Some(entry.response.source_id),
+            cache_generation: Some(entry.response.snapshot_generation),
+        })
+    }
+
+    fn load_entry(&self) -> Result<Option<DreggLiveSourceCacheEntry>, DreggLiveSourceClientError> {
+        if !self.path.exists() {
+            return Ok(None);
+        }
+        let json = std::fs::read_to_string(&self.path)
+            .map_err(|_| DreggLiveSourceClientError::MalformedResponse)?;
+        let entry = serde_json::from_str(&json)
+            .map_err(|_| DreggLiveSourceClientError::MalformedResponse)?;
+        Ok(Some(entry))
+    }
+
+    fn store_entry(
+        &self,
+        entry: &DreggLiveSourceCacheEntry,
+    ) -> Result<(), DreggLiveSourceClientError> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|_| DreggLiveSourceClientError::MalformedResponse)?;
+        }
+        let json = serde_json::to_string(entry)
+            .map_err(|_| DreggLiveSourceClientError::MalformedResponse)?;
+        let temporary_path = self.path.with_extension("tmp");
+        std::fs::write(&temporary_path, json)
+            .map_err(|_| DreggLiveSourceClientError::MalformedResponse)?;
+        std::fs::rename(&temporary_path, &self.path)
+            .map_err(|_| DreggLiveSourceClientError::MalformedResponse)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -527,6 +682,29 @@ fn cache_key_matches(left: &DreggLiveSourceRequest, right: &DreggLiveSourceReque
         && left.subject == right.subject
         && left.issuer_key_id == right.issuer_key_id
         && left.authority_root_ref == right.authority_root_ref
+}
+
+fn validate_cache_entry_current_request_window(
+    request: &DreggLiveSourceRequest,
+    response: &DreggLiveSourceResponse,
+    max_status_age_seconds: u64,
+) -> Result<(), DreggLiveSourceClientError> {
+    if response.status_observed_at > request.validation_time {
+        return Err(DreggLiveSourceClientError::FutureStatus);
+    }
+    if request
+        .validation_time
+        .saturating_sub(response.status_observed_at)
+        > max_status_age_seconds
+    {
+        return Err(DreggLiveSourceClientError::StaleStatus);
+    }
+    if request.validation_time < response.valid_from
+        || request.validation_time > response.valid_until
+    {
+        return Err(DreggLiveSourceClientError::StaleStatus);
+    }
+    Ok(())
 }
 
 fn all_authority_statuses_active(response: &DreggLiveSourceResponse) -> bool {
