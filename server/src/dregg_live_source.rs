@@ -12,6 +12,12 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use crate::dregg_authority::{
+    DreggAuthorityEntry, DreggAuthorityFinalityMode, DreggAuthorityRevocationVerifierMode,
+    DreggAuthoritySnapshot, DreggAuthoritySnapshotIssuer, DreggAuthoritySnapshotResource,
+    DreggAuthorityStatus, DreggAuthorityStatusPolicy,
+};
+
 pub const DREGG_LIVE_SOURCE_CONTRACT_VERSION: &str = "secs-dregg-live-source-client-v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -771,4 +777,109 @@ fn verify_live_source_signature(
         .public_key
         .verify(&response.signature_payload(request), &signature)
         .map_err(|_| DreggLiveSourceClientError::UnauthorizedSource)
+}
+
+/// Maps a validated live source response into receiver-held authority snapshot
+/// and entry types, preserving fail-closed semantics from the file-backed path.
+///
+/// The caller must supply an `issuer_public_key_hex` (64 lowercase hex chars),
+/// a `federation_id`, and a `namespace_id` because the live source response
+/// does not carry those fields directly.
+pub fn map_response_to_authority_snapshot(
+    request: &DreggLiveSourceRequest,
+    response: &DreggLiveSourceResponse,
+    issuer_public_key_hex: &str,
+    federation_id: &str,
+    namespace_id: &str,
+) -> Result<(DreggAuthoritySnapshot, Vec<DreggAuthorityEntry>), DreggLiveSourceClientError> {
+    if request.contract_version != DREGG_LIVE_SOURCE_CONTRACT_VERSION
+        || response.contract_version != DREGG_LIVE_SOURCE_CONTRACT_VERSION
+    {
+        return Err(DreggLiveSourceClientError::UnsupportedContractVersion);
+    }
+    if response.entity_ref != request.entity_ref || response.resource_ref != request.resource_ref {
+        return Err(DreggLiveSourceClientError::WrongBinding);
+    }
+    if !all_authority_statuses_active(response) {
+        return Err(DreggLiveSourceClientError::RevokedOrInactive);
+    }
+    if response.duplicate_policy != DreggLiveSourceDuplicatePolicy::Unique {
+        return Err(DreggLiveSourceClientError::DuplicateAuthorityConflict);
+    }
+
+    let snapshot = DreggAuthoritySnapshot {
+        schema_version: DreggAuthoritySnapshot::SCHEMA_VERSION.to_string(),
+        snapshot_id: response.snapshot_generation.clone(),
+        source_node_id: response.source_id.clone(),
+        federation_id: federation_id.to_string(),
+        entity_id: response.entity_ref.clone(),
+        namespace_id: namespace_id.to_string(),
+        entity_display_name: response.entity_ref.clone(),
+        observed_at: response.status_observed_at,
+        expires_at: response.valid_until,
+        authority_mode: "live_castalia_dregg".to_string(),
+        issuers: vec![DreggAuthoritySnapshotIssuer {
+            issuer_id: response.issuer_key_id.clone(),
+            issuer_key_id: response.issuer_key_id.clone(),
+            trust_root_ref: response.authority_root_ref.clone(),
+            authority_root_ref: response.authority_root_ref.clone(),
+            accepted_evidence: vec!["membership_credential".to_string()],
+            accepted_audiences: vec![request.receiver_audience.clone()],
+            accepted_operations: vec![request.operation.clone()],
+            accepted_resources: vec![request.resource_ref.clone()],
+            status: DreggAuthorityStatus::Active,
+            not_before: response.valid_from,
+            not_after: response.valid_until,
+            status_ref: response.redacted_summary.clone(),
+        }],
+        resources: vec![DreggAuthoritySnapshotResource {
+            resource_id: response.resource_ref.clone(),
+            resource_kind: response.resource_ref.clone(),
+            controller_entity_id: response.entity_ref.clone(),
+            allowed_operations: vec![request.operation.clone()],
+            required_evidence: vec!["membership_credential".to_string()],
+            status: DreggAuthorityStatus::Active,
+            status_ref: response.redacted_summary.clone(),
+        }],
+    };
+
+    let entry_status_policy = DreggAuthorityStatusPolicy {
+        require_status: true,
+        max_status_age_seconds: 300,
+        require_revocation_check: false,
+        require_finality: false,
+        revocation_verifier_mode: DreggAuthorityRevocationVerifierMode::FixtureStatusOnly,
+        finality_mode: DreggAuthorityFinalityMode::NotRequired,
+        expected_revocation_root_ref: None,
+    };
+
+    let entry = DreggAuthorityEntry {
+        issuer_id: response.issuer_key_id.clone(),
+        issuer_key_id: response.issuer_key_id.clone(),
+        issuer_public_key_hex: issuer_public_key_hex.to_string(),
+        federation_id: federation_id.to_string(),
+        root_ref: response.authority_root_ref.clone(),
+        root_fingerprint: response.root_fingerprint.clone(),
+        epoch_id: response.snapshot_generation.clone(),
+        epoch_not_before: response.valid_from,
+        epoch_not_after: response.valid_until,
+        accepted_audiences: vec![request.receiver_audience.clone()],
+        accepted_operations: vec![request.operation.clone()],
+        accepted_resources: vec![request.resource_ref.clone()],
+        accepted_suites: vec!["ed25519".to_string()],
+        status_policy: entry_status_policy,
+        root_status: map_dregg_live_status_to_authority_status(response.root_status),
+        issuer_status: map_dregg_live_status_to_authority_status(response.issuer_status),
+    };
+
+    Ok((snapshot, vec![entry]))
+}
+
+fn map_dregg_live_status_to_authority_status(
+    status: DreggLiveSourceStatus,
+) -> DreggAuthorityStatus {
+    match status {
+        DreggLiveSourceStatus::Active => DreggAuthorityStatus::Active,
+        _ => DreggAuthorityStatus::Revoked,
+    }
 }

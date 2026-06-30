@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- #206: added `map_response_to_authority_snapshot()` to convert a validated live Dregg source response into `DreggAuthoritySnapshot` + `DreggAuthorityEntry` values with fail-closed mapping (wrong contract, wrong binding, revoked/inactive, duplicate conflicts) and `authority_mode: "live_castalia_dregg"` operator distinction, so downstream verification can treat live source material as receiver-held authority without reinventing mapping semantics.
 - #206: surfaced `dregg_live_source` in the structured gateway readiness report, so operators can see whether the live-source adapter is ready without triggering network calls or exposing token contents.
 - #206: added a no-network persistent live-source cache helper that stores only validated signed responses, revalidates fresh matching entries before reuse, rejects stale cache entries fail-closed, and exposes redaction-safe cache diagnostics, so the future live adapter can use outage/cache behavior without letting stale or secret-bearing material authorize production calls.
 - #206: added a no-network HTTP/signed-request request builder for the live Dregg source contract, including HTTPS-only URL normalization, query/userinfo secret rejection, JSON request serialization, contract headers, bearer auth redaction in debug output, and tests that auth material is not copied into the body, so the eventual live adapter has a deterministic pre-network request boundary.

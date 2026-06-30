@@ -1,4 +1,5 @@
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
+use server::dregg_authority::{DreggAuthoritySnapshot, DreggAuthorityStatus};
 use server::dregg_live_source::{
     build_live_source_http_request, cache_entry_is_fresh_for_request, execute_live_source_lookup,
     load_live_source_auth_token, should_replace_cache_entry, validate_live_source_response,
@@ -781,4 +782,190 @@ fn live_source_lookup_does_not_retry_semantic_rejects() {
 
     assert_eq!(result, Err(DreggLiveSourceClientError::MalformedResponse));
     assert_eq!(transport.calls, 1);
+}
+
+// ── response-to-authority mapping tests ──
+
+#[test]
+fn map_valid_response_to_snapshot_with_correct_fields() {
+    let req = request();
+    let resp = response();
+    let (snapshot, entries) = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    )
+    .expect("valid response should map to snapshot");
+
+    assert_eq!(
+        snapshot.schema_version,
+        DreggAuthoritySnapshot::SCHEMA_VERSION
+    );
+    assert_eq!(snapshot.snapshot_id, "generation:42");
+    assert_eq!(snapshot.source_node_id, "dregg-source:operator");
+    assert_eq!(snapshot.federation_id, "castalia-demo");
+    assert_eq!(snapshot.entity_id, "castalia:entity:example");
+    assert_eq!(snapshot.namespace_id, "castalia-demo:example");
+    assert_eq!(snapshot.authority_mode, "live_castalia_dregg");
+    assert_eq!(snapshot.observed_at, NOW - 30);
+    assert_eq!(snapshot.expires_at, NOW + 60);
+
+    assert_eq!(snapshot.issuers.len(), 1);
+    let issuer = &snapshot.issuers[0];
+    assert_eq!(issuer.issuer_id, "issuer-key:1");
+    assert_eq!(issuer.issuer_key_id, "issuer-key:1");
+    assert_eq!(issuer.authority_root_ref, "dregg-root:2026q2");
+    assert_eq!(issuer.status, DreggAuthorityStatus::Active);
+    assert_eq!(issuer.not_before, NOW - 60);
+    assert_eq!(issuer.not_after, NOW + 60);
+    assert!(issuer
+        .accepted_audiences
+        .contains(&"secS://operator-receiver".to_string()));
+    assert!(issuer
+        .accepted_operations
+        .contains(&"membership.provision".to_string()));
+
+    assert_eq!(snapshot.resources.len(), 1);
+    let resource = &snapshot.resources[0];
+    assert_eq!(resource.resource_id, "application/json");
+    assert_eq!(resource.controller_entity_id, "castalia:entity:example");
+    assert_eq!(resource.status, DreggAuthorityStatus::Active);
+
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.issuer_id, "issuer-key:1");
+    assert_eq!(entry.issuer_key_id, "issuer-key:1");
+    assert_eq!(entry.root_ref, "dregg-root:2026q2");
+    assert_eq!(entry.root_fingerprint, "root:sha256:fixture");
+    assert_eq!(entry.epoch_id, "generation:42");
+    assert_eq!(entry.root_status, DreggAuthorityStatus::Active);
+    assert_eq!(entry.issuer_status, DreggAuthorityStatus::Active);
+    assert!(entry
+        .accepted_audiences
+        .contains(&"secS://operator-receiver".to_string()));
+    assert!(entry
+        .accepted_operations
+        .contains(&"membership.provision".to_string()));
+}
+
+#[test]
+fn map_rejects_wrong_contract_version() {
+    let req = request();
+    let mut resp = response();
+    resp.contract_version = "wrong-contract".to_string();
+    let result = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    );
+    assert_eq!(
+        result,
+        Err(DreggLiveSourceClientError::UnsupportedContractVersion)
+    );
+}
+
+#[test]
+fn map_rejects_inactive_issuer() {
+    let req = request();
+    let mut resp = response();
+    resp.issuer_status = DreggLiveSourceStatus::Inactive;
+    let result = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    );
+    assert_eq!(result, Err(DreggLiveSourceClientError::RevokedOrInactive));
+}
+
+#[test]
+fn map_rejects_revoked_issuer() {
+    let req = request();
+    let mut resp = response();
+    resp.issuer_status = DreggLiveSourceStatus::Revoked;
+    let result = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    );
+    assert_eq!(result, Err(DreggLiveSourceClientError::RevokedOrInactive));
+}
+
+#[test]
+fn map_rejects_wrong_entity_binding() {
+    let req = request();
+    let mut resp = response();
+    resp.entity_ref = "other:entity".to_string();
+    let result = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    );
+    assert_eq!(result, Err(DreggLiveSourceClientError::WrongBinding));
+}
+
+#[test]
+fn map_rejects_wrong_resource_binding() {
+    let req = request();
+    let mut resp = response();
+    resp.resource_ref = "other/resource".to_string();
+    let result = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    );
+    assert_eq!(result, Err(DreggLiveSourceClientError::WrongBinding));
+}
+
+#[test]
+fn map_rejects_duplicate_conflict() {
+    let req = request();
+    let mut resp = response();
+    resp.duplicate_policy = DreggLiveSourceDuplicatePolicy::Conflict;
+    let result = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    );
+    assert_eq!(
+        result,
+        Err(DreggLiveSourceClientError::DuplicateAuthorityConflict)
+    );
+}
+
+#[test]
+fn map_flows_redacted_summary_through_without_raw_credentials() {
+    let req = request();
+    let mut resp = response();
+    resp.redacted_summary =
+        "source=dregg-source:operator root=root:sha256:fixture status=active".to_string();
+    let (snapshot, _entries) = server::dregg_live_source::map_response_to_authority_snapshot(
+        &req,
+        &resp,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+    )
+    .expect("valid response should map");
+    assert_eq!(
+        snapshot.issuers[0].status_ref,
+        "source=dregg-source:operator root=root:sha256:fixture status=active"
+    );
+    let lower = snapshot.issuers[0].status_ref.to_ascii_lowercase();
+    assert!(!lower.contains("bearer "));
+    assert!(!lower.contains("access_token"));
+    assert!(!lower.contains("secret"));
 }
