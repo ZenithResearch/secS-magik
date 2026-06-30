@@ -1,11 +1,11 @@
 use server::config::{
-    validate_production_startup_readiness, GatewayRuntimeConfig, ReadinessStatus,
-    StartupReadinessError,
+    validate_production_startup_readiness, DreggLiveSourceConfig, GatewayRuntimeConfig,
+    ReadinessStatus, StartupReadinessError,
 };
 use server::gateway::init_telemetry_schema;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::fs;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[tokio::test]
 async fn readiness_reports_config_loaded_and_ledger_ready() {
@@ -354,5 +354,59 @@ async fn readiness_reports_snapshot_source_status_when_snapshot_adapter_is_enabl
         readiness.dregg_authority_snapshot_ready,
         ReadinessStatus::Ready
     );
+    assert!(readiness.is_ready_for_local_smoke());
+}
+
+#[tokio::test]
+async fn readiness_reports_live_source_status_without_network_calls() {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let registry = temp_path("readiness-trust-registry-live-source.json");
+    fs::write(
+        &registry,
+        br#"{"trusted_verifiers":[{"key_id":"verifier:operator"}]}"#,
+    )
+    .unwrap();
+    let caller_registry = write_caller_registry_fixture("readiness-caller-registry-live", false);
+    let permission_policy = write_permission_policy_fixture("readiness-permission-policy-live");
+    let token = temp_path("readiness-dregg-live-source-token");
+    fs::write(&token, "owner-private-token\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&token, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:0",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry.to_str().unwrap(),
+        caller_registry.to_str().unwrap(),
+        permission_policy.to_str().unwrap(),
+        "dregg_live_source",
+    )
+    .unwrap();
+    config.dregg_live_source = Some(DreggLiveSourceConfig {
+        url: "https://dregg.example.test/authority".to_string(),
+        auth_token_path: token.clone(),
+        timeout: Duration::from_secs(5),
+        retry_max: 2,
+        cache_ttl: Duration::from_secs(30),
+        stale_max: Duration::from_secs(300),
+    });
+
+    let readiness = config.readiness(&pool).await.unwrap();
+
+    let _ = fs::remove_file(registry);
+    let _ = fs::remove_file(caller_registry);
+    let _ = fs::remove_file(permission_policy);
+    let _ = fs::remove_file(token);
+    assert_eq!(readiness.dregg_live_source_ready, ReadinessStatus::Ready);
     assert!(readiness.is_ready_for_local_smoke());
 }
