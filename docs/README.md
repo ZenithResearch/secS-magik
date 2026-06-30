@@ -26,6 +26,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | What is client vs verifier? | [client-surfaces.md](client-surfaces.md) |
 | What is the current production-readiness plan? | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) |
 | What proof packet is required before deployed-production claims? | [ops/production-deployment-proof.md](ops/production-deployment-proof.md) |
+| How do I run the M15.8 demo? | [ops/demo-runbook.md](ops/demo-runbook.md) |
 | What is the Track E local phase status? | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) |
 | What was the original issue-slice sequence? | [plans/2026-06-01-secs-magik-implementation-issue-slices.md](plans/2026-06-01-secs-magik-implementation-issue-slices.md) |
 | What is public-language draft material? | [announcement-thread.md](announcement-thread.md) |
