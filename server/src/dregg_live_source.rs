@@ -225,6 +225,41 @@ impl DreggLiveSourceFileCache {
         Ok(Some(decision))
     }
 
+    /// Loads and returns the full cache entry when it is fresh, matching,
+    /// and validated. Returns `Ok(None)` when no matching entry exists,
+    /// `Err(StaleStatus)` when the entry is present but stale, or another
+    /// error on validation failure.
+    pub fn load_fresh_entry(
+        &self,
+        request: &DreggLiveSourceRequest,
+        now: u64,
+        cache_ttl_seconds: u64,
+        max_status_age_seconds: u64,
+        trusted_key: &DreggLiveSourceTrustedKey,
+    ) -> Result<Option<DreggLiveSourceCacheEntry>, DreggLiveSourceClientError> {
+        let Some(entry) = self.load_entry()? else {
+            return Ok(None);
+        };
+        if !cache_key_matches(&entry.request, request) {
+            return Ok(None);
+        }
+        if !cache_entry_is_fresh_for_request(&entry, request, now, cache_ttl_seconds) {
+            return Err(DreggLiveSourceClientError::StaleStatus);
+        }
+        validate_live_source_response(
+            &entry.request,
+            &entry.response,
+            max_status_age_seconds,
+            Some(trusted_key),
+        )?;
+        validate_cache_entry_current_request_window(
+            request,
+            &entry.response,
+            max_status_age_seconds,
+        )?;
+        Ok(Some(entry))
+    }
+
     pub fn store_replacement_if_newer(
         &self,
         candidate_request: &DreggLiveSourceRequest,
@@ -343,6 +378,7 @@ pub struct DreggLiveSourceLookupPolicy {
     pub timeout: Duration,
     pub retry_max: u64,
     pub stale_max_seconds: u64,
+    pub cache_ttl_seconds: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -532,29 +568,107 @@ pub fn load_live_source_auth_token(
     Ok(DreggLiveSourceAuthMaterial { token })
 }
 
+/// Executes a live Dregg source lookup with cache integration.
+///
+/// When a fresh cache entry exists for the request, returns the cached
+/// snapshot without calling transport.
+///
+/// When the cache is stale or absent, calls transport, validates the
+/// response, maps it to an authority snapshot + entries, stores the result
+/// in cache, and returns it.
+///
+/// Transport failure does not fall back to stale cache authority.
+/// Disabled transport, missing auth, or missing trust are rejected before
+/// any transport call.
+#[allow(clippy::too_many_arguments)]
 pub fn execute_live_source_lookup<T: DreggLiveSourceTransport>(
+    cache: Option<&DreggLiveSourceFileCache>,
     mut transport: Option<&mut T>,
     auth: Option<&DreggLiveSourceAuthMaterial>,
     trusted_key: Option<&DreggLiveSourceTrustedKey>,
     request: &DreggLiveSourceRequest,
     policy: DreggLiveSourceLookupPolicy,
-) -> Result<DreggLiveSourceDecision, DreggLiveSourceClientError> {
+    issuer_public_key_hex: &str,
+    federation_id: &str,
+    namespace_id: &str,
+    now: u64,
+) -> Result<(DreggAuthoritySnapshot, Vec<DreggAuthorityEntry>), DreggLiveSourceClientError> {
     let transport = transport
         .as_mut()
         .ok_or(DreggLiveSourceClientError::TransportDisabled)?;
     let auth = auth.ok_or(DreggLiveSourceClientError::MissingAuthMaterial)?;
     let trusted_key = trusted_key.ok_or(DreggLiveSourceClientError::MissingSourceTrust)?;
+
+    // Check cache first — fresh hit returns immediately with no transport call
+    if let Some(cache) = cache {
+        match cache.load_fresh_entry(
+            request,
+            now,
+            policy.cache_ttl_seconds,
+            policy.stale_max_seconds,
+            trusted_key,
+        ) {
+            Ok(Some(entry)) => {
+                // Fresh cache hit — map to snapshot and return
+                return map_response_to_authority_snapshot(
+                    &entry.request,
+                    &entry.response,
+                    issuer_public_key_hex,
+                    federation_id,
+                    namespace_id,
+                );
+            }
+            Ok(None) => {
+                // No matching cache entry — proceed to transport
+            }
+            Err(DreggLiveSourceClientError::StaleStatus) => {
+                // Cache is stale — proceed to transport
+            }
+            Err(other) => {
+                // Corrupted cache or validation failure — fail closed
+                return Err(other);
+            }
+        }
+    }
+
+    let response = transport_call_with_retry(*transport, request, auth, trusted_key, policy)?;
+
+    let (snapshot, entries) = map_response_to_authority_snapshot(
+        request,
+        &response,
+        issuer_public_key_hex,
+        federation_id,
+        namespace_id,
+    )?;
+
+    // Cache the successful response for future lookups
+    if let Some(cache) = cache {
+        // Best-effort cache store — failure here shouldn't fail the lookup
+        let _ = cache.store_replacement_if_newer(request, &response, now, trusted_key);
+    }
+
+    Ok((snapshot, entries))
+}
+
+fn transport_call_with_retry(
+    transport: &mut impl DreggLiveSourceTransport,
+    request: &DreggLiveSourceRequest,
+    auth: &DreggLiveSourceAuthMaterial,
+    trusted_key: &DreggLiveSourceTrustedKey,
+    policy: DreggLiveSourceLookupPolicy,
+) -> Result<DreggLiveSourceResponse, DreggLiveSourceClientError> {
     let mut attempts = 0_u64;
     loop {
         attempts += 1;
         match transport.fetch_authority(request, auth, policy.timeout) {
             Ok(response) => {
-                return validate_live_source_response(
+                validate_live_source_response(
                     request,
                     &response,
                     policy.stale_max_seconds,
                     Some(trusted_key),
-                );
+                )?;
+                return Ok(response);
             }
             Err(DreggLiveSourceTransportError::Timeout) => {
                 if attempts > policy.retry_max {

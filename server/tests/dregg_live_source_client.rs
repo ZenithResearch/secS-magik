@@ -643,16 +643,22 @@ fn live_source_lookup_does_not_call_transport_when_adapter_disabled_auth_missing
         timeout: Duration::from_millis(250),
         retry_max: 2,
         stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
     };
     let mut transport = FixtureTransport::new(vec![Ok(signed_response())]);
     let auth = auth_material("lookup-preflight");
 
     let disabled_result = execute_live_source_lookup(
+        None,
         None::<&mut FixtureTransport>,
         None,
         None,
         &request(),
         policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
     );
     assert_eq!(
         disabled_result,
@@ -660,16 +666,36 @@ fn live_source_lookup_does_not_call_transport_when_adapter_disabled_auth_missing
     );
     assert_eq!(transport.calls, 0);
 
-    let missing_auth_result =
-        execute_live_source_lookup(Some(&mut transport), None, None, &request(), policy);
+    let missing_auth_result = execute_live_source_lookup(
+        None,
+        Some(&mut transport),
+        None,
+        None,
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    );
     assert_eq!(
         missing_auth_result,
         Err(DreggLiveSourceClientError::MissingAuthMaterial)
     );
     assert_eq!(transport.calls, 0);
 
-    let missing_trust_result =
-        execute_live_source_lookup(Some(&mut transport), Some(&auth), None, &request(), policy);
+    let missing_trust_result = execute_live_source_lookup(
+        None,
+        Some(&mut transport),
+        Some(&auth),
+        None,
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    );
     assert_eq!(
         missing_trust_result,
         Err(DreggLiveSourceClientError::MissingSourceTrust)
@@ -683,6 +709,7 @@ fn live_source_lookup_retries_transport_timeouts_then_validates_response() {
         timeout: Duration::from_millis(250),
         retry_max: 2,
         stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
     };
     let auth = auth_material("lookup-timeout-success");
     let mut transport = FixtureTransport::new(vec![
@@ -691,22 +718,28 @@ fn live_source_lookup_retries_transport_timeouts_then_validates_response() {
         Ok(signed_response()),
     ]);
 
-    let decision = execute_live_source_lookup(
+    let (snapshot, entries) = execute_live_source_lookup(
+        None,
         Some(&mut transport),
         Some(&auth),
         Some(&source_trusted_key()),
         &request(),
         policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
     )
     .expect("lookup should retry transport timeouts then validate the successful response");
 
-    assert_eq!(decision.source_id, "dregg-source:operator");
+    assert_eq!(snapshot.source_node_id, "dregg-source:operator");
     assert_eq!(transport.calls, 3);
     assert_eq!(transport.observed_timeout, Some(Duration::from_millis(250)));
     assert_eq!(
         transport.observed_auth_summary.as_deref(),
         Some("auth_token:<redacted>")
     );
+    assert_eq!(entries.len(), 1);
 }
 
 #[test]
@@ -715,6 +748,7 @@ fn live_source_lookup_returns_transport_timeout_after_bounded_retry_exhaustion()
         timeout: Duration::from_millis(250),
         retry_max: 2,
         stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
     };
     let auth = auth_material("lookup-timeout-exhausted");
     let mut transport = FixtureTransport::new(vec![
@@ -724,11 +758,16 @@ fn live_source_lookup_returns_transport_timeout_after_bounded_retry_exhaustion()
     ]);
 
     let result = execute_live_source_lookup(
+        None,
         Some(&mut transport),
         Some(&auth),
         Some(&source_trusted_key()),
         &request(),
         policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
     );
 
     assert_eq!(result, Err(DreggLiveSourceClientError::TransportTimeout));
@@ -741,6 +780,7 @@ fn live_source_lookup_does_not_retry_source_unavailable_transport_failure() {
         timeout: Duration::from_millis(250),
         retry_max: 2,
         stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
     };
     let auth = auth_material("lookup-source-unavailable");
     let mut transport = FixtureTransport::new(vec![
@@ -749,11 +789,16 @@ fn live_source_lookup_does_not_retry_source_unavailable_transport_failure() {
     ]);
 
     let result = execute_live_source_lookup(
+        None,
         Some(&mut transport),
         Some(&auth),
         Some(&source_trusted_key()),
         &request(),
         policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
     );
 
     assert_eq!(result, Err(DreggLiveSourceClientError::SourceUnavailable));
@@ -766,6 +811,7 @@ fn live_source_lookup_does_not_retry_semantic_rejects() {
         timeout: Duration::from_millis(250),
         retry_max: 2,
         stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
     };
     let auth = auth_material("lookup-semantic-reject");
     let mut malformed = response();
@@ -773,11 +819,16 @@ fn live_source_lookup_does_not_retry_semantic_rejects() {
     let mut transport = FixtureTransport::new(vec![Ok(malformed), Ok(response())]);
 
     let result = execute_live_source_lookup(
+        None,
         Some(&mut transport),
         Some(&auth),
         Some(&source_trusted_key()),
         &request(),
         policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
     );
 
     assert_eq!(result, Err(DreggLiveSourceClientError::MalformedResponse));
@@ -968,4 +1019,327 @@ fn map_flows_redacted_summary_through_without_raw_credentials() {
     assert!(!lower.contains("bearer "));
     assert!(!lower.contains("access_token"));
     assert!(!lower.contains("secret"));
+}
+
+// ── cache-integration wiring tests ──
+
+#[test]
+fn cache_wired_lookup_returns_fresh_cached_snapshot_without_calling_transport() {
+    let trusted_key = source_trusted_key();
+    let mut candidate_request = request();
+    candidate_request.request_nonce = "nonce-cache-wired-hit".to_string();
+    let candidate_response = sign_response_for_request(&candidate_request, response());
+    let cache = DreggLiveSourceFileCache::new(cache_path("wired-fresh-hit"));
+    let _ = std::fs::remove_file(cache.path());
+    cache
+        .store_replacement_if_newer(
+            &candidate_request,
+            &candidate_response,
+            NOW - 5,
+            &trusted_key,
+        )
+        .expect("valid cache entry should persist");
+
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
+    };
+    let auth = auth_material("wired-fresh-hit");
+    // Transport should never be called
+    let mut transport = FixtureTransport::new(vec![Ok(signed_response())]);
+
+    let (snapshot, entries) = server::dregg_live_source::execute_live_source_lookup(
+        Some(&cache),
+        Some(&mut transport),
+        Some(&auth),
+        Some(&trusted_key),
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    )
+    .expect("fresh cache hit should return snapshot without transport");
+
+    assert_eq!(
+        transport.calls, 0,
+        "transport must not be called on fresh cache hit"
+    );
+    assert_eq!(snapshot.source_node_id, "dregg-source:operator");
+    assert_eq!(snapshot.authority_mode, "live_castalia_dregg");
+    assert_eq!(snapshot.snapshot_id, "generation:42");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].issuer_key_id, "issuer-key:1");
+
+    let _ = std::fs::remove_file(cache.path());
+}
+
+#[test]
+fn cache_wired_lookup_calls_transport_on_stale_cache_validates_maps_and_caches() {
+    let trusted_key = source_trusted_key();
+    let mut candidate_request = request();
+    candidate_request.request_nonce = "nonce-cache-wired-stale".to_string();
+    // Cache an old entry that is now stale
+    let mut stale_response = response();
+    stale_response.status_observed_at = NOW - 400;
+    let stale_response = sign_response_for_request(&candidate_request, stale_response);
+    let cache = DreggLiveSourceFileCache::new(cache_path("wired-stale-fetch"));
+    let _ = std::fs::remove_file(cache.path());
+    cache
+        .store_replacement_if_newer(&candidate_request, &stale_response, NOW - 400, &trusted_key)
+        .expect("stale cache entry should persist");
+
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
+    };
+    let auth = auth_material("wired-stale-fetch");
+    let fresh_response = sign_response_for_request(&request(), response());
+    let mut transport = FixtureTransport::new(vec![Ok(fresh_response)]);
+
+    let (snapshot, _entries) = server::dregg_live_source::execute_live_source_lookup(
+        Some(&cache),
+        Some(&mut transport),
+        Some(&auth),
+        Some(&trusted_key),
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    )
+    .expect("stale cache should trigger transport call, validate, map, and return fresh snapshot");
+
+    assert_eq!(
+        transport.calls, 1,
+        "transport must be called once on stale cache"
+    );
+    assert_eq!(snapshot.snapshot_id, "generation:42");
+
+    // Verify the fresh response was cached (second call should be cache hit)
+    let mut transport2 = FixtureTransport::new(vec![Ok(signed_response())]);
+    let (_snapshot2, _entries2) = server::dregg_live_source::execute_live_source_lookup(
+        Some(&cache),
+        Some(&mut transport2),
+        Some(&auth),
+        Some(&trusted_key),
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW + 5,
+    )
+    .expect("second lookup should hit fresh cache");
+    assert_eq!(
+        transport2.calls, 0,
+        "second lookup must hit cache, not transport"
+    );
+
+    let _ = std::fs::remove_file(cache.path());
+}
+
+#[test]
+fn cache_wired_lookup_transport_failure_with_stale_cache_returns_error_no_fallback() {
+    let trusted_key = source_trusted_key();
+    let mut candidate_request = request();
+    candidate_request.request_nonce = "nonce-cache-wired-stale-fail".to_string();
+    let stale_response = sign_response_for_request(&candidate_request, response());
+    let cache = DreggLiveSourceFileCache::new(cache_path("wired-stale-fail"));
+    let _ = std::fs::remove_file(cache.path());
+    cache
+        .store_replacement_if_newer(&candidate_request, &stale_response, NOW - 500, &trusted_key)
+        .expect("stale cache entry should persist");
+
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 0,
+        stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
+    };
+    let auth = auth_material("wired-stale-fail");
+    let mut transport =
+        FixtureTransport::new(vec![Err(DreggLiveSourceTransportError::SourceUnavailable)]);
+
+    let result = server::dregg_live_source::execute_live_source_lookup(
+        Some(&cache),
+        Some(&mut transport),
+        Some(&auth),
+        Some(&trusted_key),
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    );
+
+    assert_eq!(
+        result,
+        Err(DreggLiveSourceClientError::SourceUnavailable),
+        "transport failure must not fall back to stale cache authority"
+    );
+    assert_eq!(transport.calls, 1);
+
+    let _ = std::fs::remove_file(cache.path());
+}
+
+#[test]
+fn cache_wired_lookup_disabled_transport_or_missing_auth_returns_error_before_transport() {
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
+    };
+    let mut transport = FixtureTransport::new(vec![Ok(signed_response())]);
+
+    let disabled = server::dregg_live_source::execute_live_source_lookup(
+        None,
+        None::<&mut FixtureTransport>,
+        None,
+        None,
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    );
+    assert_eq!(disabled, Err(DreggLiveSourceClientError::TransportDisabled));
+    assert_eq!(transport.calls, 0);
+
+    let missing_auth = server::dregg_live_source::execute_live_source_lookup(
+        None,
+        Some(&mut transport),
+        None,
+        None,
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    );
+    assert_eq!(
+        missing_auth,
+        Err(DreggLiveSourceClientError::MissingAuthMaterial)
+    );
+    assert_eq!(transport.calls, 0);
+
+    let auth = auth_material("wired-preflight");
+    let missing_trust = server::dregg_live_source::execute_live_source_lookup(
+        None,
+        Some(&mut transport),
+        Some(&auth),
+        None,
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    );
+    assert_eq!(
+        missing_trust,
+        Err(DreggLiveSourceClientError::MissingSourceTrust)
+    );
+    assert_eq!(transport.calls, 0);
+}
+
+#[test]
+fn cache_wired_lookup_semantic_validation_failure_does_not_retry() {
+    let trusted_key = source_trusted_key();
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
+    };
+    let auth = auth_material("wired-semantic-reject");
+    let mut malformed = response();
+    malformed.source_id = "".to_string();
+    let mut transport = FixtureTransport::new(vec![Ok(malformed), Ok(response())]);
+
+    let result = server::dregg_live_source::execute_live_source_lookup(
+        None,
+        Some(&mut transport),
+        Some(&auth),
+        Some(&trusted_key),
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    );
+
+    assert_eq!(result, Err(DreggLiveSourceClientError::MalformedResponse));
+    assert_eq!(
+        transport.calls, 1,
+        "semantic validation failure must not retry"
+    );
+}
+
+#[test]
+fn cache_wired_lookup_no_cache_entry_calls_transport_and_returns_mapped_snapshot() {
+    let trusted_key = source_trusted_key();
+    let cache = DreggLiveSourceFileCache::new(cache_path("wired-no-entry"));
+    let _ = std::fs::remove_file(cache.path());
+
+    let policy = DreggLiveSourceLookupPolicy {
+        timeout: Duration::from_millis(250),
+        retry_max: 2,
+        stale_max_seconds: 300,
+        cache_ttl_seconds: 30,
+    };
+    let auth = auth_material("wired-no-entry");
+    let fresh = sign_response_for_request(&request(), response());
+    let mut transport = FixtureTransport::new(vec![Ok(fresh)]);
+
+    let (snapshot, entries) = server::dregg_live_source::execute_live_source_lookup(
+        Some(&cache),
+        Some(&mut transport),
+        Some(&auth),
+        Some(&trusted_key),
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW,
+    )
+    .expect("no cache entry should call transport and return snapshot");
+
+    assert_eq!(transport.calls, 1);
+    assert_eq!(snapshot.snapshot_id, "generation:42");
+    assert_eq!(entries.len(), 1);
+
+    // Verify the response was cached
+    let mut transport2 = FixtureTransport::new(vec![]);
+    let (_snapshot2, _entries2) = server::dregg_live_source::execute_live_source_lookup(
+        Some(&cache),
+        Some(&mut transport2),
+        Some(&auth),
+        Some(&trusted_key),
+        &request(),
+        policy,
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "castalia-demo",
+        "castalia-demo:example",
+        NOW + 5,
+    )
+    .expect("second lookup should hit cache after first call cached it");
+    assert_eq!(
+        transport2.calls, 0,
+        "response must be cached after first successful transport call"
+    );
+
+    let _ = std::fs::remove_file(cache.path());
 }
