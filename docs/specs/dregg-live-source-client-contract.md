@@ -1,6 +1,6 @@
 # Live Castalia Dregg source/client contract (#206)
 
-Status: specification plus no-network config/readiness, typed decision-helper, source-authentication, HTTP request-builder, transport-seam, and persistent-cache helper slices. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache/source-signature/HTTP-request/transport-seam semantics with in-memory and file-backed no-network tests. It still does not implement an HTTP client, make live network calls, wire live responses into verification, or close #206 by itself.
+Status: #206 closure-ready no-network implementation. This document defines `secs-dregg-live-source-client-v1`; runtime config now recognizes `dregg_live_source` and the reserved `SECS_DREGG_LIVE_SOURCE_*` knobs, startup readiness fail-closes on missing/unreadable local credential configuration, and `server::dregg_live_source` pins the request/response/cache/source-signature/HTTP-request/transport-seam/response-to-authority/cache-wiring semantics with in-memory and file-backed no-network tests. The persistent-cache helper slices are implemented by `DreggLiveSourceFileCache` and `execute_live_source_lookup(...)`. The implemented boundary deliberately stops before making live network calls; transport remains an injected seam so tests and readiness can prove fail-closed behavior without contacting a live Castalia Dregg service.
 
 ## Purpose
 
@@ -57,7 +57,7 @@ Every response fields set must be deterministic enough to map into `DreggAuthori
 | `contract_version` | Must equal `secs-dregg-live-source-client-v1`. |
 | `source_id` | Stable live source identifier for operator diagnostics. |
 | `source_key_id` | Stable receiver-trusted live source signing key id; wrong or missing key ids reject before mapping to authority. |
-| `source_status` | `active`, `degraded`, or `unavailable`; only `active` may satisfy production readiness. |
+| `source_status` | `active`, `degraded`, or `unavailable`; only `active` may satisfy authority acceptance. Adapter readiness is based on explicit local config/readiness checks and does not call the source. |
 | `entity_ref` / `resource_ref` | Must match the request after canonicalization; wrong entity/namespace/resource rejects. |
 | `issuer_key_id` / `issuer_status` | Issuer identity and status; revoked/inactive issuer/resource rejects. |
 | `authority_root_ref` / `root_fingerprint` / `root_status` | Receiver-trusted root identity and status; wrong root rejects. |
@@ -82,13 +82,13 @@ Current no-network helper posture:
 - `validate_live_source_response(..., Some(trusted_key))` rejects wrong source id, wrong source key id, inactive/unconfigured trust, malformed signature length, bad signature, and request/response rebinding as `UnauthorizedSource`.
 - `execute_live_source_lookup(...)` requires auth material and a trusted source key before calling the transport seam, so missing trust cannot trigger a live adapter call.
 
-Minimum remaining authentication posture for implementation:
+Implemented authentication posture:
 
-1. Load source credentials from `SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH` or a stricter signed-request mechanism.
-2. Require HTTPS or an explicitly documented local test transport that cannot be enabled in `production_verified`.
-3. Build the pre-network HTTP request deterministically: POST JSON to the configured source URL's `/lookup` endpoint, strip non-secret query/fragment material from the authority URL, reject userinfo, control-character/whitespace injection, or secret-bearing query strings, include the contract id header, and keep bearer/signed-request credentials out of request JSON, debug output, logs, readiness, and receipts.
-4. Bind request authentication to `contract_version`, `receiver_audience`, `operation`, `opcode`, `entity_ref`, `resource_ref`, `subject`, and `request_nonce`.
-5. Redact credentials from logs, receipts, readiness, error strings, and operator summaries.
+1. Load source credentials from `SECS_DREGG_LIVE_SOURCE_AUTH_TOKEN_PATH`.
+2. Require HTTPS for the pre-network request builder; the runtime transport remains an injected no-network seam in this slice.
+3. Build the pre-network HTTP request deterministically: POST JSON to the configured source URL's `/lookup` endpoint, strip non-secret query/fragment material from the authority URL, reject userinfo, control-character/whitespace injection, or secret-bearing query strings, include the contract id header, and keep bearer credentials out of request JSON, debug output, logs, readiness, and receipts.
+4. Bind response authentication to `contract_version`, `receiver_audience`, `operation`, `opcode`, `entity_ref`, `resource_ref`, `subject`, and `request_nonce` through the signed response payload.
+5. Redact credentials from logs, readiness, error strings, and operator summaries.
 6. Fail closed on missing credential, missing trusted source key, wrong source identity/key id, unauthorized source response, or replayed/rebound source response.
 
 ## Freshness/status semantics
@@ -104,7 +104,7 @@ Freshness/status semantics are authority decisions, not observability only:
 
 ## Timeout/retry/cache policy
 
-The timeout/retry/cache policy must be deterministic and bounded:
+The timeout/retry/cache policy is deterministic and bounded at the injected transport seam:
 
 - A live source outage rejects once the fresh cache window is exceeded.
 - Transport timeout may retry up to `SECS_DREGG_LIVE_SOURCE_RETRY_MAX`; semantic rejects must not be retried as if transient.
@@ -116,7 +116,7 @@ The timeout/retry/cache policy must be deterministic and bounded:
 
 ## Mapping to `DreggAuthoritySnapshot`
 
-Until a versioned successor is approved, the live source maps into `DreggAuthoritySnapshot` semantics as receiver-held authority state:
+Until a versioned successor is approved, the live source maps into `DreggAuthoritySnapshot` semantics as receiver-held authority state. `map_response_to_authority_snapshot(...)` and `execute_live_source_lookup(...)` now perform this mapping after cache/transport validation:
 
 - entity/namespace/resource rows map to snapshot authority entries;
 - issuer/root/status/freshness fields map to the same fail-closed lookup checks used by file snapshots;
@@ -125,7 +125,7 @@ Until a versioned successor is approved, the live source maps into `DreggAuthori
 
 ## Failure matrix
 
-Runtime work must keep these cases tested before claiming #206 implementation. The current helper slices cover deterministic in-memory decision/cache cases, config/readiness placeholders, source authentication, pre-network HTTP request building, and the transport seam; real live HTTP transport, verification-path wiring, persistent cache storage, and operator diagnostics remain future work.
+Runtime work must keep these cases tested before claiming live-source authority. The current #206 implementation covers deterministic in-memory decision/cache cases, config/readiness, source authentication, pre-network HTTP request building, the injected transport seam, persistent cache storage, response-to-authority mapping, cache-to-transport-to-map wiring, and redaction-safe cache/readiness diagnostics. Real outbound network execution remains intentionally out of scope for this no-live-network boundary.
 
 | Case | Required result |
 |---|---|

@@ -176,7 +176,7 @@ echo "cargo test --workspace --all-targets --all-features"
 
 ## Non-claims (what this demo does NOT prove)
 
-- ❌ Live Castalia Dregg API discovery (#206 in progress)
+- ❌ Live outbound Castalia Dregg network calls (the #206 client boundary is no-network and seam-tested)
 - ❌ Production deployment on a real host (#33 planned)
 - ❌ Cardano settlement (#75 spec-ready)
 - ❌ Castalia wallet-core parity (#71 spec-ready)
@@ -188,7 +188,7 @@ echo "cargo test --workspace --all-targets --all-features"
 
 ## Status after M15.8
 
-All M12–M15 tracks are closed and CI-proven. The file-backed authority snapshot works. The live source client (#206) in progress will replace `SECS_DREGG_AUTHORITY_SNAPSHOT_PATH` with `SECS_DREGG_LIVE_SOURCE_URL` for dynamic authority, but the demo does not require it.
+All M12–M15 tracks are closed and CI-proven. The file-backed authority snapshot works. The live source client (#206) now defines and tests the no-network `SECS_DREGG_LIVE_SOURCE_URL` authority-source boundary, including fail-closed readiness, source authentication, response mapping, and cache wiring. This M15.8 demo still uses the file-backed snapshot path and does not require a live outbound Castalia Dregg network call.
 
 Test counts at HEAD:
 - `cargo test --workspace --all-targets --all-features` passes clean
