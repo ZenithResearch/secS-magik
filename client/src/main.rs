@@ -446,6 +446,7 @@ mod tests {
     use super::*;
     use clap::Parser;
     use libsec_core::zk::verify_proof;
+    use serial_test::serial;
 
     fn fixed_identity() -> CallerIdentity {
         let signing_key = SigningKey::from_bytes(&[7u8; 32]);
@@ -736,6 +737,7 @@ mod tests {
         assert_eq!(decrypted, b"session secret");
     }
     #[test]
+    #[serial]
     fn load_tunnel_mode_rejects_mismatched_pinned_gateway_key_id() {
         let server_secret = x25519_dalek::StaticSecret::from([8u8; 32]);
         let server_public = PublicKey::from(&server_secret).to_bytes();
@@ -759,6 +761,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn load_tunnel_mode_accepts_matching_pinned_gateway_key_id() {
         let server_secret = x25519_dalek::StaticSecret::from([9u8; 32]);
         let server_public = PublicKey::from(&server_secret).to_bytes();
