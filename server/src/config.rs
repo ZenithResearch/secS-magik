@@ -166,6 +166,7 @@ pub struct GatewayReadiness {
     pub caller_registry_ready: ReadinessStatus,
     pub dregg_authority_registry_ready: ReadinessStatus,
     pub dregg_authority_snapshot_ready: ReadinessStatus,
+    pub dregg_live_source_ready: ReadinessStatus,
 }
 
 impl GatewayReadiness {
@@ -186,6 +187,10 @@ impl GatewayReadiness {
             )
             && matches!(
                 self.dregg_authority_snapshot_ready,
+                ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
+            )
+            && matches!(
+                self.dregg_live_source_ready,
                 ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
             )
     }
@@ -541,6 +546,27 @@ impl GatewayRuntimeConfig {
             }
         };
 
+        let dregg_live_source_ready = match self.runtime_mode {
+            RuntimeMode::ProductionVerified => {
+                if self
+                    .allowed_evidence_adapters
+                    .iter()
+                    .any(|adapter| adapter == "dregg_live_source")
+                {
+                    if validate_dregg_live_source_config(self.dregg_live_source.as_ref()).is_ok() {
+                        ReadinessStatus::Ready
+                    } else {
+                        ReadinessStatus::NotReady
+                    }
+                } else {
+                    ReadinessStatus::FixtureOnly
+                }
+            }
+            RuntimeMode::LocalDevPlaintext | RuntimeMode::LocalDevTunnel => {
+                ReadinessStatus::FixtureOnly
+            }
+        };
+
         Ok(GatewayReadiness {
             config_loaded: ReadinessStatus::Ready,
             ledger_ready,
@@ -548,6 +574,7 @@ impl GatewayRuntimeConfig {
             caller_registry_ready,
             dregg_authority_registry_ready,
             dregg_authority_snapshot_ready,
+            dregg_live_source_ready,
         })
     }
 

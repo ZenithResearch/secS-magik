@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- #206: surfaced `dregg_live_source` in the structured gateway readiness report, so operators can see whether the live-source adapter is ready without triggering network calls or exposing token contents.
 - #206: added a no-network persistent live-source cache helper that stores only validated signed responses, revalidates fresh matching entries before reuse, rejects stale cache entries fail-closed, and exposes redaction-safe cache diagnostics, so the future live adapter can use outage/cache behavior without letting stale or secret-bearing material authorize production calls.
 - #206: added a no-network HTTP/signed-request request builder for the live Dregg source contract, including HTTPS-only URL normalization, query/userinfo secret rejection, JSON request serialization, contract headers, bearer auth redaction in debug output, and tests that auth material is not copied into the body, so the eventual live adapter has a deterministic pre-network request boundary.
 - #206: added no-network live-source response authentication with `source_key_id`, `response_signature`, receiver-configured `DreggLiveSourceTrustedKey`, deterministic request/response signature payload binding, unauthorized-source rejects for bad/rebound signatures, and a pre-transport missing-trust guard, so live Dregg source material cannot influence authority until it is tied to a trusted source identity.
