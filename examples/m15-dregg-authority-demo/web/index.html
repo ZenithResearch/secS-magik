@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>secS-magik M15.8 authority-gate demo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #070b10;
+        --panel: #0d141c;
+        --panel-2: #101a24;
+        --text: #e7f4ef;
+        --muted: #8aa39a;
+        --line: #22313c;
+        --aqua: #58efc9;
+        --green: #3fb950;
+        --red: #ff6b6b;
+        --yellow: #f0c36d;
+        --blue: #7bb7ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px;
+        background: radial-gradient(circle at top left, rgba(88,239,201,.12), transparent 34rem), var(--bg);
+        color: var(--text);
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        line-height: 1.5;
+      }
+      main { max-width: 1180px; margin: 0 auto; }
+      h1, h2, h3 { line-height: 1.15; margin: 0; }
+      h1 { font-size: clamp(28px, 5vw, 56px); letter-spacing: -0.05em; }
+      h2 { margin-bottom: 12px; font-size: 18px; color: var(--aqua); }
+      h3 { margin-bottom: 8px; font-size: 14px; }
+      p { margin: 8px 0; }
+      code { color: var(--aqua); }
+      .hero { border: 1px solid var(--line); background: rgba(13,20,28,.86); border-radius: 18px; padding: 24px; margin-bottom: 18px; }
+      .dek { max-width: 900px; color: var(--muted); font-size: 15px; }
+      .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+      .pill { border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 5px 10px; font-size: 12px; }
+      .pill.good { color: var(--green); border-color: rgba(63,185,80,.45); }
+      .pill.warn { color: var(--yellow); border-color: rgba(240,195,109,.45); }
+      .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .9fr); gap: 18px; align-items: start; }
+      .card { border: 1px solid var(--line); background: rgba(13,20,28,.9); border-radius: 14px; padding: 16px; margin-bottom: 18px; }
+      .cases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      button { width: 100%; min-height: 74px; text-align: left; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: inherit; cursor: pointer; }
+      button:hover, button:focus { border-color: var(--aqua); outline: none; }
+      button strong { display: block; color: var(--aqua); margin-bottom: 5px; }
+      button small { color: var(--muted); }
+      ol, ul { padding-left: 20px; margin: 8px 0 0; }
+      li { margin: 5px 0; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .good-text { color: var(--green); }
+      .bad-text { color: var(--red); }
+      .warn-text { color: var(--yellow); }
+      .blue-text { color: var(--blue); }
+      .receipt { background: #02070b; border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 360px; white-space: pre-wrap; overflow: auto; font-size: 12px; }
+      .trace { display: grid; gap: 8px; }
+      .step { border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 10px; background: rgba(16,26,36,.72); padding: 10px; }
+      .step.pass { border-left-color: var(--green); }
+      .step.fail { border-left-color: var(--red); }
+      .step.skip { border-left-color: var(--yellow); opacity: .78; }
+      .step b { display: block; font-size: 12px; }
+      .step span { color: var(--muted); font-size: 12px; }
+      .boundary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .boundary .card { margin-bottom: 0; }
+      .footer { color: var(--muted); font-size: 12px; margin: 18px 0 0; }
+      @media (max-width: 900px) { .grid, .two, .boundary, .cases { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <h1>secS-magik M15.8 authority-gate demo</h1>
+        <p class="dek">
+          A runnable browser walkthrough of the bounded local demo: secS-magik accepts or rejects a
+          <code>membership.provision</code> operation using receiver-held policy, Dregg-shaped authority evidence,
+          wallet/issuer proof, resource-lock checks, and inspectable receipts.
+        </p>
+        <div class="status-row">
+          <span class="pill good">Production-shaped: policy + evidence + receipts</span>
+          <span class="pill warn">Local deterministic demo</span>
+          <span class="pill warn">No live network calls</span>
+        </div>
+      </section>
+
+      <div class="grid">
+        <section>
+          <div class="card">
+            <h2>Demo walkthrough</h2>
+            <ol>
+              <li><b>Step 1:</b> Click the success case to see the happy path.</li>
+              <li><b>Step 2:</b> Click the resource-lock failure to see a wrong-resource request fail closed.</li>
+              <li><b>Step 3:</b> Click the missing-evidence failure to see a request fail before execution.</li>
+              <li><b>Step 4:</b> Use the receipt panel to explain what was checked and what was not proven.</li>
+            </ol>
+          </div>
+
+          <div class="card">
+            <h2>Run a case</h2>
+            <div class="cases">
+              <button id="run-success-case" type="button">
+                <strong>Success</strong>
+                <small>All local policy/evidence/resource checks line up.</small>
+              </button>
+              <button id="run-resource-lock-failure" type="button">
+                <strong>Failure: wrong resource</strong>
+                <small>Dregg-shaped authority binds one resource; caller asks for another.</small>
+              </button>
+              <button id="run-missing-evidence-failure" type="button">
+                <strong>Failure: missing evidence</strong>
+                <small>Caller has a packet, but lacks Dregg-shaped authority evidence.</small>
+              </button>
+            </div>
+          </div>
+
+          <div class="boundary">
+            <div class="card">
+              <h2>What is production-shaped</h2>
+              <ul>
+                <li>Receiver-held policy gates the operation.</li>
+                <li>Caller proof, wallet proof, issuer credentials, and Dregg-shaped evidence are checked as separate layers.</li>
+                <li>Resource locks can allow exact matches and reject mismatches.</li>
+                <li>Verify/execute receipts are inspectable and redaction-safe.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h2>What is not proven</h2>
+              <ul>
+                <li>There is <b>no live Castalia/Dregg network call</b> in this browser demo.</li>
+                <li>No production deployment proof.</li>
+                <li>No public chain anchoring or immutable publication.</li>
+                <li>No runtime Dregg blocklace finality / BLS threshold QC verification.</li>
+                <li>No Midnight proof verification or Cardano settlement finality.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <aside>
+          <div class="card">
+            <h2>Case trace</h2>
+            <div id="case-title" class="pill">Select a case</div>
+            <div id="trace" class="trace" style="margin-top:12px"></div>
+          </div>
+          <div class="card">
+            <h2>Receipt / operator explanation</h2>
+            <pre id="receipt" class="receipt">Click a case to generate a local demo receipt.</pre>
+          </div>
+        </aside>
+      </div>
+
+      <p class="footer">
+        This page is a static explanatory web demo. The executable evidence remains the Rust test suite named in
+        <code>examples/m15-dregg-authority-demo/README.md</code>.
+      </p>
+    </main>
+
+    <script src="./demo.js"></script>
+  </body>
+</html>

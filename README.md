@@ -1,6 +1,8 @@
 # secS-magik
 
-secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
+secS-magik is the operator-facing interface layer for proof-gated machine operations: a Rust workspace for permissioned machine-to-machine RPC, verifier handoff, receiver-held policy, Dregg-shaped authority evidence, and inspectable receipts.
+
+If Dregg is the deeper authority kernel/OS, secS-magik is the layer that makes that authority usable by applications, operators, treasuries, and marketplaces. The current M15.8 demo is deliberately bounded and local, but it proves the interface shape: a caller-owned packet is accepted or rejected only after receiver-held policy, Dregg-shaped evidence, wallet/issuer proof, resource-lock checks, and signed receipt generation.
 
 Status: active prototype being realigned toward the 2026-06-01 objectives spec. Current code preserves the v0 packet shape and `u8` opcode dispatch; exposes client, core, and server crates; hardens the canonical gateway with bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy on `main`, and Track I local production-shaped `membership.provision` E2E on `main` via PR #76. Issue #77 adds a fail-closed descriptor-only `production_verified` runtime guard for canonical `0x44` `membership.provision`, while the evidence-backed helper path still covers the local E2E. Live runtime ingress now accepts a versioned request envelope carrying bounded evidence refs/public inputs for `membership.provision`; handler binding is still not authority, and those refs route through the canonical evidence adapter path. M15.2–M15.6 plus #159 provide bounded static Dregg policy-admission, fail-closed proof/finality blocker posture, and local operator-inspection; #144/M15.8 closes the bounded in-repo #73 finalizer while live proof/finality rails remain non-goals. This is not production deployment, public auditability, live Castalia/Dregg discovery, Midnight proof verification, Cardano authority, or full Castalia Wallet wallet-core parity.
 
@@ -13,6 +15,7 @@ Status: active prototype being realigned toward the 2026-06-01 objectives spec. 
 - [Components / Repository Map](#components--repository-map)
 - [Directory READMEs / Wiki Map](#directory-readmes--wiki-map)
 - [Demoable Milestone (M12)](#demoable-milestone-m12)
+- [M15.8 Dregg Authority Demo / Pitch Claim](#m158-dregg-authority-demo--pitch-claim)
 - [How It Works](#how-it-works)
 - [Key Design Decisions](#key-design-decisions)
 - [Packet v0](#packet-v0)
@@ -48,7 +51,7 @@ Short current status:
 
 - What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, bounds ingress wire reads before packet deserialization, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, enforces descriptor max TTL/session validity and receiver-local replay reservation before handler execution, routes verified bounded opcodes to configured local machine programs, persists typed receipt/event records to local SQLite without storing payload content by default, and exposes redacted local/operator receipt inspection.
 - What production-shaped gateway startup additionally requires now: `production_verified` must provide `SECS_PERMISSION_POLICY_PATH`; the file is parsed as receiver-local `PermissionPolicy` during readiness and installed into the canonical ingress router before local handler dispatch. When `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`, startup/readiness also requires `SECS_DREGG_AUTHORITY_REGISTRY_PATH` and parses it as the receiver-held Dregg issuer/root/epoch policy registry. Missing or invalid policy files fail startup/readiness closed.
-- What it is becoming: a typed secS verifier pipeline with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
+- What it is becoming: a typed secS verifier pipeline and authority interface with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
 - Who it is for: developers and operators building owned machine-call rails instead of broad bearer-token APIs.
 - Primary stack: Rust workspace with `core`, `client`, and `server`; Tokio TCP; bincode packet serialization; optional ChaCha20Poly1305 tunnel decryption; SQLite through SQLx runtime queries.
 
@@ -148,6 +151,42 @@ chain. The demo proves local verifier behavior only — not production
 deployment (#33), public auditability (#37), wallet-core parity (#71), live
 Castalia registry discovery beyond the bounded #72 Dregg-shaped snapshot seam, or Dregg/Midnight/Cardano authority (#73-#75);
 live evidence-aware ingress is the #162 rail, while trusted requested-authority attenuation is bounded to #169 and resource locks remain #160.
+
+## M15.8 Dregg Authority Demo / Pitch Claim
+
+The current pitch demo is [`examples/m15-dregg-authority-demo/README.md`](examples/m15-dregg-authority-demo/README.md) plus [`examples/m15-dregg-authority-demo.sh`](examples/m15-dregg-authority-demo.sh).
+
+The bounded claim is:
+
+> secS-magik can accept or reject a `membership.provision` call by verifying a caller-owned packet against receiver-held policy and Dregg-shaped authority evidence, then producing inspectable signed receipts for the verification and execution path.
+
+In product terms, this is secS-magik acting as the interface between deeper Dregg authority and concrete machine operations. It demonstrates:
+
+1. caller proof verification;
+2. receiver-local permission policy;
+3. Dregg-shaped authority evidence admission through typed checks;
+4. wallet proof-of-possession and trusted issuer credential checks;
+5. resource-lock acceptance/rejection without authority widening;
+6. redaction-safe verify/execute receipts for operator inspection.
+
+This demo does **not** claim live Castalia/Dregg networking, production deployment, public auditability/chain anchoring, Dregg blocklace finality, BLS threshold QC, Midnight proof verification, Cardano settlement/finality, full Castalia wallet-core parity, or network-facing hardening. Those remain post-demo rails.
+
+Run the human-readable checklist with:
+
+```bash
+./examples/m15-dregg-authority-demo.sh
+```
+
+Run the web walkthrough with:
+
+```bash
+cd examples/m15-dregg-authority-demo/web
+python3 -m http.server 8765
+```
+
+Then open `http://127.0.0.1:8765/`. The web demo guides success, wrong-resource failure, and missing-evidence failure cases while labeling which parts are production-shaped and which parts remain unproven.
+
+Run the executable evidence commands from the demo README before using the demo in a pitch.
 
 ## How It Works
 
@@ -313,12 +352,9 @@ The verifier-facing protocol boundary is the packet/verifier/manifest/receipt pa
 See [LICENSE](LICENSE).
 
 
-#160 implements bounded Dregg-provisioned resource locks: a Dregg authority token may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #144/M15.8 reconciles the bounded #73 finalizer.
+### Tunnel key lifecycle (#175)
 
-
-#144/M15.8 reconciles the bounded #73 finalizer across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 implements bounded Dregg-provisioned resource locks. The finalizer preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.
-
-- Tunnel key lifecycle (#175): v2 session-key clients may pin `SECS_TUNNEL_SERVER_X25519_PUBLIC_ID`, while gateways expose redacted `tunnel:x25519:<hash>` identities for current/next X25519 keys and record accepted v2 key ids in verify receipts.
+V2 session-key clients may pin `SECS_TUNNEL_SERVER_X25519_PUBLIC_ID`, while gateways expose redacted `tunnel:x25519:<hash>` identities for current/next X25519 keys and record accepted v2 key ids in verify receipts.
 
 
 ### Receipt-chain audit export model (#182)
