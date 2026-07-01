@@ -9,7 +9,7 @@
 | `hello-world.sh` | Starts the historical `secz` compatibility gateway on `127.0.0.1:9001`, sends `Hello World` through decimal opcode `16`, and verifies the gateway log saw the payload. |
 | `m12-demo.sh` | M12 end-to-end: authenticated caller accepted; forged proof / unknown caller / replay / expiry rejected with typed reasons; the caller receives the decision frame; an operator inspects the receipt chain. Local verifier behavior only. |
 | `m13-permission-demo.sh` | M13 receiver-local permissions: authors a policy with `secs-permctl` (grant exact/prefix, deny-wins, validity window, revoke) and asserts the `ALLOW` / `DENY:<reason>` matrix. The same model the gateway enforces live (M13.3) and the browser panel drives (M13.4b). Receiver-local only. |
-| [`m15-dregg-authority-demo/README.md`](m15-dregg-authority-demo/README.md) + `m15-dregg-authority-demo.sh` | M15.8 receiver-held Dregg authority gate demo: caller proof, permission policy, Dregg-shaped authority evidence, wallet PoP, trusted issuer credentials, resource-lock binding, and inspectable receipts. Local deterministic demo; not live Castalia/Dregg networking, settlement, public auditability, or deployment proof. |
+| [`m15-dregg-authority-demo/README.md`](m15-dregg-authority-demo/README.md) + `m15-dregg-authority-demo.sh` + [`m15-dregg-authority-demo/web/`](m15-dregg-authority-demo/web/) | M15.8 receiver-held Dregg authority gate demo: caller proof, permission policy, Dregg-shaped authority evidence, wallet PoP, trusted issuer credentials, resource-lock binding, and inspectable receipts. Includes a static web walkthrough for success and fail-closed cases. Local deterministic demo; not live Castalia/Dregg networking, settlement, public auditability, or deployment proof. |
 
 ## Run
 

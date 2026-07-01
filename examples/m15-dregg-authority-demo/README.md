@@ -73,6 +73,35 @@ cargo test -p server --test ready_for_prod_docs \
 
 Expected result: all three tests pass.
 
+## Web demo
+
+The runnable browser walkthrough lives in:
+
+```text
+examples/m15-dregg-authority-demo/web/index.html
+```
+
+Run it locally:
+
+```bash
+cd /Users/bananawalnut/repos/secS-magik/examples/m15-dregg-authority-demo/web
+python3 -m http.server 8765
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765/
+```
+
+The web demo guides an operator through three cases:
+
+1. **Success:** all local policy, Dregg-shaped evidence, wallet/issuer, and resource-lock checks line up, so the simulated trace reaches `VERIFY ACCEPTED` and `EXECUTE ACCEPTED`.
+2. **Failure — wrong resource:** the caller asks for a resource different from the Dregg-shaped authority-bound resource, so the trace rejects with `resource_lock_violation` before execution.
+3. **Failure — missing evidence:** the caller has a packet, but the required Dregg-shaped authority evidence is absent, so the trace rejects with `missing_dregg_authority_evidence` before execution.
+
+The web page is an explanatory static UI over the same bounded demo claim. It does not call the Rust verifier, does not call a live Castalia/Dregg network, and does not replace the executable evidence tests below. Use it for pitch walkthroughs and use the Rust tests for executable proof.
+
 ## Full verification
 
 ```bash
