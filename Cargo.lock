@@ -948,7 +948,7 @@ dependencies = [
  "rand",
  "rs_merkle",
  "serde",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "uniffi",
  "wasm-bindgen",
  "x25519-dalek",
