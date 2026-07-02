@@ -52,7 +52,7 @@ At the target, secS receives the packet, validates the envelope and verifier inp
 
 ## `0x44 membership.provision` evidence-carrier boundary
 
-For canonical `0x44 membership.provision`, client surfaces may carry `wallet_presentation` and `membership_credential` refs/material, but they do not verify authority and do not mint evidence-backed runtime contexts. secS remains the verifier: the server-side evidence-backed helper/API path consumes those refs/public inputs for local production-shaped E2E, while live TCP ingress still carries no evidence refs/public inputs for `0x44` until future wire-path work lands.
+For canonical `0x44 membership.provision`, client surfaces may carry `wallet_presentation`, `membership_credential`, and bounded evidence refs/public inputs, but they do not verify authority and do not mint evidence-backed runtime contexts. secS remains the verifier: the server-side evidence-backed helper/API path and live TCP ingress can consume bounded versioned request-envelope refs/public inputs through the canonical evidence adapter path, while clients still do not prove live Dregg authority, finality, or production readiness.
 
 ## Boundary rules
 

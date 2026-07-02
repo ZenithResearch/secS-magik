@@ -31,7 +31,7 @@ Candidate negative/status rows for the initial ledger:
 - `light_client_verified_requires_i18_not_i08_metadata` — owner I18; proof/VK metadata or bounded proof fixtures must not render as light-client verification.
 - `recursive_proof_carrying_state_future` — owner I19; recursive proof-carrying state remains future/missing.
 - `audit_without_surveillance_requires_i09` — owner I09; local public-audit bundle/anchor work exists, but audit-without-surveillance remains blocked until selective audit policy exists.
-- `production_ready_requires_deployment_proof` — owner I11/I12/I20 boundary via production proof; local production-shaped smoke and fixtures must not be rendered as production-ready.
+- `production_ready_requires_deployment_proof` — owner I12; blocked by I11/I20 via deployment-proof policy. Local production-shaped smoke and fixtures must stay blocked until deployment proof exists.
 - `handler_rejection_requires_no_handler_run` — owner I10; rejection rows must name `handler_did_not_run_expected` and implemented rows must point to handler-not-run assertions.
 
 Unsettled Wave 1 vocabulary:
@@ -71,3 +71,8 @@ Non-claims preserved:
 - I10 does not implement verifier/runtime/privacy/finality/proof behavior owned by I01-I09 or I14-I19.
 - Blocked/target/future rows for live signed authority, federated finality, anonymous/unlinkable membership, light-client verification, recursive proof-carrying state, audit-without-surveillance, and production readiness remain non-implemented.
 - Guide/readme/demo prose must still stay at or below each row's `docs_wording_allowed` value.
+
+
+## Docs-overclaim scan boundary
+
+Canonical ledger and issue/discovery docs are intentionally excluded from the naïve docs-overclaim scan until the checker supports scoped negative examples. These documents may need to discuss forbidden phrases as examples or row labels; current-facing README/spec/status surfaces are scanned instead.

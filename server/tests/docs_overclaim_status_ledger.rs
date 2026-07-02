@@ -2,8 +2,16 @@ use serde::Deserialize;
 
 const LEDGER: &str = include_str!("fixtures/dregg_negative_matrix_status_ledger.yaml");
 const README: &str = include_str!("../../README.md");
+const DOCS_README: &str = include_str!("../../docs/README.md");
+const SERVER_README: &str = include_str!("../../server/README.md");
+const EXAMPLES_README: &str = include_str!("../../examples/README.md");
+const DOCS_SPECS_README: &str = include_str!("../../docs/specs/README.md");
 const IMPLEMENTATION_STATUS: &str = include_str!("../../docs/implementation-status.md");
 const DREGG_AUTHORITY_SPEC: &str = include_str!("../../docs/specs/dregg-authority-rail.md");
+const DREGG_LIVE_SOURCE_SPEC: &str =
+    include_str!("../../docs/specs/dregg-live-source-client-contract.md");
+const EVIDENCE_ADAPTER_DISCLOSURE_SPEC: &str =
+    include_str!("../../docs/specs/evidence-adapter-readiness-disclosure.md");
 const M15_DEMO_README: &str = include_str!("../../examples/m15-dregg-authority-demo/README.md");
 
 #[derive(Debug, Deserialize)]
@@ -97,10 +105,26 @@ fn docs_overclaim_status_ledger_allows_downgraded_fixture_wording() {
 #[test]
 fn docs_overclaim_status_ledger_current_docs_do_not_use_forbidden_stronger_claims() {
     let rows = ledger().rows;
+    // Scan current-facing public/status/spec surfaces only. Canonical ledger,
+    // issue-discovery, broad plans, and test-fixture files intentionally contain
+    // forbidden phrases as negative examples and stay excluded until the checker
+    // supports row-owned scoped negative-example contexts.
     let docs = [
         ("README.md", README),
+        ("docs/README.md", DOCS_README),
+        ("server/README.md", SERVER_README),
+        ("examples/README.md", EXAMPLES_README),
+        ("docs/specs/README.md", DOCS_SPECS_README),
         ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
         ("docs/specs/dregg-authority-rail.md", DREGG_AUTHORITY_SPEC),
+        (
+            "docs/specs/dregg-live-source-client-contract.md",
+            DREGG_LIVE_SOURCE_SPEC,
+        ),
+        (
+            "docs/specs/evidence-adapter-readiness-disclosure.md",
+            EVIDENCE_ADAPTER_DISCLOSURE_SPEC,
+        ),
         (
             "examples/m15-dregg-authority-demo/README.md",
             M15_DEMO_README,
