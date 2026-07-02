@@ -22,10 +22,25 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::manifest::OperationDescriptor;
+
 pub const CONTEXT_SCHEMA_ID: &str = "secs-verification-context";
 pub const CONTEXT_SCHEMA_VERSION: u16 = 1;
 pub const CANONICAL_SERIALIZATION: &str = "secs-verification-context-json-v1";
 pub const CONTEXT_FINGERPRINT_VERSION: &str = "secs-vctx-fp-v1";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContextProjectionError {
+    MissingRequiredField(&'static str),
+}
+
+impl ContextProjectionError {
+    pub fn reason_code(&self) -> &'static str {
+        match self {
+            Self::MissingRequiredField(_) => "context_missing_required_field",
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerificationContext {
@@ -116,6 +131,106 @@ pub struct VerificationContext {
 }
 
 impl VerificationContext {
+    #[allow(clippy::too_many_arguments)]
+    pub fn expected_from_descriptor(
+        receiver_id: &str,
+        audience_id: &str,
+        descriptor: &OperationDescriptor,
+        resource_id: Option<&str>,
+        request_id: &str,
+        challenge_id: &str,
+        challenge_nonce_fingerprint: &str,
+        issued_at: u64,
+    ) -> Result<Self, ContextProjectionError> {
+        let resource_id =
+            resource_id.ok_or(ContextProjectionError::MissingRequiredField("resource_id"))?;
+        let descriptor_fingerprint = descriptor.authorization_fingerprint();
+        let manifest_id = "receiver-local-default-v0";
+        let manifest_version = "1";
+        let manifest_fingerprint = fingerprint_join(
+            "manifest:sha256",
+            &[manifest_id, manifest_version, &descriptor_fingerprint],
+        );
+        let accepted_evidence = descriptor.accepted_evidence.join("+");
+
+        Ok(Self {
+            context_schema_id: CONTEXT_SCHEMA_ID.to_string(),
+            context_schema_version: CONTEXT_SCHEMA_VERSION,
+            canonical_serialization: CANONICAL_SERIALIZATION.to_string(),
+            context_fingerprint_version: CONTEXT_FINGERPRINT_VERSION.to_string(),
+            receiver_id: receiver_id.to_string(),
+            audience_id: audience_id.to_string(),
+            service_id: Some(receiver_id.to_string()),
+            operation_id: descriptor.name.as_str().to_string(),
+            operation_kind: "opcode".to_string(),
+            opcode: descriptor.opcode,
+            handler_id: descriptor.handler_id.clone(),
+            action_scope: Some(descriptor.name.as_str().to_string()),
+            resource_type: "resource".to_string(),
+            resource_id: resource_id.to_string(),
+            resource_scope: "exact".to_string(),
+            resource_fingerprint: Some(fingerprint_join("resource:sha256", &[resource_id])),
+            subject_binding_kind: "policy_dependent".to_string(),
+            subject_commitment: None,
+            manifest_id: manifest_id.to_string(),
+            manifest_version: manifest_version.to_string(),
+            manifest_fingerprint,
+            descriptor_id: descriptor.name.as_str().to_string(),
+            descriptor_version: descriptor.max_ttl_seconds.to_string(),
+            descriptor_fingerprint,
+            required_evidence_tier: required_evidence_tier(descriptor).to_string(),
+            required_adapter_kind: accepted_evidence.clone(),
+            privacy_policy_id: "secs-i02-compat-privacy-policy".to_string(),
+            privacy_policy_version: "1".to_string(),
+            privacy_policy_fingerprint: fingerprint_join(
+                "privacy:sha256",
+                &["secs-i02-compat-privacy-policy", "1"],
+            ),
+            disclosure_scope_id: "secs-i02-compat-disclosure-scope".to_string(),
+            disclosure_scope_version: "1".to_string(),
+            disclosure_class: "redacted_public_ids".to_string(),
+            issuer_id: None,
+            authority_source_id: None,
+            authority_mode: None,
+            source_key_id: None,
+            source_schema_version: None,
+            federation_id: None,
+            committee_id: None,
+            committee_epoch: None,
+            root_id: None,
+            checkpoint_id: None,
+            root_scope: None,
+            root_epoch: None,
+            finality_mode: None,
+            validity_window_id: format!("ttl:{}", descriptor.max_ttl_seconds),
+            issued_at,
+            valid_until: issued_at.saturating_add(descriptor.max_ttl_seconds),
+            freshness_window_id: format!("max-age:{}", descriptor.max_ttl_seconds),
+            request_id: request_id.to_string(),
+            challenge_id: challenge_id.to_string(),
+            challenge_nonce_fingerprint: challenge_nonce_fingerprint.to_string(),
+            session_replay_scope: "session:opcode:nonce".to_string(),
+            proof_adapter_id: None,
+            proof_system_id: None,
+            proof_kind: None,
+            circuit_id: None,
+            circuit_version: None,
+            vk_id: None,
+            vk_fingerprint: None,
+            public_input_schema_id: None,
+            public_input_schema_version: None,
+            public_input_fingerprint: None,
+            nullifier_domain_id: None,
+            nullifier_domain_version: None,
+            nullifier_domain_fingerprint: None,
+            evidence_kind: accepted_evidence,
+            evidence_id: None,
+            evidence_schema_version: "descriptor-projection-v1".to_string(),
+            evidence_tier: required_evidence_tier(descriptor).to_string(),
+            adapter_kind: descriptor.accepted_evidence.join("+"),
+        })
+    }
+
     pub fn fixture() -> Self {
         Self {
             context_schema_id: CONTEXT_SCHEMA_ID.to_string(),
@@ -217,4 +332,27 @@ impl VerificationContext {
 
 fn hex_digest(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn fingerprint_join(prefix: &str, fields: &[&str]) -> String {
+    let mut hasher = Sha256::new();
+    for field in fields {
+        hasher.update(field.len().to_string().as_bytes());
+        hasher.update(b":");
+        hasher.update(field.as_bytes());
+        hasher.update(b"\n");
+    }
+    format!("{}:{}", prefix, hex_digest(hasher.finalize().as_slice()))
+}
+
+fn required_evidence_tier(descriptor: &OperationDescriptor) -> &'static str {
+    if descriptor
+        .accepted_evidence
+        .iter()
+        .any(|kind| kind == "local_static" || kind == "prototype-proof-envelope")
+    {
+        "local_or_prototype"
+    } else {
+        "production_shaped"
+    }
 }

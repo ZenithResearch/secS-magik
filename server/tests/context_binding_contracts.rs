@@ -1,7 +1,8 @@
 use server::verification_context::{
-    VerificationContext, CANONICAL_SERIALIZATION, CONTEXT_FINGERPRINT_VERSION, CONTEXT_SCHEMA_ID,
-    CONTEXT_SCHEMA_VERSION,
+    ContextProjectionError, VerificationContext, CANONICAL_SERIALIZATION,
+    CONTEXT_FINGERPRINT_VERSION, CONTEXT_SCHEMA_ID, CONTEXT_SCHEMA_VERSION,
 };
+use server::manifest::membership_provision_descriptor;
 
 #[test]
 fn context_binding_canonical_serialization() {
@@ -51,4 +52,79 @@ fn context_binding_public_data_contract() {
             "serialized context leaked {needle}: {json}"
         );
     }
+}
+
+#[test]
+fn context_binding_manifest_projection() {
+    let descriptor = membership_provision_descriptor();
+    let expected = VerificationContext::expected_from_descriptor(
+        "receiver.alpha",
+        "audience.alpha",
+        &descriptor,
+        Some("resource://demo/membership"),
+        "request.fixture",
+        "challenge.fixture",
+        "nonce:sha256:fixture",
+        1_700_000_000,
+    )
+    .unwrap();
+
+    assert_eq!(expected.receiver_id, "receiver.alpha");
+    assert_eq!(expected.audience_id, "audience.alpha");
+    assert_eq!(expected.operation_id, descriptor.name.as_str());
+    assert_eq!(expected.opcode, descriptor.opcode);
+    assert_eq!(expected.handler_id, descriptor.handler_id);
+    assert_eq!(expected.resource_id, "resource://demo/membership");
+    assert_eq!(
+        expected.descriptor_fingerprint,
+        descriptor.authorization_fingerprint()
+    );
+    assert_eq!(expected.manifest_id, "receiver-local-default-v0");
+    assert_eq!(expected.privacy_policy_id, "secs-i02-compat-privacy-policy");
+    assert_eq!(
+        expected.disclosure_scope_id,
+        "secs-i02-compat-disclosure-scope"
+    );
+    assert_eq!(
+        expected.required_adapter_kind,
+        "wallet_presentation+membership_credential+dregg_authority"
+    );
+
+    let changed_resource = VerificationContext::expected_from_descriptor(
+        "receiver.alpha",
+        "audience.alpha",
+        &descriptor,
+        Some("resource://demo/other"),
+        "request.fixture",
+        "challenge.fixture",
+        "nonce:sha256:fixture",
+        1_700_000_000,
+    )
+    .unwrap();
+    assert_ne!(
+        expected.context_fingerprint().unwrap(),
+        changed_resource.context_fingerprint().unwrap()
+    );
+}
+
+#[test]
+fn context_binding_expected_context_required_fields() {
+    let descriptor = membership_provision_descriptor();
+    let error = VerificationContext::expected_from_descriptor(
+        "receiver.alpha",
+        "audience.alpha",
+        &descriptor,
+        None,
+        "request.fixture",
+        "challenge.fixture",
+        "nonce:sha256:fixture",
+        1_700_000_000,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        error,
+        ContextProjectionError::MissingRequiredField("resource_id")
+    );
+    assert_eq!(error.reason_code(), "context_missing_required_field");
 }
