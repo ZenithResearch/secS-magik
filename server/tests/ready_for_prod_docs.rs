@@ -838,7 +838,7 @@ fn dregg_authority_docs_record_m15_5_descriptor_composition_without_overclaim() 
             "dregg_authority",
             "#159",
             "#160",
-            "does not close #73",
+            "does not close broad live Dregg authority",
         ],
     );
     contains_all(
@@ -869,7 +869,7 @@ fn dregg_authority_docs_record_m15_6_operator_disclosure_boundary() {
             "local operator inspection only",
             "not public auditability",
             "does not implement #159",
-            "does not implement #162",
+            "#162 live TCP evidence-ref/public-input propagation has since landed as bounded carrier plumbing",
         ],
     );
 }
@@ -983,8 +983,8 @@ fn dregg_seam_migration_docs_remove_stale_live_ingress_and_future_authority_clai
             "M12.3 Dregg-shaped evidence",
             "M14 `dregg_backed`",
             "M15 `dregg_authority`",
-            "M15.2–M15.6 now implement",
-            "#160 implements bounded Dregg-provisioned resource locks",
+            "M15.2–M15.8 now implement",
+            "#160 implements bounded receiver-held resource-lock evidence",
             "#144/M15.8",
         ],
     );

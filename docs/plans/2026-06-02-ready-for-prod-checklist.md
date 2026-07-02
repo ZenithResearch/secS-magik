@@ -126,7 +126,7 @@ Local smoke readiness alone is not enough for first prod.
 The current implemented surfaces prove important substrate behavior, but they do not by themselves satisfy the production target:
 
 - `local_static` evidence is a deterministic local/dev/test scaffold. It must not satisfy production authority.
-- `wallet_presentation` now verifies signed presentation/challenge material cryptographically through the explicitly temporary minimal-equivalent secS challenge contract. It does not prove full Castalia Wallet wallet-core parity, production deployment, or trusted issuer/root policy.
+- `wallet_presentation` verifies signed presentation/challenge material cryptographically through the explicitly temporary minimal-equivalent secS challenge contract. It does not prove full Castalia Wallet wallet-core parity, production deployment, or trusted issuer/root policy.
 - The local SQLite receipt/event ledger is local audit evidence. It is not public auditability or cross-Hub federation by itself.
 - Dregg, Midnight, and Cardano are not current runtime dependencies in this repo. They enter only through future adapter/evidence/anchor semantics unless explicitly promoted by a later slice.
 - Matrix room/message federation is not the cross-Hub/federated evidence rail.
@@ -1004,7 +1004,7 @@ Hardened start-of-phase finding (2026-06-05): the inspected Castalia Wallet Rust
 
 #### D1 completion checkpoint
 
-D1 defines an explicitly temporary secS wallet challenge contract in `server/src/evidence.rs` because the hardened start-of-phase wallet-core finding showed current wallet-core challenge bytes do not bind every secS-required field. The contract is minimal-equivalent pending Castalia Wallet wallet-core parity and must be replaced or reconciled before secS claims full wallet-core integration. Its canonical byte contract binds subject, audience, origin, operation, resource, nonce, issued/expires timestamps, signature suite, and public key ref/id with exact layout/order covered by `server/tests/wallet_challenge_contract.rs`. D1 does not wire adapter success, does not add a wallet-core dependency, and does not make `wallet_presentation` cryptographic acceptance production-ready.
+D1 defines an explicitly temporary secS wallet challenge contract in `server/src/evidence.rs` because the hardened start-of-phase wallet-core finding showed current wallet-core challenge bytes do not bind every secS-required field. The contract is minimal-equivalent pending Castalia Wallet wallet-core parity and must be replaced or reconciled before secS claims full wallet-core integration. Its canonical byte contract binds subject, audience, origin, operation, resource, nonce, issued/expires timestamps, signature suite, and public key ref/id with exact layout/order covered by `server/tests/wallet_challenge_contract.rs`. D1 does not wire adapter success, does not add a wallet-core dependency, and does not make `wallet_presentation` cryptographic acceptance a production-readiness claim.
 
 #### Track D completion checkpoint
 
