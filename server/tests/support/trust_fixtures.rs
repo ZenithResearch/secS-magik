@@ -214,5 +214,6 @@ fn trusted_descriptor(
         handler_id: "membership/provision-fixture".to_string(),
         dev_binding: false,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: server::privacy::DisclosurePolicy::default_i02(),
     }
 }

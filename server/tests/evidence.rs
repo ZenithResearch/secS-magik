@@ -12,8 +12,8 @@ use server::manifest::{
 use server::receipt::Receipt;
 use server::verifier::{VerificationError, Verifier};
 use wallet_fixtures::{
-    origin_input, wallet_descriptor, wallet_fixture, WALLET_AUDIENCE, WALLET_EVIDENCE_REF,
-    WALLET_ISSUED_AT, WALLET_OPCODE, WALLET_ORIGIN, WALLET_SUBJECT,
+    origin_input, sign_wallet_fixture, wallet_descriptor, wallet_fixture, WALLET_AUDIENCE,
+    WALLET_EVIDENCE_REF, WALLET_ISSUED_AT, WALLET_OPCODE, WALLET_ORIGIN,
 };
 
 fn evidence_descriptor(opcode: u8) -> OperationDescriptor {
@@ -30,6 +30,7 @@ fn evidence_descriptor(opcode: u8) -> OperationDescriptor {
         handler_id: "dev/local-static".to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: server::privacy::DisclosurePolicy::default_i02(),
     }
 }
 
@@ -64,6 +65,23 @@ fn adapter() -> LocalStaticEvidenceAdapter {
     }])
 }
 
+fn redacted_adapter() -> LocalStaticEvidenceAdapter {
+    LocalStaticEvidenceAdapter::new([LocalStaticGrant {
+        subject: "[redacted]".to_string(),
+        audience: "secS://local-test".to_string(),
+        operation: "candidate.dev.local_static".to_string(),
+        resource: Some("application/json".to_string()),
+        evidence_ref: "local-static:test-grant".to_string(),
+    }])
+}
+
+fn redacted_wallet_fixture() -> server::evidence::WalletPresentationFixture {
+    let mut fixture = wallet_fixture();
+    fixture.subject = "[redacted]".to_string();
+    sign_wallet_fixture(&mut fixture);
+    fixture
+}
+
 #[test]
 fn local_static_adapter_satisfies_matching_descriptor_requirement() {
     let descriptor = evidence_descriptor(0x40);
@@ -74,7 +92,7 @@ fn local_static_adapter_satisfies_matching_descriptor_requirement() {
             assert_eq!(summary.kind, EvidenceKind::LocalStatic);
             assert!(summary.local_dev_test_only);
             assert!(!summary.public_proof);
-            assert_eq!(summary.subject, "prototype.local-dev.subject");
+            assert_eq!(summary.subject, "[redacted]");
             assert_eq!(summary.audience, "secS://local-test");
             assert_eq!(summary.operation, "candidate.dev.local_static");
             assert!(summary
@@ -140,9 +158,9 @@ fn verifier_signed_context_includes_local_static_summary_without_public_proof_cl
         &packet,
         &manifest,
         "secS://local-test",
-        "prototype.local-dev.subject",
+        "[redacted]",
         Some("local-static:test-grant"),
-        &adapter(),
+        &redacted_adapter(),
         1_700_000_000,
         "secs-verifier-test-key",
         &[7u8; 32],
@@ -204,15 +222,17 @@ fn verifier_rejects_missing_local_static_evidence_before_signing_context() {
 fn verifier_signed_context_can_pass_wallet_public_inputs_for_origin_bound_evidence() {
     let manifest = ReceiverManifest::new([wallet_descriptor(WALLET_OPCODE)]);
     let packet = packet(WALLET_OPCODE);
-    let adapter =
-        WalletPresentationAdapter::with_validation_time([wallet_fixture()], WALLET_ISSUED_AT + 60);
+    let adapter = WalletPresentationAdapter::with_validation_time(
+        [redacted_wallet_fixture()],
+        WALLET_ISSUED_AT + 60,
+    );
 
     assert_eq!(
         Verifier::verify_manifest_operation_with_evidence_and_sign(
             &packet,
             &manifest,
             WALLET_AUDIENCE,
-            WALLET_SUBJECT,
+            "[redacted]",
             Some(WALLET_EVIDENCE_REF),
             &adapter,
             1_700_000_000,
@@ -227,7 +247,7 @@ fn verifier_signed_context_can_pass_wallet_public_inputs_for_origin_bound_eviden
         &packet,
         &manifest,
         WALLET_AUDIENCE,
-        WALLET_SUBJECT,
+        "[redacted]",
         Some(WALLET_EVIDENCE_REF),
         [origin_input(WALLET_ORIGIN)],
         &adapter,
@@ -331,7 +351,7 @@ mod dregg_shaped {
         match adapter_with(fixture).verify(&request) {
             EvidenceResult::Satisfied(summary) => {
                 assert_eq!(summary.kind, EvidenceKind::DreggReceipt);
-                assert_eq!(summary.subject, SUBJECT);
+                assert_eq!(summary.subject, "[redacted]");
                 assert!(
                     !summary.public_proof,
                     "shape+signature evidence must not claim public/consensus proof"

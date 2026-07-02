@@ -1014,7 +1014,7 @@ impl EvidenceSummary {
                 "evidence_support_status:{}",
                 profile.support_status.as_str()
             ),
-            format!("subject:{}", self.subject),
+            "subject:[redacted]".to_string(),
             format!("audience:{}", self.audience),
             format!("operation:{}", self.operation),
             format!("local_dev_test_only:{}", self.local_dev_test_only),
@@ -1033,6 +1033,29 @@ impl EvidenceSummary {
             "policy_required_evidence_tier:{}",
             required_tier.as_str()
         ));
+        fields
+    }
+
+    pub fn to_policy_scan_fields(&self, required_tier: EvidenceTier) -> Vec<String> {
+        let profile = self.kind.maturity_profile();
+        let mut fields = vec![
+            format!("evidence_kind:{}", self.kind.as_str()),
+            format!("accepted_evidence_tier:{}", profile.tier.as_str()),
+            format!(
+                "evidence_support_status:{}",
+                profile.support_status.as_str()
+            ),
+            format!("subject:{}", self.subject),
+            format!("audience:{}", self.audience),
+            format!("operation:{}", self.operation),
+            format!("local_dev_test_only:{}", self.local_dev_test_only),
+            format!("public_proof:{}", self.public_proof),
+            format!("policy_required_evidence_tier:{}", required_tier.as_str()),
+        ];
+        if let Some(resource) = &self.resource {
+            fields.push(format!("resource:{resource}"));
+        }
+        fields.extend(self.summary_fields.clone());
         fields
     }
 }
@@ -1340,7 +1363,7 @@ impl EvidenceAdapter for FederatedCredentialAdapter {
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: credential.kind,
-            subject: credential.subject.clone(),
+            subject: "[redacted]".to_string(),
             audience: credential.audience.clone(),
             operation: credential.operation.clone(),
             resource: Some(credential.resource.clone()),
@@ -1439,7 +1462,7 @@ impl EvidenceAdapter for CompositeEvidenceAdapter<'_> {
                 .last()
                 .map(|summary| summary.kind)
                 .unwrap_or(EvidenceKind::MembershipCredential),
-            subject: request.subject.clone(),
+            subject: "[redacted]".to_string(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: locked_resource,
@@ -1506,7 +1529,7 @@ impl EvidenceAdapter for LocalStaticEvidenceAdapter {
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
-            subject: request.subject.clone(),
+            subject: "[redacted]".to_string(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: request.resource.clone(),
@@ -1738,7 +1761,7 @@ impl EvidenceAdapter for WalletPresentationAdapter {
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
-            subject: request.subject.clone(),
+            subject: "[redacted]".to_string(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: request.resource.clone(),
@@ -2227,7 +2250,7 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
-            subject: request.subject.clone(),
+            subject: "[redacted]".to_string(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: verified_resource_lock,
@@ -2317,7 +2340,7 @@ impl EvidenceAdapter for DreggAuthoritySnapshotEvidenceAdapter {
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
-            subject: request.subject.clone(),
+            subject: "[redacted]".to_string(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: Some(resource.to_string()),
@@ -2476,7 +2499,7 @@ impl EvidenceAdapter for DreggShapedEvidenceAdapter {
 
         EvidenceResult::Satisfied(EvidenceSummary {
             kind: self.kind(),
-            subject: request.subject.clone(),
+            subject: "[redacted]".to_string(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: request.resource.clone(),

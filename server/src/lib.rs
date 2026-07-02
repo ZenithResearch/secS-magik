@@ -15,6 +15,7 @@ pub mod ontology;
 pub mod payload;
 pub mod permctl;
 pub mod permissions;
+pub mod privacy;
 pub mod public_audit;
 pub mod public_audit_cli;
 pub mod receipt;
