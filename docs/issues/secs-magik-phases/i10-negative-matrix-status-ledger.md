@@ -41,3 +41,33 @@ Unsettled Wave 1 vocabulary:
 - I03 context-binding labels remain referenced by owner dependencies; this PR does not invent final context-binding semantics.
 
 Forbidden scope preserved: no verifier/runtime/privacy/finality/proof behavior, no guide promotion, no executive diagrams, and no second canonical ledger.
+
+## Completion verification — 2026-07-02
+
+Implemented status-safe I10 scope:
+
+- Added the canonical machine-readable ledger at `server/tests/fixtures/dregg_negative_matrix_status_ledger.yaml`.
+- Added `server/tests/negative_matrix_status_ledger.rs` to parse the ledger and reject malformed status rows, duplicate row IDs, missing required seed rows, missing handler/privacy fields, invalid owner/dependency issue IDs, invalid dates, and non-implemented rows that allow implemented docs wording.
+- Added `server/tests/handler_did_not_run_negative_matrix.rs` to require each rejection row to name `handler_did_not_run_expected: true`, a non-empty expected reason code, and `last_verified_date: never` until implemented.
+- Added `server/tests/docs_overclaim_status_ledger.rs` to fail stronger-than-ledger wording for federated finality, anonymous wallets, light-client verification, recursive proof-carrying state, and audit-without-surveillance, while checking current docs surfaces for the same forbidden phrases.
+
+Commands run:
+
+- `cargo test -p server negative_matrix_status_ledger -- --nocapture` — passed.
+- `cargo test -p server docs_overclaim_status_ledger -- --nocapture` — passed.
+- `cargo test -p server handler_did_not_run_negative_matrix -- --nocapture` — passed.
+- `cargo test --workspace --all-targets --all-features` — passed.
+- `cargo fmt --all -- --check` — passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` — passed.
+- `git diff --check` — passed.
+
+Status-safe claim unlocked:
+
+> The negative matrix is controlled by an executable status ledger. Each row records its owner issue, current tier, verification command, expected reason code, handler-not-run expectation, privacy/audit expectation, allowed docs wording, and last verified date. Rust checks fail if the ledger schema is malformed or if docs wording exceeds the row's allowed tier.
+
+Non-claims preserved:
+
+- I10 does not prove every negative case is implemented.
+- I10 does not implement verifier/runtime/privacy/finality/proof behavior owned by I01-I09 or I14-I19.
+- Blocked/target/future rows for live signed authority, federated finality, anonymous/unlinkable membership, light-client verification, recursive proof-carrying state, audit-without-surveillance, and production readiness remain non-implemented.
+- Guide/readme/demo prose must still stay at or below each row's `docs_wording_allowed` value.
