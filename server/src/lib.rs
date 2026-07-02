@@ -22,4 +22,5 @@ pub mod receipt;
 pub mod runtime_mode;
 pub mod schema;
 pub mod session;
+pub mod verification_context;
 pub mod verifier;
