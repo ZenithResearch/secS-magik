@@ -270,9 +270,6 @@ fn scan_text(
         });
     }
     if let Some((prefix, rest)) = text.split_once(':') {
-        if prefix == "subject" {
-            return Ok(());
-        }
         if classify_field_name(prefix).is_some() && is_redacted_marker(rest) {
             return Ok(());
         }

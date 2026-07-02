@@ -207,6 +207,33 @@ fn stable_subject_handle_is_not_allowed_in_anonymous_membership_path() {
 }
 
 #[test]
+fn stable_subject_in_evidence_summary_subject_rejects_before_signed_context_creation() {
+    let descriptor = membership_provision_descriptor();
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
+    let packet = packet(
+        0x44,
+        serde_json::json!({ "requested_resource": "urn:secs:i02" }),
+    );
+
+    let error = Verifier::verify_manifest_operation_with_evidence_refs_and_inputs_and_sign(
+        &packet,
+        &manifest,
+        "secS://receiver-a",
+        "did:example:stable-subject",
+        &EvidenceInputs::new(["membership-ref"], ["resource:urn:secs:i02".to_string()]),
+        &SubjectLeakingMembershipAdapter,
+        NOW,
+        SIGNER,
+        &SECRET,
+    )
+    .unwrap_err();
+
+    assert_eq!(error, VerificationError::ForbiddenFieldPresent);
+    assert_eq!(error.reason_code(), "forbidden_field_present");
+    assert!(!error.handler_ran());
+}
+
+#[test]
 fn explicit_identity_opt_in_is_field_and_surface_scoped() {
     let mut descriptor = membership_provision_descriptor();
     descriptor.disclosure_policy = DisclosurePolicy::deny_by_default("i02-opt-in", 1)
@@ -275,13 +302,13 @@ struct RedactedMembershipAdapter;
 
 impl EvidenceAdapter for RedactedMembershipAdapter {
     fn kind(&self) -> EvidenceKind {
-        EvidenceKind::WalletPresentation
+        EvidenceKind::MembershipCredential
     }
 
     fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
         EvidenceResult::Satisfied(EvidenceSummary {
-            kind: EvidenceKind::WalletPresentation,
-            subject: "identity_hidden_by_policy".to_string(),
+            kind: EvidenceKind::MembershipCredential,
+            subject: "[redacted]".to_string(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: request.trusted_requested_resource.clone(),
@@ -301,12 +328,12 @@ struct OverDisclosedMembershipAdapter;
 
 impl EvidenceAdapter for OverDisclosedMembershipAdapter {
     fn kind(&self) -> EvidenceKind {
-        EvidenceKind::WalletPresentation
+        EvidenceKind::MembershipCredential
     }
 
     fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
         EvidenceResult::Satisfied(EvidenceSummary {
-            kind: EvidenceKind::WalletPresentation,
+            kind: EvidenceKind::MembershipCredential,
             subject: request.subject.clone(),
             audience: request.audience.clone(),
             operation: request.operation.clone(),
@@ -314,6 +341,30 @@ impl EvidenceAdapter for OverDisclosedMembershipAdapter {
             local_dev_test_only: false,
             public_proof: false,
             summary_fields: vec!["subject_id:did:example:stable-subject".to_string()],
+        })
+    }
+}
+
+struct SubjectLeakingMembershipAdapter;
+
+impl EvidenceAdapter for SubjectLeakingMembershipAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::MembershipCredential
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: EvidenceKind::MembershipCredential,
+            subject: "did:example:stable-subject".to_string(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.trusted_requested_resource.clone(),
+            local_dev_test_only: false,
+            public_proof: false,
+            summary_fields: vec![
+                "evidence_tier:local_fixture".to_string(),
+                "evidence_ref_sha256:abc123".to_string(),
+            ],
         })
     }
 }
