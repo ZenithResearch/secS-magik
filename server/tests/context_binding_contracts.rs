@@ -1,8 +1,9 @@
+use server::manifest::membership_provision_descriptor;
 use server::verification_context::{
+    verify_context_binding, verify_context_binding_then_run, ContextBindingReason,
     ContextProjectionError, VerificationContext, CANONICAL_SERIALIZATION,
     CONTEXT_FINGERPRINT_VERSION, CONTEXT_SCHEMA_ID, CONTEXT_SCHEMA_VERSION,
 };
-use server::manifest::membership_provision_descriptor;
 
 #[test]
 fn context_binding_canonical_serialization() {
@@ -127,4 +128,47 @@ fn context_binding_expected_context_required_fields() {
         ContextProjectionError::MissingRequiredField("resource_id")
     );
     assert_eq!(error.reason_code(), "context_missing_required_field");
+}
+
+#[test]
+fn context_binding_expected_observed_positive() {
+    let expected = VerificationContext::fixture();
+    let observed = expected.clone();
+    let binding = verify_context_binding(&expected, &observed).unwrap();
+
+    assert_eq!(
+        binding.context_fingerprint,
+        expected.context_fingerprint().unwrap()
+    );
+    assert_eq!(binding.reason_code(), "context_binding_verified");
+}
+
+#[test]
+fn context_binding_observed_missing_required_fields() {
+    let expected = VerificationContext::fixture();
+    let mut observed = expected.clone();
+    observed.federation_id = None;
+
+    let error = verify_context_binding(&expected, &observed).unwrap_err();
+    assert_eq!(
+        error.reason,
+        ContextBindingReason::ContextMissingRequiredField
+    );
+    assert_eq!(error.dimension, "federation_id");
+    assert_eq!(error.reason_code(), "context_missing_required_field");
+}
+
+#[test]
+fn context_binding_handler_not_run_on_reject() {
+    let expected = VerificationContext::fixture();
+    let observed = expected.with_audience_id("audience.other");
+    let mut handler_ran = false;
+
+    let error = verify_context_binding_then_run(&expected, &observed, || {
+        handler_ran = true;
+    })
+    .unwrap_err();
+
+    assert_eq!(error.reason, ContextBindingReason::AudienceMismatch);
+    assert!(!handler_ran);
 }

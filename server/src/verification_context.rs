@@ -34,12 +34,262 @@ pub enum ContextProjectionError {
     MissingRequiredField(&'static str),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContextBindingReason {
+    AudienceMismatch,
+    OperationMismatch,
+    ResourceMismatch,
+    SubjectBindingMismatch,
+    ManifestMismatch,
+    DescriptorMismatch,
+    PrivacyPolicyMismatch,
+    DisclosureScopeMismatch,
+    AuthoritySourceMismatch,
+    FederationMismatch,
+    RootCheckpointMismatch,
+    EpochMismatch,
+    ChallengeMismatch,
+    ProofMetadataMismatch,
+    VkMismatch,
+    PublicInputSchemaMismatch,
+    NullifierDomainMismatch,
+    EvidenceTierMismatch,
+    AdapterKindMismatch,
+    ContextMissingRequiredField,
+}
+
+impl ContextBindingReason {
+    pub fn reason_code(&self) -> &'static str {
+        match self {
+            Self::AudienceMismatch => "audience_mismatch",
+            Self::OperationMismatch => "operation_mismatch",
+            Self::ResourceMismatch => "resource_mismatch",
+            Self::SubjectBindingMismatch => "subject_binding_mismatch",
+            Self::ManifestMismatch => "manifest_mismatch",
+            Self::DescriptorMismatch => "descriptor_mismatch",
+            Self::PrivacyPolicyMismatch => "privacy_policy_mismatch",
+            Self::DisclosureScopeMismatch => "disclosure_scope_mismatch",
+            Self::AuthoritySourceMismatch => "authority_source_mismatch",
+            Self::FederationMismatch => "federation_mismatch",
+            Self::RootCheckpointMismatch => "root_checkpoint_mismatch",
+            Self::EpochMismatch => "epoch_mismatch",
+            Self::ChallengeMismatch => "challenge_mismatch",
+            Self::ProofMetadataMismatch => "proof_metadata_mismatch",
+            Self::VkMismatch => "vk_mismatch",
+            Self::PublicInputSchemaMismatch => "public_input_schema_mismatch",
+            Self::NullifierDomainMismatch => "nullifier_domain_mismatch",
+            Self::EvidenceTierMismatch => "evidence_tier_mismatch",
+            Self::AdapterKindMismatch => "adapter_kind_mismatch",
+            Self::ContextMissingRequiredField => "context_missing_required_field",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextBindingError {
+    pub reason: ContextBindingReason,
+    pub dimension: &'static str,
+}
+
+impl ContextBindingError {
+    pub fn reason_code(&self) -> &'static str {
+        self.reason.reason_code()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedContextBinding {
+    pub context_fingerprint: String,
+    pub context_schema_version: u16,
+    pub context_fingerprint_version: String,
+}
+
+impl VerifiedContextBinding {
+    pub fn reason_code(&self) -> &'static str {
+        "context_binding_verified"
+    }
+}
+
 impl ContextProjectionError {
     pub fn reason_code(&self) -> &'static str {
         match self {
             Self::MissingRequiredField(_) => "context_missing_required_field",
         }
     }
+}
+
+pub fn verify_context_binding(
+    expected: &VerificationContext,
+    observed: &VerificationContext,
+) -> Result<VerifiedContextBinding, ContextBindingError> {
+    compare_required(
+        "audience_id",
+        &expected.audience_id,
+        &observed.audience_id,
+        ContextBindingReason::AudienceMismatch,
+    )?;
+    compare_required(
+        "receiver_id",
+        &expected.receiver_id,
+        &observed.receiver_id,
+        ContextBindingReason::AudienceMismatch,
+    )?;
+    compare_required(
+        "operation_id",
+        &expected.operation_id,
+        &observed.operation_id,
+        ContextBindingReason::OperationMismatch,
+    )?;
+    compare_required(
+        "handler_id",
+        &expected.handler_id,
+        &observed.handler_id,
+        ContextBindingReason::OperationMismatch,
+    )?;
+    compare_required(
+        "resource_id",
+        &expected.resource_id,
+        &observed.resource_id,
+        ContextBindingReason::ResourceMismatch,
+    )?;
+    compare_required(
+        "subject_binding_kind",
+        &expected.subject_binding_kind,
+        &observed.subject_binding_kind,
+        ContextBindingReason::SubjectBindingMismatch,
+    )?;
+    compare_optional(
+        "subject_commitment",
+        &expected.subject_commitment,
+        &observed.subject_commitment,
+        ContextBindingReason::SubjectBindingMismatch,
+    )?;
+    compare_required(
+        "manifest_fingerprint",
+        &expected.manifest_fingerprint,
+        &observed.manifest_fingerprint,
+        ContextBindingReason::ManifestMismatch,
+    )?;
+    compare_required(
+        "descriptor_fingerprint",
+        &expected.descriptor_fingerprint,
+        &observed.descriptor_fingerprint,
+        ContextBindingReason::DescriptorMismatch,
+    )?;
+    compare_required(
+        "privacy_policy_fingerprint",
+        &expected.privacy_policy_fingerprint,
+        &observed.privacy_policy_fingerprint,
+        ContextBindingReason::PrivacyPolicyMismatch,
+    )?;
+    compare_required(
+        "disclosure_scope_id",
+        &expected.disclosure_scope_id,
+        &observed.disclosure_scope_id,
+        ContextBindingReason::DisclosureScopeMismatch,
+    )?;
+    compare_optional(
+        "authority_source_id",
+        &expected.authority_source_id,
+        &observed.authority_source_id,
+        ContextBindingReason::AuthoritySourceMismatch,
+    )?;
+    compare_optional(
+        "federation_id",
+        &expected.federation_id,
+        &observed.federation_id,
+        ContextBindingReason::FederationMismatch,
+    )?;
+    compare_optional(
+        "root_id",
+        &expected.root_id,
+        &observed.root_id,
+        ContextBindingReason::RootCheckpointMismatch,
+    )?;
+    compare_optional(
+        "checkpoint_id",
+        &expected.checkpoint_id,
+        &observed.checkpoint_id,
+        ContextBindingReason::RootCheckpointMismatch,
+    )?;
+    compare_optional(
+        "root_epoch",
+        &expected.root_epoch,
+        &observed.root_epoch,
+        ContextBindingReason::EpochMismatch,
+    )?;
+    compare_required(
+        "request_id",
+        &expected.request_id,
+        &observed.request_id,
+        ContextBindingReason::ChallengeMismatch,
+    )?;
+    compare_required(
+        "challenge_id",
+        &expected.challenge_id,
+        &observed.challenge_id,
+        ContextBindingReason::ChallengeMismatch,
+    )?;
+    compare_optional(
+        "proof_adapter_id",
+        &expected.proof_adapter_id,
+        &observed.proof_adapter_id,
+        ContextBindingReason::ProofMetadataMismatch,
+    )?;
+    compare_optional(
+        "vk_id",
+        &expected.vk_id,
+        &observed.vk_id,
+        ContextBindingReason::VkMismatch,
+    )?;
+    compare_optional(
+        "public_input_schema_id",
+        &expected.public_input_schema_id,
+        &observed.public_input_schema_id,
+        ContextBindingReason::PublicInputSchemaMismatch,
+    )?;
+    compare_optional(
+        "nullifier_domain_id",
+        &expected.nullifier_domain_id,
+        &observed.nullifier_domain_id,
+        ContextBindingReason::NullifierDomainMismatch,
+    )?;
+    compare_required(
+        "evidence_tier",
+        &expected.evidence_tier,
+        &observed.evidence_tier,
+        ContextBindingReason::EvidenceTierMismatch,
+    )?;
+    compare_required(
+        "adapter_kind",
+        &expected.adapter_kind,
+        &observed.adapter_kind,
+        ContextBindingReason::AdapterKindMismatch,
+    )?;
+
+    Ok(VerifiedContextBinding {
+        context_fingerprint: expected
+            .context_fingerprint()
+            .map_err(|_| ContextBindingError {
+                reason: ContextBindingReason::ContextMissingRequiredField,
+                dimension: "context_fingerprint",
+            })?,
+        context_schema_version: expected.context_schema_version,
+        context_fingerprint_version: expected.context_fingerprint_version.clone(),
+    })
+}
+
+pub fn verify_context_binding_then_run<F>(
+    expected: &VerificationContext,
+    observed: &VerificationContext,
+    run_handler: F,
+) -> Result<VerifiedContextBinding, ContextBindingError>
+where
+    F: FnOnce(),
+{
+    let binding = verify_context_binding(expected, observed)?;
+    run_handler();
+    Ok(binding)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -354,5 +604,41 @@ fn required_evidence_tier(descriptor: &OperationDescriptor) -> &'static str {
         "local_or_prototype"
     } else {
         "production_shaped"
+    }
+}
+
+fn compare_required(
+    dimension: &'static str,
+    expected: &str,
+    observed: &str,
+    reason: ContextBindingReason,
+) -> Result<(), ContextBindingError> {
+    if observed.trim().is_empty() {
+        return Err(ContextBindingError {
+            reason: ContextBindingReason::ContextMissingRequiredField,
+            dimension,
+        });
+    }
+    if expected != observed {
+        return Err(ContextBindingError { reason, dimension });
+    }
+    Ok(())
+}
+
+fn compare_optional(
+    dimension: &'static str,
+    expected: &Option<String>,
+    observed: &Option<String>,
+    reason: ContextBindingReason,
+) -> Result<(), ContextBindingError> {
+    match (expected, observed) {
+        (Some(_), None) => Err(ContextBindingError {
+            reason: ContextBindingReason::ContextMissingRequiredField,
+            dimension,
+        }),
+        (Some(expected), Some(observed)) if expected != observed => {
+            Err(ContextBindingError { reason, dimension })
+        }
+        _ => Ok(()),
     }
 }
