@@ -5,6 +5,9 @@ use server::verification_context::{
     CONTEXT_FINGERPRINT_VERSION, CONTEXT_SCHEMA_ID, CONTEXT_SCHEMA_VERSION,
 };
 
+type ContextMutator = fn(&mut VerificationContext);
+type MismatchCase = (&'static str, ContextBindingReason, ContextMutator);
+
 #[test]
 fn context_binding_canonical_serialization() {
     let context = VerificationContext::fixture();
@@ -175,7 +178,7 @@ fn context_binding_handler_not_run_on_reject() {
 
 #[test]
 fn context_binding_one_field_mismatch_matrix() {
-    let cases: Vec<(&str, ContextBindingReason, fn(&mut VerificationContext))> = vec![
+    let cases: Vec<MismatchCase> = vec![
         ("receiver_id", ContextBindingReason::AudienceMismatch, |c| {
             c.receiver_id = "receiver.other".into()
         }),
@@ -358,7 +361,7 @@ fn context_binding_one_field_mismatch_matrix() {
 
 #[test]
 fn context_binding_anti_downgrade_matrix() {
-    let cases: Vec<(&str, ContextBindingReason, fn(&mut VerificationContext))> = vec![
+    let cases: Vec<MismatchCase> = vec![
         (
             "source_key_id",
             ContextBindingReason::AuthoritySourceMismatch,
