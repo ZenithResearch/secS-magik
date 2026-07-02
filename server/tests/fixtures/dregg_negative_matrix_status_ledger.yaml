@@ -1,0 +1,268 @@
+schema_version: 1
+generated_from_issue: I10
+last_schema_reviewed_date: "2026-07-02"
+rows:
+  - row_id: signed_source_runtime_wireup
+    claim: "Live signed authority source"
+    claim_guarded: "secS consumes runtime signed Castalia/Dregg authority-source responses without fixture fallback."
+    claim_terms: ["live", "signed_source", "authority"]
+    current_tier: proposed
+    owner_issue: I16
+    status: blocked
+    evidence_refs:
+      - "server/src/dregg_live_source.rs"
+      - "docs/specs/dregg-live-source-client-contract.md"
+      - "server/tests/dregg_live_source_client.rs"
+    test_command: "cargo test -p server dregg_live_source -- --exact signed_source_rejects_unsigned_or_stale_response"
+    test_name: signed_source_rejects_unsigned_or_stale_response
+    expected_reason_code: live_source_signature_missing_or_invalid
+    is_rejection_row: true
+    handler_did_not_run_expected: true
+    docs_wording_allowed: target
+    docs_wording_examples_allowed:
+      - "signed-source authority is a target gated by I16"
+      - "live signed authority-source transport is design-gated"
+    docs_wording_examples_forbidden:
+      - "live Castalia authority is implemented"
+      - "signed source finality"
+      - "live authority is implemented"
+    privacy_guard_expected:
+      receipt: "reason code and source id only; no source auth token or raw signature bytes"
+      handler_context: "no handler context on reject"
+      logs_traces: "no token, raw response body, or private key material"
+      readiness_status: "may show missing/invalid signed-source config"
+      demo_ui: "target/blocked label only"
+      public_proof_artifacts: "not_applicable:no public proof"
+    blocking_dependencies: [I03, I07, I16]
+    last_verified_date: never
+
+  - row_id: federation_checkpoint_not_finality_until_rollback_state
+    claim: "Federation checkpoint"
+    claim_guarded: "committee/root checkpoint evidence is not described as federated finality until I17 durable rollback/equivocation state passes."
+    claim_terms: ["federated", "checkpoint", "finality", "rollback"]
+    current_tier: proposed
+    owner_issue: I17
+    status: blocked
+    evidence_refs:
+      - "server/src/dregg_authority.rs"
+      - "docs/specs/dregg-authority-rail.md"
+      - "server/tests/dregg_live_finality.rs"
+    test_command: "cargo test -p server dregg_live_finality -- --exact federation_checkpoint_rejects_rollback_and_solo_downgrade"
+    test_name: federation_checkpoint_rejects_rollback_and_solo_downgrade
+    expected_reason_code: federated_checkpoint_rollback_or_mode_mismatch
+    is_rejection_row: true
+    handler_did_not_run_expected: true
+    docs_wording_allowed: target
+    docs_wording_examples_allowed:
+      - "federation checkpoint target"
+      - "federated finality gated by I17"
+    docs_wording_examples_forbidden:
+      - "implemented federated finality"
+      - "federated finality is implemented"
+      - "committee-final roots are live"
+    privacy_guard_expected:
+      receipt: "redacted federation/root/checkpoint labels only"
+      handler_context: "no handler context on reject"
+      logs_traces: "no raw QC/signature set unless explicitly non-secret and approved"
+      readiness_status: "may show checkpoint support target/blocked"
+      demo_ui: "target/blocked label only"
+      public_proof_artifacts: "no raw committee private material"
+    blocking_dependencies: [I07, I16, I17]
+    last_verified_date: never
+
+  - row_id: anonymous_unlinkable_membership_blocked_until_i06
+    claim: "Anonymous/unlinkable membership"
+    claim_guarded: "wallet/holder is not individually identifiable by default only after two-show unlinkability, receipt/log redaction, and handler-context checks pass."
+    claim_terms: ["anonymous", "unlinkable", "wallet", "membership", "ZK"]
+    current_tier: blocked
+    owner_issue: I06
+    status: blocked
+    evidence_refs:
+      - "server/tests/wallet_presentation.rs"
+      - "server/tests/production_federated.rs"
+      - "docs/implementation-status.md"
+    test_command: "cargo test -p server castalia_membership_unlinkability -- --exact two_show_anonymous_membership_no_shared_wallet_or_holder_surface"
+    test_name: two_show_anonymous_membership_no_shared_wallet_or_holder_surface
+    expected_reason_code: privacy_unlinkability_not_proven
+    is_rejection_row: true
+    handler_did_not_run_expected: true
+    docs_wording_allowed: blocked
+    docs_wording_examples_allowed:
+      - "wallet non-identifiability is gated by I05/I15/I06"
+      - "anonymous/unlinkable membership remains blocked until I06"
+    docs_wording_examples_forbidden:
+      - "anonymous wallet is implemented"
+      - "anonymous wallets are not individually identifiable by default"
+      - "wallets are unlinkable by default"
+    privacy_guard_expected:
+      receipt: "no wallet id, holder id, subject id, credential id, stable nullifier outside policy, or raw proof bytes"
+      handler_context: "no wallet/holder/subject identifier unless explicit opt-in row says otherwise"
+      logs_traces: "no wallet/holder/subject/credential identifiers or raw proof/witness/trace"
+      readiness_status: "blocked/gated only"
+      demo_ui: "blocked/gated only; no anonymous-wallet claim"
+      public_proof_artifacts: "no stable cross-show identifier except scoped nullifier if policy requires it"
+    blocking_dependencies: [I02, I03, I04, I05, I15, I06]
+    last_verified_date: never
+
+  - row_id: light_client_verified_requires_i18_not_i08_metadata
+    claim: "Light-client verified"
+    claim_guarded: "VK/proof metadata registry is not light-client verification unless a real I18 adapter verifies proof/public inputs."
+    claim_terms: ["light-client", "light_client", "verified", "VK", "proof"]
+    current_tier: proposed
+    owner_issue: I18
+    status: blocked
+    evidence_refs:
+      - "server/src/evidence.rs"
+      - "docs/specs/dregg-authority-rail.md"
+    test_command: "cargo test -p server dregg_light_client -- --exact registry_metadata_without_proof_rejects_light_client_policy"
+    test_name: registry_metadata_without_proof_rejects_light_client_policy
+    expected_reason_code: proof_verification_missing
+    is_rejection_row: true
+    handler_did_not_run_expected: true
+    docs_wording_allowed: future
+    docs_wording_examples_allowed:
+      - "light-client verification is future/gated by I18"
+      - "VK registry metadata is not light-client verification"
+    docs_wording_examples_forbidden:
+      - "light-client verified"
+      - "light_client verified"
+      - "VK registry proves Dregg state"
+    privacy_guard_expected:
+      receipt: "reason code and proof tier label only; no raw proof bytes"
+      handler_context: "no handler context on reject"
+      logs_traces: "no raw proof/witness material"
+      readiness_status: "future/gated label only"
+      demo_ui: "future/gated label only"
+      public_proof_artifacts: "not accepted as verified proof"
+    blocking_dependencies: [I03, I08, I17, I18]
+    last_verified_date: never
+
+  - row_id: recursive_proof_carrying_state_future
+    claim: "Recursive proof-carrying state"
+    claim_guarded: "state transitions are not described as recursive proof-carrying until I19 verifies prior-root/new-root recursive transition proofs and no mutation on reject."
+    claim_terms: ["recursive", "proof-carrying", "state", "transition"]
+    current_tier: missing
+    owner_issue: I19
+    status: blocked
+    evidence_refs:
+      - "server/src/evidence.rs"
+      - "docs/implementation-status.md"
+    test_command: "cargo test -p server recursive_state_transition -- --exact recursive_transition_rejects_wrong_prior_root_without_state_mutation"
+    test_name: recursive_transition_rejects_wrong_prior_root_without_state_mutation
+    expected_reason_code: recursive_transition_proof_missing_or_invalid
+    is_rejection_row: true
+    handler_did_not_run_expected: true
+    docs_wording_allowed: future
+    docs_wording_examples_allowed:
+      - "recursive proof-carrying state is future-tier/gated by I19"
+      - "recursive state verification remains future-tier"
+    docs_wording_examples_forbidden:
+      - "recursive proof-carrying state is implemented"
+      - "state transitions are recursively proven"
+    privacy_guard_expected:
+      receipt: "reason code and future-tier label only"
+      handler_context: "no handler context and no state mutation on reject"
+      logs_traces: "no witness/proof/private transition material"
+      readiness_status: "future/gated label only"
+      demo_ui: "future/gated label only"
+      public_proof_artifacts: "no accepted recursive proof artifact"
+    blocking_dependencies: [I08, I17, I18, I19]
+    last_verified_date: never
+
+  - row_id: audit_without_surveillance_requires_i09
+    claim: "Audit without surveillance"
+    claim_guarded: "redacted receipt/public-audit scaffolding is not selective audit without surveillance until I09 policy/viewing-key envelope exists."
+    claim_terms: ["audit", "surveillance", "viewer-key", "selective"]
+    current_tier: proposed
+    owner_issue: I09
+    status: blocked
+    evidence_refs:
+      - "server/src/public_audit.rs"
+      - "server/tests/public_audit.rs"
+      - "docs/implementation-status.md"
+    test_command: "cargo test -p server selective_audit -- --exact auditor_scoped_reveal_rejects_bulk_or_holder_history_access"
+    test_name: auditor_scoped_reveal_rejects_bulk_or_holder_history_access
+    expected_reason_code: selective_audit_policy_missing
+    is_rejection_row: true
+    handler_did_not_run_expected: true
+    docs_wording_allowed: target
+    docs_wording_examples_allowed:
+      - "audit-without-surveillance is gated by I02/I09"
+      - "redacted public-audit bundles are local scaffolding, not selective audit"
+    docs_wording_examples_forbidden:
+      - "audit without surveillance"
+      - "viewer-key audit is implemented"
+      - "selective audit is implemented"
+    privacy_guard_expected:
+      receipt: "redacted receipt/accountability status only"
+      handler_context: "no auditor bulk or holder history context"
+      logs_traces: "no private holder, credential, or wallet history"
+      readiness_status: "gated/selective-audit missing label only"
+      demo_ui: "target/blocked label only"
+      public_proof_artifacts: "redacted bundle only; no private reveal material"
+    blocking_dependencies: [I02, I09]
+    last_verified_date: never
+
+  - row_id: production_ready_requires_deployment_proof
+    claim: "Production-ready"
+    claim_guarded: "local production-shaped smoke/fixtures are not production deployment proof."
+    claim_terms: ["production", "production-ready", "deployment", "proof"]
+    current_tier: proposed
+    owner_issue: I12
+    status: blocked
+    evidence_refs:
+      - "docs/ops/production-deployment-proof.md"
+      - "docs/plans/2026-06-02-ready-for-prod-checklist.md"
+      - "scripts/production-gateway-smoke.sh"
+    test_command: "cargo test -p server production_deployment_proof_docs_define_profile_without_local_smoke_overclaim -- --exact"
+    test_name: production_deployment_proof_docs_define_profile_without_local_smoke_overclaim
+    expected_reason_code: production_deployment_proof_missing
+    is_rejection_row: true
+    handler_did_not_run_expected: true
+    docs_wording_allowed: blocked
+    docs_wording_examples_allowed:
+      - "local production-shaped smoke is not deployment proof"
+      - "production readiness requires deployment proof"
+    docs_wording_examples_forbidden:
+      - "production-ready"
+      - "production ready"
+      - "local smoke proves production deployment"
+    privacy_guard_expected:
+      receipt: "not_applicable:deployment proof row does not expose receipts"
+      handler_context: "no handler context on missing deployment proof"
+      logs_traces: "no secret config or deployment credentials"
+      readiness_status: "may show deployment proof missing"
+      demo_ui: "blocked/not production label only"
+      public_proof_artifacts: "deployment artifact metadata only when future proof exists"
+    blocking_dependencies: [I11, I12, I20]
+    last_verified_date: never
+
+  - row_id: handler_rejection_requires_no_handler_run
+    claim: "Rejection paths do not run handlers"
+    claim_guarded: "a verifier reject is not accepted as proof unless tests assert handler execution did not occur."
+    claim_terms: ["handler_did_not_run", "reject", "reason_code"]
+    current_tier: provisional_shape_only
+    owner_issue: I10
+    status: implemented
+    evidence_refs:
+      - "server/tests/handler_did_not_run_negative_matrix.rs"
+      - "server/tests/negative_matrix_status_ledger.rs"
+    test_command: "cargo test -p server handler_did_not_run_negative_matrix -- --nocapture"
+    test_name: handler_did_not_run_negative_matrix_rejection_rows_are_explicitly_blocking_execution
+    expected_reason_code: not_applicable:ledger_checker_contract
+    is_rejection_row: false
+    handler_did_not_run_expected: false
+    docs_wording_allowed: implemented
+    docs_wording_examples_allowed:
+      - "I10 checks that negative matrix rejection rows name handler_did_not_run_expected"
+      - "the ledger checker exists and rejects missing handler-not-run expectations"
+    docs_wording_examples_forbidden: []
+    privacy_guard_expected:
+      receipt: "ledger checker only; no receipt material"
+      handler_context: "ledger checker only; no handler context material"
+      logs_traces: "ledger checker only; no private logs"
+      readiness_status: "may say ledger checker exists"
+      demo_ui: "not_applicable:no demo UI claim"
+      public_proof_artifacts: "not_applicable:no public proof artifact"
+    blocking_dependencies: []
+    last_verified_date: "2026-07-02"
