@@ -8,11 +8,24 @@ This spec defines the M15 `dregg_authority` semantics gate. It separates M12.3 D
 
 ## Tier boundary
 
+I01 adds the code-owned evidence maturity vocabulary used by verifier/receipt surfaces:
+
+| Canonical tier | Current secS-magik posture |
+|---|---|
+| `shape_only` | structurally recognized envelope/shell only; not authority. |
+| `local_verified` | local/dev or receiver-local fixture evidence; demo/local only. |
+| `signed_source` | signed or receiver-held source/registry evidence, including current fixture-backed issuer/Dregg authority seams; not federation-finality or proof-system verification. |
+| `federation_checkpoint` | reserved or fixture-labeled checkpoint/finality tier unless a real finality verifier path is explicitly configured and tested. |
+| `succinct_proof` | reserved/unsupported for Midnight/ZK/light-client style proofs in this repo unless a real verifier adapter and pinned public-input/VK tests land. |
+| `recursive_proof_carrying_state` | reserved/unsupported until a recursive verifier with prior/new-state binding lands. |
+
+Support status gates tier strength: `reserved_unsupported` and `unknown_unsupported` cannot satisfy policy even when paired with a high-sounding tier label. Evidence-backed verifier paths now reject weaker evidence as `evidence_tier_too_weak` and reserved/unknown evidence labels as `unsupported_evidence_kind` / `unsupported_evidence_tier` before a signed context or handler side effect can exist. Accepted receipt/operator summaries identify `evidence_kind`, `accepted_evidence_tier`, `policy_required_evidence_tier`, and `evidence_support_status` so local/dev/fixture evidence cannot be silently relabeled as live, final, ZK, light-client, or recursive proof evidence.
+
 The production rail has three distinct tiers that must not be collapsed:
 
 1. M12.3 shape-only: `dregg_receipt` / `secs-dregg-receipt-shape-v1` means shape + author signature only. It validates envelope shape and author signature material, not Dregg semantic authority.
 2. M14 `dregg_backed`: a `dga1_...` grant token can be admitted by `dregg-auth::policy::Verifier::admit` against a configured issuer public key. This is subject + tool + clock only. The Dregg policy layer does not verify secS resource authority; receiver-local resource scope remains enforced by secS.
-3. M15 `dregg_authority`: a production authority bundle is admitted only against receiver-held production trust policy, epoch-scoped federation/root policy, and explicit revocation/freshness posture. It may later compose with proof/finality material, but that claim must be tied to the rotated-replay IR-v2 chain and not to a single legacy proof helper.
+3. M15 `dregg_authority`: a production-shaped authority bundle is admitted only against receiver-held trust policy, epoch-scoped federation/root policy, and explicit revocation/freshness posture. In the I01 maturity vocabulary this is currently `signed_source` with fixture/receiver-held support labeling, not live/federation-final proof. It may later compose with proof/finality material, but that claim must be tied to the rotated-replay IR-v2 chain and not to a single legacy proof helper.
 
 A successful Dregg admission is necessary but not sufficient for any handler side effect. Receiver-local manifest policy, descriptor-local policy, permission policy, replay/session/TTL checks, and bounded handler execution still apply before side effects.
 

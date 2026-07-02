@@ -17,6 +17,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +56,159 @@ impl EvidenceKind {
             Self::DreggAuthority => "dregg_authority",
             Self::CardanoSettlement => "cardano_settlement",
         }
+    }
+
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "prototype-proof-envelope" => Some(Self::PrototypeProofEnvelope),
+            "local_static" => Some(Self::LocalStatic),
+            "wallet_presentation" => Some(Self::WalletPresentation),
+            "membership_credential" => Some(Self::MembershipCredential),
+            "provisioning_credential" => Some(Self::ProvisioningCredential),
+            "midnight_proof" => Some(Self::MidnightProof),
+            "dregg_receipt" => Some(Self::DreggReceipt),
+            "dregg_authority" => Some(Self::DreggAuthority),
+            "cardano_settlement" => Some(Self::CardanoSettlement),
+            _ => None,
+        }
+    }
+
+    pub fn maturity_profile(&self) -> EvidenceMaturityProfile {
+        match self {
+            Self::PrototypeProofEnvelope => EvidenceMaturityProfile::new(
+                EvidenceTier::ShapeOnly,
+                EvidenceSupportStatus::LocalDev,
+            ),
+            Self::LocalStatic | Self::WalletPresentation | Self::DreggReceipt => {
+                EvidenceMaturityProfile::new(
+                    EvidenceTier::LocalVerified,
+                    EvidenceSupportStatus::LocalDev,
+                )
+            }
+            Self::MembershipCredential | Self::ProvisioningCredential | Self::DreggAuthority => {
+                EvidenceMaturityProfile::new(
+                    EvidenceTier::SignedSource,
+                    EvidenceSupportStatus::Fixture,
+                )
+            }
+            Self::CardanoSettlement => EvidenceMaturityProfile::new(
+                EvidenceTier::FederationCheckpoint,
+                EvidenceSupportStatus::ReservedUnsupported,
+            ),
+            Self::MidnightProof => EvidenceMaturityProfile::new(
+                EvidenceTier::SuccinctProof,
+                EvidenceSupportStatus::ReservedUnsupported,
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceTier {
+    ShapeOnly,
+    LocalVerified,
+    SignedSource,
+    FederationCheckpoint,
+    SuccinctProof,
+    RecursiveProofCarryingState,
+}
+
+impl EvidenceTier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::ShapeOnly => "shape_only",
+            Self::LocalVerified => "local_verified",
+            Self::SignedSource => "signed_source",
+            Self::FederationCheckpoint => "federation_checkpoint",
+            Self::SuccinctProof => "succinct_proof",
+            Self::RecursiveProofCarryingState => "recursive_proof_carrying_state",
+        }
+    }
+}
+
+impl FromStr for EvidenceTier {
+    type Err = VerificationError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "shape_only" => Ok(Self::ShapeOnly),
+            "local_verified" => Ok(Self::LocalVerified),
+            "signed_source" => Ok(Self::SignedSource),
+            "federation_checkpoint" => Ok(Self::FederationCheckpoint),
+            "succinct_proof" => Ok(Self::SuccinctProof),
+            "recursive_proof_carrying_state" => Ok(Self::RecursiveProofCarryingState),
+            _ => Err(VerificationError::UnsupportedEvidenceTier),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceSupportStatus {
+    Supported,
+    LocalDev,
+    Fixture,
+    ReservedUnsupported,
+    UnknownUnsupported,
+}
+
+impl EvidenceSupportStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Supported => "supported",
+            Self::LocalDev => "local_dev",
+            Self::Fixture => "fixture",
+            Self::ReservedUnsupported => "reserved_unsupported",
+            Self::UnknownUnsupported => "unknown_unsupported",
+        }
+    }
+
+    pub fn is_supported(&self) -> bool {
+        matches!(self, Self::Supported | Self::LocalDev | Self::Fixture)
+    }
+}
+
+impl FromStr for EvidenceSupportStatus {
+    type Err = VerificationError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "supported" => Ok(Self::Supported),
+            "local_dev" => Ok(Self::LocalDev),
+            "fixture" => Ok(Self::Fixture),
+            "reserved_unsupported" => Ok(Self::ReservedUnsupported),
+            "unknown_unsupported" => Ok(Self::UnknownUnsupported),
+            _ => Err(VerificationError::UnsupportedEvidenceTier),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EvidenceMaturityProfile {
+    pub tier: EvidenceTier,
+    pub support_status: EvidenceSupportStatus,
+}
+
+impl EvidenceMaturityProfile {
+    pub fn new(tier: EvidenceTier, support_status: EvidenceSupportStatus) -> Self {
+        Self {
+            tier,
+            support_status,
+        }
+    }
+
+    pub fn supported_for_policy(
+        &self,
+        required_tier: EvidenceTier,
+    ) -> Result<(), VerificationError> {
+        if !self.support_status.is_supported() {
+            return Err(VerificationError::UnsupportedEvidenceTier);
+        }
+        if self.tier < required_tier {
+            return Err(VerificationError::EvidenceTierTooWeak);
+        }
+        Ok(())
     }
 }
 
@@ -803,6 +957,39 @@ impl EvidenceRequest {
             .iter()
             .any(|accepted| accepted == kind.as_str())
     }
+
+    pub fn required_maturity_profile(&self) -> Result<EvidenceMaturityProfile, VerificationError> {
+        let mut required_tier = EvidenceTier::ShapeOnly;
+        let mut required_status = EvidenceSupportStatus::Supported;
+
+        for required in &self.accepted_evidence {
+            let Some(kind) = EvidenceKind::from_label(required) else {
+                return Err(VerificationError::UnsupportedEvidenceKind);
+            };
+            let profile = kind.maturity_profile();
+            if !profile.support_status.is_supported() {
+                return Err(VerificationError::UnsupportedEvidenceKind);
+            }
+            if profile.tier > required_tier {
+                required_tier = profile.tier;
+                required_status = profile.support_status;
+            }
+        }
+
+        Ok(EvidenceMaturityProfile::new(required_tier, required_status))
+    }
+
+    pub fn validate_satisfied_summary(
+        &self,
+        summary: &EvidenceSummary,
+    ) -> Result<(), VerificationError> {
+        let required = self.required_maturity_profile()?;
+        let accepted = summary.kind.maturity_profile();
+        if !accepted.support_status.is_supported() {
+            return Err(VerificationError::UnsupportedEvidenceKind);
+        }
+        accepted.supported_for_policy(required.tier)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -819,8 +1006,14 @@ pub struct EvidenceSummary {
 
 impl EvidenceSummary {
     pub fn to_context_fields(&self) -> Vec<String> {
+        let profile = self.kind.maturity_profile();
         let mut fields = vec![
             format!("evidence_kind:{}", self.kind.as_str()),
+            format!("accepted_evidence_tier:{}", profile.tier.as_str()),
+            format!(
+                "evidence_support_status:{}",
+                profile.support_status.as_str()
+            ),
             format!("subject:{}", self.subject),
             format!("audience:{}", self.audience),
             format!("operation:{}", self.operation),
@@ -831,6 +1024,15 @@ impl EvidenceSummary {
             fields.push(format!("resource:{resource}"));
         }
         fields.extend(self.summary_fields.clone());
+        fields
+    }
+
+    pub fn to_context_fields_for_policy(&self, required_tier: EvidenceTier) -> Vec<String> {
+        let mut fields = self.to_context_fields();
+        fields.push(format!(
+            "policy_required_evidence_tier:{}",
+            required_tier.as_str()
+        ));
         fields
     }
 }
