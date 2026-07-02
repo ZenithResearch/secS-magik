@@ -410,3 +410,64 @@ fn context_binding_anti_downgrade_matrix() {
         assert_eq!(error.dimension, dimension);
     }
 }
+
+#[test]
+fn context_binding_redaction() {
+    let expected = VerificationContext::fixture();
+    let accepted = verify_context_binding(&expected, &expected).unwrap();
+    let accepted_summary = accepted.redacted_public_summary();
+
+    assert!(accepted_summary.contains(&format!(
+        "context_fingerprint:{}",
+        accepted.context_fingerprint
+    )));
+    assert!(accepted_summary.contains(&"context_schema_version:1".to_string()));
+    assert!(accepted_summary.contains(&"context_fingerprint_version:secs-vctx-fp-v1".to_string()));
+
+    let rejected = verify_context_binding(&expected, &expected.with_audience_id("audience.other"))
+        .unwrap_err()
+        .redacted_public_summary();
+    assert!(rejected.contains(&"reason:audience_mismatch".to_string()));
+    assert!(rejected.contains(&"dimension:audience_id".to_string()));
+
+    let rendered = format!("{accepted_summary:?}{rejected:?}");
+    for forbidden in [
+        "raw_proof",
+        "proof_witness",
+        "wallet_id",
+        "holder_id",
+        "bearer_token",
+        "private_key",
+        "nullifier_preimage",
+        "payload_bytes",
+        "signature_bytes",
+    ] {
+        assert!(!rendered.contains(forbidden), "redaction leak: {forbidden}");
+    }
+}
+
+#[test]
+fn context_binding_no_overclaim_labels() {
+    let accepted = verify_context_binding(
+        &VerificationContext::fixture(),
+        &VerificationContext::fixture(),
+    )
+    .unwrap();
+    let rendered = accepted.redacted_public_summary().join(" ");
+    for forbidden in [
+        "live_authority",
+        "federated_finality",
+        "zk_verified",
+        "light_client_verified",
+        "recursive",
+        "anonymous_wallet",
+        "nullifier_spent",
+        "selective_audit",
+    ] {
+        assert!(
+            !rendered.contains(forbidden),
+            "overclaim label emitted: {forbidden}"
+        );
+    }
+    assert!(rendered.contains("metadata_bound_only"));
+}

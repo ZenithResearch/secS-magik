@@ -95,6 +95,14 @@ impl ContextBindingError {
     pub fn reason_code(&self) -> &'static str {
         self.reason.reason_code()
     }
+
+    pub fn redacted_public_summary(&self) -> Vec<String> {
+        vec![
+            "context_binding:rejected".to_string(),
+            format!("reason:{}", self.reason_code()),
+            format!("dimension:{}", self.dimension),
+        ]
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +115,19 @@ pub struct VerifiedContextBinding {
 impl VerifiedContextBinding {
     pub fn reason_code(&self) -> &'static str {
         "context_binding_verified"
+    }
+
+    pub fn redacted_public_summary(&self) -> Vec<String> {
+        vec![
+            "context_binding:accepted".to_string(),
+            "context_binding_scope:metadata_bound_only".to_string(),
+            format!("context_fingerprint:{}", self.context_fingerprint),
+            format!("context_schema_version:{}", self.context_schema_version),
+            format!(
+                "context_fingerprint_version:{}",
+                self.context_fingerprint_version
+            ),
+        ]
     }
 }
 
