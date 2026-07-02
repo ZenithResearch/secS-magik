@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- I01 docs/status wording: documented the evidence maturity gate in the Dregg authority rail, M15.8 demo README, and implementation-status ledger — this records the tested narrow claim while preserving live/federated/proof/finality/anonymous/audit non-claims.
 - I01 verifier guardrails: wired minimum evidence-tier validation before signed-context creation, rejects weaker adapters and reserved/unknown evidence labels with stable reason codes, and emits policy-required tier labels on accepted contexts — this prevents silent downgrade from unsupported future evidence into weaker local acceptance.
 - I01 evidence contract: added the canonical evidence maturity tier and support-status vocabulary with conservative mappings for current, fixture, and reserved/future evidence kinds — this gives downstream verifier/receipt checks one code-owned label source instead of scattered claim strings.
 - I01 RED coverage: added evidence-tier downgrade, unsupported/reserved evidence, unknown-label, handler-not-run-by-rejection, and receipt-label tests — these pin the claim-gate contract before adding the canonical maturity vocabulary and verifier guardrails.
