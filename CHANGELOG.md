@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- I03-C4: added a one-field context mismatch matrix with handler-not-run assertions — this proves guide-sensitive dimensions reject with stable public reason codes instead of falling through to business execution.
 - I03-C3: added the adapter-facing expected-vs-observed context binding API, structured mismatch reasons, and a handler-not-run helper — this gives evidence adapters a fail-closed seam without upgrading evidence maturity or adding live/proof verification semantics.
 - I03-C2: added manifest/descriptor projection into expected verification contexts with fail-closed required-resource handling — this binds receiver request metadata, descriptor fingerprints, privacy/disclosure compatibility identifiers, and adapter requirements before observed evidence is compared.
 - I03-C1: added the canonical `VerificationContext` contract, deterministic JSON fingerprint constants, and public-data regression tests — this gives downstream source/proof/nullifier/receipt work one I03-owned context vocabulary without carrying private witness or credential material.

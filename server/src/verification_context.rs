@@ -165,16 +165,52 @@ pub fn verify_context_binding(
         ContextBindingReason::SubjectBindingMismatch,
     )?;
     compare_required(
+        "manifest_id",
+        &expected.manifest_id,
+        &observed.manifest_id,
+        ContextBindingReason::ManifestMismatch,
+    )?;
+    compare_required(
+        "manifest_version",
+        &expected.manifest_version,
+        &observed.manifest_version,
+        ContextBindingReason::ManifestMismatch,
+    )?;
+    compare_required(
         "manifest_fingerprint",
         &expected.manifest_fingerprint,
         &observed.manifest_fingerprint,
         ContextBindingReason::ManifestMismatch,
     )?;
     compare_required(
+        "descriptor_id",
+        &expected.descriptor_id,
+        &observed.descriptor_id,
+        ContextBindingReason::DescriptorMismatch,
+    )?;
+    compare_required(
+        "descriptor_version",
+        &expected.descriptor_version,
+        &observed.descriptor_version,
+        ContextBindingReason::DescriptorMismatch,
+    )?;
+    compare_required(
         "descriptor_fingerprint",
         &expected.descriptor_fingerprint,
         &observed.descriptor_fingerprint,
         ContextBindingReason::DescriptorMismatch,
+    )?;
+    compare_required(
+        "privacy_policy_id",
+        &expected.privacy_policy_id,
+        &observed.privacy_policy_id,
+        ContextBindingReason::PrivacyPolicyMismatch,
+    )?;
+    compare_required(
+        "privacy_policy_version",
+        &expected.privacy_policy_version,
+        &observed.privacy_policy_version,
+        ContextBindingReason::PrivacyPolicyMismatch,
     )?;
     compare_required(
         "privacy_policy_fingerprint",
@@ -189,6 +225,12 @@ pub fn verify_context_binding(
         ContextBindingReason::DisclosureScopeMismatch,
     )?;
     compare_optional(
+        "issuer_id",
+        &expected.issuer_id,
+        &observed.issuer_id,
+        ContextBindingReason::AuthoritySourceMismatch,
+    )?;
+    compare_optional(
         "authority_source_id",
         &expected.authority_source_id,
         &observed.authority_source_id,
@@ -198,6 +240,12 @@ pub fn verify_context_binding(
         "federation_id",
         &expected.federation_id,
         &observed.federation_id,
+        ContextBindingReason::FederationMismatch,
+    )?;
+    compare_optional(
+        "committee_id",
+        &expected.committee_id,
+        &observed.committee_id,
         ContextBindingReason::FederationMismatch,
     )?;
     compare_optional(
@@ -219,6 +267,12 @@ pub fn verify_context_binding(
         ContextBindingReason::EpochMismatch,
     )?;
     compare_required(
+        "validity_window_id",
+        &expected.validity_window_id,
+        &observed.validity_window_id,
+        ContextBindingReason::EpochMismatch,
+    )?;
+    compare_required(
         "request_id",
         &expected.request_id,
         &observed.request_id,
@@ -237,15 +291,39 @@ pub fn verify_context_binding(
         ContextBindingReason::ProofMetadataMismatch,
     )?;
     compare_optional(
+        "proof_system_id",
+        &expected.proof_system_id,
+        &observed.proof_system_id,
+        ContextBindingReason::ProofMetadataMismatch,
+    )?;
+    compare_optional(
+        "circuit_id",
+        &expected.circuit_id,
+        &observed.circuit_id,
+        ContextBindingReason::ProofMetadataMismatch,
+    )?;
+    compare_optional(
         "vk_id",
         &expected.vk_id,
         &observed.vk_id,
         ContextBindingReason::VkMismatch,
     )?;
     compare_optional(
+        "vk_fingerprint",
+        &expected.vk_fingerprint,
+        &observed.vk_fingerprint,
+        ContextBindingReason::VkMismatch,
+    )?;
+    compare_optional(
         "public_input_schema_id",
         &expected.public_input_schema_id,
         &observed.public_input_schema_id,
+        ContextBindingReason::PublicInputSchemaMismatch,
+    )?;
+    compare_optional(
+        "public_input_fingerprint",
+        &expected.public_input_fingerprint,
+        &observed.public_input_fingerprint,
         ContextBindingReason::PublicInputSchemaMismatch,
     )?;
     compare_optional(
