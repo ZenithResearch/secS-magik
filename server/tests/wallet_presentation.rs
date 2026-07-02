@@ -70,7 +70,7 @@ fn wallet_presentation_accepts_valid_cryptographic_fixture_as_public_proof() {
     match adapter().verify(&wallet_request_with_origin(Some(WALLET_EVIDENCE_REF))) {
         EvidenceResult::Satisfied(summary) => {
             assert_eq!(summary.kind, EvidenceKind::WalletPresentation);
-            assert_eq!(summary.subject, WALLET_SUBJECT);
+            assert_eq!(summary.subject, "[redacted]");
             assert_eq!(summary.audience, WALLET_AUDIENCE);
             assert!(!summary.local_dev_test_only);
             assert!(summary.public_proof);
@@ -147,7 +147,7 @@ fn wallet_presentation_challenge_contract_requires_public_proof_without_shell_st
     };
 
     assert!(summary.public_proof);
-    assert_eq!(summary.subject, WALLET_SUBJECT);
+    assert_eq!(summary.subject, "[redacted]");
     assert_eq!(summary.audience, WALLET_AUDIENCE);
     assert!(summary.resource.is_some());
     assert!(summary

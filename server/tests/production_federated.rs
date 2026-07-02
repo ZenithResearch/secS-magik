@@ -465,7 +465,7 @@ fn valid_membership_credential_verifies() {
     match adapter.verify(&production_request(Some(MEMBERSHIP_CREDENTIAL_REF))) {
         EvidenceResult::Satisfied(summary) => {
             assert_eq!(summary.kind, EvidenceKind::MembershipCredential);
-            assert_eq!(summary.subject, TRUSTED_SUBJECT);
+            assert_eq!(summary.subject, "[redacted]");
             assert!(summary.public_proof);
             assert!(!summary.local_dev_test_only);
             assert!(summary
@@ -1000,6 +1000,7 @@ fn local_static_descriptor(opcode: u8) -> OperationDescriptor {
         handler_id: "dev/local-static".to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: server::privacy::DisclosurePolicy::default_i02(),
     }
 }
 

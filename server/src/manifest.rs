@@ -4,6 +4,7 @@
 //! `OperationDescriptor` carries the semantic operation contract the receiver
 //! assigns to each key.
 
+use crate::privacy::DisclosurePolicy;
 use crate::verifier::VerificationError;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -85,6 +86,7 @@ pub struct OperationDescriptor {
     pub handler_id: String,
     pub dev_binding: bool,
     pub range: OpcodeRange,
+    pub disclosure_policy: DisclosurePolicy,
 }
 
 impl OperationDescriptor {
@@ -134,6 +136,22 @@ impl OperationDescriptor {
             if self.dev_binding { "true" } else { "false" },
         );
         field("range", opcode_range_label(self.range));
+        field("disclosure_policy_id", &self.disclosure_policy.policy_id);
+        field(
+            "disclosure_policy_version",
+            &self.disclosure_policy.policy_version.to_string(),
+        );
+        for permission in &self.disclosure_policy.permissions {
+            field(
+                "disclosure_permission",
+                &format!(
+                    "{}:{}:{}",
+                    permission.class.as_str(),
+                    permission.surface.as_str(),
+                    permission.representation.as_str()
+                ),
+            );
+        }
 
         let digest = Sha256::digest(&bytes);
         let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
@@ -224,6 +242,7 @@ fn legacy_descriptor(opcode: u8, name: &str, handler_id: &str) -> OperationDescr
         handler_id: handler_id.to_string(),
         dev_binding: false,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: DisclosurePolicy::default_i02(),
     }
 }
 
@@ -246,6 +265,7 @@ pub fn dregg_demo_descriptor(opcode: u8) -> OperationDescriptor {
         handler_id: "dev/bash-echo".to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: DisclosurePolicy::default_i02(),
     }
 }
 
@@ -271,6 +291,7 @@ pub fn demo_file_write_descriptor(opcode: u8) -> OperationDescriptor {
         handler_id: DEMO_FILE_WRITE_HANDLER_ID.to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: DisclosurePolicy::default_i02(),
     }
 }
 
@@ -293,6 +314,7 @@ fn dev_candidate_descriptor(
         handler_id: handler_id.to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: DisclosurePolicy::default_i02(),
     }
 }
 
@@ -330,5 +352,6 @@ pub fn membership_provision_descriptor() -> OperationDescriptor {
         handler_id: "membership/provision".to_string(),
         dev_binding: false,
         range: OpcodeRange::classify(OPCODE),
+        disclosure_policy: DisclosurePolicy::default_i02(),
     }
 }

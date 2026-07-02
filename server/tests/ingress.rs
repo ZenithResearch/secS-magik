@@ -682,7 +682,7 @@ mod decision_response {
             }
             EvidenceResult::Satisfied(EvidenceSummary {
                 kind: EvidenceKind::DreggAuthority,
-                subject: request.subject.clone(),
+                subject: "[redacted]".to_string(),
                 audience: request.audience.clone(),
                 operation: request.operation.clone(),
                 resource: request.resource.clone(),
@@ -714,7 +714,7 @@ mod decision_response {
             }
             EvidenceResult::Satisfied(EvidenceSummary {
                 kind: EvidenceKind::DreggAuthority,
-                subject: request.subject.clone(),
+                subject: "[redacted]".to_string(),
                 audience: request.audience.clone(),
                 operation: request.operation.clone(),
                 resource: request.resource.clone(),
