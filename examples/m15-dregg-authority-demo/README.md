@@ -36,6 +36,15 @@ In operational terms:
 5. Delegated or requested authority cannot amplify beyond the trusted/decrypted call material.
 6. The accepted path produces redaction-safe, inspectable receipts.
 
+Accepted verifier receipts also carry the I01 evidence maturity labels:
+
+- `evidence_kind:<label>`
+- `accepted_evidence_tier:<shape_only|local_verified|signed_source|federation_checkpoint|succinct_proof|recursive_proof_carrying_state>`
+- `policy_required_evidence_tier:<tier>`
+- `evidence_support_status:<supported|local_dev|fixture|reserved_unsupported|unknown_unsupported>`
+
+The current demo's production-shaped authority evidence remains fixture/receiver-held and is labeled at the tested tier. Weaker evidence rejects with `evidence_tier_too_weak`. Unsupported future labels for live federation finality, Midnight/ZK or light-client verification, Cardano settlement, and recursive proof-carrying state reject as `unsupported_evidence_kind` / `unsupported_evidence_tier` instead of downgrading into local acceptance.
+
 ## What the demo does not claim
 
 This demo does not prove:

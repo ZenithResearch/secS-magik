@@ -9,6 +9,7 @@ use crate::ontology::DEFAULT_RECEIVER_AUDIENCE;
 use crate::permissions::PermissionPolicy;
 use crate::runtime_mode::RuntimeMode;
 use libsec_core::tunnel::{parse_tunnel_key_hex, tunnel_public_key_id};
+use serde::Serialize;
 use sqlx::SqlitePool;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -158,6 +159,16 @@ pub enum ReadinessStatus {
     FixtureOnly,
 }
 
+impl ReadinessStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::NotReady => "not_ready",
+            Self::FixtureOnly => "fixture_only",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GatewayReadiness {
     pub config_loaded: ReadinessStatus,
@@ -167,6 +178,23 @@ pub struct GatewayReadiness {
     pub dregg_authority_registry_ready: ReadinessStatus,
     pub dregg_authority_snapshot_ready: ReadinessStatus,
     pub dregg_live_source_ready: ReadinessStatus,
+    pub privacy_policy_ready: ReadinessStatus,
+    pub redaction_scanner_ready: ReadinessStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GatewayReadinessPrivacyProjection {
+    pub config_loaded: &'static str,
+    pub ledger_ready: &'static str,
+    pub trust_registry_ready: &'static str,
+    pub caller_registry_ready: &'static str,
+    pub dregg_authority_registry_ready: &'static str,
+    pub dregg_authority_snapshot_ready: &'static str,
+    pub dregg_live_source_ready: &'static str,
+    pub privacy_policy_ready: &'static str,
+    pub redaction_scanner_ready: &'static str,
+    pub policy_id: &'static str,
+    pub policy_version: u16,
 }
 
 impl GatewayReadiness {
@@ -193,6 +221,24 @@ impl GatewayReadiness {
                 self.dregg_live_source_ready,
                 ReadinessStatus::Ready | ReadinessStatus::FixtureOnly
             )
+            && self.privacy_policy_ready == ReadinessStatus::Ready
+            && self.redaction_scanner_ready == ReadinessStatus::Ready
+    }
+
+    pub fn privacy_projection(&self) -> GatewayReadinessPrivacyProjection {
+        GatewayReadinessPrivacyProjection {
+            config_loaded: self.config_loaded.as_str(),
+            ledger_ready: self.ledger_ready.as_str(),
+            trust_registry_ready: self.trust_registry_ready.as_str(),
+            caller_registry_ready: self.caller_registry_ready.as_str(),
+            dregg_authority_registry_ready: self.dregg_authority_registry_ready.as_str(),
+            dregg_authority_snapshot_ready: self.dregg_authority_snapshot_ready.as_str(),
+            dregg_live_source_ready: self.dregg_live_source_ready.as_str(),
+            privacy_policy_ready: self.privacy_policy_ready.as_str(),
+            redaction_scanner_ready: self.redaction_scanner_ready.as_str(),
+            policy_id: "secs-i02-deny-by-default",
+            policy_version: 1,
+        }
     }
 }
 
@@ -575,6 +621,8 @@ impl GatewayRuntimeConfig {
             dregg_authority_registry_ready,
             dregg_authority_snapshot_ready,
             dregg_live_source_ready,
+            privacy_policy_ready: ReadinessStatus::Ready,
+            redaction_scanner_ready: ReadinessStatus::Ready,
         })
     }
 

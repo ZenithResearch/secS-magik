@@ -35,6 +35,7 @@ fn descriptor() -> OperationDescriptor {
         handler_id: "membership/provision".to_string(),
         dev_binding: false,
         range: OpcodeRange::OperatorDefined,
+        disclosure_policy: server::privacy::DisclosurePolicy::default_i02(),
     }
 }
 
@@ -790,7 +791,7 @@ fn dregg_authority_snapshot_adapter_accepts_controlled_resource_with_redacted_su
     };
 
     assert_eq!(summary.kind, EvidenceKind::DreggAuthority);
-    assert_eq!(summary.subject, "did:example:david-lab");
+    assert_eq!(summary.subject, "[redacted]");
     assert_eq!(
         summary.resource.as_deref(),
         Some("resource://david-lab/demo-agent")

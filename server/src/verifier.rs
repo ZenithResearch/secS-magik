@@ -2,6 +2,7 @@ use crate::evidence::{EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceRe
 use crate::identity::NodeVerifierIdentity;
 use crate::manifest::{OperationDescriptor, ReceiverManifest, ReplayScope, TargetKind};
 use crate::ontology::PROTOTYPE_LOCAL_SUBJECT;
+use crate::privacy::{PrivacySafeHandlerContext, PrivacySurface};
 pub use crate::receipt::AuthenticatorKind;
 use crate::runtime_mode::RuntimeMode;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
@@ -58,6 +59,9 @@ pub enum VerificationError {
     MissingLiveDreggRevocationVerifier,
     MissingLiveDreggBlsThresholdVerifier,
     MissingLiveDreggRotatedReplayVerifier,
+    EvidenceTierTooWeak,
+    UnsupportedEvidenceKind,
+    UnsupportedEvidenceTier,
     StaleDreggRevocationRoot,
     InvalidDreggRevocationProof,
     InvalidDreggFinalityQc,
@@ -78,6 +82,9 @@ pub enum VerificationError {
     ExpiredCallerKey,
     NotYetValidCallerKey,
     MissingCallerRegistry,
+    PrivacyPolicyViolation,
+    OverDisclosedPresentation,
+    ForbiddenFieldPresent,
     InternalError,
 }
 
@@ -136,6 +143,9 @@ impl VerificationError {
             Self::MissingLiveDreggRotatedReplayVerifier => {
                 "missing_live_dregg_rotated_replay_verifier"
             }
+            Self::EvidenceTierTooWeak => "evidence_tier_too_weak",
+            Self::UnsupportedEvidenceKind => "unsupported_evidence_kind",
+            Self::UnsupportedEvidenceTier => "unsupported_evidence_tier",
             Self::StaleDreggRevocationRoot => "stale_dregg_revocation_root",
             Self::InvalidDreggRevocationProof => "invalid_dregg_revocation_proof",
             Self::InvalidDreggFinalityQc => "invalid_dregg_finality_qc",
@@ -156,8 +166,15 @@ impl VerificationError {
             Self::ExpiredCallerKey => "expired_caller_key",
             Self::NotYetValidCallerKey => "not_yet_valid_caller_key",
             Self::MissingCallerRegistry => "missing_caller_registry",
+            Self::PrivacyPolicyViolation => "privacy_policy_violation",
+            Self::OverDisclosedPresentation => "over_disclosed_presentation",
+            Self::ForbiddenFieldPresent => "forbidden_field_present",
             Self::InternalError => "internal_error",
         }
+    }
+
+    pub fn handler_ran(&self) -> bool {
+        false
     }
 }
 
@@ -346,6 +363,7 @@ impl Verifier {
         }
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
+        reject_over_disclosed_packet(packet, descriptor)?;
         verified_context_for_descriptor(
             packet,
             descriptor,
@@ -398,6 +416,7 @@ impl Verifier {
         }
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
+        reject_over_disclosed_packet(packet, descriptor)?;
         reject_non_production_descriptor(descriptor, runtime_mode)?;
         let subject = match (runtime_mode, caller_keys) {
             (_, Some(registry)) => {
@@ -441,6 +460,7 @@ impl Verifier {
         }
         Self::verify_prototype_envelope(packet)?;
         let descriptor = manifest.lookup(packet.opcode)?;
+        reject_over_disclosed_packet(packet, descriptor)?;
         reject_non_production_descriptor(descriptor, runtime_mode)?;
         let subject = match (runtime_mode, caller_keys) {
             (_, Some(registry)) => {
@@ -466,10 +486,20 @@ impl Verifier {
             .extend(inputs.public_inputs().iter().cloned());
         request.trusted_requested_resource =
             trusted_requested_resource_from_payload(trusted_payload)?;
+        let required_maturity = request.required_maturity_profile()?;
+        reject_adapter_below_policy(&request, adapter.kind(), required_maturity.tier)?;
         let evidence_summary = match adapter.verify(&request) {
-            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
+            EvidenceResult::Satisfied(summary) => {
+                request.validate_satisfied_summary(&summary)?;
+                reject_forbidden_evidence_summary(
+                    &summary.to_policy_scan_fields(required_maturity.tier),
+                    descriptor,
+                )?;
+                summary.to_context_fields_for_policy(required_maturity.tier)
+            }
             EvidenceResult::Rejected(error) => return Err(error),
         };
+        reject_forbidden_evidence_summary(&evidence_summary, descriptor)?;
         let context_resource = context_resource_from_evidence_summary(&evidence_summary)?;
         let context = verified_context_for_descriptor(
             packet,
@@ -531,10 +561,20 @@ impl Verifier {
             .extend(inputs.public_inputs().iter().cloned());
         request.trusted_requested_resource =
             trusted_requested_resource_from_payload(&packet.encrypted_payload)?;
+        let required_maturity = request.required_maturity_profile()?;
+        reject_adapter_below_policy(&request, adapter.kind(), required_maturity.tier)?;
         let evidence_summary = match adapter.verify(&request) {
-            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
+            EvidenceResult::Satisfied(summary) => {
+                request.validate_satisfied_summary(&summary)?;
+                reject_forbidden_evidence_summary(
+                    &summary.to_policy_scan_fields(required_maturity.tier),
+                    descriptor,
+                )?;
+                summary.to_context_fields_for_policy(required_maturity.tier)
+            }
             EvidenceResult::Rejected(error) => return Err(error),
         };
+        reject_forbidden_evidence_summary(&evidence_summary, descriptor)?;
         let context_resource = context_resource_from_evidence_summary(&evidence_summary)?;
         let context = verified_context_for_descriptor(
             packet,
@@ -634,6 +674,24 @@ fn reject_non_production_descriptor(
     Ok(())
 }
 
+fn reject_adapter_below_policy(
+    request: &crate::evidence::EvidenceRequest,
+    adapter_kind: EvidenceKind,
+    required_tier: crate::evidence::EvidenceTier,
+) -> Result<(), VerificationError> {
+    if request.accepts(adapter_kind) {
+        return Ok(());
+    }
+    let adapter_profile = adapter_kind.maturity_profile();
+    if !adapter_profile.support_status.is_supported() {
+        return Err(VerificationError::UnsupportedEvidenceKind);
+    }
+    if adapter_profile.tier < required_tier {
+        return Err(VerificationError::EvidenceTierTooWeak);
+    }
+    Ok(())
+}
+
 fn reject_descriptor_only_runtime_evidence_gap(
     descriptor: &OperationDescriptor,
 ) -> Result<(), VerificationError> {
@@ -656,6 +714,37 @@ fn reject_descriptor_only_runtime_evidence_gap(
         return Err(VerificationError::InsufficientEvidence);
     }
     Ok(())
+}
+
+fn reject_over_disclosed_packet(
+    packet: &ZenithPacket,
+    descriptor: &OperationDescriptor,
+) -> Result<(), VerificationError> {
+    reject_over_disclosed_payload(&packet.encrypted_payload, descriptor)
+}
+
+fn reject_over_disclosed_payload(
+    payload: &[u8],
+    descriptor: &OperationDescriptor,
+) -> Result<(), VerificationError> {
+    crate::privacy::scan_json_bytes(
+        PrivacySurface::HandlerContext,
+        payload,
+        &descriptor.disclosure_policy,
+    )
+    .map_err(|_| VerificationError::OverDisclosedPresentation)
+}
+
+fn reject_forbidden_evidence_summary(
+    evidence_summary: &[String],
+    descriptor: &OperationDescriptor,
+) -> Result<(), VerificationError> {
+    crate::privacy::scan_string_fields(
+        PrivacySurface::VerifyReceipt,
+        evidence_summary,
+        &descriptor.disclosure_policy,
+    )
+    .map_err(|_| VerificationError::ForbiddenFieldPresent)
 }
 
 fn prototype_subject() -> VerifiedSubject {
@@ -777,6 +866,28 @@ fn replay_scope_name(scope: ReplayScope) -> &'static str {
 }
 
 impl VerifiedCallContext {
+    pub fn privacy_safe_handler_context(
+        &self,
+        policy: &crate::privacy::DisclosurePolicy,
+    ) -> PrivacySafeHandlerContext {
+        PrivacySafeHandlerContext {
+            context_id: self.context_id.clone(),
+            opcode: self.opcode,
+            operation: self.operation.clone(),
+            resource: self.resource.clone(),
+            audience: self.audience.clone(),
+            evidence_summary: self.evidence_summary.clone(),
+            capability_result: self.capability_result.clone(),
+            credential_result: self.credential_result.clone(),
+            descriptor_fingerprint: self.descriptor_fingerprint.clone(),
+            replay_scope: self.replay_scope.clone(),
+            handler_id: self.handler_id.clone(),
+            policy_id: policy.policy_id.clone(),
+            policy_version: policy.policy_version,
+            identity_boundary: "identity_hidden_by_policy".to_string(),
+        }
+    }
+
     pub fn sign_ed25519(
         self,
         signer_key_id: &str,
