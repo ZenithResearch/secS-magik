@@ -1,0 +1,43 @@
+# I10 negative matrix status ledger discovery
+
+Issue: I10 — Executable negative matrix status map
+
+Canonical ledger decision: `server/tests/fixtures/dregg_negative_matrix_status_ledger.yaml` is the single machine-readable source for this PR. Parser/checker code must consume this file directly; any future guide/readme/demo snippets must link to or be checked against it rather than copying an independent status table.
+
+Discovery commands run from this worktree:
+
+- `rg -n "negative matrix|anonymous|unlinkable|federated|finality|light-client|light_client|recursive|signed source|live authority|audit|production|handler_did_not_run|reason_code" README.md docs examples server || true`
+- `cargo test -p server -- --list | rg -n "dregg|negative|authority|finality|revocation|handler|ledger|light|recursive" || true`
+
+Discovered claim-sensitive docs/source surfaces:
+
+- `README.md` — current boundary and explicit non-claims for live Castalia/Dregg discovery, finality, public auditability, deployment proof, Midnight/Cardano, and production readiness.
+- `docs/implementation-status.md` — repo status ledger with solid/prototype/planned/future/out-of-scope vocabulary and current Dregg/live-source/audit rows.
+- `docs/repository-schema.md` — repository boundary map and status-sensitive non-claims.
+- `docs/specs/dregg-authority-rail.md` — Dregg authority semantics and proof/finality blocker posture.
+- `docs/specs/dregg-live-source-client-contract.md` — signed live-source client contract, no-live-network boundary, redaction and cache posture.
+- `docs/specs/evidence-adapter-readiness-disclosure.md` — adapter readiness/disclosure gates.
+- `docs/plans/2026-06-02-ready-for-prod-checklist.md` — older production-policy/future-rail matrix and no-overclaim language.
+- `examples/README.md` and `examples/m15-dregg-authority-demo/README.md` — demo-facing claim-sensitive wording.
+- `server/src/verifier.rs` — stable `VerificationError::reason_code()` strings.
+- `server/src/{dregg_authority,dregg_live_source,evidence,public_audit,ledger,gateway,ingress}.rs` — source evidence for implemented/provisional rows.
+- `server/tests/{dregg_live_source_client,dregg_live_finality,dregg_live_revocation,dregg_live_contracts,dregg_rotated_proof,dregg_authority_evidence,production_federated,gateway_layout,ingress,ledger,public_audit}.rs` — discovered test surfaces with exact test names for implemented/proposed wiring.
+
+Candidate negative/status rows for the initial ledger:
+
+- `signed_source_runtime_wireup` — owner I16; live signed authority/source wording remains target unless an implemented row can point to no-network source-client tests without claiming live runtime operation.
+- `federation_checkpoint_not_finality_until_rollback_state` — owner I17; BLS threshold finality helpers exist, but federated finality/durable rollback-state claims remain blocked/target.
+- `anonymous_unlinkable_membership_blocked_until_i06` — owner I06; wallet-presentation and credential primitives exist, but anonymous/unlinkable membership remains blocked until two-show unlinkability and leak checks pass.
+- `light_client_verified_requires_i18_not_i08_metadata` — owner I18; proof/VK metadata or bounded proof fixtures must not render as light-client verification.
+- `recursive_proof_carrying_state_future` — owner I19; recursive proof-carrying state remains future/missing.
+- `audit_without_surveillance_requires_i09` — owner I09; local public-audit bundle/anchor work exists, but audit-without-surveillance remains blocked until selective audit policy exists.
+- `production_ready_requires_deployment_proof` — owner I11/I12/I20 boundary via production proof; local production-shaped smoke and fixtures must not be rendered as production-ready.
+- `handler_rejection_requires_no_handler_run` — owner I10; rejection rows must name `handler_did_not_run_expected` and implemented rows must point to handler-not-run assertions.
+
+Unsettled Wave 1 vocabulary:
+
+- I01 canonical evidence-tier labels are not assumed here; rows use `provisional_shape_only`, `proposed`, `missing`, `blocked`, and `not_applicable` only where needed.
+- I02 privacy policy fields are represented as row-local `privacy_guard_expected` strings and do not claim privacy-safe implementation unless owner evidence exists.
+- I03 context-binding labels remain referenced by owner dependencies; this PR does not invent final context-binding semantics.
+
+Forbidden scope preserved: no verifier/runtime/privacy/finality/proof behavior, no guide promotion, no executive diagrams, and no second canonical ledger.
