@@ -30,3 +30,6 @@ path = "src/bin/secz.rs"
 [[bin]]
 name = "secs-permctl"
 path = "src/bin/secs-permctl.rs"
+
+[dev-dependencies]
+serde_yaml = "0.9"
