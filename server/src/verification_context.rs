@@ -237,6 +237,18 @@ pub fn verify_context_binding(
         ContextBindingReason::AuthoritySourceMismatch,
     )?;
     compare_optional(
+        "source_key_id",
+        &expected.source_key_id,
+        &observed.source_key_id,
+        ContextBindingReason::AuthoritySourceMismatch,
+    )?;
+    compare_optional(
+        "source_schema_version",
+        &expected.source_schema_version,
+        &observed.source_schema_version,
+        ContextBindingReason::AuthoritySourceMismatch,
+    )?;
+    compare_optional(
         "federation_id",
         &expected.federation_id,
         &observed.federation_id,
@@ -249,6 +261,12 @@ pub fn verify_context_binding(
         ContextBindingReason::FederationMismatch,
     )?;
     compare_optional(
+        "committee_epoch",
+        &expected.committee_epoch,
+        &observed.committee_epoch,
+        ContextBindingReason::FederationMismatch,
+    )?;
+    compare_optional(
         "root_id",
         &expected.root_id,
         &observed.root_id,
@@ -258,6 +276,12 @@ pub fn verify_context_binding(
         "checkpoint_id",
         &expected.checkpoint_id,
         &observed.checkpoint_id,
+        ContextBindingReason::RootCheckpointMismatch,
+    )?;
+    compare_optional(
+        "finality_mode",
+        &expected.finality_mode,
+        &observed.finality_mode,
         ContextBindingReason::RootCheckpointMismatch,
     )?;
     compare_optional(
@@ -303,6 +327,12 @@ pub fn verify_context_binding(
         ContextBindingReason::ProofMetadataMismatch,
     )?;
     compare_optional(
+        "circuit_version",
+        &expected.circuit_version,
+        &observed.circuit_version,
+        ContextBindingReason::ProofMetadataMismatch,
+    )?;
+    compare_optional(
         "vk_id",
         &expected.vk_id,
         &observed.vk_id,
@@ -321,6 +351,12 @@ pub fn verify_context_binding(
         ContextBindingReason::PublicInputSchemaMismatch,
     )?;
     compare_optional(
+        "public_input_schema_version",
+        &expected.public_input_schema_version,
+        &observed.public_input_schema_version,
+        ContextBindingReason::PublicInputSchemaMismatch,
+    )?;
+    compare_optional(
         "public_input_fingerprint",
         &expected.public_input_fingerprint,
         &observed.public_input_fingerprint,
@@ -330,6 +366,18 @@ pub fn verify_context_binding(
         "nullifier_domain_id",
         &expected.nullifier_domain_id,
         &observed.nullifier_domain_id,
+        ContextBindingReason::NullifierDomainMismatch,
+    )?;
+    compare_optional(
+        "nullifier_domain_version",
+        &expected.nullifier_domain_version,
+        &observed.nullifier_domain_version,
+        ContextBindingReason::NullifierDomainMismatch,
+    )?;
+    compare_optional(
+        "nullifier_domain_fingerprint",
+        &expected.nullifier_domain_fingerprint,
+        &observed.nullifier_domain_fingerprint,
         ContextBindingReason::NullifierDomainMismatch,
     )?;
     compare_required(

@@ -176,42 +176,168 @@ fn context_binding_handler_not_run_on_reject() {
 #[test]
 fn context_binding_one_field_mismatch_matrix() {
     let cases: Vec<(&str, ContextBindingReason, fn(&mut VerificationContext))> = vec![
-        ("receiver_id", ContextBindingReason::AudienceMismatch, |c| c.receiver_id = "receiver.other".into()),
-        ("audience_id", ContextBindingReason::AudienceMismatch, |c| c.audience_id = "audience.other".into()),
-        ("operation_id", ContextBindingReason::OperationMismatch, |c| c.operation_id = "operation.other".into()),
-        ("handler_id", ContextBindingReason::OperationMismatch, |c| c.handler_id = "handler/other".into()),
-        ("resource_id", ContextBindingReason::ResourceMismatch, |c| c.resource_id = "resource://other".into()),
-        ("subject_commitment", ContextBindingReason::SubjectBindingMismatch, |c| c.subject_commitment = Some("subject:other".into())),
-        ("issuer_id", ContextBindingReason::AuthoritySourceMismatch, |c| c.issuer_id = Some("issuer.other".into())),
-        ("authority_source_id", ContextBindingReason::AuthoritySourceMismatch, |c| c.authority_source_id = Some("source.other".into())),
-        ("federation_id", ContextBindingReason::FederationMismatch, |c| c.federation_id = Some("federation.other".into())),
-        ("committee_id", ContextBindingReason::FederationMismatch, |c| c.committee_id = Some("committee.other".into())),
-        ("root_id", ContextBindingReason::RootCheckpointMismatch, |c| c.root_id = Some("root.other".into())),
-        ("checkpoint_id", ContextBindingReason::RootCheckpointMismatch, |c| c.checkpoint_id = Some("checkpoint.other".into())),
-        ("root_epoch", ContextBindingReason::EpochMismatch, |c| c.root_epoch = Some("epoch-other".into())),
-        ("validity_window_id", ContextBindingReason::EpochMismatch, |c| c.validity_window_id = "window.other".into()),
-        ("request_id", ContextBindingReason::ChallengeMismatch, |c| c.request_id = "request.other".into()),
-        ("challenge_id", ContextBindingReason::ChallengeMismatch, |c| c.challenge_id = "challenge.other".into()),
-        ("manifest_id", ContextBindingReason::ManifestMismatch, |c| c.manifest_id = "manifest.other".into()),
-        ("manifest_version", ContextBindingReason::ManifestMismatch, |c| c.manifest_version = "2".into()),
-        ("manifest_fingerprint", ContextBindingReason::ManifestMismatch, |c| c.manifest_fingerprint = "manifest:other".into()),
-        ("descriptor_id", ContextBindingReason::DescriptorMismatch, |c| c.descriptor_id = "descriptor.other".into()),
-        ("descriptor_version", ContextBindingReason::DescriptorMismatch, |c| c.descriptor_version = "2".into()),
-        ("descriptor_fingerprint", ContextBindingReason::DescriptorMismatch, |c| c.descriptor_fingerprint = "descriptor:other".into()),
-        ("privacy_policy_id", ContextBindingReason::PrivacyPolicyMismatch, |c| c.privacy_policy_id = "privacy.other".into()),
-        ("privacy_policy_version", ContextBindingReason::PrivacyPolicyMismatch, |c| c.privacy_policy_version = "2".into()),
-        ("privacy_policy_fingerprint", ContextBindingReason::PrivacyPolicyMismatch, |c| c.privacy_policy_fingerprint = "privacy:other".into()),
-        ("disclosure_scope_id", ContextBindingReason::DisclosureScopeMismatch, |c| c.disclosure_scope_id = "disclosure.other".into()),
-        ("proof_adapter_id", ContextBindingReason::ProofMetadataMismatch, |c| c.proof_adapter_id = Some("proof.adapter.other".into())),
-        ("proof_system_id", ContextBindingReason::ProofMetadataMismatch, |c| c.proof_system_id = Some("proof.system.other".into())),
-        ("circuit_id", ContextBindingReason::ProofMetadataMismatch, |c| c.circuit_id = Some("circuit.other".into())),
-        ("vk_id", ContextBindingReason::VkMismatch, |c| c.vk_id = Some("vk.other".into())),
-        ("vk_fingerprint", ContextBindingReason::VkMismatch, |c| c.vk_fingerprint = Some("vk:other".into())),
-        ("public_input_schema_id", ContextBindingReason::PublicInputSchemaMismatch, |c| c.public_input_schema_id = Some("schema.other".into())),
-        ("public_input_fingerprint", ContextBindingReason::PublicInputSchemaMismatch, |c| c.public_input_fingerprint = Some("public-input:other".into())),
-        ("nullifier_domain_id", ContextBindingReason::NullifierDomainMismatch, |c| c.nullifier_domain_id = Some("nullifier.other".into())),
-        ("evidence_tier", ContextBindingReason::EvidenceTierMismatch, |c| c.evidence_tier = "lower_tier".into()),
-        ("adapter_kind", ContextBindingReason::AdapterKindMismatch, |c| c.adapter_kind = "local_static".into()),
+        ("receiver_id", ContextBindingReason::AudienceMismatch, |c| {
+            c.receiver_id = "receiver.other".into()
+        }),
+        ("audience_id", ContextBindingReason::AudienceMismatch, |c| {
+            c.audience_id = "audience.other".into()
+        }),
+        (
+            "operation_id",
+            ContextBindingReason::OperationMismatch,
+            |c| c.operation_id = "operation.other".into(),
+        ),
+        ("handler_id", ContextBindingReason::OperationMismatch, |c| {
+            c.handler_id = "handler/other".into()
+        }),
+        ("resource_id", ContextBindingReason::ResourceMismatch, |c| {
+            c.resource_id = "resource://other".into()
+        }),
+        (
+            "subject_commitment",
+            ContextBindingReason::SubjectBindingMismatch,
+            |c| c.subject_commitment = Some("subject:other".into()),
+        ),
+        (
+            "issuer_id",
+            ContextBindingReason::AuthoritySourceMismatch,
+            |c| c.issuer_id = Some("issuer.other".into()),
+        ),
+        (
+            "authority_source_id",
+            ContextBindingReason::AuthoritySourceMismatch,
+            |c| c.authority_source_id = Some("source.other".into()),
+        ),
+        (
+            "federation_id",
+            ContextBindingReason::FederationMismatch,
+            |c| c.federation_id = Some("federation.other".into()),
+        ),
+        (
+            "committee_id",
+            ContextBindingReason::FederationMismatch,
+            |c| c.committee_id = Some("committee.other".into()),
+        ),
+        (
+            "root_id",
+            ContextBindingReason::RootCheckpointMismatch,
+            |c| c.root_id = Some("root.other".into()),
+        ),
+        (
+            "checkpoint_id",
+            ContextBindingReason::RootCheckpointMismatch,
+            |c| c.checkpoint_id = Some("checkpoint.other".into()),
+        ),
+        ("root_epoch", ContextBindingReason::EpochMismatch, |c| {
+            c.root_epoch = Some("epoch-other".into())
+        }),
+        (
+            "validity_window_id",
+            ContextBindingReason::EpochMismatch,
+            |c| c.validity_window_id = "window.other".into(),
+        ),
+        ("request_id", ContextBindingReason::ChallengeMismatch, |c| {
+            c.request_id = "request.other".into()
+        }),
+        (
+            "challenge_id",
+            ContextBindingReason::ChallengeMismatch,
+            |c| c.challenge_id = "challenge.other".into(),
+        ),
+        ("manifest_id", ContextBindingReason::ManifestMismatch, |c| {
+            c.manifest_id = "manifest.other".into()
+        }),
+        (
+            "manifest_version",
+            ContextBindingReason::ManifestMismatch,
+            |c| c.manifest_version = "2".into(),
+        ),
+        (
+            "manifest_fingerprint",
+            ContextBindingReason::ManifestMismatch,
+            |c| c.manifest_fingerprint = "manifest:other".into(),
+        ),
+        (
+            "descriptor_id",
+            ContextBindingReason::DescriptorMismatch,
+            |c| c.descriptor_id = "descriptor.other".into(),
+        ),
+        (
+            "descriptor_version",
+            ContextBindingReason::DescriptorMismatch,
+            |c| c.descriptor_version = "2".into(),
+        ),
+        (
+            "descriptor_fingerprint",
+            ContextBindingReason::DescriptorMismatch,
+            |c| c.descriptor_fingerprint = "descriptor:other".into(),
+        ),
+        (
+            "privacy_policy_id",
+            ContextBindingReason::PrivacyPolicyMismatch,
+            |c| c.privacy_policy_id = "privacy.other".into(),
+        ),
+        (
+            "privacy_policy_version",
+            ContextBindingReason::PrivacyPolicyMismatch,
+            |c| c.privacy_policy_version = "2".into(),
+        ),
+        (
+            "privacy_policy_fingerprint",
+            ContextBindingReason::PrivacyPolicyMismatch,
+            |c| c.privacy_policy_fingerprint = "privacy:other".into(),
+        ),
+        (
+            "disclosure_scope_id",
+            ContextBindingReason::DisclosureScopeMismatch,
+            |c| c.disclosure_scope_id = "disclosure.other".into(),
+        ),
+        (
+            "proof_adapter_id",
+            ContextBindingReason::ProofMetadataMismatch,
+            |c| c.proof_adapter_id = Some("proof.adapter.other".into()),
+        ),
+        (
+            "proof_system_id",
+            ContextBindingReason::ProofMetadataMismatch,
+            |c| c.proof_system_id = Some("proof.system.other".into()),
+        ),
+        (
+            "circuit_id",
+            ContextBindingReason::ProofMetadataMismatch,
+            |c| c.circuit_id = Some("circuit.other".into()),
+        ),
+        ("vk_id", ContextBindingReason::VkMismatch, |c| {
+            c.vk_id = Some("vk.other".into())
+        }),
+        ("vk_fingerprint", ContextBindingReason::VkMismatch, |c| {
+            c.vk_fingerprint = Some("vk:other".into())
+        }),
+        (
+            "public_input_schema_id",
+            ContextBindingReason::PublicInputSchemaMismatch,
+            |c| c.public_input_schema_id = Some("schema.other".into()),
+        ),
+        (
+            "public_input_fingerprint",
+            ContextBindingReason::PublicInputSchemaMismatch,
+            |c| c.public_input_fingerprint = Some("public-input:other".into()),
+        ),
+        (
+            "nullifier_domain_id",
+            ContextBindingReason::NullifierDomainMismatch,
+            |c| c.nullifier_domain_id = Some("nullifier.other".into()),
+        ),
+        (
+            "evidence_tier",
+            ContextBindingReason::EvidenceTierMismatch,
+            |c| c.evidence_tier = "lower_tier".into(),
+        ),
+        (
+            "adapter_kind",
+            ContextBindingReason::AdapterKindMismatch,
+            |c| c.adapter_kind = "local_static".into(),
+        ),
     ];
 
     for (dimension, reason, mutate) in cases {
@@ -227,5 +353,60 @@ fn context_binding_one_field_mismatch_matrix() {
         assert_eq!(error.dimension, dimension);
         assert!(!handler_ran, "handler ran for {dimension}");
         assert!(!format!("{error:?}").contains("raw_proof"));
+    }
+}
+
+#[test]
+fn context_binding_anti_downgrade_matrix() {
+    let cases: Vec<(&str, ContextBindingReason, fn(&mut VerificationContext))> = vec![
+        (
+            "source_key_id",
+            ContextBindingReason::AuthoritySourceMismatch,
+            |c| c.source_key_id = Some("source-key:older".into()),
+        ),
+        (
+            "source_schema_version",
+            ContextBindingReason::AuthoritySourceMismatch,
+            |c| c.source_schema_version = Some("source-schema-v0".into()),
+        ),
+        (
+            "committee_epoch",
+            ContextBindingReason::FederationMismatch,
+            |c| c.committee_epoch = Some("committee-epoch-6".into()),
+        ),
+        (
+            "finality_mode",
+            ContextBindingReason::RootCheckpointMismatch,
+            |c| c.finality_mode = Some("weaker_finality".into()),
+        ),
+        (
+            "circuit_version",
+            ContextBindingReason::ProofMetadataMismatch,
+            |c| c.circuit_version = Some("0".into()),
+        ),
+        (
+            "public_input_schema_version",
+            ContextBindingReason::PublicInputSchemaMismatch,
+            |c| c.public_input_schema_version = Some("0".into()),
+        ),
+        (
+            "nullifier_domain_version",
+            ContextBindingReason::NullifierDomainMismatch,
+            |c| c.nullifier_domain_version = Some("0".into()),
+        ),
+        (
+            "nullifier_domain_fingerprint",
+            ContextBindingReason::NullifierDomainMismatch,
+            |c| c.nullifier_domain_fingerprint = Some("nullifier-domain:older".into()),
+        ),
+    ];
+
+    for (dimension, reason, mutate) in cases {
+        let expected = VerificationContext::fixture();
+        let mut observed = expected.clone();
+        mutate(&mut observed);
+        let error = verify_context_binding(&expected, &observed).unwrap_err();
+        assert_eq!(error.reason, reason, "dimension {dimension}");
+        assert_eq!(error.dimension, dimension);
     }
 }
