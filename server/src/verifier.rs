@@ -491,6 +491,10 @@ impl Verifier {
         let evidence_summary = match adapter.verify(&request) {
             EvidenceResult::Satisfied(summary) => {
                 request.validate_satisfied_summary(&summary)?;
+                reject_forbidden_evidence_summary(
+                    &summary.to_policy_scan_fields(required_maturity.tier),
+                    descriptor,
+                )?;
                 summary.to_context_fields_for_policy(required_maturity.tier)
             }
             EvidenceResult::Rejected(error) => return Err(error),
@@ -562,6 +566,10 @@ impl Verifier {
         let evidence_summary = match adapter.verify(&request) {
             EvidenceResult::Satisfied(summary) => {
                 request.validate_satisfied_summary(&summary)?;
+                reject_forbidden_evidence_summary(
+                    &summary.to_policy_scan_fields(required_maturity.tier),
+                    descriptor,
+                )?;
                 summary.to_context_fields_for_policy(required_maturity.tier)
             }
             EvidenceResult::Rejected(error) => return Err(error),

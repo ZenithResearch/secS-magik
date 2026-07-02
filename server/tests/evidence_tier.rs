@@ -6,6 +6,7 @@ use server::evidence::{
 use server::manifest::{
     OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
 };
+use server::privacy::DisclosurePolicy;
 use server::receipt::Receipt;
 use server::verifier::{VerificationError, Verifier};
 
@@ -23,6 +24,7 @@ fn descriptor(opcode: u8, accepted_evidence: Vec<&str>) -> OperationDescriptor {
         handler_id: "dev/evidence-tier".to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: DisclosurePolicy::default_i02(),
     }
 }
 
@@ -40,7 +42,7 @@ fn packet(opcode: u8) -> ZenithPacket {
 
 fn local_static_adapter() -> LocalStaticEvidenceAdapter {
     LocalStaticEvidenceAdapter::new([LocalStaticGrant {
-        subject: "did:example:tier-subject".to_string(),
+        subject: "[redacted]".to_string(),
         audience: "secS://tier-test".to_string(),
         operation: "candidate.dev.evidence_tier".to_string(),
         resource: Some("application/json".to_string()),
@@ -57,7 +59,7 @@ fn verify_with(
         &packet(0x51),
         &manifest,
         "secS://tier-test",
-        "did:example:tier-subject",
+        "[redacted]",
         Some("local-static:tier-grant"),
         adapter,
         1_700_000_000,
