@@ -98,10 +98,10 @@ pub fn encrypt_payload(
 ) -> Vec<u8> {
     let key = Key::from(*key_bytes);
     let cipher = ChaCha20Poly1305::new(&key);
-    let nonce = Nonce::from_slice(nonce_bytes);
+    let nonce = Nonce::try_from(nonce_bytes.as_slice()).expect("nonce length is fixed and valid");
     cipher
         .encrypt(
-            nonce,
+            &nonce,
             Payload {
                 msg: plaintext,
                 aad,
@@ -118,9 +118,9 @@ pub fn decrypt_payload(
 ) -> Result<Vec<u8>, chacha20poly1305::aead::Error> {
     let key = Key::from(*key_bytes);
     let cipher = ChaCha20Poly1305::new(&key);
-    let nonce = Nonce::from_slice(nonce_bytes);
+    let nonce = Nonce::try_from(nonce_bytes.as_slice()).expect("nonce length is fixed and valid");
     cipher.decrypt(
-        nonce,
+        &nonce,
         Payload {
             msg: ciphertext,
             aad,
