@@ -296,6 +296,7 @@ mod runtime_wiring {
             handler_id: "prod/echo".to_string(),
             dev_binding: false,
             range: OpcodeRange::classify(PRODUCTION_OPCODE),
+            disclosure_policy: server::privacy::DisclosurePolicy::default_i02(),
         }])
     }
 

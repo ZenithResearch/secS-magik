@@ -48,7 +48,7 @@ fn sentinel_payload() -> serde_json::Value {
 #[test]
 fn privacy_policy_forbids_default_identity_leakage_in_verify_receipt() {
     let descriptor = membership_provision_descriptor();
-    let manifest = ReceiverManifest::new([descriptor]);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
     let accepted_packet = packet(
         0x44,
         serde_json::json!({ "requested_resource": "urn:secs:i02" }),
@@ -80,7 +80,7 @@ fn privacy_policy_forbids_default_identity_leakage_in_verify_receipt() {
 #[test]
 fn privacy_policy_forbids_default_identity_leakage_in_reject_receipt() {
     let descriptor = membership_provision_descriptor();
-    let manifest = ReceiverManifest::new([descriptor]);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
     let rejected_packet = packet(0x44, sentinel_payload());
 
     let error = Verifier::verify_manifest_operation_for_runtime(
@@ -111,7 +111,7 @@ fn privacy_policy_forbids_default_identity_leakage_in_reject_receipt() {
 #[test]
 fn over_disclosed_packet_or_presentation_rejects_before_handler_execution() {
     let descriptor = membership_provision_descriptor();
-    let manifest = ReceiverManifest::new([descriptor]);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
     let rejected_packet = packet(0x44, sentinel_payload());
 
     let error = Verifier::verify_manifest_operation_for_runtime(
@@ -124,13 +124,13 @@ fn over_disclosed_packet_or_presentation_rejects_before_handler_execution() {
     .unwrap_err();
 
     assert_eq!(error.reason_code(), "over_disclosed_presentation");
-    assert_eq!(error.handler_ran(), false);
+    assert!(!error.handler_ran());
 }
 
 #[test]
 fn privacy_policy_forbids_default_identity_leakage_in_execute_receipt_and_handler_context() {
     let descriptor = membership_provision_descriptor();
-    let manifest = ReceiverManifest::new([descriptor]);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
     let accepted_packet = packet(
         0x44,
         serde_json::json!({ "requested_resource": "urn:secs:i02" }),
@@ -181,7 +181,7 @@ fn privacy_policy_forbids_default_identity_leakage_in_execute_receipt_and_handle
 #[test]
 fn stable_subject_handle_is_not_allowed_in_anonymous_membership_path() {
     let descriptor = membership_provision_descriptor();
-    let manifest = ReceiverManifest::new([descriptor]);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
     let packet = packet(
         0x44,
         serde_json::json!({ "requested_resource": "urn:secs:i02" }),
@@ -256,7 +256,7 @@ fn non_membership_descriptor_uses_same_privacy_guard() {
         server::manifest::OperationName::new("i14.boundary.node_registration_fixture");
     descriptor.target_kind = TargetKind::ReceiverProductionHandler;
     descriptor.handler_id = "i14-boundary/privacy-fixture".to_string();
-    let manifest = ReceiverManifest::new([descriptor]);
+    let manifest = ReceiverManifest::new([descriptor.clone()]);
     let rejected_packet = packet(0x55, sentinel_payload());
 
     let error = Verifier::verify_manifest_operation_for_runtime(

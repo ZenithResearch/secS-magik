@@ -43,6 +43,7 @@ pub fn wallet_descriptor(opcode: u8) -> OperationDescriptor {
         handler_id: "dev/wallet-presentation".to_string(),
         dev_binding: true,
         range: OpcodeRange::classify(opcode),
+        disclosure_policy: server::privacy::DisclosurePolicy::default_i02(),
     }
 }
 

@@ -35,6 +35,7 @@ fn descriptor() -> OperationDescriptor {
         handler_id: "membership/provision".to_string(),
         dev_binding: false,
         range: OpcodeRange::OperatorDefined,
+        disclosure_policy: server::privacy::DisclosurePolicy::default_i02(),
     }
 }
 
