@@ -472,8 +472,13 @@ impl Verifier {
             .extend(inputs.public_inputs().iter().cloned());
         request.trusted_requested_resource =
             trusted_requested_resource_from_payload(trusted_payload)?;
+        let required_maturity = request.required_maturity_profile()?;
+        reject_adapter_below_policy(&request, adapter.kind(), required_maturity.tier)?;
         let evidence_summary = match adapter.verify(&request) {
-            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
+            EvidenceResult::Satisfied(summary) => {
+                request.validate_satisfied_summary(&summary)?;
+                summary.to_context_fields_for_policy(required_maturity.tier)
+            }
             EvidenceResult::Rejected(error) => return Err(error),
         };
         let context_resource = context_resource_from_evidence_summary(&evidence_summary)?;
@@ -537,8 +542,13 @@ impl Verifier {
             .extend(inputs.public_inputs().iter().cloned());
         request.trusted_requested_resource =
             trusted_requested_resource_from_payload(&packet.encrypted_payload)?;
+        let required_maturity = request.required_maturity_profile()?;
+        reject_adapter_below_policy(&request, adapter.kind(), required_maturity.tier)?;
         let evidence_summary = match adapter.verify(&request) {
-            EvidenceResult::Satisfied(summary) => summary.to_context_fields(),
+            EvidenceResult::Satisfied(summary) => {
+                request.validate_satisfied_summary(&summary)?;
+                summary.to_context_fields_for_policy(required_maturity.tier)
+            }
             EvidenceResult::Rejected(error) => return Err(error),
         };
         let context_resource = context_resource_from_evidence_summary(&evidence_summary)?;
@@ -637,6 +647,24 @@ fn reject_non_production_descriptor(
         return Err(VerificationError::PrototypeOperationNotProductionAuthorized);
     }
     reject_descriptor_only_runtime_evidence_gap(descriptor)?;
+    Ok(())
+}
+
+fn reject_adapter_below_policy(
+    request: &crate::evidence::EvidenceRequest,
+    adapter_kind: EvidenceKind,
+    required_tier: crate::evidence::EvidenceTier,
+) -> Result<(), VerificationError> {
+    if request.accepts(adapter_kind) {
+        return Ok(());
+    }
+    let adapter_profile = adapter_kind.maturity_profile();
+    if !adapter_profile.support_status.is_supported() {
+        return Err(VerificationError::UnsupportedEvidenceKind);
+    }
+    if adapter_profile.tier < required_tier {
+        return Err(VerificationError::EvidenceTierTooWeak);
+    }
     Ok(())
 }
 

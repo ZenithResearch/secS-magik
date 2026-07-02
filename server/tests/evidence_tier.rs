@@ -1,7 +1,7 @@
 use libsec_core::ZenithPacket;
 use server::evidence::{
-    EvidenceAdapter, EvidenceKind, EvidenceMaturityProfile, EvidenceRequest, EvidenceResult,
-    EvidenceSupportStatus, EvidenceTier, LocalStaticEvidenceAdapter, LocalStaticGrant,
+    EvidenceAdapter, EvidenceKind, EvidenceMaturityProfile, EvidenceRequest, EvidenceSupportStatus,
+    EvidenceTier, LocalStaticEvidenceAdapter, LocalStaticGrant,
 };
 use server::manifest::{
     OpcodeRange, OperationDescriptor, OperationName, ReceiverManifest, ReplayScope, TargetKind,
@@ -227,9 +227,15 @@ fn reserved_succinct_and_recursive_tiers_fail_closed_before_ordering() {
         public_inputs: Vec::new(),
         trusted_requested_resource: None,
     };
-    let local_summary = local_static_adapter().verify(&proof_required);
-    let EvidenceResult::Satisfied(summary) = local_summary else {
-        panic!("fixture should satisfy its own local shape before policy tier validation");
+    let summary = server::evidence::EvidenceSummary {
+        kind: EvidenceKind::LocalStatic,
+        subject: proof_required.subject.clone(),
+        audience: proof_required.audience.clone(),
+        operation: proof_required.operation.clone(),
+        resource: proof_required.resource.clone(),
+        local_dev_test_only: true,
+        public_proof: false,
+        summary_fields: Vec::new(),
     };
     assert_eq!(
         proof_required
