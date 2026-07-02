@@ -58,6 +58,9 @@ pub enum VerificationError {
     MissingLiveDreggRevocationVerifier,
     MissingLiveDreggBlsThresholdVerifier,
     MissingLiveDreggRotatedReplayVerifier,
+    EvidenceTierTooWeak,
+    UnsupportedEvidenceKind,
+    UnsupportedEvidenceTier,
     StaleDreggRevocationRoot,
     InvalidDreggRevocationProof,
     InvalidDreggFinalityQc,
@@ -136,6 +139,9 @@ impl VerificationError {
             Self::MissingLiveDreggRotatedReplayVerifier => {
                 "missing_live_dregg_rotated_replay_verifier"
             }
+            Self::EvidenceTierTooWeak => "evidence_tier_too_weak",
+            Self::UnsupportedEvidenceKind => "unsupported_evidence_kind",
+            Self::UnsupportedEvidenceTier => "unsupported_evidence_tier",
             Self::StaleDreggRevocationRoot => "stale_dregg_revocation_root",
             Self::InvalidDreggRevocationProof => "invalid_dregg_revocation_proof",
             Self::InvalidDreggFinalityQc => "invalid_dregg_finality_qc",
