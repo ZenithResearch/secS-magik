@@ -67,6 +67,22 @@ pub const REPLAY_RESERVATIONS_TABLE: RuntimeTable = RuntimeTable {
     );",
 };
 
+pub const SCOPED_NULLIFIER_USES_TABLE: RuntimeTable = RuntimeTable {
+    name: "scoped_nullifier_uses",
+    ddl: "CREATE TABLE IF NOT EXISTS scoped_nullifier_uses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recorded_at INTEGER NOT NULL,
+        domain_fingerprint TEXT NOT NULL,
+        commitment_fingerprint TEXT NOT NULL,
+        commitment_storage_hash TEXT NOT NULL,
+        context_id TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        resource_kind TEXT NOT NULL,
+        domain_version TEXT NOT NULL,
+        UNIQUE(domain_fingerprint, commitment_storage_hash)
+    );",
+};
+
 pub const AUDIT_PUBLICATION_STATUS_TABLE: RuntimeTable = RuntimeTable {
     name: "audit_publication_status",
     ddl: "CREATE TABLE IF NOT EXISTS audit_publication_status (
@@ -102,6 +118,7 @@ pub const LEDGER_TABLES: &[RuntimeTable] = &[
     EVENTS_TABLE,
     RECEIPTS_TABLE,
     REPLAY_RESERVATIONS_TABLE,
+    SCOPED_NULLIFIER_USES_TABLE,
     AUDIT_PUBLICATION_STATUS_TABLE,
 ];
 pub const TELEMETRY_TABLES: &[RuntimeTable] = &[NODE_TELEMETRY_TABLE];

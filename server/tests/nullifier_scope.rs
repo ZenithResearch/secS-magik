@@ -3,6 +3,7 @@
 //! The routing hook is `ConfigurableRouter::route_verified`, before file/directory
 //! handlers run and before execute-success side effects are recorded.
 
+use server::ledger::{Ledger, ScopedNullifierUseOutcome};
 use server::nullifier::{
     canonical_resource_id, NullifierCommitment, NullifierDomainV1, NullifierDomainV1Inputs,
     NullifierOutcome, NullifierReason, ResourceKind, ScopedNullifierEvidence,
@@ -188,4 +189,112 @@ fn mismatch_reason_labels_are_stable() {
     assert_eq!(NullifierReason::MissingScopedNullifier.as_str(), "missing_scoped_nullifier");
     assert_eq!(NullifierReason::UnsupportedScope.as_str(), "unsupported_nullifier_scope");
     assert_eq!(NullifierOutcome::ScopedUseRecorded.as_str(), "scoped_use_recorded");
+}
+
+async fn memory_ledger() -> Ledger {
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    let ledger = Ledger::new(pool);
+    ledger.init_schema().await.unwrap();
+    ledger
+}
+
+#[tokio::test]
+async fn duplicate_nullifier_same_domain_rejected_before_handler() {
+    let ctx = context();
+    let domain = domain_from(&ctx, ResourceKind::File);
+    let commitment = NullifierCommitment::new("commitment-a").unwrap();
+    let ledger = memory_ledger().await;
+    assert_eq!(
+        ledger
+            .record_scoped_nullifier_use(&domain, &commitment, &ctx, 10)
+            .await
+            .unwrap(),
+        ScopedNullifierUseOutcome::Recorded
+    );
+    assert_eq!(
+        ledger
+            .record_scoped_nullifier_use(&domain, &commitment, &ctx, 11)
+            .await
+            .unwrap(),
+        ScopedNullifierUseOutcome::Duplicate
+    );
+    assert_eq!(ledger.scoped_nullifier_use_count(&domain, &commitment).await.unwrap(), 1);
+    assert_eq!(Ledger::duplicate_nullifier_reason(), "duplicate_nullifier");
+}
+
+#[tokio::test]
+async fn concurrent_duplicate_insert_accepts_once() {
+    let ctx = context();
+    let domain = domain_from(&ctx, ResourceKind::File);
+    let commitment = NullifierCommitment::new("commitment-concurrent").unwrap();
+    let ledger = memory_ledger().await;
+    let (left, right) = tokio::join!(
+        ledger.record_scoped_nullifier_use(&domain, &commitment, &ctx, 10),
+        ledger.record_scoped_nullifier_use(&domain, &commitment, &ctx, 10)
+    );
+    let outcomes = vec![left.unwrap(), right.unwrap()];
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|outcome| **outcome == ScopedNullifierUseOutcome::Recorded)
+            .count(),
+        1
+    );
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|outcome| **outcome == ScopedNullifierUseOutcome::Duplicate)
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn durable_scoped_use_survives_ledger_reopen() {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("secs-nullifier-{nanos}.sqlite"));
+    std::fs::File::create(&path).expect("create durable sqlite file");
+    let url = format!("sqlite://{}", path.display());
+    let ctx = context();
+    let domain = domain_from(&ctx, ResourceKind::File);
+    let commitment = NullifierCommitment::new("commitment-durable").unwrap();
+
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect(&url)
+        .await
+        .unwrap();
+    let ledger = Ledger::new(pool);
+    ledger.init_schema().await.unwrap();
+    assert_eq!(
+        ledger
+            .record_scoped_nullifier_use(&domain, &commitment, &ctx, 10)
+            .await
+            .unwrap(),
+        ScopedNullifierUseOutcome::Recorded
+    );
+    drop(ledger);
+
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect(&url)
+        .await
+        .unwrap();
+    let ledger = Ledger::new(pool);
+    ledger.init_schema().await.unwrap();
+    assert_eq!(
+        ledger
+            .record_scoped_nullifier_use(&domain, &commitment, &ctx, 11)
+            .await
+            .unwrap(),
+        ScopedNullifierUseOutcome::Duplicate
+    );
+    let _ = std::fs::remove_file(path);
 }

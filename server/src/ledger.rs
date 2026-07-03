@@ -4,6 +4,7 @@
 //! export. It uses runtime SQL so the repo does not need to maintain SQLx
 //! offline metadata yet.
 
+use crate::nullifier::{NullifierCommitment, NullifierDomainV1, NullifierReason};
 use crate::public_audit::{
     public_audit_entry_hash, public_audit_root_hash, sha256_hex, AuditPublisher, PublicAuditBundle,
     PublicAuditBundleStatus, PublicAuditChainMetadata, PublicAuditPublicationRecord,
@@ -54,6 +55,12 @@ impl OperatorReceiptInspection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReplayReservationOutcome {
     Reserved,
+    Duplicate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopedNullifierUseOutcome {
+    Recorded,
     Duplicate,
 }
 
@@ -176,6 +183,63 @@ impl Ledger {
         } else {
             Ok(ReplayReservationOutcome::Reserved)
         }
+    }
+
+    pub async fn record_scoped_nullifier_use(
+        &self,
+        domain: &NullifierDomainV1,
+        commitment: &NullifierCommitment,
+        context: &VerifiedCallContext,
+        recorded_at: u64,
+    ) -> Result<ScopedNullifierUseOutcome, sqlx::Error> {
+        let result = sqlx::query(
+            "INSERT OR IGNORE INTO scoped_nullifier_uses (
+                recorded_at,
+                domain_fingerprint,
+                commitment_fingerprint,
+                commitment_storage_hash,
+                context_id,
+                operation,
+                resource_kind,
+                domain_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(recorded_at as i64)
+        .bind(domain.fingerprint())
+        .bind(commitment.fingerprint())
+        .bind(commitment.storage_hash())
+        .bind(&context.context_id)
+        .bind(&context.operation)
+        .bind(domain.resource_kind.as_str())
+        .bind(&domain.domain_version)
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            Ok(ScopedNullifierUseOutcome::Duplicate)
+        } else {
+            Ok(ScopedNullifierUseOutcome::Recorded)
+        }
+    }
+
+    pub async fn scoped_nullifier_use_count(
+        &self,
+        domain: &NullifierDomainV1,
+        commitment: &NullifierCommitment,
+    ) -> Result<i64, sqlx::Error> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM scoped_nullifier_uses
+             WHERE domain_fingerprint = ? AND commitment_storage_hash = ?",
+        )
+        .bind(domain.fingerprint())
+        .bind(commitment.storage_hash())
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.0)
+    }
+
+    pub fn duplicate_nullifier_reason() -> &'static str {
+        NullifierReason::DuplicateNullifier.as_str()
     }
 
     /// Prune (DELETE) any replay reservations whose `expires_at` is strictly before `now`.

@@ -112,6 +112,13 @@ impl NullifierCommitment {
         redacted_fingerprint("nullifier-commitment", self.0.as_bytes())
     }
 
+    pub fn storage_hash(&self) -> String {
+        redacted_fingerprint(
+            "nullifier-commitment-storage",
+            self.raw_for_storage().as_bytes(),
+        )
+    }
+
     pub(crate) fn raw_for_storage(&self) -> &str {
         &self.0
     }
