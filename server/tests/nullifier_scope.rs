@@ -323,6 +323,15 @@ fn signed_scoped(
     resource: &str,
     commitment: &str,
 ) -> server::verifier::SignedVerifiedCallContext {
+    signed_scoped_with_extra(packet, resource, commitment, Vec::new())
+}
+
+fn signed_scoped_with_extra(
+    packet: &libsec_core::ZenithPacket,
+    resource: &str,
+    commitment: &str,
+    extra: Vec<String>,
+) -> server::verifier::SignedVerifiedCallContext {
     let mut signed = Verifier::verify_manifest_operation_with_resource_and_sign(
         packet,
         &demo_manifest(),
@@ -344,6 +353,7 @@ fn signed_scoped(
         "subject_commitment:subject-commitment-a".to_string(),
         format!("nullifier_commitment:{commitment}"),
     ]);
+    signed.context.evidence_summary.extend(extra);
     signed = signed
         .context
         .sign_ed25519(
@@ -397,5 +407,105 @@ async fn route_duplicate_nullifier_rejects_before_file_handler_side_effect() {
     .await
     .unwrap();
     assert_eq!(success_count.0, 1, "duplicate did not create a success receipt");
+    let _ = std::fs::remove_dir_all(&sandbox);
+}
+
+#[test]
+fn domain_fingerprint_mismatch_matrix_rejects_stable_reason() {
+    let base = context();
+    let expected = domain_from(&base, ResourceKind::File).fingerprint();
+    for (label, mut changed) in [
+        ("wrong_audience", {
+            let mut c = base.clone();
+            c.audience = "secS://receiver-b".to_string();
+            c
+        }),
+        ("wrong_operation", {
+            let mut c = base.clone();
+            c.operation = "demo.directory.list".to_string();
+            c
+        }),
+        ("wrong_resource", {
+            let mut c = base.clone();
+            c.resource = Some("file:///tmp/secS/other.txt".to_string());
+            c
+        }),
+    ] {
+        changed
+            .evidence_summary
+            .push(format!("nullifier_domain_fingerprint:{expected}"));
+        assert_eq!(
+            ScopedNullifierEvidence::from_context(&changed).unwrap_err(),
+            NullifierReason::DomainMismatch,
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn unsupported_global_scope_and_missing_values_reject_stable_reasons() {
+    let mut global = context();
+    global
+        .evidence_summary
+        .push("nullifier_scope:global".to_string());
+    assert_eq!(
+        ScopedNullifierEvidence::from_context(&global).unwrap_err(),
+        NullifierReason::UnsupportedScope
+    );
+
+    let mut missing_epoch = context();
+    missing_epoch
+        .evidence_summary
+        .retain(|field| !field.starts_with("nullifier_epoch:"));
+    assert_eq!(
+        ScopedNullifierEvidence::from_context(&missing_epoch).unwrap_err(),
+        NullifierReason::MissingScopedNullifier
+    );
+}
+
+#[tokio::test]
+async fn wrong_domain_rejects_before_file_handler_side_effect() {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let sandbox = std::env::temp_dir().join(format!("secs-nullifier-mismatch-{nanos}"));
+    std::fs::create_dir_all(&sandbox).unwrap();
+    let target = sandbox.join("allowed.txt");
+    let resource = format!("file://{}", target.display());
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.set_manifest(demo_manifest());
+    router.register_handler(
+        DEMO_FILE_WRITE_HANDLER_ID,
+        Box::new(DemoFileWriteProgram::new(&sandbox).unwrap()),
+    );
+
+    let expected_other_domain = {
+        let mut other = context();
+        other.resource = Some("file:///tmp/secS/other.txt".to_string());
+        domain_from(&other, ResourceKind::File).fingerprint()
+    };
+    let packet = packet_with_nonce([8u8; 12], b"should-not-write");
+    let signed = signed_scoped_with_extra(
+        &packet,
+        &resource,
+        "commitment-mismatch",
+        vec![format!("nullifier_domain_fingerprint:{expected_other_domain}")],
+    );
+    let response = router
+        .route_verified(&signed, b"should-not-write".to_vec())
+        .await;
+    assert_eq!(response.decision, libsec_core::response::ResponseDecision::Rejected);
+    assert_eq!(
+        response.reason_code.as_deref(),
+        Some("nullifier_domain_mismatch")
+    );
+    assert!(!target.exists(), "mismatch must not run file handler");
     let _ = std::fs::remove_dir_all(&sandbox);
 }
