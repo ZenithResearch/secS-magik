@@ -16,6 +16,8 @@ trap cleanup EXIT
 
 KEY_PATH="$TMP_DIR/fixture-verifier.key"
 TRUST_REGISTRY_PATH="$TMP_DIR/trust-registry.json"
+CALLER_REGISTRY_PATH="$TMP_DIR/caller-registry.json"
+PERMISSION_POLICY_PATH="$TMP_DIR/permission-policy.json"
 LEDGER_PATH="$TMP_DIR/ledger.sqlite"
 LOG_PATH="$TMP_DIR/secs-gateway.log"
 
@@ -26,6 +28,24 @@ print(os.urandom(32).hex(), end='')
 PY
 chmod 600 "$KEY_PATH"
 printf '{"fixture_only":true,"trusted_verifiers":[]}' > "$TRUST_REGISTRY_PATH"
+python3 - <<'PY' > "$CALLER_REGISTRY_PATH"
+print('{"fixture_only":true,"callers":[{"key_id":"caller:fixture","subject_id":"did:example:fixture","algorithm":"ed25519","public_key_hex":"' + '00' * 32 + '","status":"active"}]}', end='')
+PY
+cat > "$PERMISSION_POLICY_PATH" <<'JSON'
+[
+  {
+    "caller_id": "did:example:test",
+    "opcode": 16,
+    "operation": "file.write",
+    "resource": { "kind": "prefix", "prefix": "urn:secs:demo:" },
+    "effect": "allow",
+    "status": "active",
+    "authority_source": "receiver_local",
+    "not_before": 0,
+    "not_after": 4102444800
+  }
+]
+JSON
 
 export SECS_RUNTIME_MODE=production_verified
 export SECS_FIXTURE_ONLY_SMOKE=1
@@ -36,6 +56,8 @@ export SECS_RECEIVER_AUDIENCE=secS://local-smoke-receiver
 export SECS_VERIFIER_KEY_PATH="$KEY_PATH"
 export SECS_VERIFIER_KEY_ID=verifier:local-smoke-fixture
 export SECS_TRUST_REGISTRY_PATH="$TRUST_REGISTRY_PATH"
+export SECS_CALLER_REGISTRY_PATH="$CALLER_REGISTRY_PATH"
+export SECS_PERMISSION_POLICY_PATH="$PERMISSION_POLICY_PATH"
 export SECS_MAX_WIRE_BYTES=2097152
 export SECS_MAX_PAYLOAD_BYTES=1048576
 export SECS_MAX_OUTPUT_BYTES=1048576
@@ -43,6 +65,7 @@ export SECS_HANDLER_TIMEOUT_MS=30000
 export SECS_INGRESS_READ_TIMEOUT_MS=10000
 export SECS_MAX_IN_FLIGHT_CONNECTIONS=64
 export SECS_ALLOWED_EVIDENCE_ADAPTERS=local_static
+export SECS_TUNNEL_X25519_SECRET_HEX=0808080808080808080808080808080808080808080808080808080808080808
 
 cd "$ROOT"
 
