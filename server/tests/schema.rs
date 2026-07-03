@@ -1,5 +1,5 @@
 use server::ontology::{DEFAULT_RECEIVER_AUDIENCE, PROTOTYPE_LOCAL_SUBJECT};
-use server::schema::{LEDGER_TABLES, REPLAY_RESERVATIONS_TABLE};
+use server::schema::{LEDGER_TABLES, REPLAY_RESERVATIONS_TABLE, SCOPED_NULLIFIER_USES_TABLE};
 use sqlx::sqlite::SqlitePoolOptions;
 
 #[tokio::test]
@@ -15,6 +15,7 @@ async fn ledger_schema_ontology_names_all_runtime_tables() {
             "events",
             "receipts",
             "replay_reservations",
+            "scoped_nullifier_uses",
             "audit_publication_status"
         ]
     );
@@ -36,6 +37,26 @@ async fn ledger_schema_ontology_contains_unique_replay_boundary() {
             .contains("CREATE TABLE IF NOT EXISTS node_telemetry"),
         "telemetry schema should remain separate from the replay/receipt ledger ontology"
     );
+}
+
+#[tokio::test]
+async fn ledger_schema_ontology_contains_scoped_nullifier_use_boundary() {
+    let scoped_uses = SCOPED_NULLIFIER_USES_TABLE;
+
+    assert_eq!(scoped_uses.name, "scoped_nullifier_uses");
+    assert!(
+        scoped_uses
+            .ddl
+            .contains("UNIQUE(domain_fingerprint, commitment_storage_hash)"),
+        "scoped nullifier use-state must preserve the I04 per-domain commitment uniqueness boundary"
+    );
+    assert!(scoped_uses.ddl.contains("domain_fingerprint TEXT NOT NULL"));
+    assert!(scoped_uses
+        .ddl
+        .contains("commitment_fingerprint TEXT NOT NULL"));
+    assert!(scoped_uses
+        .ddl
+        .contains("commitment_storage_hash TEXT NOT NULL"));
 }
 
 #[tokio::test]
@@ -99,6 +120,7 @@ async fn ledger_schema_ontology_names_audit_publication_status_table() {
             "events",
             "receipts",
             "replay_reservations",
+            "scoped_nullifier_uses",
             "audit_publication_status"
         ]
     );

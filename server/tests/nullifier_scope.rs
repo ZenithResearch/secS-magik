@@ -11,7 +11,7 @@ use server::nullifier::{
     canonical_resource_id, NullifierCommitment, NullifierDomainV1, NullifierDomainV1Inputs,
     NullifierOutcome, NullifierReason, ResourceKind, ScopedNullifierEvidence,
 };
-use server::verifier::{Verifier, VerifiedCallContext, VerifiedSubject};
+use server::verifier::{VerifiedCallContext, VerifiedSubject, Verifier};
 
 fn context() -> VerifiedCallContext {
     VerifiedCallContext {
@@ -66,7 +66,10 @@ fn nullifier_domain_changes_when_audience_changes() {
     let base = domain_from(&context(), ResourceKind::File);
     let mut changed = context();
     changed.audience = "secS://receiver-b".to_string();
-    assert_ne!(base.fingerprint(), domain_from(&changed, ResourceKind::File).fingerprint());
+    assert_ne!(
+        base.fingerprint(),
+        domain_from(&changed, ResourceKind::File).fingerprint()
+    );
 }
 
 #[test]
@@ -74,7 +77,10 @@ fn nullifier_domain_changes_when_operation_changes() {
     let base = domain_from(&context(), ResourceKind::File);
     let mut changed = context();
     changed.operation = "demo.directory.list".to_string();
-    assert_ne!(base.fingerprint(), domain_from(&changed, ResourceKind::File).fingerprint());
+    assert_ne!(
+        base.fingerprint(),
+        domain_from(&changed, ResourceKind::File).fingerprint()
+    );
 }
 
 #[test]
@@ -82,7 +88,10 @@ fn nullifier_domain_changes_when_resource_changes() {
     let base = domain_from(&context(), ResourceKind::File);
     let mut changed = context();
     changed.resource = Some("file:///tmp/secS/other.txt".to_string());
-    assert_ne!(base.fingerprint(), domain_from(&changed, ResourceKind::File).fingerprint());
+    assert_ne!(
+        base.fingerprint(),
+        domain_from(&changed, ResourceKind::File).fingerprint()
+    );
 }
 
 #[test]
@@ -166,7 +175,8 @@ fn canonical_resource_id_normalizes_file_paths() {
 #[test]
 fn global_or_domainless_nullifier_rejected_for_scoped_operation() {
     let mut ctx = context();
-    ctx.evidence_summary.retain(|field| !field.starts_with("nullifier_commitment:"));
+    ctx.evidence_summary
+        .retain(|field| !field.starts_with("nullifier_commitment:"));
     let evidence = ScopedNullifierEvidence::from_context(&ctx).unwrap_err();
     assert_eq!(evidence, NullifierReason::MissingScopedNullifier);
 }
@@ -182,16 +192,34 @@ fn allowed_distinct_domain_uses_non_equal_commitments() {
     let file_commitment = NullifierCommitment::new("commitment-file").unwrap();
     let directory_commitment = NullifierCommitment::new("commitment-directory").unwrap();
     assert_ne!(file.fingerprint(), directory.fingerprint());
-    assert_ne!(file_commitment.fingerprint(), directory_commitment.fingerprint());
+    assert_ne!(
+        file_commitment.fingerprint(),
+        directory_commitment.fingerprint()
+    );
 }
 
 #[test]
 fn mismatch_reason_labels_are_stable() {
-    assert_eq!(NullifierReason::DuplicateNullifier.as_str(), "duplicate_nullifier");
-    assert_eq!(NullifierReason::DomainMismatch.as_str(), "nullifier_domain_mismatch");
-    assert_eq!(NullifierReason::MissingScopedNullifier.as_str(), "missing_scoped_nullifier");
-    assert_eq!(NullifierReason::UnsupportedScope.as_str(), "unsupported_nullifier_scope");
-    assert_eq!(NullifierOutcome::ScopedUseRecorded.as_str(), "scoped_use_recorded");
+    assert_eq!(
+        NullifierReason::DuplicateNullifier.as_str(),
+        "duplicate_nullifier"
+    );
+    assert_eq!(
+        NullifierReason::DomainMismatch.as_str(),
+        "nullifier_domain_mismatch"
+    );
+    assert_eq!(
+        NullifierReason::MissingScopedNullifier.as_str(),
+        "missing_scoped_nullifier"
+    );
+    assert_eq!(
+        NullifierReason::UnsupportedScope.as_str(),
+        "unsupported_nullifier_scope"
+    );
+    assert_eq!(
+        NullifierOutcome::ScopedUseRecorded.as_str(),
+        "scoped_use_recorded"
+    );
 }
 
 async fn memory_ledger() -> Ledger {
@@ -225,7 +253,13 @@ async fn duplicate_nullifier_same_domain_rejected_before_handler() {
             .unwrap(),
         ScopedNullifierUseOutcome::Duplicate
     );
-    assert_eq!(ledger.scoped_nullifier_use_count(&domain, &commitment).await.unwrap(), 1);
+    assert_eq!(
+        ledger
+            .scoped_nullifier_use_count(&domain, &commitment)
+            .await
+            .unwrap(),
+        1
+    );
     assert_eq!(Ledger::duplicate_nullifier_reason(), "duplicate_nullifier");
 }
 
@@ -239,7 +273,7 @@ async fn concurrent_duplicate_insert_accepts_once() {
         ledger.record_scoped_nullifier_use(&domain, &commitment, &ctx, 10),
         ledger.record_scoped_nullifier_use(&domain, &commitment, &ctx, 10)
     );
-    let outcomes = vec![left.unwrap(), right.unwrap()];
+    let outcomes = [left.unwrap(), right.unwrap()];
     assert_eq!(
         outcomes
             .iter()
@@ -390,14 +424,24 @@ async fn route_duplicate_nullifier_rejects_before_file_handler_side_effect() {
 
     let first = packet_with_nonce([4u8; 12], b"first");
     let signed_first = signed_scoped(&first, &resource, "commitment-route");
-    let response = router.route_verified(&signed_first, b"first".to_vec()).await;
-    assert_eq!(response.decision, libsec_core::response::ResponseDecision::Accepted);
+    let response = router
+        .route_verified(&signed_first, b"first".to_vec())
+        .await;
+    assert_eq!(
+        response.decision,
+        libsec_core::response::ResponseDecision::Accepted
+    );
     assert_eq!(std::fs::read_to_string(&target).unwrap(), "first");
 
     let second = packet_with_nonce([5u8; 12], b"second");
     let signed_second = signed_scoped(&second, &resource, "commitment-route");
-    let response = router.route_verified(&signed_second, b"second".to_vec()).await;
-    assert_eq!(response.decision, libsec_core::response::ResponseDecision::Rejected);
+    let response = router
+        .route_verified(&signed_second, b"second".to_vec())
+        .await;
+    assert_eq!(
+        response.decision,
+        libsec_core::response::ResponseDecision::Rejected
+    );
     assert_eq!(response.reason_code.as_deref(), Some("duplicate_nullifier"));
     assert_eq!(std::fs::read_to_string(&target).unwrap(), "first");
     let success_count: (i64,) = sqlx::query_as(
@@ -406,7 +450,10 @@ async fn route_duplicate_nullifier_rejects_before_file_handler_side_effect() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(success_count.0, 1, "duplicate did not create a success receipt");
+    assert_eq!(
+        success_count.0, 1,
+        "duplicate did not create a success receipt"
+    );
     let _ = std::fs::remove_dir_all(&sandbox);
 }
 
@@ -496,12 +543,17 @@ async fn wrong_domain_rejects_before_file_handler_side_effect() {
         &packet,
         &resource,
         "commitment-mismatch",
-        vec![format!("nullifier_domain_fingerprint:{expected_other_domain}")],
+        vec![format!(
+            "nullifier_domain_fingerprint:{expected_other_domain}"
+        )],
     );
     let response = router
         .route_verified(&signed, b"should-not-write".to_vec())
         .await;
-    assert_eq!(response.decision, libsec_core::response::ResponseDecision::Rejected);
+    assert_eq!(
+        response.decision,
+        libsec_core::response::ResponseDecision::Rejected
+    );
     assert_eq!(
         response.reason_code.as_deref(),
         Some("nullifier_domain_mismatch")

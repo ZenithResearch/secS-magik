@@ -488,7 +488,12 @@ impl ConfigurableRouter {
                     Ok(crate::ledger::ScopedNullifierUseOutcome::Duplicate) => {
                         let reason = NullifierReason::DuplicateNullifier.as_str();
                         let receipt_id = self
-                            .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                            .record_execution_receipt(
+                                signed,
+                                Decision::Rejected,
+                                Some(reason),
+                                timestamp,
+                            )
                             .await;
                         self.record_operation_event(
                             ReceiptEventKind::HandlerFailed,
@@ -510,7 +515,12 @@ impl ConfigurableRouter {
                         let reason = "scoped_nullifier_storage_failed";
                         eprintln!("secS [Ledger]: failed to record scoped nullifier use - {error}");
                         let receipt_id = self
-                            .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                            .record_execution_receipt(
+                                signed,
+                                Decision::Rejected,
+                                Some(reason),
+                                timestamp,
+                            )
                             .await;
                         self.record_operation_event(
                             ReceiptEventKind::HandlerFailed,
@@ -529,7 +539,12 @@ impl ConfigurableRouter {
                 Err(reason) => {
                     let reason = reason.as_str();
                     let receipt_id = self
-                        .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                        .record_execution_receipt(
+                            signed,
+                            Decision::Rejected,
+                            Some(reason),
+                            timestamp,
+                        )
                         .await;
                     self.record_operation_event(
                         ReceiptEventKind::HandlerFailed,
