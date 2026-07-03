@@ -4,6 +4,7 @@ use crate::identity::{
 };
 use crate::ledger::{Ledger, ReplayReservationOutcome};
 use crate::manifest::ReceiverManifest;
+use crate::nullifier::{NullifierReason, ScopedNullifierEvidence};
 use crate::ontology::{
     DEFAULT_RECEIVER_AUDIENCE, LOCAL_PROTOTYPE_SIGNER_ID, REPLAY_DETECTED_REASON,
     REPLAY_RESERVATION_FAILED_REASON, UNVERIFIED_PROTOTYPE_OPERATION,
@@ -464,6 +465,88 @@ impl ConfigurableRouter {
                     Some(context.context_id.clone()),
                     Some(receipt_id),
                 );
+            }
+        }
+
+        if context
+            .evidence_summary
+            .iter()
+            .any(|field| field == "scoped_use_required")
+        {
+            match ScopedNullifierEvidence::from_context(context) {
+                Ok(evidence) => match self
+                    .ledger
+                    .record_scoped_nullifier_use(
+                        &evidence.domain,
+                        &evidence.commitment,
+                        context,
+                        timestamp,
+                    )
+                    .await
+                {
+                    Ok(crate::ledger::ScopedNullifierUseOutcome::Recorded) => {}
+                    Ok(crate::ledger::ScopedNullifierUseOutcome::Duplicate) => {
+                        let reason = NullifierReason::DuplicateNullifier.as_str();
+                        let receipt_id = self
+                            .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                            .await;
+                        self.record_operation_event(
+                            ReceiptEventKind::HandlerFailed,
+                            signed,
+                            timestamp,
+                            Some(reason),
+                        )
+                        .await;
+                        eprintln!(
+                            "secS [Router]: rejected duplicate scoped nullifier before handler execution"
+                        );
+                        return libsec_core::response::DecisionResponse::rejected(
+                            reason,
+                            Some(context.context_id.clone()),
+                            Some(receipt_id),
+                        );
+                    }
+                    Err(error) => {
+                        let reason = "scoped_nullifier_storage_failed";
+                        eprintln!("secS [Ledger]: failed to record scoped nullifier use - {error}");
+                        let receipt_id = self
+                            .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                            .await;
+                        self.record_operation_event(
+                            ReceiptEventKind::HandlerFailed,
+                            signed,
+                            timestamp,
+                            Some(reason),
+                        )
+                        .await;
+                        return libsec_core::response::DecisionResponse::rejected(
+                            reason,
+                            Some(context.context_id.clone()),
+                            Some(receipt_id),
+                        );
+                    }
+                },
+                Err(reason) => {
+                    let reason = reason.as_str();
+                    let receipt_id = self
+                        .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                        .await;
+                    self.record_operation_event(
+                        ReceiptEventKind::HandlerFailed,
+                        signed,
+                        timestamp,
+                        Some(reason),
+                    )
+                    .await;
+                    eprintln!(
+                        "secS [Router]: rejected scoped nullifier evidence before handler execution - {reason}"
+                    );
+                    return libsec_core::response::DecisionResponse::rejected(
+                        reason,
+                        Some(context.context_id.clone()),
+                        Some(receipt_id),
+                    );
+                }
             }
         }
 

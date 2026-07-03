@@ -3,12 +3,15 @@
 //! The routing hook is `ConfigurableRouter::route_verified`, before file/directory
 //! handlers run and before execute-success side effects are recorded.
 
+use server::file_write::DemoFileWriteProgram;
+use server::gateway::{init_telemetry_schema, ConfigurableRouter};
 use server::ledger::{Ledger, ScopedNullifierUseOutcome};
+use server::manifest::{demo_file_write_descriptor, ReceiverManifest, DEMO_FILE_WRITE_HANDLER_ID};
 use server::nullifier::{
     canonical_resource_id, NullifierCommitment, NullifierDomainV1, NullifierDomainV1Inputs,
     NullifierOutcome, NullifierReason, ResourceKind, ScopedNullifierEvidence,
 };
-use server::verifier::{VerifiedCallContext, VerifiedSubject};
+use server::verifier::{Verifier, VerifiedCallContext, VerifiedSubject};
 
 fn context() -> VerifiedCallContext {
     VerifiedCallContext {
@@ -297,4 +300,102 @@ async fn durable_scoped_use_survives_ledger_reopen() {
         ScopedNullifierUseOutcome::Duplicate
     );
     let _ = std::fs::remove_file(path);
+}
+
+fn demo_manifest() -> ReceiverManifest {
+    ReceiverManifest::default_v0().with_descriptor(demo_file_write_descriptor(0x50))
+}
+
+fn packet_with_nonce(nonce: [u8; 12], payload: &[u8]) -> libsec_core::ZenithPacket {
+    libsec_core::ZenithPacket {
+        session_id: [3u8; 16],
+        nonce,
+        opcode: 0x50,
+        proof: vec![1],
+        claim_ttl: 300,
+        encrypted_payload: payload.to_vec(),
+        mac: [0u8; 16],
+    }
+}
+
+fn signed_scoped(
+    packet: &libsec_core::ZenithPacket,
+    resource: &str,
+    commitment: &str,
+) -> server::verifier::SignedVerifiedCallContext {
+    let mut signed = Verifier::verify_manifest_operation_with_resource_and_sign(
+        packet,
+        &demo_manifest(),
+        "secS://receiver-a",
+        Some(resource),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect("signed context");
+    signed.context.evidence_summary.extend([
+        "scoped_use_required".to_string(),
+        "nullifier_epoch:epoch-1".to_string(),
+        "nullifier_issuer:issuer-a".to_string(),
+        "nullifier_root:root-a".to_string(),
+        "subject_commitment:subject-commitment-a".to_string(),
+        format!("nullifier_commitment:{commitment}"),
+    ]);
+    signed = signed
+        .context
+        .sign_ed25519(
+            "verifier:local-prototype",
+            &[7u8; 32],
+            server::receipt::AuthenticatorKind::Ed25519Verifier,
+        )
+        .unwrap();
+    signed
+}
+
+#[tokio::test]
+async fn route_duplicate_nullifier_rejects_before_file_handler_side_effect() {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let sandbox = std::env::temp_dir().join(format!("secs-nullifier-route-{nanos}"));
+    std::fs::create_dir_all(&sandbox).unwrap();
+    let target = sandbox.join("allowed.txt");
+    let resource = format!("file://{}", target.display());
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    init_telemetry_schema(&pool).await.unwrap();
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.set_manifest(demo_manifest());
+    router.register_handler(
+        DEMO_FILE_WRITE_HANDLER_ID,
+        Box::new(DemoFileWriteProgram::new(&sandbox).unwrap()),
+    );
+
+    let first = packet_with_nonce([4u8; 12], b"first");
+    let signed_first = signed_scoped(&first, &resource, "commitment-route");
+    let response = router.route_verified(&signed_first, b"first".to_vec()).await;
+    assert_eq!(response.decision, libsec_core::response::ResponseDecision::Accepted);
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "first");
+
+    let second = packet_with_nonce([5u8; 12], b"second");
+    let signed_second = signed_scoped(&second, &resource, "commitment-route");
+    let response = router.route_verified(&signed_second, b"second".to_vec()).await;
+    assert_eq!(response.decision, libsec_core::response::ResponseDecision::Rejected);
+    assert_eq!(response.reason_code.as_deref(), Some("duplicate_nullifier"));
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "first");
+    let success_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'execute' AND decision = 'accepted'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(success_count.0, 1, "duplicate did not create a success receipt");
+    let _ = std::fs::remove_dir_all(&sandbox);
 }
