@@ -14,6 +14,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- I04-C07: documented the tested scoped duplicate-use prevention tier in the implementation-status ledger with explicit non-claims for remaining allowance, real ZK nullifier derivation, rotated-replay proof verification, live/federated finality, wallet unlinkability, selective audit, and production deployment.
+- I04-C06: added privacy-safe scoped nullifier receipt summaries with redacted domain/commitment fingerprints and explicit no-allowance regression coverage — this prevents scoped-use receipts from leaking raw nullifier, subject, credential, wallet/holder, resource, or private allowance material.
 - I10: added the canonical executable negative-matrix status ledger at `server/tests/fixtures/dregg_negative_matrix_status_ledger.yaml`, plus Rust-native schema/status, handler-not-run, and docs-overclaim checks. This proves status truth and docs wording bounds only; most safety rows remain blocked/target/future until their owner issues land.
 - I10: documented the negative-matrix source discovery and selected `server/tests/fixtures/dregg_negative_matrix_status_ledger.yaml` as the single canonical machine-readable ledger — this prevents divergent status tables before the executable checker exists.
 - I03-C6: added redacted public summaries and implementation-status ledger language for context binding — this lets receipts/operator/status surfaces reference the bound context without leaking private material or implying live/final/proof/nullifier rails.

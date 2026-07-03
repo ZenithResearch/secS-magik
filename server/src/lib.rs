@@ -11,6 +11,7 @@ pub mod ingress;
 pub mod ledger;
 pub mod manifest;
 pub mod membership;
+pub mod nullifier;
 pub mod ontology;
 pub mod payload;
 pub mod permctl;

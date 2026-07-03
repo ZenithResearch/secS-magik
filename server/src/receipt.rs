@@ -4,6 +4,7 @@
 //! deliberately delegated to the ledger slice, and payload bytes are not part of
 //! the versioned receipt schema by default.
 
+use crate::nullifier::{privacy_safe_summary, NullifierOutcome, ScopedNullifierEvidence};
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier as SignatureVerifier, VerifyingKey};
 use libsec_core::ZenithPacket;
@@ -190,7 +191,7 @@ impl Receipt {
             timestamp,
             authenticator_kind: signed_context.authenticator_kind,
             signer_key_id: signed_context.signer_key_id.clone(),
-            evidence_summary: context.evidence_summary.clone(),
+            evidence_summary: receipt_evidence_summary(context, Decision::Accepted, None),
             signature: Vec::new(),
         }
     }
@@ -245,7 +246,7 @@ impl Receipt {
             timestamp,
             authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
             signer_key_id: String::new(),
-            evidence_summary: Vec::new(),
+            evidence_summary: receipt_evidence_summary(context, decision, reason),
             signature: Vec::new(),
         }
     }
@@ -296,4 +297,45 @@ impl Receipt {
 fn packet_hash(packet: &ZenithPacket) -> [u8; 32] {
     let bytes = bincode::serialize(packet).unwrap_or_default();
     Sha256::digest(bytes).into()
+}
+
+fn receipt_evidence_summary(
+    context: &VerifiedCallContext,
+    decision: Decision,
+    reason: Option<&str>,
+) -> Vec<String> {
+    if !context
+        .evidence_summary
+        .iter()
+        .any(|field| field == "scoped_use_required")
+    {
+        return context.evidence_summary.clone();
+    }
+
+    let outcome = match (decision, reason) {
+        (Decision::Accepted, None) => NullifierOutcome::ScopedUseRecorded,
+        (_, Some(reason)) if reason == NullifierOutcome::DuplicateNullifier.as_str() => {
+            NullifierOutcome::DuplicateNullifier
+        }
+        (_, Some(reason)) if reason == NullifierOutcome::DomainMismatch.as_str() => {
+            NullifierOutcome::DomainMismatch
+        }
+        (_, Some(reason)) if reason == NullifierOutcome::MissingScopedNullifier.as_str() => {
+            NullifierOutcome::MissingScopedNullifier
+        }
+        (_, Some(reason)) if reason == NullifierOutcome::UnsupportedScope.as_str() => {
+            NullifierOutcome::UnsupportedScope
+        }
+        (Decision::Rejected, _) => NullifierOutcome::MissingScopedNullifier,
+        (Decision::Accepted, Some(_)) => NullifierOutcome::ScopedUseRecorded,
+    };
+
+    match ScopedNullifierEvidence::from_context(context) {
+        Ok(evidence) => privacy_safe_summary(
+            outcome,
+            Some(&evidence.domain.fingerprint()),
+            Some(&evidence.commitment.fingerprint()),
+        ),
+        Err(_) => privacy_safe_summary(outcome, None, None),
+    }
 }
