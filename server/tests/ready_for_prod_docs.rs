@@ -1128,3 +1128,53 @@ fn external_audit_anchor_docs_name_github_gist_target_and_non_claims() {
         );
     }
 }
+
+#[test]
+fn authority_mode_docs_record_i07_labels_without_stronger_rail_overclaims() {
+    let docs = [
+        ("docs/implementation-status.md", IMPLEMENTATION_STATUS),
+        ("docs/specs/dregg-authority-rail.md", DREGG_AUTHORITY_SPEC),
+        (
+            "docs/plans/2026-06-02-ready-for-prod-checklist.md",
+            READY_FOR_PROD_CHECKLIST,
+        ),
+    ];
+
+    for required in [
+        "I07 authority-mode labels",
+        "local_fixture",
+        "signed_source",
+        "solo_verified_receipt",
+        "federation_checkpoint",
+        "light_client_verified",
+        "recursive_proof_carrying_state",
+        "authority_mode_downgrade",
+        "signed_source in this slice is a label/fixture policy tier only",
+        "federation_checkpoint in this slice does not claim durable rollback/equivocation-resistant finality",
+        "light_client_verified and recursive_proof_carrying_state are reserved fail-closed labels",
+        "I16",
+        "I17",
+        "I18",
+        "I19",
+    ] {
+        assert!(
+            docs.iter().any(|(_, text)| text.contains(required)),
+            "I07 docs should include bounded authority-mode wording: {required}"
+        );
+    }
+
+    for forbidden in [
+        "live authority is implemented by signed_source",
+        "federation-final evidence is implemented",
+        "federated node status authorizes operations",
+        "light-client verification is implemented by I07",
+        "recursive proof-carrying state is implemented by I07",
+    ] {
+        for (name, text) in docs {
+            assert!(
+                !text.contains(forbidden),
+                "{name} contains forbidden I07 overclaim: {forbidden}"
+            );
+        }
+    }
+}
