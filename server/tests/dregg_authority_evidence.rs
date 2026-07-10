@@ -169,6 +169,22 @@ fn dregg_authority_accepts_grant_only_after_receiver_held_policy() {
     assert!(summary
         .summary_fields
         .iter()
+        .any(|field| field == "authority_mode:signed_source"));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "required_authority_mode:signed_source"));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "finality_source:fixture_status_only"));
+    assert!(summary
+        .summary_fields
+        .iter()
+        .any(|field| field == "finality_status:not_required"));
+    assert!(summary
+        .summary_fields
+        .iter()
         .any(|field| field == "issuer_id:did:dregg:issuer:fixture"));
     assert!(summary
         .summary_fields
@@ -804,9 +820,12 @@ fn dregg_authority_snapshot_adapter_accepts_controlled_resource_with_redacted_su
         "admission:admitted",
         "authority_class:dregg_authority_snapshot",
         "snapshot_schema:secs-dregg-authority-snapshot-v1",
+        "authority_mode:local_fixture",
+        "required_authority_mode:local_fixture",
+        "finality_source:not_applicable",
+        "finality_status:not_required",
         "entity_id:did:example:david-lab",
         "namespace_id:castalia-demo:david-lab",
-        "authority_mode:fixture_snapshot",
         "matched_resource_scope:resource://david-lab/*",
         "resource_lock:verified",
     ] {
