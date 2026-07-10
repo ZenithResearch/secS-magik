@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- I07-T4: implemented authority-mode comparison and canonical summary labels for signed-source, local-fixture, and federation-checkpoint evidence — this makes weaker-mode downgrades explicit while keeping light-client and recursive proof modes reserved/fail-closed for later issues.
 - I07-T3: added RED receipt/operator-summary label surface checks for observed/required authority mode, finality source, and finality status — this prevents fixture, signed-source, and checkpoint evidence from being reported with ambiguous or overstrong labels.
 - I07-T2: added RED authority-mode downgrade matrix coverage for signed-source, federation-checkpoint, reserved proof-mode, unknown, missing, and topology labels — this pins the fail-closed behavior before implementing comparison logic.
 - I07-T1: added the canonical authority-mode label contract (`local_fixture`, `signed_source`, `solo_verified_receipt`, `federation_checkpoint`, `light_client_verified`, `recursive_proof_carrying_state`) with fail-closed legacy/unknown parsing — this prevents topology/finality labels from silently upgrading into stronger authority modes.
