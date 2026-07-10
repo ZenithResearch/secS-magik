@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- I07-T7: documented the bounded authority-mode label/status gate across implementation status, Dregg authority spec, and ready-for-prod checklist — this permits only tested I07 label/policy claims while keeping I16/I17/I18/I19 stronger rails explicit non-claims.
 - I07-T6: added authority-mode policy decisions with handler-not-run and redacted reject-summary coverage — this keeps downgrade rejects specific and safe before any side-effect path can treat them as executable authority.
 - I07-T5: added delegated-under-node topology observation coverage that maps recognized/listed federated-node metadata only to `solo_verified_receipt` with redacted topology fields — this prevents node/listing/downstream federation labels from being treated as federation checkpoint or finality evidence.
 - I07-T4: implemented authority-mode comparison and canonical summary labels for signed-source, local-fixture, and federation-checkpoint evidence — this makes weaker-mode downgrades explicit while keeping light-client and recursive proof modes reserved/fail-closed for later issues.
