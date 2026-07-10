@@ -1,4 +1,6 @@
-use server::dregg_authority::{AuthorityMode, TopologyAuthorityObservation};
+use server::dregg_authority::{
+    AuthorityMode, AuthorityModePolicyDecision, TopologyAuthorityObservation,
+};
 use server::verifier::VerificationError;
 use std::str::FromStr;
 
@@ -151,4 +153,56 @@ fn delegated_under_node_topology_can_only_satisfy_explicit_weaker_policy() {
             .contains("checkpoint"),
         "accepted topology summaries must not relabel listed-node metadata as checkpoint evidence"
     );
+}
+
+#[test]
+fn authority_mode_reject_decision_does_not_execute_handler() {
+    let decision = AuthorityModePolicyDecision::evaluate(
+        AuthorityMode::SignedSource,
+        AuthorityMode::FederationCheckpoint,
+    );
+    let mut handler_calls = 0;
+    if decision.is_satisfied() {
+        handler_calls += 1;
+    }
+
+    assert_eq!(
+        handler_calls, 0,
+        "downgrade reject must stop before handler execution"
+    );
+    assert_eq!(decision.reason(), Some("authority_mode_downgrade"));
+    assert!(decision
+        .redacted_summary_fields()
+        .contains(&"authority_mode_satisfied:false".to_string()));
+}
+
+#[test]
+fn authority_mode_reject_summaries_are_redacted_and_specific() {
+    let decision = AuthorityModePolicyDecision::evaluate(
+        AuthorityMode::SoloVerifiedReceipt,
+        AuthorityMode::FederationCheckpoint,
+    );
+    let fields = decision.redacted_summary_fields().join("\n");
+
+    for expected in [
+        "authority_mode:solo_verified_receipt",
+        "required_authority_mode:federation_checkpoint",
+        "authority_mode_satisfied:false",
+        "reason:authority_mode_downgrade",
+    ] {
+        assert!(fields.contains(expected), "missing {expected}: {fields}");
+    }
+    for forbidden in [
+        "dga1_",
+        "raw-proof",
+        "fixture-secret",
+        "wallet",
+        "holder",
+        "did:castalia:member:alice",
+    ] {
+        assert!(
+            !fields.contains(forbidden),
+            "reject summary leaked {forbidden}: {fields}"
+        );
+    }
 }

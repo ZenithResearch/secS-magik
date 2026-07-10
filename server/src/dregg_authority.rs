@@ -95,6 +95,46 @@ impl FromStr for AuthorityMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorityModePolicyDecision {
+    observed: AuthorityMode,
+    required: AuthorityMode,
+    result: Result<(), VerificationError>,
+}
+
+impl AuthorityModePolicyDecision {
+    pub fn evaluate(observed: AuthorityMode, required: AuthorityMode) -> Self {
+        Self {
+            observed,
+            required,
+            result: observed.satisfies_required_mode(required),
+        }
+    }
+
+    pub fn is_satisfied(&self) -> bool {
+        self.result.is_ok()
+    }
+
+    pub fn reason(&self) -> Option<&'static str> {
+        self.result
+            .as_ref()
+            .err()
+            .map(VerificationError::reason_code)
+    }
+
+    pub fn redacted_summary_fields(&self) -> Vec<String> {
+        let mut fields = vec![
+            format!("authority_mode:{}", self.observed.as_str()),
+            format!("required_authority_mode:{}", self.required.as_str()),
+            format!("authority_mode_satisfied:{}", self.is_satisfied()),
+        ];
+        if let Some(reason) = self.reason() {
+            fields.push(format!("reason:{reason}"));
+        }
+        fields
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TopologyAuthorityObservation {
     pub node_status: Option<String>,
     pub downstream_federation_id: Option<String>,
