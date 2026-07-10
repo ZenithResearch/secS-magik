@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -32,6 +33,46 @@ pub enum DreggAuthorityRevocationVerifierMode {
     FixtureStatusOnly,
     ExpectedRootBinding,
     LiveRevocationVerifierRequired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthorityMode {
+    LocalFixture,
+    SignedSource,
+    SoloVerifiedReceipt,
+    FederationCheckpoint,
+    LightClientVerified,
+    RecursiveProofCarryingState,
+}
+
+impl AuthorityMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::LocalFixture => "local_fixture",
+            Self::SignedSource => "signed_source",
+            Self::SoloVerifiedReceipt => "solo_verified_receipt",
+            Self::FederationCheckpoint => "federation_checkpoint",
+            Self::LightClientVerified => "light_client_verified",
+            Self::RecursiveProofCarryingState => "recursive_proof_carrying_state",
+        }
+    }
+}
+
+impl FromStr for AuthorityMode {
+    type Err = VerificationError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "local_fixture" => Ok(Self::LocalFixture),
+            "signed_source" => Ok(Self::SignedSource),
+            "solo_verified_receipt" => Ok(Self::SoloVerifiedReceipt),
+            "federation_checkpoint" => Ok(Self::FederationCheckpoint),
+            "light_client_verified" => Ok(Self::LightClientVerified),
+            "recursive_proof_carrying_state" => Ok(Self::RecursiveProofCarryingState),
+            _ => Err(VerificationError::UnsupportedAuthorityMode),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
