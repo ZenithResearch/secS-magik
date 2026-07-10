@@ -57,6 +57,24 @@ impl AuthorityMode {
             Self::RecursiveProofCarryingState => "recursive_proof_carrying_state",
         }
     }
+
+    pub fn satisfies_required_mode(self, required: AuthorityMode) -> Result<(), VerificationError> {
+        if self.is_reserved() || required.is_reserved() {
+            return Err(VerificationError::ReservedAuthorityMode);
+        }
+        if self == required {
+            Ok(())
+        } else {
+            Err(VerificationError::AuthorityModeDowngrade)
+        }
+    }
+
+    fn is_reserved(self) -> bool {
+        matches!(
+            self,
+            AuthorityMode::LightClientVerified | AuthorityMode::RecursiveProofCarryingState
+        )
+    }
 }
 
 impl FromStr for AuthorityMode {

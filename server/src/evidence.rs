@@ -5,7 +5,7 @@
 //! or gateway execution.
 
 use crate::dregg_authority::{
-    DreggAuthorityFinalityMode, DreggAuthorityFinalityStatus, DreggAuthorityLookup,
+    AuthorityMode, DreggAuthorityFinalityMode, DreggAuthorityFinalityStatus, DreggAuthorityLookup,
     DreggAuthorityRegistry, DreggAuthorityRevocationStatus, DreggAuthorityRevocationVerifierMode,
     DreggAuthoritySnapshot, DreggAuthoritySnapshotLookup,
 };
@@ -2187,6 +2187,18 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             "admission:admitted".to_string(),
             "authority_class:dregg_authority".to_string(),
             "tier:m15_production_shaped".to_string(),
+            format!(
+                "authority_mode:{}",
+                authority_mode_for_finality(entry.status_policy.finality_mode).as_str()
+            ),
+            format!(
+                "required_authority_mode:{}",
+                authority_mode_for_finality(entry.status_policy.finality_mode).as_str()
+            ),
+            format!(
+                "finality_source:{}",
+                finality_mode_name(entry.status_policy.finality_mode)
+            ),
             redacted_reference_field("evidence_ref", evidence_ref),
             "token:dga1_[redacted]".to_string(),
             format!("issuer_id:{}", grant.issuer_id),
@@ -2350,10 +2362,17 @@ impl EvidenceAdapter for DreggAuthoritySnapshotEvidenceAdapter {
                 "admission:admitted".to_string(),
                 "authority_class:dregg_authority_snapshot".to_string(),
                 format!("snapshot_schema:{}", DreggAuthoritySnapshot::SCHEMA_VERSION),
+                format!("authority_mode:{}", AuthorityMode::LocalFixture.as_str()),
+                format!(
+                    "required_authority_mode:{}",
+                    AuthorityMode::LocalFixture.as_str()
+                ),
+                "finality_source:not_applicable".to_string(),
+                "finality_status:not_required".to_string(),
                 redacted_reference_field("evidence_ref", evidence_ref),
                 format!("entity_id:{}", decision.entity_id),
                 format!("namespace_id:{}", decision.namespace_id),
-                format!("authority_mode:{}", decision.authority_mode),
+                format!("legacy_snapshot_authority_mode:{}", decision.authority_mode),
                 format!("matched_resource_scope:{}", decision.matched_resource_scope),
                 redacted_reference_field("issuer_id", &fixture.issuer_id),
                 redacted_reference_field("trust_root_ref", &fixture.trust_root_ref),
@@ -2381,6 +2400,16 @@ fn finality_mode_name(mode: DreggAuthorityFinalityMode) -> &'static str {
         DreggAuthorityFinalityMode::FixtureStatusOnly => "fixture_status_only",
         DreggAuthorityFinalityMode::BlsThresholdRequired => "bls_threshold_required",
         DreggAuthorityFinalityMode::RotatedReplayRequired => "rotated_replay_required",
+    }
+}
+
+fn authority_mode_for_finality(mode: DreggAuthorityFinalityMode) -> AuthorityMode {
+    match mode {
+        DreggAuthorityFinalityMode::NotRequired | DreggAuthorityFinalityMode::FixtureStatusOnly => {
+            AuthorityMode::SignedSource
+        }
+        DreggAuthorityFinalityMode::BlsThresholdRequired
+        | DreggAuthorityFinalityMode::RotatedReplayRequired => AuthorityMode::FederationCheckpoint,
     }
 }
 
