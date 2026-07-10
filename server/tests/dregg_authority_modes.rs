@@ -1,4 +1,4 @@
-use server::dregg_authority::AuthorityMode;
+use server::dregg_authority::{AuthorityMode, TopologyAuthorityObservation};
 use server::verifier::VerificationError;
 use std::str::FromStr;
 
@@ -96,4 +96,59 @@ fn light_client_and_recursive_policy_remain_reserved_fail_closed() {
             "reserved labels cannot satisfy policy until their real verifier issues land"
         );
     }
+}
+
+#[test]
+fn delegated_under_node_topology_metadata_is_not_federation_checkpoint_evidence() {
+    let observation = TopologyAuthorityObservation {
+        node_status: Some("recognized_federated_node".to_string()),
+        downstream_federation_id: Some("dregg-federation:downstream".to_string()),
+        downstream_committee_label: Some("committee-looking-label".to_string()),
+    };
+
+    assert_eq!(
+        observation.observed_authority_mode(),
+        AuthorityMode::SoloVerifiedReceipt,
+        "node/topology metadata is at most a solo receipt relationship, never checkpoint finality"
+    );
+    assert_eq!(
+        observation
+            .observed_authority_mode()
+            .satisfies_required_mode(AuthorityMode::FederationCheckpoint),
+        Err(VerificationError::AuthorityModeDowngrade)
+    );
+
+    let fields = observation.redacted_summary_fields().join("\n");
+    assert!(fields.contains("topology_relationship:delegated_under_node"));
+    assert!(fields.contains("node_status:recognized_federated_node"));
+    assert!(fields.contains("downstream_federation_id_sha256:"));
+    assert!(fields.contains("downstream_committee_label_sha256:"));
+    assert!(!fields.contains("authority_mode:federation_checkpoint"));
+    assert!(!fields.contains("finality_status:final"));
+    assert!(!fields.contains("dregg-federation:downstream"));
+    assert!(!fields.contains("committee-looking-label"));
+}
+
+#[test]
+fn delegated_under_node_topology_can_only_satisfy_explicit_weaker_policy() {
+    let observation = TopologyAuthorityObservation {
+        node_status: Some("listed_node".to_string()),
+        downstream_federation_id: Some("dregg-federation:downstream".to_string()),
+        downstream_committee_label: None,
+    };
+
+    assert_eq!(
+        observation
+            .observed_authority_mode()
+            .satisfies_required_mode(AuthorityMode::SoloVerifiedReceipt),
+        Ok(()),
+        "topology metadata requires an explicitly weaker solo receipt policy"
+    );
+    assert!(
+        !observation
+            .redacted_summary_fields()
+            .join("\n")
+            .contains("checkpoint"),
+        "accepted topology summaries must not relabel listed-node metadata as checkpoint evidence"
+    );
 }

@@ -1,5 +1,6 @@
 use crate::verifier::VerificationError;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -91,6 +92,48 @@ impl FromStr for AuthorityMode {
             _ => Err(VerificationError::UnsupportedAuthorityMode),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopologyAuthorityObservation {
+    pub node_status: Option<String>,
+    pub downstream_federation_id: Option<String>,
+    pub downstream_committee_label: Option<String>,
+}
+
+impl TopologyAuthorityObservation {
+    pub fn observed_authority_mode(&self) -> AuthorityMode {
+        AuthorityMode::SoloVerifiedReceipt
+    }
+
+    pub fn redacted_summary_fields(&self) -> Vec<String> {
+        let mut fields = vec![
+            "topology_relationship:delegated_under_node".to_string(),
+            format!("authority_mode:{}", self.observed_authority_mode().as_str()),
+        ];
+        if let Some(node_status) = &self.node_status {
+            fields.push(format!("node_status:{node_status}"));
+        }
+        if let Some(downstream_federation_id) = &self.downstream_federation_id {
+            fields.push(redacted_sha256_field(
+                "downstream_federation_id",
+                downstream_federation_id,
+            ));
+        }
+        if let Some(downstream_committee_label) = &self.downstream_committee_label {
+            fields.push(redacted_sha256_field(
+                "downstream_committee_label",
+                downstream_committee_label,
+            ));
+        }
+        fields
+    }
+}
+
+fn redacted_sha256_field(name: &str, value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    let hash: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!("{name}_sha256:{hash}")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
