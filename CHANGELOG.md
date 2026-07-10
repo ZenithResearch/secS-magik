@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- I07-T1: added the canonical authority-mode label contract (`local_fixture`, `signed_source`, `solo_verified_receipt`, `federation_checkpoint`, `light_client_verified`, `recursive_proof_carrying_state`) with fail-closed legacy/unknown parsing — this prevents topology/finality labels from silently upgrading into stronger authority modes.
 - I04-C07: documented the tested scoped duplicate-use prevention tier in the implementation-status ledger with explicit non-claims for remaining allowance, real ZK nullifier derivation, rotated-replay proof verification, live/federated finality, wallet unlinkability, selective audit, and production deployment.
 - I04-C06: added privacy-safe scoped nullifier receipt summaries with redacted domain/commitment fingerprints and explicit no-allowance regression coverage — this prevents scoped-use receipts from leaking raw nullifier, subject, credential, wallet/holder, resource, or private allowance material.
 - I10: added the canonical executable negative-matrix status ledger at `server/tests/fixtures/dregg_negative_matrix_status_ledger.yaml`, plus Rust-native schema/status, handler-not-run, and docs-overclaim checks. This proves status truth and docs wording bounds only; most safety rows remain blocked/target/future until their owner issues land.
