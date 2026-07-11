@@ -683,6 +683,7 @@ pub async fn run_gateway_with_config(config: GatewayRuntimeConfig, label: &str) 
         router.set_caller_registry(caller_keys);
     }
     install_configured_permission_policy(&mut router, &config);
+    install_configured_proof_metadata_policy(&mut router);
     register_runtime_bindings(&mut router, config.runtime_mode);
 
     let router = Arc::new(router);
@@ -748,5 +749,19 @@ pub fn install_configured_permission_policy(
                 panic!("secS gateway: failed to load permission policy - {error:?}")
             });
         router.set_permission_policy(policy);
+    }
+}
+
+pub fn install_configured_proof_metadata_policy(router: &mut ConfigurableRouter) {
+    if let Some(path) = std::env::var_os("SECS_PROOF_METADATA_CONFIG_PATH") {
+        let config = crate::proof_keys::ProofMetadataRuntimeConfig::from_json_file(path)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "secS gateway: failed to load proof metadata config - {}",
+                    error.reason_code()
+                )
+            });
+        let (registry, policies) = config.into_parts();
+        router.set_proof_metadata_policy(registry, policies);
     }
 }

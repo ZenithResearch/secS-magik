@@ -81,6 +81,7 @@ fn signed_for(
             format!("authority_source_id:{NODE_REGISTRATION_AUTHORITY_SOURCE_ID}"),
             "evidence_ref_kind:fixture".to_string(),
         ],
+        proof_metadata: None,
         capability_result: NODE_REGISTRATION_OPERATION.to_string(),
         credential_result: "accepted".to_string(),
         issued_at: request.issued_at,

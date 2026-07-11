@@ -14,6 +14,10 @@ use server::identity::{
 };
 use server::ledger::Ledger;
 use server::manifest::{dregg_demo_descriptor, ReceiverManifest};
+use server::proof_keys::{
+    ObservedProofMetadata, ProofKeyEntry, ProofKeyLifecycle, ProofKeyRegistry,
+    ProofMetadataRoutePolicy, RequiredProofTier,
+};
 use server::runtime_mode::RuntimeMode;
 use server::verifier::{VerificationError, VerifiedCallContext, Verifier};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
@@ -562,6 +566,284 @@ async fn exact_authority_mode_reaches_registered_handler_and_success_receipt() {
         .await
         .unwrap();
     assert_eq!(replay_count.0, 1);
+}
+
+fn proof_key_entry() -> ProofKeyEntry {
+    ProofKeyEntry {
+        vk_id: "castalia-membership-vk".into(),
+        vk_version: 1,
+        proof_system: "fixture-proof-system".into(),
+        circuit_id: "membership-transition".into(),
+        circuit_version: 1,
+        vk_fingerprint_algorithm: "sha256".into(),
+        vk_fingerprint: "11".repeat(32),
+        public_input_schema_id: "secs-unified-verification-context-v1".into(),
+        public_input_schema_hash_algorithm: "sha256".into(),
+        public_input_schema_hash: "22".repeat(32),
+        lifecycle: ProofKeyLifecycle::Active,
+        not_before: 1,
+        not_after: None,
+        allowed_tiers: vec![RequiredProofTier::MetadataBound],
+        supersedes: None,
+        deprecated_historical_only: false,
+        claim_label: "proof_metadata_bound".into(),
+    }
+}
+
+fn observed_proof_metadata() -> ObservedProofMetadata {
+    ObservedProofMetadata {
+        vk_id: "castalia-membership-vk".into(),
+        vk_version: 1,
+        proof_system: "fixture-proof-system".into(),
+        circuit_id: "membership-transition".into(),
+        circuit_version: 1,
+        vk_fingerprint_algorithm: "sha256".into(),
+        vk_fingerprint: "11".repeat(32),
+        public_input_schema_id: "secs-unified-verification-context-v1".into(),
+        public_input_schema_hash_algorithm: "sha256".into(),
+        public_input_schema_hash: "22".repeat(32),
+        observed_tier: RequiredProofTier::MetadataBound,
+        adapter_claim_label: Some("light_client_verified".into()),
+    }
+}
+
+fn signed_context_with_proof_metadata(
+    manifest: &ReceiverManifest,
+    metadata: Option<ObservedProofMetadata>,
+) -> server::verifier::SignedVerifiedCallContext {
+    let mut signed = authority_mode_context(manifest, AuthorityMode::SignedSource);
+    signed.context.proof_metadata = metadata;
+    server::identity::explicit_test_fixture_identity("verifier:local-prototype", [7u8; 32])
+        .sign_context(signed.context)
+        .expect("proof metadata should be covered by the verifier signature")
+}
+
+fn install_metadata_policy(router: &mut ConfigurableRouter) {
+    router.set_proof_metadata_policy(
+        ProofKeyRegistry::from_entries(vec![proof_key_entry()]).unwrap(),
+        [(
+            0x40,
+            ProofMetadataRoutePolicy {
+                required_tier: RequiredProofTier::MetadataBound,
+                require_active: true,
+            },
+        )],
+    );
+}
+
+#[tokio::test]
+async fn proof_metadata_negative_reasons_leave_all_protected_state_untouched() {
+    let cases = vec![
+        (
+            "missing",
+            None,
+            proof_key_entry(),
+            RequiredProofTier::MetadataBound,
+            "missing_proof_key_registry_entry",
+        ),
+        (
+            "unknown",
+            Some({
+                let mut v = observed_proof_metadata();
+                v.vk_id = "unknown".into();
+                v
+            }),
+            proof_key_entry(),
+            RequiredProofTier::MetadataBound,
+            "unknown_verification_key",
+        ),
+        (
+            "fingerprint",
+            Some({
+                let mut v = observed_proof_metadata();
+                v.vk_fingerprint = "33".repeat(32);
+                v
+            }),
+            proof_key_entry(),
+            RequiredProofTier::MetadataBound,
+            "proof_vk_fingerprint_mismatch",
+        ),
+        (
+            "system",
+            Some({
+                let mut v = observed_proof_metadata();
+                v.proof_system = "other".into();
+                v
+            }),
+            proof_key_entry(),
+            RequiredProofTier::MetadataBound,
+            "proof_system_mismatch",
+        ),
+        (
+            "circuit",
+            Some({
+                let mut v = observed_proof_metadata();
+                v.circuit_version = 2;
+                v
+            }),
+            proof_key_entry(),
+            RequiredProofTier::MetadataBound,
+            "proof_circuit_mismatch",
+        ),
+        (
+            "schema",
+            Some({
+                let mut v = observed_proof_metadata();
+                v.public_input_schema_hash = "44".repeat(32);
+                v
+            }),
+            proof_key_entry(),
+            RequiredProofTier::MetadataBound,
+            "proof_public_input_schema_mismatch",
+        ),
+        (
+            "deprecated",
+            Some(observed_proof_metadata()),
+            {
+                let mut e = proof_key_entry();
+                e.lifecycle = ProofKeyLifecycle::Deprecated;
+                e
+            },
+            RequiredProofTier::MetadataBound,
+            "proof_key_deprecated",
+        ),
+        (
+            "revoked",
+            Some(observed_proof_metadata()),
+            {
+                let mut e = proof_key_entry();
+                e.lifecycle = ProofKeyLifecycle::Revoked;
+                e
+            },
+            RequiredProofTier::MetadataBound,
+            "proof_key_revoked",
+        ),
+        (
+            "not-yet-valid",
+            Some(observed_proof_metadata()),
+            {
+                let mut e = proof_key_entry();
+                e.not_before = u64::MAX - 1;
+                e
+            },
+            RequiredProofTier::MetadataBound,
+            "proof_key_not_yet_valid",
+        ),
+        (
+            "expired",
+            Some(observed_proof_metadata()),
+            {
+                let mut e = proof_key_entry();
+                e.not_after = Some(2);
+                e
+            },
+            RequiredProofTier::MetadataBound,
+            "proof_key_expired",
+        ),
+        (
+            "below-tier",
+            Some({
+                let mut v = observed_proof_metadata();
+                v.observed_tier = RequiredProofTier::LightClientVerified;
+                v
+            }),
+            proof_key_entry(),
+            RequiredProofTier::MetadataBound,
+            "proof_tier_below_policy",
+        ),
+        (
+            "strong-tier",
+            Some(observed_proof_metadata()),
+            proof_key_entry(),
+            RequiredProofTier::LightClientVerified,
+            "proof_verifier_not_executed",
+        ),
+    ];
+    for (name, metadata, entry, required_tier, expected_reason) in cases {
+        let (program, calls, _, _) = counting_program();
+        let pool = memory_pool().await;
+        let mut descriptor = dregg_demo_descriptor(0x40);
+        descriptor.required_authority_mode = Some(AuthorityMode::SignedSource);
+        let manifest = ReceiverManifest::new([descriptor]);
+        let signed = signed_context_with_proof_metadata(&manifest, metadata);
+        let mut router = ConfigurableRouter::new(pool.clone());
+        router.set_manifest(manifest);
+        router.set_proof_metadata_policy(
+            ProofKeyRegistry::from_entries(vec![entry]).unwrap(),
+            [(
+                0x40,
+                ProofMetadataRoutePolicy {
+                    required_tier,
+                    require_active: true,
+                },
+            )],
+        );
+        router.register(0x40, program);
+        let response = router.route_verified(&signed, b"payload".to_vec()).await;
+        assert_eq!(
+            response.reason_code.as_deref(),
+            Some(expected_reason),
+            "{name}"
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "{name}");
+        for table in ["replay_reservations", "scoped_nullifier_uses"] {
+            let query = format!("SELECT COUNT(*) FROM {table}");
+            let count: (i64,) = sqlx::query_as(&query).fetch_one(&pool).await.unwrap();
+            assert_eq!(count.0, 0, "{name} mutated {table}");
+        }
+        let accepted: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE decision = 'accepted'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(accepted.0, 0, "{name}");
+        let events: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM events WHERE event_kind IN ('packet_verified','operation_routed','handler_started','handler_succeeded')").fetch_one(&pool).await.unwrap();
+        assert_eq!(events.0, 0, "{name}");
+    }
+}
+
+#[tokio::test]
+async fn proof_metadata_binding_reaches_handler_and_operator_receipts_safely() {
+    let (program, calls, _, _) = counting_program();
+    let pool = memory_pool().await;
+    let mut descriptor = dregg_demo_descriptor(0x40);
+    descriptor.required_authority_mode = Some(AuthorityMode::SignedSource);
+    let manifest = ReceiverManifest::new([descriptor]);
+    let signed = signed_context_with_proof_metadata(&manifest, Some(observed_proof_metadata()));
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.set_manifest(manifest);
+    install_metadata_policy(&mut router);
+    router.register(0x40, program);
+    let response = router.route_verified(&signed, b"payload".to_vec()).await;
+    assert!(response.is_accepted());
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let rows: Vec<(String,)> =
+        sqlx::query_as("SELECT evidence_summary FROM receipts WHERE decision = 'accepted'")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    let outward = rows.into_iter().map(|row| row.0).collect::<String>();
+    for required in [
+        "proof_registry_checked:true",
+        "proof_metadata_bound:true",
+        "proof_vk_id:castalia-membership-vk",
+        "proof_vk_fingerprint_sha256_prefix:1111111111111111",
+    ] {
+        assert!(outward.contains(required), "missing {required}");
+    }
+    for forbidden in [
+        "light_client_verified",
+        "recursive_proof_carrying_state",
+        "raw_proof",
+        "raw_vk",
+        "witness",
+        "private_input",
+    ] {
+        assert!(
+            !outward.contains(forbidden),
+            "leaked/overclaimed {forbidden}"
+        );
+    }
 }
 
 #[test]

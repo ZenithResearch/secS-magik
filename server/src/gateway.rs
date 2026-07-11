@@ -11,6 +11,7 @@ use crate::ontology::{
     REPLAY_RESERVATION_FAILED_REASON, UNVERIFIED_PROTOTYPE_OPERATION,
 };
 use crate::permissions::PermissionPolicy;
+use crate::proof_keys::{ProofKeyRegistry, ProofMetadataGate, ProofMetadataRoutePolicy};
 use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptEventKind};
 use crate::runtime_mode::RuntimeMode;
 use crate::schema::{apply_schema, TELEMETRY_TABLES};
@@ -106,6 +107,8 @@ pub struct ConfigurableRouter {
     /// context is evaluated against it before handler dispatch (fail-closed).
     permission_policy: Option<PermissionPolicy>,
     evidence_adapter: Option<Arc<dyn EvidenceAdapter>>,
+    proof_key_registry: Option<ProofKeyRegistry>,
+    proof_metadata_policies: HashMap<u8, ProofMetadataRoutePolicy>,
 }
 
 impl ConfigurableRouter {
@@ -160,6 +163,8 @@ impl ConfigurableRouter {
             manifest: ReceiverManifest::default_v0(),
             permission_policy: None,
             evidence_adapter: None,
+            proof_key_registry: None,
+            proof_metadata_policies: HashMap::new(),
         }
     }
 
@@ -179,6 +184,15 @@ impl ConfigurableRouter {
 
     pub fn evidence_adapter(&self) -> Option<&dyn EvidenceAdapter> {
         self.evidence_adapter.as_deref()
+    }
+
+    pub fn set_proof_metadata_policy(
+        &mut self,
+        registry: ProofKeyRegistry,
+        policies: impl IntoIterator<Item = (u8, ProofMetadataRoutePolicy)>,
+    ) {
+        self.proof_key_registry = Some(registry);
+        self.proof_metadata_policies = policies.into_iter().collect();
     }
 
     /// Install a receiver-local permission policy (M13). With no policy the
@@ -506,6 +520,55 @@ impl ConfigurableRouter {
             }
         }
 
+        let proof_binding = if let Some(policy) = self.proof_metadata_policies.get(&context.opcode)
+        {
+            let result = self
+                .proof_key_registry
+                .as_ref()
+                .ok_or(crate::proof_keys::ProofGateReason::MissingProofKeyRegistryEntry)
+                .and_then(|registry| {
+                    ProofMetadataGate::new(registry, timestamp).evaluate_metadata(
+                        context.proof_metadata.as_ref(),
+                        policy.required_tier,
+                        policy.require_active,
+                    )
+                });
+            match result {
+                Ok(binding) => Some(binding),
+                Err(gate_reason) => {
+                    let reason = gate_reason.reason_code();
+                    let receipt_id = self
+                        .record_verified_reject_receipt(signed, reason, timestamp)
+                        .await;
+                    self.record_operation_event(
+                        ReceiptEventKind::PacketRejected,
+                        signed,
+                        timestamp,
+                        Some(reason),
+                    )
+                    .await;
+                    return libsec_core::response::DecisionResponse::rejected(
+                        reason,
+                        Some(context.context_id.clone()),
+                        Some(receipt_id),
+                    );
+                }
+            }
+        } else {
+            None
+        };
+        let receipt_signed = proof_binding.as_ref().map_or_else(
+            || signed.clone(),
+            |binding| {
+                let mut projected = signed.clone();
+                projected
+                    .context
+                    .evidence_summary
+                    .extend(binding.redaction_safe_summary_fields());
+                projected
+            },
+        );
+
         match self
             .ledger
             .reserve_replay(context, &signed.signer_key_id, timestamp)
@@ -666,7 +729,7 @@ impl ConfigurableRouter {
 
         // The verify receipt is part of the inspectable chain; the caller
         // response references the final execute receipt below.
-        let _verify_receipt_id = self.record_verify_receipt(signed, timestamp).await;
+        let _verify_receipt_id = self.record_verify_receipt(&receipt_signed, timestamp).await;
         self.record_operation_event(ReceiptEventKind::OperationRouted, signed, timestamp, None)
             .await;
 
@@ -775,7 +838,7 @@ impl ConfigurableRouter {
                 };
                 let reason = outcome.reason.as_deref();
                 let receipt_id = self
-                    .record_execution_receipt(signed, outcome.decision, reason, timestamp)
+                    .record_execution_receipt(&receipt_signed, outcome.decision, reason, timestamp)
                     .await;
                 let event_kind = match outcome.decision {
                     Decision::Accepted => ReceiptEventKind::HandlerSucceeded,
