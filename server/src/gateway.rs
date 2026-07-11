@@ -247,6 +247,18 @@ impl ConfigurableRouter {
         self.programs.insert(handler_id.into(), program);
     }
 
+    pub fn install_node_registration_program(
+        &mut self,
+        executions: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    ) {
+        self.register_handler(
+            crate::node_registration::NODE_REGISTRATION_HANDLER_ID,
+            Box::new(crate::node_registration::NodeRegistrationProgram::new(
+                executions,
+            )),
+        );
+    }
+
     pub fn identity(&self) -> &NodeVerifierIdentity {
         &self.identity
     }
@@ -434,6 +446,38 @@ impl ConfigurableRouter {
             );
         }
 
+        let descriptor = self
+            .manifest
+            .lookup(context.opcode)
+            .expect("active descriptor was validated above");
+        let mut routed_signed = signed.clone();
+        if context.operation == crate::node_registration::NODE_REGISTRATION_OPERATION {
+            match crate::node_registration::validate_verified_registration_route(
+                &payload, context, descriptor, timestamp,
+            ) {
+                Ok(projection) => routed_signed.context.evidence_summary.extend(projection),
+                Err(error) => {
+                    let reason = error.as_str();
+                    let receipt_id = self
+                        .record_verified_reject_receipt(signed, reason, timestamp)
+                        .await;
+                    self.record_operation_event(
+                        ReceiptEventKind::PacketRejected,
+                        signed,
+                        timestamp,
+                        Some(reason),
+                    )
+                    .await;
+                    return libsec_core::response::DecisionResponse::rejected(
+                        reason,
+                        Some(context.context_id.clone()),
+                        Some(receipt_id),
+                    );
+                }
+            }
+        }
+        let signed = &routed_signed;
+        let context = &signed.context;
         let descriptor = self
             .manifest
             .lookup(context.opcode)
@@ -1327,6 +1371,10 @@ pub fn register_runtime_bindings(router: &mut ConfigurableRouter, runtime_mode: 
     router.register_handler(
         crate::membership::MEMBERSHIP_PROVISION_HANDLER_ID,
         Box::new(crate::membership::MembershipProvisionProgram),
+    );
+    router.register_handler(
+        crate::node_registration::NODE_REGISTRATION_HANDLER_ID,
+        Box::new(crate::node_registration::NodeRegistrationProgram::default()),
     );
     if matches!(
         runtime_mode,
