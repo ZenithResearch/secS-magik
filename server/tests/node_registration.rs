@@ -1,4 +1,6 @@
-use server::manifest::{node_registration_descriptor, ReceiverManifest};
+use server::manifest::{
+    membership_provision_descriptor, node_registration_descriptor, ReceiverManifest,
+};
 use server::node_registration::{
     process_node_registration, registration_rejection_projection, registration_surface_projection,
     verify_node_registration, NodeRegistrationHandler, NodeRegistrationPolicy,
@@ -135,6 +137,20 @@ fn bound_policy() -> NodeRegistrationPolicy {
         "node:castalia:node-public-1:keyfp:endpoint-hash:v0",
         150,
     )
+    .expect("canonical registration descriptor")
+}
+
+#[test]
+fn node_registration_policy_rejects_non_registration_descriptors() {
+    let error = NodeRegistrationPolicy::from_descriptor(
+        &membership_provision_descriptor(),
+        "secs://receiver.example",
+        "node:castalia:node-public-1:keyfp:endpoint-hash:v0",
+        150,
+    )
+    .expect_err("membership descriptor must not construct registration policy");
+
+    assert_eq!(error, NodeRegistrationReason::WrongOperation);
 }
 
 #[test]
@@ -392,7 +408,8 @@ fn node_registration_status_records_exact_local_claim_and_non_claims() {
     for required in [
         "I14 fixture/local node registration",
         "node.registration.v0",
-        "request-id replay prevention is in-memory/process-local",
+        "helper API's request-id duplicate guard remains in-memory/process-local",
+        "real route uses the existing receiver-local SQLite replay scope",
         "not membership provisioning",
         "not a node listing product",
         "not live signed authority transport",

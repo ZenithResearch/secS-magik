@@ -6,10 +6,17 @@
 use serde::{Deserialize, Serialize};
 
 use crate::evidence::EvidenceTier;
+use crate::gateway::{ExecutionLimits, HandlerOutcome, MachineProgram};
 use crate::manifest::OperationDescriptor;
 use crate::privacy::PrivacySurface;
+use crate::verifier::VerifiedCallContext;
+use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 pub const NODE_REGISTRATION_OPCODE: u8 = 0x45;
 pub const NODE_REGISTRATION_OPERATION: &str = "node.registration.v0";
@@ -61,8 +68,16 @@ impl NodeRegistrationPolicy {
         audience: impl Into<String>,
         resource: impl Into<String>,
         now: u64,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, NodeRegistrationReason> {
+        if descriptor.opcode != NODE_REGISTRATION_OPCODE
+            || descriptor.name.as_str() != NODE_REGISTRATION_OPERATION
+            || descriptor.handler_id != NODE_REGISTRATION_HANDLER_ID
+            || descriptor.payload_schema.as_deref() != Some(NODE_REGISTRATION_PAYLOAD_SCHEMA)
+            || descriptor.disclosure_policy.policy_id != NODE_REGISTRATION_DISCLOSURE_POLICY_ID
+        {
+            return Err(NodeRegistrationReason::WrongOperation);
+        }
+        Ok(Self {
             operation: descriptor.name.as_str().to_string(),
             opcode: descriptor.opcode,
             audience: audience.into(),
@@ -73,13 +88,14 @@ impl NodeRegistrationPolicy {
             minimum_evidence_tier: EvidenceTier::LocalVerified,
             max_age_seconds: descriptor.max_ttl_seconds,
             now,
-        }
+        })
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeRegistrationReason {
+    MalformedPayload,
     WrongOperation,
     WrongAudience,
     WrongResource,
@@ -90,6 +106,127 @@ pub enum NodeRegistrationReason {
     MissingAuthority,
     StaleEvidence,
     ReplayDetected,
+}
+
+impl NodeRegistrationReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::MalformedPayload => "malformed_registration_payload",
+            Self::WrongOperation => "wrong_operation",
+            Self::WrongAudience => "wrong_audience",
+            Self::WrongResource => "wrong_resource",
+            Self::ManifestMismatch => "manifest_mismatch",
+            Self::PrivacyPolicyViolation => "privacy_policy_violation",
+            Self::InsufficientEvidence => "insufficient_evidence",
+            Self::UnauthorizedSource => "unauthorized_source",
+            Self::MissingAuthority => "missing_authority",
+            Self::StaleEvidence => "stale_evidence",
+            Self::ReplayDetected => "replay_detected",
+        }
+    }
+}
+
+pub fn validate_verified_registration_route(
+    payload: &[u8],
+    context: &VerifiedCallContext,
+    descriptor: &OperationDescriptor,
+    now: u64,
+) -> Result<Vec<String>, NodeRegistrationReason> {
+    let request: NodeRegistrationRequestV0 =
+        serde_json::from_slice(payload).map_err(|_| NodeRegistrationReason::MalformedPayload)?;
+    let resource = context
+        .resource
+        .as_deref()
+        .ok_or(NodeRegistrationReason::WrongResource)?;
+    let policy =
+        NodeRegistrationPolicy::from_descriptor(descriptor, &context.audience, resource, now)?;
+    verify_node_registration(&request, &policy)?;
+    if request.operation != context.operation
+        || request.opcode != context.opcode
+        || request.audience != context.audience
+        || request.resource != resource
+        || request.descriptor_fingerprint != context.descriptor_fingerprint
+        || request.issued_at != context.issued_at
+        || request.expires_at != context.expires_at
+    {
+        return Err(NodeRegistrationReason::ManifestMismatch);
+    }
+    for (required, reason) in [
+        (
+            "authority_mode:local_fixture".to_string(),
+            NodeRegistrationReason::MissingAuthority,
+        ),
+        (
+            format!("evidence_tier:{}", request.evidence_tier),
+            NodeRegistrationReason::InsufficientEvidence,
+        ),
+        (
+            format!("authority_source_id:{}", request.authority_source_id),
+            NodeRegistrationReason::UnauthorizedSource,
+        ),
+        (
+            "evidence_ref_kind:fixture".to_string(),
+            NodeRegistrationReason::MissingAuthority,
+        ),
+    ] {
+        if !context.evidence_summary.contains(&required) {
+            return Err(reason);
+        }
+    }
+    Ok(vec![
+        "registration_scope:local_fixture_only".to_string(),
+        format!("registration_evidence_tier:{}", request.evidence_tier),
+        format!(
+            "registration_resource_hash:{}",
+            digest_label("resource", &request.resource)
+        ),
+        format!(
+            "registration_disclosure_policy:{}",
+            request.disclosure_policy_id
+        ),
+        format!("registration_schema_version:{}", request.schema_version),
+    ])
+}
+
+pub struct NodeRegistrationProgram {
+    executions: Arc<AtomicU64>,
+}
+
+impl Default for NodeRegistrationProgram {
+    fn default() -> Self {
+        Self::new(Arc::new(AtomicU64::new(0)))
+    }
+}
+
+impl NodeRegistrationProgram {
+    pub fn new(executions: Arc<AtomicU64>) -> Self {
+        Self { executions }
+    }
+}
+
+#[async_trait]
+impl MachineProgram for NodeRegistrationProgram {
+    async fn execute(
+        &self,
+        context: &VerifiedCallContext,
+        payload: &[u8],
+        limits: ExecutionLimits,
+    ) -> HandlerOutcome {
+        if payload.len() > limits.max_payload_bytes {
+            return HandlerOutcome::rejected("payload_too_large");
+        }
+        if serde_json::from_slice::<NodeRegistrationRequestV0>(payload).is_err() {
+            return HandlerOutcome::rejected(NodeRegistrationReason::MalformedPayload.as_str());
+        }
+        if context.operation != NODE_REGISTRATION_OPERATION
+            || context.opcode != NODE_REGISTRATION_OPCODE
+            || context.handler_id.as_deref() != Some(NODE_REGISTRATION_HANDLER_ID)
+        {
+            return HandlerOutcome::rejected(NodeRegistrationReason::WrongOperation.as_str());
+        }
+        self.executions.fetch_add(1, Ordering::SeqCst);
+        HandlerOutcome::succeeded()
+    }
 }
 
 pub fn verify_node_registration(
