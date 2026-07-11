@@ -299,6 +299,21 @@ pub struct ProofMetadataGate<'a> {
     evaluated_at: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProofMetadataBinding {
+    pub proof_registry_checked: bool,
+    pub proof_metadata_bound: bool,
+    pub claim_label: String,
+    pub vk_id: String,
+    pub vk_version: u64,
+    pub proof_system: String,
+    pub circuit_id: String,
+    pub circuit_version: u64,
+    pub vk_fingerprint_sha256_prefix: String,
+    pub public_input_schema_id: String,
+    pub public_input_schema_hash_sha256_prefix: String,
+}
+
 impl<'a> ProofMetadataGate<'a> {
     pub fn new(registry: &'a ProofKeyRegistry, evaluated_at: u64) -> Self {
         Self {
@@ -313,6 +328,16 @@ impl<'a> ProofMetadataGate<'a> {
         required_tier: RequiredProofTier,
         require_active: bool,
     ) -> Result<(), ProofGateReason> {
+        self.evaluate_metadata(observed, required_tier, require_active)
+            .map(|_| ())
+    }
+
+    pub fn evaluate_metadata(
+        &self,
+        observed: Option<&ObservedProofMetadata>,
+        required_tier: RequiredProofTier,
+        require_active: bool,
+    ) -> Result<ProofMetadataBinding, ProofGateReason> {
         match required_tier {
             RequiredProofTier::LightClientVerified
             | RequiredProofTier::RecursiveProofCarryingState => {
@@ -346,6 +371,19 @@ impl<'a> ProofMetadataGate<'a> {
         {
             return Err(ProofGateReason::ProofTierBelowPolicy);
         }
-        Ok(())
+        Ok(ProofMetadataBinding {
+            proof_registry_checked: true,
+            proof_metadata_bound: true,
+            claim_label: entry.claim_label.clone(),
+            vk_id: entry.vk_id.clone(),
+            vk_version: entry.vk_version,
+            proof_system: entry.proof_system.clone(),
+            circuit_id: entry.circuit_id.clone(),
+            circuit_version: entry.circuit_version,
+            vk_fingerprint_sha256_prefix: entry.vk_fingerprint[..16].to_string(),
+            public_input_schema_id: entry.public_input_schema_id.clone(),
+            public_input_schema_hash_sha256_prefix: entry.public_input_schema_hash[..16]
+                .to_string(),
+        })
     }
 }
