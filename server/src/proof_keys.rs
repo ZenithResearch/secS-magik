@@ -267,8 +267,12 @@ pub enum ProofGateReason {
     ProofCircuitMismatch,
     ProofVkFingerprintMismatch,
     ProofPublicInputSchemaMismatch,
+    ProofKeyDeprecated,
+    ProofKeyRevoked,
+    ProofKeyNotYetValid,
+    ProofKeyExpired,
+    ProofTierBelowPolicy,
     ProofVerifierNotExecuted,
-    RegistryMetadataGateNotImplemented,
 }
 
 impl ProofGateReason {
@@ -280,16 +284,18 @@ impl ProofGateReason {
             Self::ProofCircuitMismatch => "proof_circuit_mismatch",
             Self::ProofVkFingerprintMismatch => "proof_vk_fingerprint_mismatch",
             Self::ProofPublicInputSchemaMismatch => "proof_public_input_schema_mismatch",
+            Self::ProofKeyDeprecated => "proof_key_deprecated",
+            Self::ProofKeyRevoked => "proof_key_revoked",
+            Self::ProofKeyNotYetValid => "proof_key_not_yet_valid",
+            Self::ProofKeyExpired => "proof_key_expired",
+            Self::ProofTierBelowPolicy => "proof_tier_below_policy",
             Self::ProofVerifierNotExecuted => "proof_verifier_not_executed",
-            Self::RegistryMetadataGateNotImplemented => "proof_metadata_gate_not_implemented",
         }
     }
 }
 
 pub struct ProofMetadataGate<'a> {
-    #[allow(dead_code)]
     registry: &'a ProofKeyRegistry,
-    #[allow(dead_code)]
     evaluated_at: u64,
 }
 
@@ -303,18 +309,43 @@ impl<'a> ProofMetadataGate<'a> {
 
     pub fn evaluate(
         &self,
-        _observed: Option<&ObservedProofMetadata>,
+        observed: Option<&ObservedProofMetadata>,
         required_tier: RequiredProofTier,
-        _require_active: bool,
+        require_active: bool,
     ) -> Result<(), ProofGateReason> {
         match required_tier {
             RequiredProofTier::LightClientVerified
             | RequiredProofTier::RecursiveProofCarryingState => {
-                Err(ProofGateReason::ProofVerifierNotExecuted)
+                return Err(ProofGateReason::ProofVerifierNotExecuted);
             }
-            RequiredProofTier::MetadataBound => {
-                Err(ProofGateReason::RegistryMetadataGateNotImplemented)
-            }
+            RequiredProofTier::MetadataBound => {}
         }
+
+        let observed = observed.ok_or(ProofGateReason::MissingProofKeyRegistryEntry)?;
+        let entry = self.registry.match_observed(observed)?;
+        match entry.lifecycle {
+            ProofKeyLifecycle::Revoked => return Err(ProofGateReason::ProofKeyRevoked),
+            ProofKeyLifecycle::Deprecated if require_active => {
+                return Err(ProofGateReason::ProofKeyDeprecated);
+            }
+            ProofKeyLifecycle::Active | ProofKeyLifecycle::Deprecated => {}
+        }
+        if self.evaluated_at < entry.not_before {
+            return Err(ProofGateReason::ProofKeyNotYetValid);
+        }
+        if entry
+            .not_after
+            .is_some_and(|not_after| self.evaluated_at >= not_after)
+        {
+            return Err(ProofGateReason::ProofKeyExpired);
+        }
+        if observed.observed_tier != RequiredProofTier::MetadataBound
+            || !entry
+                .allowed_tiers
+                .contains(&RequiredProofTier::MetadataBound)
+        {
+            return Err(ProofGateReason::ProofTierBelowPolicy);
+        }
+        Ok(())
     }
 }
