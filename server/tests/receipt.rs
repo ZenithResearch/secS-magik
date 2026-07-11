@@ -21,6 +21,7 @@ fn sample_context() -> VerifiedCallContext {
         },
         audience: "secS://receiver-a".to_string(),
         evidence_summary: vec!["prototype-proof-envelope".to_string()],
+        proof_metadata: None,
         capability_result: "dev.execute".to_string(),
         credential_result: "prototype.local-dev".to_string(),
         issued_at: 100,

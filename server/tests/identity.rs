@@ -55,6 +55,7 @@ fn sample_context() -> VerifiedCallContext {
         },
         audience: "secs://receiver-a".to_string(),
         evidence_summary: vec!["membership.provision.fixture".to_string()],
+        proof_metadata: None,
         capability_result: "allowed".to_string(),
         credential_result: "accepted".to_string(),
         issued_at: 100,

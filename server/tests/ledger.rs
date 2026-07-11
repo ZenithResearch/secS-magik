@@ -46,6 +46,7 @@ fn verified_context(session_id: [u8; 16], nonce: [u8; 12], opcode: u8) -> Verifi
         },
         audience: "secS://receiver-a".to_string(),
         evidence_summary: vec!["prototype".to_string()],
+        proof_metadata: None,
         capability_result: "accepted".to_string(),
         credential_result: "accepted".to_string(),
         issued_at: 1_000,

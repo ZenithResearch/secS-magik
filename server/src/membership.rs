@@ -78,6 +78,7 @@ mod tests {
             },
             audience: "secS://local-test".to_string(),
             evidence_summary: vec![],
+            proof_metadata: None,
             capability_result: String::new(),
             credential_result: String::new(),
             issued_at: 100,

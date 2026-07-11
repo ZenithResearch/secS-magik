@@ -193,7 +193,7 @@ pub struct VerifiedSubject {
 /// Bumped to 3 by M13.3: contexts now carry the bound `resource` the operation
 /// acts on, so receiver-local permission policy can be evaluated against it.
 /// (v2 added the #81 descriptor authorization fingerprint.)
-pub const VERIFIED_CALL_CONTEXT_SCHEMA_VERSION: u16 = 3;
+pub const VERIFIED_CALL_CONTEXT_SCHEMA_VERSION: u16 = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedCallContext {
@@ -212,6 +212,9 @@ pub struct VerifiedCallContext {
     pub subject: VerifiedSubject,
     pub audience: String,
     pub evidence_summary: Vec<String>,
+    /// Verifier-normalized identifiers/fingerprints only; never proof, VK, or witness bytes.
+    #[serde(default)]
+    pub proof_metadata: Option<crate::proof_keys::ObservedProofMetadata>,
     pub capability_result: String,
     pub credential_result: String,
     pub issued_at: u64,
@@ -853,6 +856,7 @@ fn verified_context_for_descriptor(
         subject,
         audience: audience.to_string(),
         evidence_summary,
+        proof_metadata: None,
         capability_result: descriptor.required_capabilities.join(","),
         credential_result: descriptor.required_credentials.join(","),
         issued_at: now,

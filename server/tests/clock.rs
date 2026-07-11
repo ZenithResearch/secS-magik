@@ -35,6 +35,7 @@ fn sample_context_with_expiry(expires_at: u64) -> VerifiedCallContext {
         },
         audience: "secS://receiver-a".to_string(),
         evidence_summary: vec!["local_static:test".to_string()],
+        proof_metadata: None,
         capability_result: "allowed".to_string(),
         credential_result: "accepted".to_string(),
         issued_at: 100,

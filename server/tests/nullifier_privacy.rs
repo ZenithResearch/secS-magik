@@ -29,6 +29,7 @@ fn context() -> VerifiedCallContext {
             "nullifier_commitment:nullifier-secret-private".to_string(),
             "raw_credential_id:credential-private".to_string(),
         ],
+        proof_metadata: None,
         capability_result: "ok".to_string(),
         credential_result: "ok".to_string(),
         issued_at: 10,
