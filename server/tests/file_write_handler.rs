@@ -40,6 +40,7 @@ fn context_for(resource: Option<&str>) -> VerifiedCallContext {
         },
         audience: "secS://receiver-a".to_string(),
         evidence_summary: vec![],
+        proof_metadata: None,
         capability_result: "ok".to_string(),
         credential_result: "ok".to_string(),
         issued_at: 1_000,

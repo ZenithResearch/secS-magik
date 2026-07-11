@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 const SHA256_HEX_LENGTH: usize = 64;
 const METADATA_CLAIM_LABELS: [&str; 2] = ["proof_metadata_bound", "proof_registry_checked"];
@@ -10,6 +11,82 @@ pub enum RequiredProofTier {
     MetadataBound,
     LightClientVerified,
     RecursiveProofCarryingState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProofMetadataRoutePolicy {
+    pub required_tier: RequiredProofTier,
+    pub require_active: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProofMetadataRuntimeConfigFile {
+    entries: Vec<ProofKeyEntry>,
+    routes: Vec<ProofMetadataRouteConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProofMetadataRouteConfig {
+    opcode: u8,
+    required_tier: RequiredProofTier,
+    require_active: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProofMetadataRuntimeConfig {
+    registry: ProofKeyRegistry,
+    route_policies: HashMap<u8, ProofMetadataRoutePolicy>,
+}
+
+impl ProofMetadataRuntimeConfig {
+    pub fn from_json_str(json: &str) -> Result<Self, ProofKeyRegistryError> {
+        let file: ProofMetadataRuntimeConfigFile =
+            serde_json::from_str(json).map_err(|_| ProofKeyRegistryError::InvalidJson)?;
+        let registry = ProofKeyRegistry::from_entries(file.entries)?;
+        let mut route_policies = HashMap::new();
+        for route in file.routes {
+            if route.required_tier != RequiredProofTier::MetadataBound {
+                return Err(ProofKeyRegistryError::InvalidAllowedTier);
+            }
+            if route_policies
+                .insert(
+                    route.opcode,
+                    ProofMetadataRoutePolicy {
+                        required_tier: route.required_tier,
+                        require_active: route.require_active,
+                    },
+                )
+                .is_some()
+            {
+                return Err(ProofKeyRegistryError::DuplicateRegistryEntry);
+            }
+        }
+        if route_policies.is_empty() {
+            return Err(ProofKeyRegistryError::InvalidAllowedTier);
+        }
+        Ok(Self {
+            registry,
+            route_policies,
+        })
+    }
+
+    pub fn from_json_file(path: impl AsRef<Path>) -> Result<Self, ProofKeyRegistryError> {
+        let bytes = std::fs::read(path).map_err(|_| ProofKeyRegistryError::InvalidJson)?;
+        let json = std::str::from_utf8(&bytes).map_err(|_| ProofKeyRegistryError::InvalidJson)?;
+        Self::from_json_str(json)
+    }
+
+    pub fn registry(&self) -> &ProofKeyRegistry {
+        &self.registry
+    }
+
+    pub fn route_policies(&self) -> &HashMap<u8, ProofMetadataRoutePolicy> {
+        &self.route_policies
+    }
+
+    pub fn into_parts(self) -> (ProofKeyRegistry, HashMap<u8, ProofMetadataRoutePolicy>) {
+        (self.registry, self.route_policies)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +401,33 @@ pub struct ProofMetadataBinding {
     pub vk_fingerprint_sha256_prefix: String,
     pub public_input_schema_id: String,
     pub public_input_schema_hash_sha256_prefix: String,
+}
+
+impl ProofMetadataBinding {
+    pub fn redaction_safe_summary_fields(&self) -> Vec<String> {
+        vec![
+            format!("proof_registry_checked:{}", self.proof_registry_checked),
+            format!("proof_metadata_bound:{}", self.proof_metadata_bound),
+            format!("proof_claim_label:{}", self.claim_label),
+            format!("proof_vk_id:{}", self.vk_id),
+            format!("proof_vk_version:{}", self.vk_version),
+            format!("proof_system:{}", self.proof_system),
+            format!("proof_circuit_id:{}", self.circuit_id),
+            format!("proof_circuit_version:{}", self.circuit_version),
+            format!(
+                "proof_vk_fingerprint_sha256_prefix:{}",
+                self.vk_fingerprint_sha256_prefix
+            ),
+            format!(
+                "proof_public_input_schema_id:{}",
+                self.public_input_schema_id
+            ),
+            format!(
+                "proof_public_input_schema_hash_sha256_prefix:{}",
+                self.public_input_schema_hash_sha256_prefix
+            ),
+        ]
+    }
 }
 
 impl<'a> ProofMetadataGate<'a> {

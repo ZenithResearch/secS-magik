@@ -43,6 +43,7 @@ fn context(context_id: &str) -> VerifiedCallContext {
             "evidence_kind:local_static".to_string(),
             "public_key_ref_sha256:abcdef".to_string(),
         ],
+        proof_metadata: None,
         capability_result: "accepted".to_string(),
         credential_result: "accepted".to_string(),
         issued_at: 1_770_000_000,

@@ -9,6 +9,8 @@ use server::proof_keys::{
     ProofKeyRegistryError, ProofMetadataGate, RequiredProofTier,
 };
 
+use std::collections::HashMap;
+
 fn active_entry() -> ProofKeyEntry {
     ProofKeyEntry {
         vk_id: "castalia-membership-vk".into(),
@@ -407,4 +409,25 @@ fn i08_current_docs_pin_metadata_only_claim_and_future_gates() {
         assert!(text.contains("I19"));
         assert!(text.contains("not light-client or recursive proof verification"));
     }
+}
+
+#[test]
+fn receiver_held_runtime_config_loads_registry_and_route_policy() {
+    let json = serde_json::json!({
+        "entries": [active_entry()],
+        "routes": [{"opcode": 64, "required_tier": "metadata_bound", "require_active": true}]
+    });
+    let config = server::proof_keys::ProofMetadataRuntimeConfig::from_json_str(&json.to_string())
+        .expect("receiver-held proof metadata config should load");
+    assert_eq!(config.registry().entries().len(), 1);
+    assert_eq!(
+        config.route_policies(),
+        &HashMap::from([(
+            64,
+            server::proof_keys::ProofMetadataRoutePolicy {
+                required_tier: RequiredProofTier::MetadataBound,
+                require_active: true,
+            },
+        )])
+    );
 }

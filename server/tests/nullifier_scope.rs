@@ -36,6 +36,7 @@ fn context() -> VerifiedCallContext {
             "subject_commitment:subject-commitment-a".to_string(),
             "nullifier_commitment:commitment-a".to_string(),
         ],
+        proof_metadata: None,
         capability_result: "ok".to_string(),
         credential_result: "ok".to_string(),
         issued_at: 10,
