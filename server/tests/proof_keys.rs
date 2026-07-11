@@ -327,3 +327,71 @@ fn metadata_bound_positive_path_uses_claim_safe_receipt_summary() {
         );
     }
 }
+
+#[test]
+fn registry_rotation_and_revocation_rules_are_fail_closed() {
+    let mut old = active_entry();
+    old.lifecycle = ProofKeyLifecycle::Deprecated;
+    old.deprecated_historical_only = true;
+
+    let mut current = active_entry();
+    current.vk_version = 2;
+    current.supersedes = Some(server::proof_keys::ProofKeyRef {
+        vk_id: old.vk_id.clone(),
+        vk_version: old.vk_version,
+    });
+
+    let registry = ProofKeyRegistry::from_entries(vec![current.clone(), old])
+        .expect("explicit rotation chain should load");
+    let mut current_observation = matching_observation();
+    current_observation.vk_version = 2;
+    assert!(ProofMetadataGate::new(&registry, 1_800_000_000)
+        .evaluate(
+            Some(&current_observation),
+            RequiredProofTier::MetadataBound,
+            true,
+        )
+        .is_ok());
+    assert_eq!(
+        ProofMetadataGate::new(&registry, 1_800_000_000).evaluate(
+            Some(&matching_observation()),
+            RequiredProofTier::MetadataBound,
+            true,
+        ),
+        Err(ProofGateReason::ProofKeyDeprecated)
+    );
+
+    let mut dangling = current;
+    dangling.supersedes = Some(server::proof_keys::ProofKeyRef {
+        vk_id: "missing-vk".into(),
+        vk_version: 9,
+    });
+    assert_eq!(
+        ProofKeyRegistry::from_entries(vec![dangling]).unwrap_err(),
+        ProofKeyRegistryError::InvalidSupersession
+    );
+}
+
+#[test]
+fn weaker_evidence_cannot_be_relabelled_as_proof_verified() {
+    for label in [
+        "signed_source",
+        "local_fixture",
+        "proof_shaped",
+        "light_client_verified",
+        "recursive_proof_carrying_state",
+    ] {
+        let mut observed = matching_observation();
+        observed.adapter_claim_label = Some(label.into());
+        observed.observed_tier = RequiredProofTier::LightClientVerified;
+        assert_eq!(
+            ProofMetadataGate::new(&registry(), 1_800_000_000).evaluate(
+                Some(&observed),
+                RequiredProofTier::MetadataBound,
+                true,
+            ),
+            Err(ProofGateReason::ProofTierBelowPolicy),
+            "untrusted label {label} upgraded evidence"
+        );
+    }
+}
