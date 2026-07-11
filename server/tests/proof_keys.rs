@@ -289,3 +289,41 @@ fn proof_gate_rejects_lifecycle_and_validity_before_handler_execution() {
         assert_eq!(decision, Err(expected));
     }
 }
+
+#[test]
+fn metadata_bound_positive_path_uses_claim_safe_receipt_summary() {
+    let registry = registry();
+    let binding = ProofMetadataGate::new(&registry, 1_800_000_000)
+        .evaluate_metadata(
+            Some(&matching_observation()),
+            RequiredProofTier::MetadataBound,
+            true,
+        )
+        .expect("active matching metadata should pass the metadata-only gate");
+
+    assert!(binding.proof_registry_checked);
+    assert!(binding.proof_metadata_bound);
+    assert_eq!(binding.claim_label, "proof_metadata_bound");
+    assert_eq!(binding.vk_fingerprint_sha256_prefix, "1111111111111111");
+    assert_eq!(
+        binding.public_input_schema_hash_sha256_prefix,
+        "2222222222222222"
+    );
+
+    let outward = serde_json::to_string(&binding).expect("serialize safe receipt summary");
+    for forbidden in [
+        "light_client_verified",
+        "recursive_proof_carrying_state",
+        "cryptographic_proof_verified",
+        "raw_proof",
+        "raw_vk",
+        "witness",
+        "private_input",
+        "source_auth_token",
+    ] {
+        assert!(
+            !outward.contains(forbidden),
+            "leaked/overclaimed {forbidden}"
+        );
+    }
+}
