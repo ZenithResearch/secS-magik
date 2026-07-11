@@ -9,6 +9,7 @@ use server::node_registration::{
 use server::privacy::PrivacySurface;
 
 const M15_DEMO_README: &str = include_str!("../../examples/m15-dregg-authority-demo/README.md");
+const IMPLEMENTATION_STATUS: &str = include_str!("../../docs/implementation-status.md");
 
 #[test]
 fn node_registration_descriptor_has_first_class_identity() {
@@ -367,6 +368,24 @@ fn node_registration_listing_output_does_not_claim_federation_finality() {
         assert!(
             !M15_DEMO_README.contains(forbidden),
             "forbidden: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn node_registration_status_records_exact_local_claim_and_non_claims() {
+    for required in [
+        "I14 fixture/local node registration",
+        "node.registration.v0",
+        "request-id replay prevention is in-memory/process-local",
+        "not membership provisioning",
+        "not a node listing product",
+        "not live signed authority transport",
+        "not federated checkpoint/root finality",
+    ] {
+        assert!(
+            IMPLEMENTATION_STATUS.contains(required),
+            "missing: {required}"
         );
     }
 }
