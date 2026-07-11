@@ -1,10 +1,12 @@
 use server::manifest::{node_registration_descriptor, ReceiverManifest};
 use server::node_registration::{
-    process_node_registration, verify_node_registration, NodeRegistrationHandler,
-    NodeRegistrationPolicy, NodeRegistrationReason, NodeRegistrationRequestV0,
-    NODE_REGISTRATION_DISCLOSURE_POLICY_ID, NODE_REGISTRATION_HANDLER_ID, NODE_REGISTRATION_OPCODE,
-    NODE_REGISTRATION_OPERATION, NODE_REGISTRATION_PAYLOAD_SCHEMA,
+    process_node_registration, registration_rejection_projection, registration_surface_projection,
+    verify_node_registration, NodeRegistrationHandler, NodeRegistrationPolicy,
+    NodeRegistrationReason, NodeRegistrationRequestV0, NODE_REGISTRATION_DISCLOSURE_POLICY_ID,
+    NODE_REGISTRATION_HANDLER_ID, NODE_REGISTRATION_OPCODE, NODE_REGISTRATION_OPERATION,
+    NODE_REGISTRATION_PAYLOAD_SCHEMA,
 };
+use server::privacy::PrivacySurface;
 
 #[test]
 fn node_registration_descriptor_has_first_class_identity() {
@@ -285,4 +287,57 @@ fn node_registration_replay_is_request_local_and_does_not_run_twice() {
     assert_eq!(rejection.reason, NodeRegistrationReason::ReplayDetected);
     assert!(!rejection.handler_ran);
     assert_eq!(handler.execution_count(), 1);
+}
+
+#[test]
+fn node_registration_receipt_and_operator_surfaces_redact_private_material() {
+    let mut request = bound_request();
+    request.evidence_ref = "raw-evidence:wallet-holder-secret-token".into();
+    request.request_id = "private-request-id".into();
+    let mut handler = NodeRegistrationHandler::default();
+    let receipt = process_node_registration(&request, &bound_policy(), &mut handler).unwrap();
+
+    for surface in [
+        PrivacySurface::VerifyReceipt,
+        PrivacySurface::Log,
+        PrivacySurface::ReadinessStatus,
+        PrivacySurface::DemoProjection,
+        PrivacySurface::OperatorCli,
+    ] {
+        let projection = registration_surface_projection(&receipt, surface);
+        let text = serde_json::to_string(&projection).unwrap();
+        for forbidden in [
+            "raw-evidence",
+            "wallet",
+            "holder",
+            "secret-token",
+            "private-request-id",
+            "subject_id",
+            "credential_id",
+            "authority_source_id",
+            "endpoint_hash",
+        ] {
+            assert!(!text.contains(forbidden), "{surface:?}: {forbidden}");
+        }
+        assert_eq!(projection["operation"], NODE_REGISTRATION_OPERATION);
+        assert_eq!(projection["evidence_tier"], "local_verified");
+        assert_eq!(projection["handler_ran"], true);
+        assert_eq!(projection["scope"], "local_registration_only");
+    }
+}
+
+#[test]
+fn node_registration_rejection_projection_is_bounded_and_redacted() {
+    let mut request = bound_request();
+    request.authority_source_id = "unauthorized-secret-source-token".into();
+    let mut handler = NodeRegistrationHandler::default();
+    let rejection = process_node_registration(&request, &bound_policy(), &mut handler).unwrap_err();
+    let projection = registration_rejection_projection(&rejection);
+    let text = serde_json::to_string(&projection).unwrap();
+
+    assert_eq!(projection["reason"], "unauthorized_source");
+    assert_eq!(projection["handler_ran"], false);
+    assert!(!text.contains("secret-source-token"));
+    assert!(!text.contains("evidence_ref"));
+    assert!(!text.contains("payload"));
 }

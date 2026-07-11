@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::evidence::EvidenceTier;
 use crate::manifest::OperationDescriptor;
+use crate::privacy::PrivacySurface;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
@@ -215,4 +216,37 @@ fn digest_label(label: &str, value: &str) -> String {
     let digest = Sha256::digest(value.as_bytes());
     let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
     format!("{label}:sha256:{hex}")
+}
+
+pub fn registration_surface_projection(
+    receipt: &NodeRegistrationReceipt,
+    surface: PrivacySurface,
+) -> serde_json::Value {
+    serde_json::json!({
+        "surface": surface.as_str(),
+        "scope": "local_registration_only",
+        "receipt_id": receipt.receipt_id,
+        "operation": receipt.operation,
+        "opcode": receipt.opcode,
+        "decision": receipt.decision,
+        "handler_id": receipt.handler_id,
+        "handler_ran": receipt.handler_ran,
+        "evidence_tier": receipt.evidence_tier,
+        "resource_hash": receipt.resource_hash,
+        "descriptor_fingerprint": receipt.descriptor_fingerprint,
+        "schema_version": receipt.schema_version,
+        "disclosure_policy_id": receipt.disclosure_policy_id,
+        "replay_scope": receipt.replay_scope,
+    })
+}
+
+pub fn registration_rejection_projection(
+    rejection: &NodeRegistrationRejection,
+) -> serde_json::Value {
+    serde_json::json!({
+        "scope": "local_registration_only",
+        "decision": "rejected",
+        "reason": rejection.reason,
+        "handler_ran": rejection.handler_ran,
+    })
 }
