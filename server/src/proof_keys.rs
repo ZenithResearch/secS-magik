@@ -164,6 +164,39 @@ impl ProofKeyRegistry {
                 && entry.vk_version == vk_version
         })
     }
+
+    pub fn match_observed(
+        &self,
+        observed: &ObservedProofMetadata,
+    ) -> Result<&ProofKeyEntry, ProofGateReason> {
+        let entry = self
+            .entries
+            .iter()
+            .find(|entry| entry.vk_id == observed.vk_id && entry.vk_version == observed.vk_version)
+            .ok_or(ProofGateReason::UnknownVerificationKey)?;
+
+        if entry.proof_system != observed.proof_system {
+            return Err(ProofGateReason::ProofSystemMismatch);
+        }
+        if entry.circuit_id != observed.circuit_id
+            || entry.circuit_version != observed.circuit_version
+        {
+            return Err(ProofGateReason::ProofCircuitMismatch);
+        }
+        if entry.vk_fingerprint_algorithm != observed.vk_fingerprint_algorithm
+            || entry.vk_fingerprint != observed.vk_fingerprint
+        {
+            return Err(ProofGateReason::ProofVkFingerprintMismatch);
+        }
+        if entry.public_input_schema_id != observed.public_input_schema_id
+            || entry.public_input_schema_hash_algorithm
+                != observed.public_input_schema_hash_algorithm
+            || entry.public_input_schema_hash != observed.public_input_schema_hash
+        {
+            return Err(ProofGateReason::ProofPublicInputSchemaMismatch);
+        }
+        Ok(entry)
+    }
 }
 
 fn validate_entry(entry: &ProofKeyEntry) -> Result<(), ProofKeyRegistryError> {
@@ -228,8 +261,29 @@ fn is_lower_hex_sha256(value: &str) -> bool {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofGateReason {
+    MissingProofKeyRegistryEntry,
+    UnknownVerificationKey,
+    ProofSystemMismatch,
+    ProofCircuitMismatch,
+    ProofVkFingerprintMismatch,
+    ProofPublicInputSchemaMismatch,
     ProofVerifierNotExecuted,
     RegistryMetadataGateNotImplemented,
+}
+
+impl ProofGateReason {
+    pub fn reason_code(self) -> &'static str {
+        match self {
+            Self::MissingProofKeyRegistryEntry => "missing_proof_key_registry_entry",
+            Self::UnknownVerificationKey => "unknown_verification_key",
+            Self::ProofSystemMismatch => "proof_system_mismatch",
+            Self::ProofCircuitMismatch => "proof_circuit_mismatch",
+            Self::ProofVkFingerprintMismatch => "proof_vk_fingerprint_mismatch",
+            Self::ProofPublicInputSchemaMismatch => "proof_public_input_schema_mismatch",
+            Self::ProofVerifierNotExecuted => "proof_verifier_not_executed",
+            Self::RegistryMetadataGateNotImplemented => "proof_metadata_gate_not_implemented",
+        }
+    }
 }
 
 pub struct ProofMetadataGate<'a> {
