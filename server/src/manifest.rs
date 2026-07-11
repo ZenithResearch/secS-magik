@@ -219,6 +219,7 @@ impl ReceiverManifest {
             ),
             dev_candidate_descriptor(0x30, "candidate.dev.jq_identity", None, "dev/jq-identity"),
             membership_provision_descriptor(),
+            node_registration_descriptor(),
         ])
     }
 
@@ -368,5 +369,36 @@ pub fn membership_provision_descriptor() -> OperationDescriptor {
         dev_binding: false,
         range: OpcodeRange::classify(OPCODE),
         disclosure_policy: DisclosurePolicy::default_i02(),
+    }
+}
+
+/// Canonical I14 receiver-local node-registration descriptor. Its
+/// `local_fixture` authority mode is an honest fixture policy label, not live
+/// source transport or federation-finality evidence.
+pub fn node_registration_descriptor() -> OperationDescriptor {
+    use crate::node_registration::{
+        NODE_REGISTRATION_DISCLOSURE_POLICY_ID, NODE_REGISTRATION_HANDLER_ID,
+        NODE_REGISTRATION_MAX_AGE_SECONDS, NODE_REGISTRATION_OPCODE, NODE_REGISTRATION_OPERATION,
+        NODE_REGISTRATION_PAYLOAD_SCHEMA,
+    };
+
+    OperationDescriptor {
+        opcode: NODE_REGISTRATION_OPCODE,
+        name: OperationName::new(NODE_REGISTRATION_OPERATION),
+        payload_schema: Some(NODE_REGISTRATION_PAYLOAD_SCHEMA.to_string()),
+        target_kind: TargetKind::ReceiverProductionHandler,
+        required_credentials: vec!["receiver-held.node-registration".to_string()],
+        required_capabilities: vec![NODE_REGISTRATION_OPERATION.to_string()],
+        accepted_evidence: vec!["dregg_authority".to_string()],
+        required_authority_mode: Some(AuthorityMode::LocalFixture),
+        replay_scope: ReplayScope::SessionOpcodeNonce,
+        max_ttl_seconds: NODE_REGISTRATION_MAX_AGE_SECONDS,
+        handler_id: NODE_REGISTRATION_HANDLER_ID.to_string(),
+        dev_binding: false,
+        range: OpcodeRange::classify(NODE_REGISTRATION_OPCODE),
+        disclosure_policy: DisclosurePolicy::deny_by_default(
+            NODE_REGISTRATION_DISCLOSURE_POLICY_ID,
+            1,
+        ),
     }
 }
