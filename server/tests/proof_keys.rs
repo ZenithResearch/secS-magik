@@ -6,7 +6,7 @@
 
 use server::proof_keys::{
     ObservedProofMetadata, ProofGateReason, ProofKeyEntry, ProofKeyLifecycle, ProofKeyRegistry,
-    ProofMetadataGate, RequiredProofTier,
+    ProofKeyRegistryError, ProofMetadataGate, RequiredProofTier,
 };
 
 fn active_entry() -> ProofKeyEntry {
@@ -76,4 +76,75 @@ fn registry_match_cannot_satisfy_recursive_proof_carrying_state() {
         .expect_err("metadata matching cannot prove recursive verification ran");
 
     assert_eq!(result, ProofGateReason::ProofVerifierNotExecuted);
+}
+
+#[test]
+fn registry_loads_active_deprecated_revoked_entries() {
+    let mut deprecated = active_entry();
+    deprecated.vk_id = "deprecated-vk".into();
+    deprecated.lifecycle = ProofKeyLifecycle::Deprecated;
+    deprecated.deprecated_historical_only = true;
+
+    let mut revoked = active_entry();
+    revoked.vk_id = "revoked-vk".into();
+    revoked.lifecycle = ProofKeyLifecycle::Revoked;
+
+    let json = serde_json::to_string(&vec![active_entry(), deprecated, revoked])
+        .expect("serialize registry fixture");
+    let registry = ProofKeyRegistry::from_json_str(&json).expect("load registry fixture");
+
+    assert_eq!(registry.entries().len(), 3);
+    assert_eq!(
+        registry
+            .lookup(
+                "fixture-proof-system",
+                "membership-transition",
+                "deprecated-vk",
+                1
+            )
+            .expect("deprecated entry remains inspectable")
+            .lifecycle,
+        ProofKeyLifecycle::Deprecated
+    );
+    assert_eq!(
+        registry
+            .lookup(
+                "fixture-proof-system",
+                "membership-transition",
+                "revoked-vk",
+                1
+            )
+            .expect("revoked entry remains inspectable")
+            .lifecycle,
+        ProofKeyLifecycle::Revoked
+    );
+}
+
+#[test]
+fn registry_rejects_malformed_or_overclaiming_entries() {
+    let mut malformed_hash = active_entry();
+    malformed_hash.vk_fingerprint = "raw-vk-material".into();
+    assert_eq!(
+        ProofKeyRegistry::from_entries(vec![malformed_hash]).unwrap_err(),
+        ProofKeyRegistryError::InvalidVkFingerprint
+    );
+
+    let mut invalid_window = active_entry();
+    invalid_window.not_after = Some(invalid_window.not_before);
+    assert_eq!(
+        ProofKeyRegistry::from_entries(vec![invalid_window]).unwrap_err(),
+        ProofKeyRegistryError::InvalidValidityWindow
+    );
+
+    let mut overclaim = active_entry();
+    overclaim.claim_label = "cryptographic_proof_verified".into();
+    assert_eq!(
+        ProofKeyRegistry::from_entries(vec![overclaim]).unwrap_err(),
+        ProofKeyRegistryError::OverclaimingClaimLabel
+    );
+
+    assert_eq!(
+        ProofKeyRegistry::from_entries(vec![active_entry(), active_entry()]).unwrap_err(),
+        ProofKeyRegistryError::DuplicateRegistryEntry
+    );
 }
