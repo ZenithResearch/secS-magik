@@ -129,6 +129,18 @@ impl ProofKeyRegistry {
             }
         }
 
+        let identity_keys: HashSet<_> = entries
+            .iter()
+            .map(|entry| (entry.vk_id.as_str(), entry.vk_version))
+            .collect();
+        for entry in &entries {
+            if entry.supersedes.as_ref().is_some_and(|supersedes| {
+                !identity_keys.contains(&(supersedes.vk_id.as_str(), supersedes.vk_version))
+            }) {
+                return Err(ProofKeyRegistryError::InvalidSupersession);
+            }
+        }
+
         entries.sort_by(|left, right| {
             (
                 left.proof_system.as_str(),
