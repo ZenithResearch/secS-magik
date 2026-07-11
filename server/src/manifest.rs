@@ -4,6 +4,7 @@
 //! `OperationDescriptor` carries the semantic operation contract the receiver
 //! assigns to each key.
 
+use crate::dregg_authority::AuthorityMode;
 use crate::privacy::DisclosurePolicy;
 use crate::verifier::VerificationError;
 use sha2::{Digest, Sha256};
@@ -81,6 +82,9 @@ pub struct OperationDescriptor {
     pub required_credentials: Vec<String>,
     pub required_capabilities: Vec<String>,
     pub accepted_evidence: Vec<String>,
+    /// Receiver-held minimum authority mode for this route. `None` preserves
+    /// existing routes that do not consume authority-mode-labelled evidence.
+    pub required_authority_mode: Option<AuthorityMode>,
     pub replay_scope: ReplayScope,
     pub max_ttl_seconds: u64,
     pub handler_id: String,
@@ -125,6 +129,12 @@ impl OperationDescriptor {
         for evidence in &self.accepted_evidence {
             field("accepted_evidence", evidence);
         }
+        field(
+            "required_authority_mode",
+            self.required_authority_mode
+                .map(|mode| mode.as_str())
+                .unwrap_or(""),
+        );
         field(
             "replay_scope",
             replay_scope_fingerprint_label(self.replay_scope),
@@ -237,6 +247,7 @@ fn legacy_descriptor(opcode: u8, name: &str, handler_id: &str) -> OperationDescr
         required_credentials: vec!["legacy.prototype".to_string()],
         required_capabilities: vec!["legacy.execute".to_string()],
         accepted_evidence: vec!["prototype-proof-envelope".to_string()],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 3600,
         handler_id: handler_id.to_string(),
@@ -260,6 +271,7 @@ pub fn dregg_demo_descriptor(opcode: u8) -> OperationDescriptor {
         required_credentials: vec!["prototype.local-dev".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],
         accepted_evidence: vec!["dregg_receipt".to_string()],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: "dev/bash-echo".to_string(),
@@ -286,6 +298,7 @@ pub fn demo_file_write_descriptor(opcode: u8) -> OperationDescriptor {
         required_credentials: vec!["prototype.local-dev".to_string()],
         required_capabilities: vec!["demo.file.write".to_string()],
         accepted_evidence: vec!["prototype-proof-envelope".to_string()],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: DEMO_FILE_WRITE_HANDLER_ID.to_string(),
@@ -309,6 +322,7 @@ fn dev_candidate_descriptor(
         required_credentials: vec!["prototype.local-dev".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],
         accepted_evidence: vec!["prototype-proof-envelope".to_string()],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: handler_id.to_string(),
@@ -347,6 +361,7 @@ pub fn membership_provision_descriptor() -> OperationDescriptor {
             "membership_credential".to_string(),
             "dregg_authority".to_string(),
         ],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: "membership/provision".to_string(),

@@ -209,6 +209,7 @@ fn trusted_descriptor(
         required_credentials: vec!["trusted.membership".to_string()],
         required_capabilities: vec!["membership.provision".to_string()],
         accepted_evidence,
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: "membership/provision-fixture".to_string(),

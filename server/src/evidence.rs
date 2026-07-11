@@ -2192,10 +2192,6 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
                 authority_mode_for_finality(entry.status_policy.finality_mode).as_str()
             ),
             format!(
-                "required_authority_mode:{}",
-                authority_mode_for_finality(entry.status_policy.finality_mode).as_str()
-            ),
-            format!(
                 "finality_source:{}",
                 finality_mode_name(entry.status_policy.finality_mode)
             ),
@@ -2363,10 +2359,6 @@ impl EvidenceAdapter for DreggAuthoritySnapshotEvidenceAdapter {
                 "authority_class:dregg_authority_snapshot".to_string(),
                 format!("snapshot_schema:{}", DreggAuthoritySnapshot::SCHEMA_VERSION),
                 format!("authority_mode:{}", AuthorityMode::LocalFixture.as_str()),
-                format!(
-                    "required_authority_mode:{}",
-                    AuthorityMode::LocalFixture.as_str()
-                ),
                 "finality_source:not_applicable".to_string(),
                 "finality_status:not_required".to_string(),
                 redacted_reference_field("evidence_ref", evidence_ref),

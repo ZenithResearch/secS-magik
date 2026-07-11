@@ -1,3 +1,4 @@
+use crate::dregg_authority::{AuthorityMode, AuthorityModePolicyDecision};
 use crate::evidence::EvidenceAdapter;
 use crate::identity::{
     explicit_test_fixture_identity, NodeVerifierIdentity, PublicVerifierKeyRegistry,
@@ -419,6 +420,48 @@ impl ConfigurableRouter {
             );
         }
 
+        let descriptor = self
+            .manifest
+            .lookup(context.opcode)
+            .expect("active descriptor was validated above");
+        if let Some(required) = descriptor.required_authority_mode {
+            let observed = AuthorityMode::from_verified_summary(&context.evidence_summary);
+            let decision =
+                observed.map(|observed| AuthorityModePolicyDecision::evaluate(observed, required));
+            let rejection = match &decision {
+                Ok(decision) if decision.is_satisfied() => None,
+                Ok(decision) => Some((
+                    decision.reason().unwrap_or("authority_mode_downgrade"),
+                    decision.redacted_summary_fields(),
+                )),
+                Err(error) => Some((
+                    error.reason_code(),
+                    vec![
+                        format!("required_authority_mode:{}", required.as_str()),
+                        "authority_mode_satisfied:false".to_string(),
+                        format!("reason:{}", error.reason_code()),
+                    ],
+                )),
+            };
+            if let Some((reason, summary)) = rejection {
+                let receipt_id = self
+                    .record_authority_mode_reject_receipt(signed, reason, summary, timestamp)
+                    .await;
+                self.record_operation_event(
+                    ReceiptEventKind::PacketRejected,
+                    signed,
+                    timestamp,
+                    Some(reason),
+                )
+                .await;
+                return libsec_core::response::DecisionResponse::rejected(
+                    reason,
+                    Some(context.context_id.clone()),
+                    Some(receipt_id),
+                );
+            }
+        }
+
         match self
             .ledger
             .reserve_replay(context, &signed.signer_key_id, timestamp)
@@ -750,6 +793,29 @@ impl ConfigurableRouter {
             reason,
             timestamp,
         );
+        self.record_signed_receipt(receipt).await;
+        receipt_id
+    }
+
+    async fn record_authority_mode_reject_receipt(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        reason: &str,
+        evidence_summary: Vec<String>,
+        timestamp: u64,
+    ) -> String {
+        let receipt_id = format!(
+            "receipt-reject-{timestamp}-{:02x}-{}",
+            signed.context.opcode,
+            context_receipt_suffix(&signed.context)
+        );
+        let mut receipt = Receipt::reject_from_verified_context(
+            receipt_id.clone(),
+            &signed.context,
+            reason,
+            timestamp,
+        );
+        receipt.evidence_summary = evidence_summary;
         self.record_signed_receipt(receipt).await;
         receipt_id
     }

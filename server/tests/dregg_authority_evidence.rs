@@ -30,6 +30,7 @@ fn descriptor() -> OperationDescriptor {
         required_credentials: vec![],
         required_capabilities: vec!["dregg_authority".to_string()],
         accepted_evidence: vec![EvidenceKind::DreggAuthority.as_str().to_string()],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 60,
         handler_id: "membership/provision".to_string(),
@@ -173,7 +174,7 @@ fn dregg_authority_accepts_grant_only_after_receiver_held_policy() {
     assert!(summary
         .summary_fields
         .iter()
-        .any(|field| field == "required_authority_mode:signed_source"));
+        .all(|field| !field.starts_with("required_authority_mode:")));
     assert!(summary
         .summary_fields
         .iter()
@@ -821,7 +822,6 @@ fn dregg_authority_snapshot_adapter_accepts_controlled_resource_with_redacted_su
         "authority_class:dregg_authority_snapshot",
         "snapshot_schema:secs-dregg-authority-snapshot-v1",
         "authority_mode:local_fixture",
-        "required_authority_mode:local_fixture",
         "finality_source:not_applicable",
         "finality_status:not_required",
         "entity_id:did:example:david-lab",
@@ -834,6 +834,10 @@ fn dregg_authority_snapshot_adapter_accepts_controlled_resource_with_redacted_su
             "missing summary field {expected}"
         );
     }
+    assert!(summary
+        .summary_fields
+        .iter()
+        .all(|field| !field.starts_with("required_authority_mode:")));
     assert!(summary.summary_fields.iter().all(|field| {
         !field.contains("private") && !field.contains("bearer") && !field.contains("token:")
     }));

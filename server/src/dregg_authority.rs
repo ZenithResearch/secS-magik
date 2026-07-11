@@ -70,6 +70,19 @@ impl AuthorityMode {
         }
     }
 
+    pub fn from_verified_summary(fields: &[String]) -> Result<Self, VerificationError> {
+        let mut labels = fields
+            .iter()
+            .filter_map(|field| field.strip_prefix("authority_mode:"));
+        let label = labels
+            .next()
+            .ok_or(VerificationError::UnsupportedAuthorityMode)?;
+        if labels.next().is_some() {
+            return Err(VerificationError::UnsupportedAuthorityMode);
+        }
+        label.parse()
+    }
+
     fn is_reserved(self) -> bool {
         matches!(
             self,
