@@ -102,7 +102,7 @@ pub fn verify_node_registration(
     if request.audience != policy.audience {
         return Err(NodeRegistrationReason::WrongAudience);
     }
-    if request.resource != policy.resource {
+    if request.resource != policy.resource || !request_fields_match_node_resource(request) {
         return Err(NodeRegistrationReason::WrongResource);
     }
     if request.schema_version != 0
@@ -128,7 +128,7 @@ pub fn verify_node_registration(
     if request.authority_source_id != policy.authority_source_id {
         return Err(NodeRegistrationReason::UnauthorizedSource);
     }
-    if request.evidence_ref.is_empty() {
+    if request.evidence_ref.trim().is_empty() || !request.evidence_ref.starts_with("fixture:") {
         return Err(NodeRegistrationReason::MissingAuthority);
     }
     if request.issued_at > policy.now
@@ -139,6 +139,17 @@ pub fn verify_node_registration(
         return Err(NodeRegistrationReason::StaleEvidence);
     }
     Ok(())
+}
+
+fn request_fields_match_node_resource(request: &NodeRegistrationRequestV0) -> bool {
+    let fields: Vec<&str> = request.resource.split(':').collect();
+    fields.len() == 6
+        && fields[0] == "node"
+        && !fields[1].is_empty()
+        && !fields[2].is_empty()
+        && fields[3] == request.node_public_key_fingerprint
+        && fields[4] == request.endpoint_hash
+        && fields[5] == "v0"
 }
 
 #[derive(Debug, Default)]

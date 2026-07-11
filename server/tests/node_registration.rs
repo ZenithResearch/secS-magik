@@ -167,6 +167,16 @@ fn node_registration_rejects_mismatched_or_stale_bindings_with_bounded_reasons()
             NodeRegistrationReason::WrongResource,
         ),
         (
+            "node fingerprint resource binding",
+            Box::new(|r| r.node_public_key_fingerprint = "other-key".into()),
+            NodeRegistrationReason::WrongResource,
+        ),
+        (
+            "endpoint resource binding",
+            Box::new(|r| r.endpoint_hash = "other-endpoint".into()),
+            NodeRegistrationReason::WrongResource,
+        ),
+        (
             "descriptor",
             Box::new(|r| r.descriptor_fingerprint = "descriptor:sha256:wrong".into()),
             NodeRegistrationReason::ManifestMismatch,
@@ -189,6 +199,11 @@ fn node_registration_rejects_mismatched_or_stale_bindings_with_bounded_reasons()
         (
             "missing authority",
             Box::new(|r| r.evidence_ref.clear()),
+            NodeRegistrationReason::MissingAuthority,
+        ),
+        (
+            "untyped authority reference",
+            Box::new(|r| r.evidence_ref = "caller-material".into()),
             NodeRegistrationReason::MissingAuthority,
         ),
         (
@@ -295,7 +310,7 @@ fn node_registration_replay_is_request_local_and_does_not_run_twice() {
 #[test]
 fn node_registration_receipt_and_operator_surfaces_redact_private_material() {
     let mut request = bound_request();
-    request.evidence_ref = "raw-evidence:wallet-holder-secret-token".into();
+    request.evidence_ref = "fixture:raw-evidence-wallet-holder-secret-token".into();
     request.request_id = "private-request-id".into();
     let mut handler = NodeRegistrationHandler::default();
     let receipt = process_node_registration(&request, &bound_policy(), &mut handler).unwrap();
