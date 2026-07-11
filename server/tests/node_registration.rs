@@ -8,6 +8,8 @@ use server::node_registration::{
 };
 use server::privacy::PrivacySurface;
 
+const M15_DEMO_README: &str = include_str!("../../examples/m15-dregg-authority-demo/README.md");
+
 #[test]
 fn node_registration_descriptor_has_first_class_identity() {
     let descriptor = node_registration_descriptor();
@@ -340,4 +342,31 @@ fn node_registration_rejection_projection_is_bounded_and_redacted() {
     assert!(!text.contains("secret-source-token"));
     assert!(!text.contains("evidence_ref"));
     assert!(!text.contains("payload"));
+}
+
+#[test]
+fn node_registration_listing_output_does_not_claim_federation_finality() {
+    for required in [
+        "Node registration is not membership provisioning",
+        "A local registration projection is not a node listing product",
+        "A registered or listed node is not automatically federated or finality-backed",
+        "local_fixture",
+        "I16",
+        "I17",
+        "node_registration_accepts_bound_authority_and_runs_handler_once",
+        "node_registration_rejections_never_run_handler",
+    ] {
+        assert!(M15_DEMO_README.contains(required), "missing: {required}");
+    }
+
+    for forbidden in [
+        "node listing proves federation membership",
+        "registered nodes are federated nodes",
+        "production authority registration is implemented",
+    ] {
+        assert!(
+            !M15_DEMO_README.contains(forbidden),
+            "forbidden: {forbidden}"
+        );
+    }
 }

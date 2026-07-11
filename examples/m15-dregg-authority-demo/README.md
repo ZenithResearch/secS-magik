@@ -45,6 +45,26 @@ Accepted verifier receipts also carry the I01 evidence maturity labels:
 
 The current demo's production-shaped authority evidence remains fixture/receiver-held and is labeled at the tested tier. Weaker evidence rejects with `evidence_tier_too_weak`. Unsupported future labels for live federation finality, Midnight/ZK or light-client verification, Cardano settlement, and recursive proof-carrying state reject as `unsupported_evidence_kind` / `unsupported_evidence_tier` instead of downgrading into local acceptance.
 
+## Node registration contract (I14)
+
+The demo also has a first-class `node.registration.v0` contract at opcode `0x45`. It is descriptor-bound to the configured audience, node resource, disclosure policy, receiver-held fixture source, `local_verified` evidence tier, freshness window, and `local_fixture` authority-mode policy. The registration handler runs only after those checks pass; rejections report a bounded reason and `handler_ran=false`.
+
+Node registration is not membership provisioning: membership provisioning proves caller/holder eligibility, while registration records a node resource after registration-specific verification. A local registration projection is not a node listing product; it exposes only bounded, redaction-safe metadata about local registration state. A registered or listed node is not automatically federated or finality-backed. Live signed authority transport remains gated by I16, and federated checkpoint/root finality remains gated by I17.
+
+Run one accepted registration and the rejection/no-handler matrix:
+
+```bash
+cargo test -p server --test node_registration \
+  node_registration_accepts_bound_authority_and_runs_handler_once \
+  -- --nocapture
+
+cargo test -p server --test node_registration \
+  node_registration_rejections_never_run_handler \
+  -- --nocapture
+```
+
+These commands prove only fixture/local verified node registration and process-local request-id replay prevention. They do not exercise live source transport, create a public node directory, provision membership, establish federation membership, or prove federation finality.
+
 ## What the demo does not claim
 
 This demo does not prove:
