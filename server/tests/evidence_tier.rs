@@ -19,6 +19,7 @@ fn descriptor(opcode: u8, accepted_evidence: Vec<&str>) -> OperationDescriptor {
         required_credentials: vec!["tier.fixture".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],
         accepted_evidence: accepted_evidence.into_iter().map(str::to_string).collect(),
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: "dev/evidence-tier".to_string(),

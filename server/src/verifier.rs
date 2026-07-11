@@ -811,7 +811,7 @@ fn verified_context_for_descriptor(
     descriptor: &crate::manifest::OperationDescriptor,
     audience: &str,
     subject: VerifiedSubject,
-    evidence_summary: Vec<String>,
+    mut evidence_summary: Vec<String>,
     resource: Option<String>,
     now: u64,
 ) -> Result<VerifiedCallContext, VerificationError> {
@@ -821,12 +821,22 @@ fn verified_context_for_descriptor(
     if packet.session_id == [0u8; 16] {
         return Err(VerificationError::InvalidSession);
     }
+    if evidence_summary
+        .iter()
+        .any(|field| field.starts_with("required_authority_mode:"))
+    {
+        return Err(VerificationError::UnsupportedAuthorityMode);
+    }
 
     let packet_hash = packet_hash(packet)?;
     let packet_hash_suffix = packet_hash[..8]
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
+
+    if let Some(required) = descriptor.required_authority_mode {
+        evidence_summary.push(format!("required_authority_mode:{}", required.as_str()));
+    }
 
     Ok(VerifiedCallContext {
         schema_version: VERIFIED_CALL_CONTEXT_SCHEMA_VERSION,

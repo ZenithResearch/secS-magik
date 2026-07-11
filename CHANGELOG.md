@@ -13,6 +13,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+- I07 review hardening: moved required authority mode to the receiver-held operation descriptor, bound it into verifier-signed context metadata separately from adapter-observed mode, and enforced the comparison in `ConfigurableRouter::route_verified` before replay/nullifier state, success receipts, or handler lookup — this replaces the earlier definition-only seam with executable downgrade rejection while preserving the stronger-rail non-claims.
+
 ### Added
 - I07-T7: documented the bounded authority-mode label/status gate across implementation status, Dregg authority spec, and ready-for-prod checklist — this permits only tested I07 label/policy claims while keeping I16/I17/I18/I19 stronger rails explicit non-claims.
 - I07-T6: added authority-mode policy decisions with handler-not-run and redacted reject-summary coverage — this keeps downgrade rejects specific and safe before any side-effect path can treat them as executable authority.

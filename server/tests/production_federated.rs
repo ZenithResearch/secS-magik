@@ -995,6 +995,7 @@ fn local_static_descriptor(opcode: u8) -> OperationDescriptor {
         required_credentials: vec!["local_static.subject".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],
         accepted_evidence: vec![EvidenceKind::LocalStatic.as_str().to_string()],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: "dev/local-static".to_string(),

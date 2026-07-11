@@ -38,6 +38,7 @@ pub fn wallet_descriptor(opcode: u8) -> OperationDescriptor {
         accepted_evidence: vec![server::evidence::EvidenceKind::WalletPresentation
             .as_str()
             .to_string()],
+        required_authority_mode: None,
         replay_scope: ReplayScope::SessionOpcodeNonce,
         max_ttl_seconds: 300,
         handler_id: "dev/wallet-presentation".to_string(),

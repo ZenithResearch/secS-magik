@@ -142,7 +142,7 @@ fn bls_finality_required_accepts_only_verified_qc_not_finality_flag() {
     };
     let fields = summary.summary_fields.join("\n");
     assert!(fields.contains("authority_mode:federation_checkpoint"));
-    assert!(fields.contains("required_authority_mode:federation_checkpoint"));
+    assert!(!fields.contains("required_authority_mode:"));
     assert!(fields.contains("finality_source:bls_threshold_required"));
     assert!(fields.contains("live_dregg_proof_kind:bls_threshold_finality"));
     assert!(fields.contains("bls_finality_status:threshold_qc_verified"));

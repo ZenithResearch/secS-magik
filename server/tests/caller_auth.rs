@@ -291,6 +291,7 @@ mod runtime_wiring {
             required_credentials: vec![],
             required_capabilities: vec![],
             accepted_evidence: vec!["wallet_presentation".to_string()],
+            required_authority_mode: None,
             replay_scope: ReplayScope::SessionOpcodeNonce,
             max_ttl_seconds: 300,
             handler_id: "prod/echo".to_string(),

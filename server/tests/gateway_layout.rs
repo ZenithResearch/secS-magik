@@ -1,5 +1,9 @@
 use async_trait::async_trait;
 use libsec_core::ZenithPacket;
+use server::dregg_authority::AuthorityMode;
+use server::evidence::{
+    EvidenceAdapter, EvidenceKind, EvidenceRequest, EvidenceResult, EvidenceSummary,
+};
 use server::gateway::{
     init_telemetry_schema, register_runtime_bindings, ConfigurableRouter, ExecutionLimits,
     HandlerOutcome, MachineProgram, SubprocessForwarder,
@@ -9,7 +13,7 @@ use server::identity::{
     VerificationKeyStatus, VerifierIdentityConfig,
 };
 use server::ledger::Ledger;
-use server::manifest::ReceiverManifest;
+use server::manifest::{dregg_demo_descriptor, ReceiverManifest};
 use server::runtime_mode::RuntimeMode;
 use server::verifier::{VerificationError, VerifiedCallContext, Verifier};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
@@ -22,6 +26,39 @@ struct CountingProgram {
     calls: Arc<AtomicUsize>,
     bytes: Arc<AtomicUsize>,
     handler_ids: Arc<Mutex<Vec<Option<String>>>>,
+}
+
+struct AuthorityModeFixtureAdapter {
+    observed: AuthorityMode,
+    claimed_required: Option<AuthorityMode>,
+}
+
+impl EvidenceAdapter for AuthorityModeFixtureAdapter {
+    fn kind(&self) -> EvidenceKind {
+        EvidenceKind::DreggReceipt
+    }
+
+    fn verify(&self, request: &EvidenceRequest) -> EvidenceResult {
+        EvidenceResult::Satisfied(EvidenceSummary {
+            kind: self.kind(),
+            subject: "[redacted]".to_string(),
+            audience: request.audience.clone(),
+            operation: request.operation.clone(),
+            resource: request.resource.clone(),
+            local_dev_test_only: true,
+            public_proof: false,
+            summary_fields: std::iter::once(format!("authority_mode:{}", self.observed.as_str()))
+                .chain(
+                    self.claimed_required
+                        .map(|required| format!("required_authority_mode:{}", required.as_str())),
+                )
+                .chain([
+                    "finality_source:not_applicable".to_string(),
+                    "finality_status:not_required".to_string(),
+                ])
+                .collect(),
+        })
+    }
 }
 
 #[async_trait]
@@ -182,6 +219,27 @@ fn signed_context_from_packet(
     packet: &ZenithPacket,
 ) -> server::verifier::SignedVerifiedCallContext {
     signed_context_from_packet_at(packet, current_test_time())
+}
+
+fn authority_mode_context(
+    manifest: &ReceiverManifest,
+    observed: AuthorityMode,
+) -> server::verifier::SignedVerifiedCallContext {
+    Verifier::verify_manifest_operation_with_evidence_and_sign(
+        &packet(0x40, b"payload"),
+        manifest,
+        "secS://receiver-a",
+        "did:castalia:fixture:redacted",
+        Some("fixture-ref"),
+        &AuthorityModeFixtureAdapter {
+            observed,
+            claimed_required: None,
+        },
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    )
+    .expect("fixture adapter should produce a verifier-signed authority-mode context")
 }
 
 fn signed_context_from_packet_at(
@@ -407,6 +465,127 @@ async fn gateway_router_rejects_unmapped_opcode_without_executing_program() {
             "handler_unavailable".to_string()
         )
     );
+}
+
+#[tokio::test]
+async fn authority_mode_downgrade_rejects_before_handler_receipts_or_protected_use_state() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut descriptor = dregg_demo_descriptor(0x40);
+    descriptor.required_authority_mode = Some(AuthorityMode::FederationCheckpoint);
+    let manifest = ReceiverManifest::new([descriptor]);
+    let signed = authority_mode_context(&manifest, AuthorityMode::SignedSource);
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.set_manifest(manifest);
+    router.register(0x40, program);
+
+    let response = router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert!(!response.is_accepted());
+    assert_eq!(
+        response.reason_code.as_deref(),
+        Some("authority_mode_downgrade")
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let replay_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(replay_count.0, 0);
+    let protected_use_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM scoped_nullifier_uses")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(protected_use_count.0, 0);
+    let accepted_receipt_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM receipts WHERE decision = 'accepted'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(accepted_receipt_count.0, 0);
+    let handler_success_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events WHERE event_kind IN ('handler_started', 'handler_succeeded')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(handler_success_count.0, 0);
+
+    let reject_receipt: (String, String, String) = sqlx::query_as(
+        "SELECT reason, evidence_summary, kind FROM receipts WHERE decision = 'rejected' ORDER BY timestamp DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(reject_receipt.0, "authority_mode_downgrade");
+    assert_eq!(reject_receipt.2, "reject");
+    assert!(reject_receipt.1.contains("authority_mode:signed_source"));
+    assert!(reject_receipt
+        .1
+        .contains("required_authority_mode:federation_checkpoint"));
+    for forbidden in [
+        "raw-evidence-ref-sentinel",
+        "did:castalia:fixture:redacted",
+        "raw-proof",
+        "wallet",
+        "holder",
+    ] {
+        assert!(!reject_receipt.1.contains(forbidden));
+    }
+}
+
+#[tokio::test]
+async fn exact_authority_mode_reaches_registered_handler_and_success_receipt() {
+    let (program, calls, _bytes, _handler_ids) = counting_program();
+    let pool = memory_pool().await;
+    let mut descriptor = dregg_demo_descriptor(0x40);
+    descriptor.required_authority_mode = Some(AuthorityMode::SignedSource);
+    let manifest = ReceiverManifest::new([descriptor]);
+    let signed = authority_mode_context(&manifest, AuthorityMode::SignedSource);
+    let mut router = ConfigurableRouter::new(pool.clone());
+    router.set_manifest(manifest);
+    router.register(0x40, program);
+
+    let response = router.route_verified(&signed, b"payload".to_vec()).await;
+
+    assert!(response.is_accepted());
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let accepted_execute_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM receipts WHERE kind = 'execute' AND decision = 'accepted'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(accepted_execute_count.0, 1);
+    let replay_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM replay_reservations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(replay_count.0, 1);
+}
+
+#[test]
+fn adapter_cannot_supply_receiver_held_required_authority_mode() {
+    let mut descriptor = dregg_demo_descriptor(0x40);
+    descriptor.required_authority_mode = Some(AuthorityMode::SignedSource);
+    let manifest = ReceiverManifest::new([descriptor]);
+
+    let result = Verifier::verify_manifest_operation_with_evidence_and_sign(
+        &packet(0x40, b"payload"),
+        &manifest,
+        "secS://receiver-a",
+        "[redacted]",
+        Some("fixture-ref"),
+        &AuthorityModeFixtureAdapter {
+            observed: AuthorityMode::SignedSource,
+            claimed_required: Some(AuthorityMode::FederationCheckpoint),
+        },
+        current_test_time(),
+        "verifier:local-prototype",
+        &[7u8; 32],
+    );
+
+    assert_eq!(result, Err(VerificationError::UnsupportedAuthorityMode));
 }
 
 #[tokio::test]
