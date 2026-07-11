@@ -395,3 +395,16 @@ fn weaker_evidence_cannot_be_relabelled_as_proof_verified() {
         );
     }
 }
+
+#[test]
+fn i08_current_docs_pin_metadata_only_claim_and_future_gates() {
+    let readme = include_str!("../../README.md");
+    let status = include_str!("../../docs/implementation-status.md");
+    for text in [readme, status] {
+        assert!(text.contains("trusted verification-key/circuit/public-input-schema registry"));
+        assert!(text.contains("proof_metadata_bound"));
+        assert!(text.contains("I18"));
+        assert!(text.contains("I19"));
+        assert!(text.contains("not light-client or recursive proof verification"));
+    }
+}
