@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::evidence::EvidenceTier;
 use crate::manifest::OperationDescriptor;
+use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 
 pub const NODE_REGISTRATION_OPCODE: u8 = 0x45;
 pub const NODE_REGISTRATION_OPERATION: &str = "node.registration.v0";
@@ -86,6 +88,7 @@ pub enum NodeRegistrationReason {
     UnauthorizedSource,
     MissingAuthority,
     StaleEvidence,
+    ReplayDetected,
 }
 
 pub fn verify_node_registration(
@@ -135,4 +138,81 @@ pub fn verify_node_registration(
         return Err(NodeRegistrationReason::StaleEvidence);
     }
     Ok(())
+}
+
+#[derive(Debug, Default)]
+pub struct NodeRegistrationHandler {
+    handled_request_ids: BTreeSet<String>,
+    execution_count: u64,
+}
+
+impl NodeRegistrationHandler {
+    pub fn execution_count(&self) -> u64 {
+        self.execution_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRegistrationReceipt {
+    pub receipt_id: String,
+    pub operation: String,
+    pub opcode: u8,
+    pub decision: String,
+    pub handler_id: String,
+    pub handler_ran: bool,
+    pub evidence_tier: String,
+    pub resource_hash: String,
+    pub descriptor_fingerprint: String,
+    pub schema_version: u16,
+    pub disclosure_policy_id: String,
+    pub replay_scope: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRegistrationRejection {
+    pub reason: NodeRegistrationReason,
+    pub handler_ran: bool,
+}
+
+pub fn process_node_registration(
+    request: &NodeRegistrationRequestV0,
+    policy: &NodeRegistrationPolicy,
+    handler: &mut NodeRegistrationHandler,
+) -> Result<NodeRegistrationReceipt, NodeRegistrationRejection> {
+    verify_node_registration(request, policy).map_err(|reason| NodeRegistrationRejection {
+        reason,
+        handler_ran: false,
+    })?;
+    if handler.handled_request_ids.contains(&request.request_id) {
+        return Err(NodeRegistrationRejection {
+            reason: NodeRegistrationReason::ReplayDetected,
+            handler_ran: false,
+        });
+    }
+
+    handler
+        .handled_request_ids
+        .insert(request.request_id.clone());
+    handler.execution_count += 1;
+
+    Ok(NodeRegistrationReceipt {
+        receipt_id: digest_label("registration-receipt", &request.request_id),
+        operation: request.operation.clone(),
+        opcode: request.opcode,
+        decision: "accepted".to_string(),
+        handler_id: NODE_REGISTRATION_HANDLER_ID.to_string(),
+        handler_ran: true,
+        evidence_tier: request.evidence_tier.clone(),
+        resource_hash: digest_label("resource", &request.resource),
+        descriptor_fingerprint: request.descriptor_fingerprint.clone(),
+        schema_version: request.schema_version,
+        disclosure_policy_id: request.disclosure_policy_id.clone(),
+        replay_scope: "request_id_in_memory".to_string(),
+    })
+}
+
+fn digest_label(label: &str, value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!("{label}:sha256:{hex}")
 }

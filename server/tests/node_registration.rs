@@ -1,9 +1,9 @@
 use server::manifest::{node_registration_descriptor, ReceiverManifest};
 use server::node_registration::{
-    verify_node_registration, NodeRegistrationPolicy, NodeRegistrationReason,
-    NodeRegistrationRequestV0, NODE_REGISTRATION_DISCLOSURE_POLICY_ID,
-    NODE_REGISTRATION_HANDLER_ID, NODE_REGISTRATION_OPCODE, NODE_REGISTRATION_OPERATION,
-    NODE_REGISTRATION_PAYLOAD_SCHEMA,
+    process_node_registration, verify_node_registration, NodeRegistrationHandler,
+    NodeRegistrationPolicy, NodeRegistrationReason, NodeRegistrationRequestV0,
+    NODE_REGISTRATION_DISCLOSURE_POLICY_ID, NODE_REGISTRATION_HANDLER_ID, NODE_REGISTRATION_OPCODE,
+    NODE_REGISTRATION_OPERATION, NODE_REGISTRATION_PAYLOAD_SCHEMA,
 };
 
 #[test]
@@ -216,4 +216,73 @@ fn node_registration_rejects_mismatched_or_stale_bindings_with_bounded_reasons()
             "{name}"
         );
     }
+}
+
+#[test]
+fn node_registration_accepts_bound_authority_and_runs_handler_once() {
+    let mut handler = NodeRegistrationHandler::default();
+    let receipt = process_node_registration(&bound_request(), &bound_policy(), &mut handler)
+        .expect("bound local-fixture registration must execute");
+
+    assert_eq!(handler.execution_count(), 1);
+    assert!(receipt.handler_ran);
+    assert_eq!(receipt.operation, NODE_REGISTRATION_OPERATION);
+    assert_eq!(receipt.opcode, NODE_REGISTRATION_OPCODE);
+    assert_eq!(receipt.handler_id, NODE_REGISTRATION_HANDLER_ID);
+    assert_eq!(receipt.evidence_tier, "local_verified");
+}
+
+#[test]
+fn node_registration_rejections_never_run_handler() {
+    type Mutation = Box<dyn Fn(&mut NodeRegistrationRequestV0)>;
+    let cases: Vec<(&str, Mutation)> = vec![
+        (
+            "membership alias",
+            Box::new(|r| r.operation = "membership.provision".into()),
+        ),
+        (
+            "wrong resource",
+            Box::new(|r| r.resource = "node:wrong".into()),
+        ),
+        (
+            "unauthorized source",
+            Box::new(|r| r.authority_source_id = "caller-source".into()),
+        ),
+        ("missing authority", Box::new(|r| r.evidence_ref.clear())),
+        (
+            "weak tier",
+            Box::new(|r| r.evidence_tier = "shape_only".into()),
+        ),
+        (
+            "missing descriptor",
+            Box::new(|r| r.descriptor_fingerprint.clear()),
+        ),
+        ("stale", Box::new(|r| r.expires_at = 149)),
+        (
+            "private holder",
+            Box::new(|r| r.requested_disclosure.push("holder_id".into())),
+        ),
+    ];
+
+    for (name, mutate) in cases {
+        let mut handler = NodeRegistrationHandler::default();
+        let mut request = bound_request();
+        mutate(&mut request);
+        let rejection =
+            process_node_registration(&request, &bound_policy(), &mut handler).expect_err(name);
+        assert!(!rejection.handler_ran, "{name}");
+        assert_eq!(handler.execution_count(), 0, "{name}");
+    }
+}
+
+#[test]
+fn node_registration_replay_is_request_local_and_does_not_run_twice() {
+    let mut handler = NodeRegistrationHandler::default();
+    process_node_registration(&bound_request(), &bound_policy(), &mut handler).unwrap();
+    let rejection = process_node_registration(&bound_request(), &bound_policy(), &mut handler)
+        .expect_err("duplicate request id must reject");
+
+    assert_eq!(rejection.reason, NodeRegistrationReason::ReplayDetected);
+    assert!(!rejection.handler_ran);
+    assert_eq!(handler.execution_count(), 1);
 }
