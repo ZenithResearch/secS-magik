@@ -148,3 +148,36 @@ fn registry_rejects_malformed_or_overclaiming_entries() {
         ProofKeyRegistryError::DuplicateRegistryEntry
     );
 }
+
+#[test]
+fn proof_metadata_lookup_matches_registry_entry() {
+    let registry = registry();
+    let matched = registry
+        .match_observed(&matching_observation())
+        .expect("matching metadata should resolve to the pinned entry");
+
+    assert_eq!(matched.vk_id, "castalia-membership-vk");
+    assert_eq!(matched.claim_label, "proof_metadata_bound");
+}
+
+#[test]
+fn adapter_labels_do_not_upgrade_observed_proof_tier() {
+    let registry = registry();
+    let observed = matching_observation();
+    assert_eq!(
+        observed.adapter_claim_label.as_deref(),
+        Some("light_client_verified")
+    );
+
+    let matched = registry
+        .match_observed(&observed)
+        .expect("untrusted adapter wording does not alter metadata comparison");
+
+    assert_eq!(
+        matched.allowed_tiers,
+        vec![RequiredProofTier::MetadataBound]
+    );
+    assert!(!matched
+        .allowed_tiers
+        .contains(&RequiredProofTier::LightClientVerified));
+}
