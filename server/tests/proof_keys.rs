@@ -181,3 +181,111 @@ fn adapter_labels_do_not_upgrade_observed_proof_tier() {
         .allowed_tiers
         .contains(&RequiredProofTier::LightClientVerified));
 }
+
+#[test]
+fn proof_required_rejects_untrusted_or_mismatched_registry_metadata() {
+    let cases = vec![
+        (
+            "missing",
+            None,
+            ProofGateReason::MissingProofKeyRegistryEntry,
+        ),
+        (
+            "unknown",
+            Some({
+                let mut value = matching_observation();
+                value.vk_id = "unknown".into();
+                value
+            }),
+            ProofGateReason::UnknownVerificationKey,
+        ),
+        (
+            "system",
+            Some({
+                let mut value = matching_observation();
+                value.proof_system = "other".into();
+                value
+            }),
+            ProofGateReason::ProofSystemMismatch,
+        ),
+        (
+            "circuit",
+            Some({
+                let mut value = matching_observation();
+                value.circuit_id = "other".into();
+                value
+            }),
+            ProofGateReason::ProofCircuitMismatch,
+        ),
+        (
+            "fingerprint",
+            Some({
+                let mut value = matching_observation();
+                value.vk_fingerprint = "33".repeat(32);
+                value
+            }),
+            ProofGateReason::ProofVkFingerprintMismatch,
+        ),
+        (
+            "schema",
+            Some({
+                let mut value = matching_observation();
+                value.public_input_schema_id = "other".into();
+                value
+            }),
+            ProofGateReason::ProofPublicInputSchemaMismatch,
+        ),
+    ];
+
+    for (name, observed, expected) in cases {
+        let mut handler_calls = 0;
+        let decision = ProofMetadataGate::new(&registry(), 1_800_000_000).evaluate(
+            observed.as_ref(),
+            RequiredProofTier::MetadataBound,
+            true,
+        );
+        if decision.is_ok() {
+            handler_calls += 1;
+        }
+        assert_eq!(decision, Err(expected), "case {name}");
+        assert_eq!(handler_calls, 0, "case {name} reached the handler");
+    }
+}
+
+#[test]
+fn proof_gate_rejects_lifecycle_and_validity_before_handler_execution() {
+    let cases = vec![
+        (
+            ProofKeyLifecycle::Deprecated,
+            1_800_000_000,
+            ProofGateReason::ProofKeyDeprecated,
+        ),
+        (
+            ProofKeyLifecycle::Revoked,
+            1_800_000_000,
+            ProofGateReason::ProofKeyRevoked,
+        ),
+        (
+            ProofKeyLifecycle::Active,
+            1_600_000_000,
+            ProofGateReason::ProofKeyNotYetValid,
+        ),
+        (
+            ProofKeyLifecycle::Active,
+            2_000_000_000,
+            ProofGateReason::ProofKeyExpired,
+        ),
+    ];
+
+    for (lifecycle, evaluated_at, expected) in cases {
+        let mut entry = active_entry();
+        entry.lifecycle = lifecycle;
+        let registry = ProofKeyRegistry::from_entries(vec![entry]).expect("valid fixture");
+        let decision = ProofMetadataGate::new(&registry, evaluated_at).evaluate(
+            Some(&matching_observation()),
+            RequiredProofTier::MetadataBound,
+            true,
+        );
+        assert_eq!(decision, Err(expected));
+    }
+}
