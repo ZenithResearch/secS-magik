@@ -166,7 +166,14 @@ fn rotated_replay_required_accepts_only_verified_typed_proof_not_public_input_sh
     assert!(!fields.contains("nullifier:fixture"));
     assert!(!fields.contains(EVIDENCE_REF));
     assert!(!fields.contains("attacker_declared"));
-    assert!(summary.public_proof);
+    assert!(
+        !summary.public_proof,
+        "configured rotated-proof records are not cryptographic public proof"
+    );
+    assert!(
+        summary.local_dev_test_only,
+        "configured-reference rotated replay output must remain fixture/test-only"
+    );
 }
 
 #[test]

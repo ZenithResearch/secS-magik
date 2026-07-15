@@ -149,7 +149,14 @@ fn bls_finality_required_accepts_only_verified_qc_not_finality_flag() {
     assert!(fields.contains("committee_id_sha256:"));
     assert!(fields.contains("threshold_qc_ref_sha256:"));
     assert!(!fields.contains(EVIDENCE_REF));
-    assert!(summary.public_proof);
+    assert!(
+        !summary.public_proof,
+        "configured QC-reference membership is not cryptographic public proof"
+    );
+    assert!(
+        summary.local_dev_test_only,
+        "configured-reference finality output must remain fixture/test-only"
+    );
 }
 
 #[test]

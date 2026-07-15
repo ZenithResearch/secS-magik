@@ -132,7 +132,14 @@ fn live_revocation_required_accepts_only_with_real_verifier_and_rejects_wrong_bi
     assert!(fields.contains("live_revocation_status:non_member"));
     assert!(fields.contains("proof_ref_sha256:"));
     assert!(!fields.contains("proof:revocation:alice-active"));
-    assert!(summary.public_proof);
+    assert!(
+        !summary.public_proof,
+        "configured proof-reference membership is not cryptographic public proof"
+    );
+    assert!(
+        summary.local_dev_test_only,
+        "configured-reference revocation output must remain fixture/test-only"
+    );
 
     let mut wrong_root = grant();
     wrong_root.root_fingerprint = "root:sha256:wrong".to_string();
