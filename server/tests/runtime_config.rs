@@ -929,7 +929,7 @@ fn production_startup_rejects_live_dregg_required_registry_without_live_verifier
 
 #[test]
 #[serial]
-fn production_startup_accepts_live_dregg_revocation_registry_with_live_root_config() {
+fn production_startup_rejects_uninstalled_live_revocation_adapter_with_valid_config() {
     clear_env();
     let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-live-dregg-ok");
     let caller_registry_path =
@@ -954,7 +954,11 @@ fn production_startup_accepts_live_dregg_revocation_registry_with_live_root_conf
     .unwrap();
     config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
 
-    server::config::validate_production_startup_readiness(&config).unwrap();
+    let error = server::config::validate_production_startup_readiness(&config)
+        .expect_err("valid revocation reference config cannot substitute for runtime installation");
+    assert!(error
+        .to_string()
+        .contains("not installed by production gateway"));
 
     let _ = std::fs::remove_file(trust_registry_path);
     let _ = std::fs::remove_file(caller_registry_path);
@@ -1003,7 +1007,7 @@ fn production_startup_rejects_bls_required_registry_without_bls_committee_config
 
 #[test]
 #[serial]
-fn production_startup_accepts_bls_required_registry_with_bls_committee_config() {
+fn production_startup_rejects_uninstalled_bls_adapter_with_valid_config() {
     clear_env();
     let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-bls-dregg-ok");
     let caller_registry_path =
@@ -1028,7 +1032,11 @@ fn production_startup_accepts_bls_required_registry_with_bls_committee_config() 
     .unwrap();
     config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
 
-    server::config::validate_production_startup_readiness(&config).unwrap();
+    let error = server::config::validate_production_startup_readiness(&config)
+        .expect_err("valid BLS reference config cannot substitute for runtime installation");
+    assert!(error
+        .to_string()
+        .contains("not installed by production gateway"));
 
     let _ = std::fs::remove_file(trust_registry_path);
     let _ = std::fs::remove_file(caller_registry_path);
@@ -1081,7 +1089,7 @@ fn production_startup_rejects_rotated_required_registry_without_rotated_config()
 
 #[test]
 #[serial]
-fn production_startup_accepts_rotated_required_registry_with_bls_and_rotated_config() {
+fn production_startup_rejects_uninstalled_rotated_adapter_with_valid_config() {
     clear_env();
     let trust_registry_path =
         write_valid_trust_registry("secs-magik-trust-registry-rotated-dregg-ok");
@@ -1110,7 +1118,11 @@ fn production_startup_accepts_rotated_required_registry_with_bls_and_rotated_con
     .unwrap();
     config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
 
-    server::config::validate_production_startup_readiness(&config).unwrap();
+    let error = server::config::validate_production_startup_readiness(&config)
+        .expect_err("valid rotated reference config cannot substitute for runtime installation");
+    assert!(error
+        .to_string()
+        .contains("not installed by production gateway"));
 
     let _ = std::fs::remove_file(trust_registry_path);
     let _ = std::fs::remove_file(caller_registry_path);
