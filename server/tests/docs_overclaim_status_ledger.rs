@@ -142,3 +142,16 @@ fn docs_overclaim_status_ledger_current_docs_do_not_use_forbidden_stronger_claim
         violations.join("\n")
     );
 }
+
+#[test]
+fn dregg_claim_surfaces_require_runtime_installation_and_deny_public_proof() {
+    let readme = README.to_ascii_lowercase();
+    let status = IMPLEMENTATION_STATUS.to_ascii_lowercase();
+    let readiness = EVIDENCE_ADAPTER_DISCLOSURE_SPEC.to_ascii_lowercase();
+
+    assert!(readme.contains("public_proof: false"));
+    assert!(status.contains("not installed by production gateway"));
+    assert!(status.contains("fixture/test-only and non-public-proof"));
+    assert!(readiness.contains("concrete runtime adapter instance"));
+    assert!(readiness.contains("configuration files alone"));
+}
