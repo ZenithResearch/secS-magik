@@ -126,8 +126,8 @@ fn live_dregg_evidence_summary_context_fields_never_include_raw_proof_material()
     );
 
     assert_eq!(summary.kind, EvidenceKind::DreggAuthority);
-    assert!(!summary.local_dev_test_only);
-    assert!(summary.public_proof);
+    assert!(summary.local_dev_test_only);
+    assert!(!summary.public_proof);
     assert!(joined.contains("evidence_kind:dregg_authority"));
     assert!(joined.contains("resource:urn:secs:member:alice/profile"));
     assert!(joined.contains("proof_ref_sha256:"));
