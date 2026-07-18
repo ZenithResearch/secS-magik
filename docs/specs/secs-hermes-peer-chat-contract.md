@@ -227,7 +227,7 @@ Receipts store:
 - output byte count;
 - a domain-separated output digest.
 
-Receipts do not store raw chat text by default. They also exclude private key bytes, bearer tokens, raw headers, internal URLs, provider credentials, receiver configuration, stack traces, and unrestricted tool traces. The output digest is correlation evidence, not proof of model quality or public auditability.
+Receipts never store raw chat text. Slice one provides no configuration, disclosure mode, debug switch, or error path that can persist it. Receipts also exclude private key bytes, bearer tokens, raw headers, internal URLs, provider credentials, receiver configuration, stack traces, and unrestricted tool traces. The output digest is correlation evidence, not proof of model quality or public auditability.
 
 ## 5. Receiver-local Hermes delivery
 

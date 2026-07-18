@@ -65,7 +65,7 @@ fn peer_chat_contract_locks_identity_request_metadata_response_and_delivery() {
         CONTRACT,
         &[
             "private key bytes",
-            "raw chat text",
+            "Receipts never store raw chat text",
             "output digest",
             "arbitrary receiver-local URLs",
             "models, providers, toolsets, or workspaces",
