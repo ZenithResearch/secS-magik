@@ -58,18 +58,20 @@ Read-only audits of downstream contracts may run in parallel. Runtime implementa
 | P3 — bounded execution-output transport | Blocked by P1/P2 | secS-magik | Add a separate receiver-signed `ExecutionResponse` and output-carrying handler outcome while preserving `DecisionResponse`. | P1/P2 merged and main CI green | RED/GREEN codec/state/bounds/signature tests; router success/reject/no-frame tests; receipt digest/redaction tests. |
 | P4 — receiver-local Hermes adapter | Blocked by P3 | secS-magik | Add one fixed non-streaming numeric-loopback `/p/<receiver-owned-profile>/v1/chat/completions` adapter using receiver-held config/secret, trusted context metadata, and a dedicated no-tools/no-writable-effects Hermes profile. | P3 merged and main CI green | Handler-not-run negatives; fixed-route/auth/redirect/timeout/size/error-normalization/profile-readiness tests; no-secret scans. |
 | P5 — outbound Hermes plugin client | Blocked by P4 | Hermes peer plugin package, owner path to be locked before filing | Resolve `secs_agent_identity`, select configured peer/profile, construct/send request, validate response, return bounded assistant text. | P4 merged and local package ownership accepted | Secure-reference tests; undeclared-peer/profile denial; fail-closed response parser; export/log redaction. |
-| P6 — mutual peer and negative evidence | Blocked by P5 | Cross-repo verification issue split into repo-local children if code changes are needed | Prove A→B and B→A with distinct credentials plus full negative/security matrix. | P5 merged | Reproducible two-node harness, exact credential identities, handler counters, receipt correlation, leak scans. |
+| P6 — mutual peer and negative evidence | Blocked by P5 | secS-magik evidence/control repository; one issue and one PR | Prove A→B and B→A with distinct credentials plus full negative/security matrix without modifying another repository. Any discovered code defect inserts an explicit repo-owned prerequisite node such as `P6-S1` or `P6-H1`. | P5 merged and any inserted repair nodes merged with green main CI | Reproducible two-node harness, exact credential identities, handler counters, receipt correlation, leak scans. |
 | P7 — schema-driven extension | Future | Per operation owner | Add only explicitly specified symbolic profiles after chat is accepted. | P6 complete | New descriptor/schema/policy/bounds/negative tests per profile. |
 
 ## PR boundary audit
 
-The execution rule is **one issue = one PR** and each checked task is one commit unless the issue explicitly records a narrower mapping.
+The execution rule is **one DAG node = one issue = one PR** and each checked task is one commit unless the issue explicitly records a narrower mapping. A node may collect evidence from multiple repositories, but it may modify only its owning repository.
 
 - P1/P2 is one coherent docs/control-surface contract PR.
 - P3 is secS transport/runtime code only; it does not call Hermes.
 - P4 is one receiver adapter only; it does not add the outbound plugin.
 - P5 is one plugin package PR after repository ownership is locked.
-- P6 is evidence/QA. If fixes are required in multiple repositories, split them into repo-local child issues and keep P6 as coordination evidence.
+- P6 is one evidence/QA issue and one evidence PR in its owning repository. It cannot contain repo-local child PRs or modify another repository.
+- If P6 discovers a secS defect, insert `P6-S1` as an explicit prerequisite DAG node with one secS issue and one secS PR before work begins. If it discovers a Hermes defect, insert `P6-H1` as an explicit prerequisite DAG node with one Hermes issue and one Hermes PR before work begins. Additional fixes follow the same explicit `P6-<repo><n>` pattern.
+- Those repair nodes must be inserted as explicit prerequisite DAG nodes with their own table rows and edges before P6 can resume; unmodeled child PRs are forbidden.
 - P7 never exposes a discovered endpoint automatically.
 
 ## P1/P2 — contract gate

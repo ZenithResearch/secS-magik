@@ -191,7 +191,9 @@ State rules:
 
 Invalid state combinations reject during decode. `executed` is never inferred from admission alone. A missing response frame is failure, never legacy success.
 
-The receiver signs a domain-separated canonical representation containing every outer field plus `SHA-256(output)`. `request_digest` binds the response to the exact encoded ingress frame the caller sent, including its session/nonce/opcode/TTL/payload bindings; the caller recomputes and compares it before accepting the response. The caller then verifies `authenticator_kind`, `signer_key_id`, and `signature` against the peer's pinned `response_verifier_key_ref` before accepting status, reason, references, or output. Missing/mismatched request correlation, unknown keys, key-id mismatch, invalid signatures, unsigned responses, replayed responses, and output substitution reject as `response_authentication_failed`. Transport/session correlation alone is not response authenticity.
+The signature preimage is the domain separator `secs-execution-response-v1/signature` followed by the canonical unsigned response. The canonical unsigned response contains `schema_version`, `status`, `reason_code`, `request_digest`, `context_id`, `receipt_id`, `output_schema`, the exact output bytes, `authenticator_kind`, and `signer_key_id`; it excludes only the signature field. Canonical field order, option tags, integer encoding, and byte lengths are fixed by the versioned codec. This makes the preimage finite and unambiguous while binding every non-signature field and the exact output bytes.
+
+`request_digest` binds the response to the exact encoded ingress frame the caller sent, including its session/nonce/opcode/TTL/payload bindings; the caller recomputes and compares it before accepting the response. The caller then verifies `authenticator_kind`, `signer_key_id`, and `signature` against the peer's pinned `response_verifier_key_ref` before accepting status, reason, references, or output. Missing/mismatched request correlation, unknown keys, key-id mismatch, invalid signatures, unsigned responses, replayed responses, and output substitution reject as `response_authentication_failed`. Transport/session correlation alone is not response authenticity.
 
 ### Chat output
 
@@ -245,9 +247,13 @@ The adapter constructs a non-streaming request with:
 
 `API_SERVER_KEY` is receiver-local plumbing. It is loaded from receiver-owned secret storage and inserted only by the local adapter. It never identifies the remote peer and never leaves the receiver node.
 
-The dedicated slice-one Hermes profile is text-only and has no tools, delegation, shell/browser/file access, gateway sends, cron, skill/memory mutation, deployment capability, or writable workspace. This profile constraint prevents authenticated chat from becoming an indirect arbitrary-effect channel while internal tool gating remains deferred.
+The dedicated slice-one Hermes profile is text-only and has no tools, delegation, shell/browser/file access, gateway sends, cron, skill/memory mutation, deployment capability, and no writable workspace. This profile constraint prevents authenticated chat from becoming an indirect arbitrary-effect channel while internal tool gating remains deferred.
 
-The caller cannot influence the loopback host, port, profile reference, path, Authorization header, model route, provider credentials, system template, tools, workspace, or session controls. The receiver resolves the profile reference against installed local profiles and constructs the route; it never accepts a raw path. Redirects are disabled. The configured origin must use a numeric loopback address (`127.0.0.1` or `[::1]`); hostnames, userinfo, query strings, fragments, unknown profiles, and non-loopback targets reject at readiness. Raw upstream errors are normalized to stable secS reasons.
+The caller cannot influence the loopback host, port, profile reference, path, Authorization header, model route, provider credentials, system template, tools, workspace, or session controls. The receiver resolves the profile reference against installed local profiles and constructs the route; it never accepts a raw path. Redirects are disabled.
+
+The adapter must use a proxy-disabled HTTP client with environment and system proxy discovery disabled. `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, system proxy settings, and proxy auto-configuration must not affect this request; `NO_PROXY` alone is not sufficient. Readiness fails closed if the client implementation cannot guarantee direct loopback connection without proxy routing.
+
+The configured origin must use a numeric loopback address (`127.0.0.1` or `[::1]`); hostnames, userinfo, query strings, fragments, unknown profiles, and non-loopback targets reject at readiness. Raw upstream errors are normalized to stable secS reasons.
 
 Required adapter failures include:
 
