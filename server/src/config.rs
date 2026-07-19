@@ -250,6 +250,7 @@ pub enum StartupReadinessError {
     DreggAuthorityRegistryNotReady { path: PathBuf, reason: String },
     DreggAuthoritySnapshotNotReady { path: PathBuf, reason: String },
     DreggLiveSourceNotReady { reason: String },
+    EvidenceAdapterNotInstalled { adapter: String },
     ProofMetadataRegistryNotReady { reason: String },
 }
 
@@ -291,6 +292,10 @@ impl fmt::Display for StartupReadinessError {
                     "production Dregg live source is not ready: {reason}"
                 )
             }
+            Self::EvidenceAdapterNotInstalled { adapter } => write!(
+                formatter,
+                "evidence adapter {adapter:?} is configured but not installed by production gateway"
+            ),
             Self::ProofMetadataRegistryNotReady { reason } => write!(
                 formatter,
                 "production proof metadata registry is not ready: {reason}"
@@ -814,6 +819,16 @@ pub fn validate_production_startup_readiness(
                     reason,
                 },
             )?;
+    }
+    if let Some(adapter) = config.allowed_evidence_adapters.iter().find(|adapter| {
+        matches!(
+            adapter.as_str(),
+            "dregg_authority" | "dregg_authority_snapshot" | "dregg_live_source"
+        )
+    }) {
+        return Err(StartupReadinessError::EvidenceAdapterNotInstalled {
+            adapter: adapter.clone(),
+        });
     }
     validate_caller_registry_file(
         config.caller_registry_path.as_deref(),

@@ -294,8 +294,10 @@ impl LiveDreggEvidenceEnvelope {
             audience: audience.into(),
             operation: operation.into(),
             resource: resource.map(Into::into),
-            local_dev_test_only: false,
-            public_proof: true,
+            // These seams match receiver-configured references; they do not
+            // cryptographically verify canonical Dregg proof bytes.
+            local_dev_test_only: true,
+            public_proof: false,
             summary_fields: self.redacted_summary_fields(),
         }
     }
@@ -2262,14 +2264,12 @@ impl EvidenceAdapter for DreggAuthorityEvidenceAdapter {
             audience: request.audience.clone(),
             operation: request.operation.clone(),
             resource: verified_resource_lock,
-            local_dev_test_only: false,
-            public_proof: entry.status_policy.revocation_verifier_mode
-                == DreggAuthorityRevocationVerifierMode::LiveRevocationVerifierRequired
-                || matches!(
-                    entry.status_policy.finality_mode,
-                    DreggAuthorityFinalityMode::BlsThresholdRequired
-                        | DreggAuthorityFinalityMode::RotatedReplayRequired
-                ),
+            // The current authority/token and live-verifier seams consume
+            // receiver-configured fixtures/references rather than canonical
+            // Dregg proof bytes. Keep the accepted summary explicitly local
+            // until the native WirePresentation verifier is installed.
+            local_dev_test_only: true,
+            public_proof: false,
             summary_fields,
         })
     }

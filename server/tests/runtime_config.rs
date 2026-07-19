@@ -679,6 +679,61 @@ fn production_startup_rejects_dregg_live_source_with_missing_token_file() {
 }
 
 #[test]
+fn production_startup_rejects_configured_but_uninstalled_dregg_live_source() {
+    let registry_path =
+        write_valid_trust_registry("secs-magik-trust-registry-live-source-installed");
+    let caller_registry_path =
+        write_valid_caller_registry("secs-magik-caller-registry-live-source-installed");
+    let permission_policy_path =
+        write_valid_permission_policy("secs-magik-permission-policy-live-source-installed");
+    let token_path = std::env::temp_dir().join(format!(
+        "dregg-live-source-token-installed-{}",
+        std::process::id()
+    ));
+    std::fs::write(&token_path, "fixture-token").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&token_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let mut config = GatewayRuntimeConfig::production_for_tests(
+        "127.0.0.1:9009",
+        "sqlite:prod.db?mode=rwc",
+        "secS://operator-receiver",
+        "/tmp/operator.key",
+        Some("verifier:operator"),
+        registry_path.to_str().unwrap(),
+        caller_registry_path.to_str().unwrap(),
+        permission_policy_path.to_str().unwrap(),
+        "dregg_live_source",
+    )
+    .unwrap();
+    config.dregg_live_source = Some(DreggLiveSourceConfig {
+        url: "https://dregg.example.test/authority".to_string(),
+        auth_token_path: token_path.clone(),
+        timeout: Duration::from_secs(5),
+        retry_max: 2,
+        cache_ttl: Duration::from_secs(30),
+        stale_max: Duration::from_secs(300),
+    });
+
+    let result = server::config::validate_production_startup_readiness(&config);
+
+    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_file(caller_registry_path);
+    let _ = std::fs::remove_file(permission_policy_path);
+    let _ = std::fs::remove_file(token_path);
+    let error = result.expect_err("configuration alone must not make an uninstalled adapter ready");
+    assert!(
+        error.to_string().contains("dregg_live_source")
+            && error
+                .to_string()
+                .contains("not installed by production gateway"),
+        "readiness must report the concrete runtime installation gap: {error}"
+    );
+}
+
+#[test]
 fn production_config_rejects_prototype_receiver_audience() {
     let config = GatewayRuntimeConfig::production_for_tests(
         "127.0.0.1:9009",
@@ -730,7 +785,7 @@ fn production_startup_rejects_dregg_authority_adapter_without_registry_path() {
 }
 
 #[test]
-fn production_startup_accepts_dregg_authority_adapter_with_registry_path() {
+fn production_startup_rejects_configured_but_uninstalled_dregg_authority_adapter() {
     let registry_path = write_valid_trust_registry("secs-magik-trust-registry-dregg-valid");
     let caller_registry_path =
         write_valid_caller_registry("secs-magik-caller-registry-dregg-valid");
@@ -757,9 +812,13 @@ fn production_startup_accepts_dregg_authority_adapter_with_registry_path() {
     let _ = std::fs::remove_file(caller_registry_path);
     let _ = std::fs::remove_file(permission_policy_path);
     let _ = std::fs::remove_file(dregg_registry_path);
+    let error = result.expect_err("configuration alone must not make an uninstalled adapter ready");
     assert!(
-        result.is_ok(),
-        "valid Dregg authority registry should make dregg_authority adapter startup-ready: {result:?}"
+        error.to_string().contains("dregg_authority")
+            && error
+                .to_string()
+                .contains("not installed by production gateway"),
+        "readiness must report the concrete runtime installation gap: {error}"
     );
 }
 
@@ -870,7 +929,7 @@ fn production_startup_rejects_live_dregg_required_registry_without_live_verifier
 
 #[test]
 #[serial]
-fn production_startup_accepts_live_dregg_revocation_registry_with_live_root_config() {
+fn production_startup_rejects_uninstalled_live_revocation_adapter_with_valid_config() {
     clear_env();
     let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-live-dregg-ok");
     let caller_registry_path =
@@ -895,7 +954,11 @@ fn production_startup_accepts_live_dregg_revocation_registry_with_live_root_conf
     .unwrap();
     config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
 
-    server::config::validate_production_startup_readiness(&config).unwrap();
+    let error = server::config::validate_production_startup_readiness(&config)
+        .expect_err("valid revocation reference config cannot substitute for runtime installation");
+    assert!(error
+        .to_string()
+        .contains("not installed by production gateway"));
 
     let _ = std::fs::remove_file(trust_registry_path);
     let _ = std::fs::remove_file(caller_registry_path);
@@ -944,7 +1007,7 @@ fn production_startup_rejects_bls_required_registry_without_bls_committee_config
 
 #[test]
 #[serial]
-fn production_startup_accepts_bls_required_registry_with_bls_committee_config() {
+fn production_startup_rejects_uninstalled_bls_adapter_with_valid_config() {
     clear_env();
     let trust_registry_path = write_valid_trust_registry("secs-magik-trust-registry-bls-dregg-ok");
     let caller_registry_path =
@@ -969,7 +1032,11 @@ fn production_startup_accepts_bls_required_registry_with_bls_committee_config() 
     .unwrap();
     config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
 
-    server::config::validate_production_startup_readiness(&config).unwrap();
+    let error = server::config::validate_production_startup_readiness(&config)
+        .expect_err("valid BLS reference config cannot substitute for runtime installation");
+    assert!(error
+        .to_string()
+        .contains("not installed by production gateway"));
 
     let _ = std::fs::remove_file(trust_registry_path);
     let _ = std::fs::remove_file(caller_registry_path);
@@ -1022,7 +1089,7 @@ fn production_startup_rejects_rotated_required_registry_without_rotated_config()
 
 #[test]
 #[serial]
-fn production_startup_accepts_rotated_required_registry_with_bls_and_rotated_config() {
+fn production_startup_rejects_uninstalled_rotated_adapter_with_valid_config() {
     clear_env();
     let trust_registry_path =
         write_valid_trust_registry("secs-magik-trust-registry-rotated-dregg-ok");
@@ -1051,7 +1118,11 @@ fn production_startup_accepts_rotated_required_registry_with_bls_and_rotated_con
     .unwrap();
     config.dregg_authority_registry_path = Some(dregg_registry_path.clone());
 
-    server::config::validate_production_startup_readiness(&config).unwrap();
+    let error = server::config::validate_production_startup_readiness(&config)
+        .expect_err("valid rotated reference config cannot substitute for runtime installation");
+    assert!(error
+        .to_string()
+        .contains("not installed by production gateway"));
 
     let _ = std::fs::remove_file(trust_registry_path);
     let _ = std::fs::remove_file(caller_registry_path);
@@ -1140,7 +1211,7 @@ fn production_startup_rejects_missing_dregg_authority_snapshot_source() {
 }
 
 #[test]
-fn production_startup_accepts_valid_dregg_authority_snapshot_source() {
+fn production_startup_rejects_configured_but_uninstalled_dregg_authority_snapshot_source() {
     let registry_path = write_valid_trust_registry("secs-magik-trust-registry-snapshot-valid");
     let caller_registry_path =
         write_valid_caller_registry("secs-magik-caller-registry-snapshot-valid");
@@ -1168,8 +1239,12 @@ fn production_startup_accepts_valid_dregg_authority_snapshot_source() {
     let _ = std::fs::remove_file(caller_registry_path);
     let _ = std::fs::remove_file(permission_policy_path);
     let _ = std::fs::remove_file(snapshot_path);
+    let error = result.expect_err("configuration alone must not make an uninstalled adapter ready");
     assert!(
-        result.is_ok(),
-        "valid snapshot source should pass startup readiness: {result:?}"
+        error.to_string().contains("dregg_authority_snapshot")
+            && error
+                .to_string()
+                .contains("not installed by production gateway"),
+        "readiness must report the concrete runtime installation gap: {error}"
     );
 }

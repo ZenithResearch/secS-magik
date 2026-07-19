@@ -11,7 +11,7 @@ Every adapter that can satisfy production descriptors must define:
 - adapter name as it appears in `SECS_ALLOWED_EVIDENCE_ADAPTERS`;
 - evidence kind(s) it can satisfy;
 - required config/env when enabled in `production_verified`;
-- startup validation behavior before the gateway binds;
+- startup validation behavior before the gateway binds, including proof that the concrete runtime adapter instance is installed in the gateway that will serve requests;
 - readiness status fields and redaction rules;
 - fixture/local/testnet/mainnet/live mode boundary;
 - dependency unavailable behavior;
@@ -19,7 +19,7 @@ Every adapter that can satisfy production descriptors must define:
 - whether cached state can be used, and when stale cache must fail closed;
 - exact typed reject reasons for missing dependency, invalid input, wrong binding, stale/future data, unsupported version, and insufficient evidence.
 
-Production mode must not silently fall back to local fixtures, caller-provided embedded authority, browser/session state, or proof-shaped labels.
+Production mode must not silently fall back to local fixtures, caller-provided embedded authority, browser/session state, or proof-shaped labels. Configuration files alone must never make an adapter ready when gateway startup does not install the corresponding runtime verifier/adapter instance.
 
 ## Disclosure contract
 
