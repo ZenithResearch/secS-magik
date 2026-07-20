@@ -1,7 +1,7 @@
 use crate::receipt::{AuthenticatorKind, Receipt};
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
-use ed25519_dalek::{SigningKey, VerifyingKey};
+use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -323,6 +323,21 @@ impl NodeVerifierIdentity {
             &self.secret_key_bytes(),
             self.authenticator_kind,
         )
+    }
+
+    pub fn sign_execution_response(
+        &self,
+        mut response: libsec_core::execution_response::ExecutionResponse,
+    ) -> Result<libsec_core::execution_response::ExecutionResponse, VerificationError> {
+        response.authenticator_kind =
+            libsec_core::execution_response::ExecutionAuthenticatorKind::Ed25519Receiver;
+        response.signer_key_id = self.signer_key_id.clone();
+        response.signature = [0; 64];
+        let preimage = response
+            .signature_preimage()
+            .map_err(|_| VerificationError::InternalError)?;
+        response.signature = self.signing_key.sign(&preimage).to_bytes();
+        Ok(response)
     }
 }
 

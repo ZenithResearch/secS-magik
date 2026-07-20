@@ -20,6 +20,7 @@ use async_trait::async_trait;
 use libsec_core::ZenithPacket;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -43,6 +44,11 @@ struct ExecutionRouteProjection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutionTransportFailure {
     ReceiptPersistenceFailed,
+}
+
+tokio::task_local! {
+    static ROUTED_EXECUTION_PROJECTION: RefCell<Option<ExecutionRouteProjection>>;
+    static ROUTED_EXECUTION_STARTED: RefCell<bool>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -816,6 +822,8 @@ impl ConfigurableRouter {
             }
         }
 
+        let _ = ROUTED_EXECUTION_STARTED.try_with(|started| *started.borrow_mut() = true);
+
         if payload.len() > self.limits.max_payload_bytes {
             let reason = "payload_too_large";
             let receipt_id = self
@@ -926,6 +934,8 @@ impl ConfigurableRouter {
                     .await;
                 if let Some(profile) = &descriptor.output_profile {
                     let projection = execution_projection(context, profile, receipt_id, outcome);
+                    let _ = ROUTED_EXECUTION_PROJECTION
+                        .try_with(|slot| *slot.borrow_mut() = Some(projection.clone()));
                     let _private_output_state = (&projection.output_schema, &projection.output);
                     match projection.status {
                         libsec_core::execution_response::ExecutionStatus::Executed => {
@@ -980,6 +990,89 @@ impl ConfigurableRouter {
                 )
             }
         }
+    }
+
+    pub async fn route_verified_for_execution(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        payload: Vec<u8>,
+        request_digest: [u8; 32],
+    ) -> Result<libsec_core::execution_response::ExecutionResponse, ExecutionTransportFailure> {
+        let descriptor = self
+            .manifest
+            .lookup(signed.context.opcode)
+            .map_err(|_| ExecutionTransportFailure::ReceiptPersistenceFailed)?;
+        let profile = descriptor
+            .output_profile
+            .as_ref()
+            .ok_or(ExecutionTransportFailure::ReceiptPersistenceFailed)?;
+        let (decision, projection, execution_started) = ROUTED_EXECUTION_STARTED
+            .scope(RefCell::new(false), async {
+                ROUTED_EXECUTION_PROJECTION
+                    .scope(RefCell::new(None), async {
+                        let decision = self.route_verified(signed, payload).await;
+                        let projection =
+                            ROUTED_EXECUTION_PROJECTION.with(|slot| slot.borrow_mut().take());
+                        let execution_started =
+                            ROUTED_EXECUTION_STARTED.with(|started| *started.borrow());
+                        (decision, projection, execution_started)
+                    })
+                    .await
+            })
+            .await;
+        if decision.reason_code.as_deref() == Some("execution_transport_failure") {
+            return Err(ExecutionTransportFailure::ReceiptPersistenceFailed);
+        }
+        let response = match projection {
+            Some(projection) => libsec_core::execution_response::ExecutionResponse {
+                schema_version: libsec_core::execution_response::EXECUTION_RESPONSE_SCHEMA_VERSION,
+                status: projection.status,
+                reason_code: projection.reason_code,
+                request_digest,
+                context_id: projection.context_id,
+                receipt_id: projection.receipt_id,
+                output_schema: projection.output_schema,
+                output: projection.output,
+                authenticator_kind:
+                    libsec_core::execution_response::ExecutionAuthenticatorKind::Ed25519Receiver,
+                signer_key_id: self.identity.signer_key_id().to_string(),
+                signature: [0; 64],
+            },
+            None => libsec_core::execution_response::ExecutionResponse {
+                schema_version: libsec_core::execution_response::EXECUTION_RESPONSE_SCHEMA_VERSION,
+                status: if execution_started {
+                    libsec_core::execution_response::ExecutionStatus::ExecutionRejected
+                } else {
+                    libsec_core::execution_response::ExecutionStatus::VerifierRejected
+                },
+                reason_code: Some(
+                    decision
+                        .reason_code
+                        .ok_or(ExecutionTransportFailure::ReceiptPersistenceFailed)?,
+                ),
+                request_digest,
+                context_id: decision.context_id,
+                receipt_id: decision.receipt_id,
+                output_schema: None,
+                output: None,
+                authenticator_kind:
+                    libsec_core::execution_response::ExecutionAuthenticatorKind::Ed25519Receiver,
+                signer_key_id: self.identity.signer_key_id().to_string(),
+                signature: [0; 64],
+            },
+        };
+        let response = self
+            .identity
+            .sign_execution_response(response)
+            .map_err(|_| ExecutionTransportFailure::ReceiptPersistenceFailed)?;
+        let effective = self
+            .limits
+            .for_output_profile(profile)
+            .map_err(|_| ExecutionTransportFailure::ReceiptPersistenceFailed)?;
+        response
+            .encode_frame(effective.max_execution_response_bytes)
+            .map_err(|_| ExecutionTransportFailure::ReceiptPersistenceFailed)?;
+        Ok(response)
     }
 
     async fn record_verified_reject_receipt(

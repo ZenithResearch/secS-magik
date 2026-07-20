@@ -11,6 +11,7 @@ use bincode::Options;
 use libsec_core::ZenithPacket;
 use rand::rngs::OsRng;
 use rand::Rng;
+use sha2::{Digest, Sha256};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -72,6 +73,7 @@ pub struct DecodedIngressRequest {
     pub evidence_inputs: EvidenceInputs,
     pub versioned_request: bool,
     pub client_ephemeral_public_key: Option<[u8; 32]>,
+    pub request_digest: [u8; 32],
 }
 
 pub async fn read_bounded_ingress_request<R>(
@@ -99,6 +101,7 @@ where
             limit: max_wire_bytes,
         });
     }
+    let request_digest = Sha256::digest(&wire_bytes).into();
 
     if wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V1_MAGIC)
         || wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V2_MAGIC)
@@ -113,6 +116,7 @@ where
                     ),
                     versioned_request: true,
                     client_ephemeral_public_key: None,
+                    request_digest,
                 }));
             }
             Ok(libsec_core::ingress_request::IngressFrame::V2(request)) => {
@@ -124,6 +128,7 @@ where
                     ),
                     versioned_request: true,
                     client_ephemeral_public_key: Some(request.client_ephemeral_public_key),
+                    request_digest,
                 }));
             }
             Ok(libsec_core::ingress_request::IngressFrame::Legacy(packet)) => {
@@ -132,6 +137,7 @@ where
                     evidence_inputs: EvidenceInputs::default(),
                     versioned_request: false,
                     client_ephemeral_public_key: None,
+                    request_digest,
                 }));
             }
             Err(libsec_core::ingress_request::IngressRequestError::FrameTooLarge)
@@ -163,6 +169,7 @@ where
                 evidence_inputs: EvidenceInputs::default(),
                 versioned_request: false,
                 client_ephemeral_public_key: None,
+                request_digest,
             })
         })
         .map_err(IngressReadError::MalformedPacket)
@@ -282,6 +289,23 @@ async fn write_decision_response(
     }
 }
 
+async fn write_execution_response(
+    write_half: &mut tokio::net::tcp::OwnedWriteHalf,
+    response: &libsec_core::execution_response::ExecutionResponse,
+    write_timeout: Duration,
+) {
+    let Ok(bytes) =
+        response.encode_frame(libsec_core::execution_response::MAX_EXECUTION_RESPONSE_BYTES)
+    else {
+        return;
+    };
+    let _ = timeout(write_timeout, async {
+        write_half.write_all(&bytes).await?;
+        write_half.shutdown().await
+    })
+    .await;
+}
+
 pub async fn handle_gateway_connection_with_limits(
     router: Arc<ConfigurableRouter>,
     socket: TcpStream,
@@ -351,6 +375,7 @@ pub async fn handle_gateway_connection_with_limits(
             return;
         }
     };
+    let request_digest = decoded_request.request_digest;
     let evidence_inputs = decoded_request.evidence_inputs;
     let client_ephemeral_public_key = decoded_request.client_ephemeral_public_key;
     let packet = decoded_request.packet;
@@ -539,8 +564,22 @@ pub async fn handle_gateway_connection_with_limits(
             }
         };
 
-    let response = router.route_verified(&signed_context, payload).await;
-    write_decision_response(&mut write_half, &response, read_timeout).await;
+    let output_declared = router
+        .manifest()
+        .lookup(packet.opcode)
+        .ok()
+        .is_some_and(|descriptor| descriptor.output_profile.is_some());
+    if output_declared {
+        if let Ok(response) = router
+            .route_verified_for_execution(&signed_context, payload, request_digest)
+            .await
+        {
+            write_execution_response(&mut write_half, &response, read_timeout).await;
+        }
+    } else {
+        let response = router.route_verified(&signed_context, payload).await;
+        write_decision_response(&mut write_half, &response, read_timeout).await;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
