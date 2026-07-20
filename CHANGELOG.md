@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Changed
+- P3/C2: replaced trusted handler byte counts with receiver-bounded owned output and private post-receipt routing state — this makes output-declaring success reflect completed handler execution rather than verifier admission.
 - I14-C07: recorded the exact fixture/local node-registration capability and stronger non-claims in the implementation-status ledger after focused and 663-test workspace verification — this keeps status promotion tied to executable descriptor, handler, privacy, and demo evidence.
 - I14-C06: documented the focused accepted/rejected node-registration demo commands and separated registration from membership provisioning, local listing projections, live authority transport, and federation finality — this ties demo wording to the exact `local_fixture`/`local_verified` proof and preserves I16/I17 gates.
 - I07 review hardening: moved required authority mode to the receiver-held operation descriptor, bound it into verifier-signed context metadata separately from adapter-observed mode, and enforced the comparison in `ConfigurableRouter::route_verified` before replay/nullifier state, success receipts, or handler lookup — this replaces the earlier definition-only seam with executable downgrade rejection while preserving the stronger-rail non-claims.

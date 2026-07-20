@@ -74,10 +74,18 @@ pub enum ReplayScope {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputProfile {
+    pub schema_id: String,
+    pub max_output_bytes: usize,
+    pub max_execution_response_bytes: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationDescriptor {
     pub opcode: u8,
     pub name: OperationName,
     pub payload_schema: Option<String>,
+    pub output_profile: Option<OutputProfile>,
     pub target_kind: TargetKind,
     pub required_credentials: Vec<String>,
     pub required_capabilities: Vec<String>,
@@ -94,6 +102,18 @@ pub struct OperationDescriptor {
 }
 
 impl OperationDescriptor {
+    pub fn validate(&self) -> Result<(), VerificationError> {
+        if let Some(profile) = &self.output_profile {
+            if profile.schema_id.is_empty()
+                || profile.max_output_bytes == 0
+                || profile.max_execution_response_bytes == 0
+            {
+                return Err(VerificationError::InternalError);
+            }
+        }
+        Ok(())
+    }
+
     /// Canonical authorization fingerprint (#81): a deterministic SHA-256
     /// over every routing/authorization-relevant descriptor field, computed
     /// from canonical length-prefixed bytes (declared Vec order; no map
@@ -119,6 +139,22 @@ impl OperationDescriptor {
             "payload_schema",
             self.payload_schema.as_deref().unwrap_or(""),
         );
+        field(
+            "output_profile_present",
+            if self.output_profile.is_some() {
+                "true"
+            } else {
+                "false"
+            },
+        );
+        if let Some(profile) = &self.output_profile {
+            field("output_schema_id", &profile.schema_id);
+            field("output_max_bytes", &profile.max_output_bytes.to_string());
+            field(
+                "output_max_execution_response_bytes",
+                &profile.max_execution_response_bytes.to_string(),
+            );
+        }
         field("target_kind", target_kind_label(self.target_kind));
         for credential in &self.required_credentials {
             field("required_credential", credential);
@@ -244,6 +280,7 @@ fn legacy_descriptor(opcode: u8, name: &str, handler_id: &str) -> OperationDescr
         opcode,
         name: OperationName::new(name),
         payload_schema: None,
+        output_profile: None,
         target_kind: TargetKind::LegacyCoreExample,
         required_credentials: vec!["legacy.prototype".to_string()],
         required_capabilities: vec!["legacy.execute".to_string()],
@@ -268,6 +305,7 @@ pub fn dregg_demo_descriptor(opcode: u8) -> OperationDescriptor {
         opcode,
         name: OperationName::new("candidate.dev.dregg_receipt_demo"),
         payload_schema: Some("application/json".to_string()),
+        output_profile: None,
         target_kind: TargetKind::LocalDevProcess,
         required_credentials: vec!["prototype.local-dev".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],
@@ -295,6 +333,7 @@ pub fn demo_file_write_descriptor(opcode: u8) -> OperationDescriptor {
         opcode,
         name: OperationName::new("demo.file.write"),
         payload_schema: Some("application/json".to_string()),
+        output_profile: None,
         target_kind: TargetKind::LocalDevProcess,
         required_credentials: vec!["prototype.local-dev".to_string()],
         required_capabilities: vec!["demo.file.write".to_string()],
@@ -319,6 +358,7 @@ fn dev_candidate_descriptor(
         opcode,
         name: OperationName::new(name),
         payload_schema: payload_schema.map(ToString::to_string),
+        output_profile: None,
         target_kind: TargetKind::LocalDevProcess,
         required_credentials: vec!["prototype.local-dev".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],
@@ -347,6 +387,7 @@ pub fn membership_provision_descriptor() -> OperationDescriptor {
         opcode: OPCODE,
         name: OperationName::new("membership.provision"),
         payload_schema: Some("application/json".to_string()),
+        output_profile: None,
         target_kind: TargetKind::ReceiverProductionHandler,
         required_credentials: vec![
             "trusted.membership".to_string(),
@@ -386,6 +427,7 @@ pub fn node_registration_descriptor() -> OperationDescriptor {
         opcode: NODE_REGISTRATION_OPCODE,
         name: OperationName::new(NODE_REGISTRATION_OPERATION),
         payload_schema: Some(NODE_REGISTRATION_PAYLOAD_SCHEMA.to_string()),
+        output_profile: None,
         target_kind: TargetKind::ReceiverProductionHandler,
         required_credentials: vec!["receiver-held.node-registration".to_string()],
         required_capabilities: vec![NODE_REGISTRATION_OPERATION.to_string()],

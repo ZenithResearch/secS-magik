@@ -112,7 +112,7 @@ impl MachineProgram for OutputProgram {
         _payload: &[u8],
         _limits: ExecutionLimits,
     ) -> HandlerOutcome {
-        HandlerOutcome::succeeded_with_output_bytes(self.output_bytes)
+        HandlerOutcome::succeeded_with_output(vec![0; self.output_bytes])
     }
 }
 
@@ -939,7 +939,7 @@ async fn subprocess_forwarder_allows_output_exactly_at_limit() {
         .await;
 
     assert_eq!(outcome.decision, server::receipt::Decision::Accepted);
-    assert_eq!(outcome.output_bytes, 4);
+    assert_eq!(outcome.output, None);
 }
 
 #[tokio::test]

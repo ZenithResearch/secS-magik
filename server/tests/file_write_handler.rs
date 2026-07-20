@@ -93,7 +93,7 @@ async fn allowed_target_under_sandbox_writes_expected_content() {
     let outcome = write(&program, Some(&file_uri(&target)), b"hello sandbox").await;
 
     assert_eq!(outcome.decision, Decision::Accepted);
-    assert_eq!(outcome.output_bytes, "hello sandbox".len());
+    assert_eq!(outcome.output, None);
     assert_eq!(
         std::fs::read_to_string(&target).expect("file written"),
         "hello sandbox"

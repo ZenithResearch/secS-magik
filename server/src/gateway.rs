@@ -31,10 +31,25 @@ const DESCRIPTOR_CONTEXT_MISMATCH_REASON: &str = "descriptor_context_mismatch";
 const LOCAL_DEV_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct ExecutionRouteProjection {
+    status: libsec_core::execution_response::ExecutionStatus,
+    reason_code: Option<String>,
+    context_id: Option<String>,
+    receipt_id: Option<String>,
+    output_schema: Option<String>,
+    output: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutionTransportFailure {
+    ReceiptPersistenceFailed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandlerOutcome {
     pub decision: Decision,
     pub reason: Option<String>,
-    pub output_bytes: usize,
+    pub output: Option<Vec<u8>>,
 }
 
 impl HandlerOutcome {
@@ -42,15 +57,15 @@ impl HandlerOutcome {
         Self {
             decision: Decision::Accepted,
             reason: None,
-            output_bytes: 0,
+            output: None,
         }
     }
 
-    pub fn succeeded_with_output_bytes(output_bytes: usize) -> Self {
+    pub fn succeeded_with_output(output: Vec<u8>) -> Self {
         Self {
             decision: Decision::Accepted,
             reason: None,
-            output_bytes,
+            output: Some(output),
         }
     }
 
@@ -58,7 +73,7 @@ impl HandlerOutcome {
         Self {
             decision: Decision::Rejected,
             reason: Some(reason.into()),
-            output_bytes: 0,
+            output: None,
         }
     }
 }
@@ -68,6 +83,36 @@ pub struct ExecutionLimits {
     pub max_payload_bytes: usize,
     pub max_output_bytes: usize,
     pub handler_timeout: Duration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EffectiveExecutionLimits {
+    pub max_payload_bytes: usize,
+    pub max_output_bytes: usize,
+    pub max_execution_response_bytes: usize,
+    pub handler_timeout: Duration,
+}
+
+impl ExecutionLimits {
+    pub fn for_output_profile(
+        self,
+        profile: &crate::manifest::OutputProfile,
+    ) -> Result<EffectiveExecutionLimits, VerificationError> {
+        if profile.schema_id.is_empty()
+            || profile.max_output_bytes == 0
+            || profile.max_execution_response_bytes == 0
+        {
+            return Err(VerificationError::InternalError);
+        }
+        Ok(EffectiveExecutionLimits {
+            max_payload_bytes: self.max_payload_bytes,
+            max_output_bytes: self.max_output_bytes.min(profile.max_output_bytes),
+            max_execution_response_bytes: profile
+                .max_execution_response_bytes
+                .min(libsec_core::execution_response::MAX_EXECUTION_RESPONSE_BYTES),
+            handler_timeout: self.handler_timeout,
+        })
+    }
 }
 
 impl Default for ExecutionLimits {
@@ -822,40 +867,94 @@ impl ConfigurableRouter {
                     Some(&format!("payload_size:{payload_size}")),
                 )
                 .await;
+                let handler_limits =
+                    descriptor
+                        .output_profile
+                        .as_ref()
+                        .map_or(self.limits, |profile| ExecutionLimits {
+                            max_payload_bytes: self.limits.max_payload_bytes,
+                            max_output_bytes: self
+                                .limits
+                                .max_output_bytes
+                                .min(profile.max_output_bytes),
+                            handler_timeout: self.limits.handler_timeout,
+                        });
                 let outcome = match timeout(
                     self.limits.handler_timeout,
-                    program.execute(context, &payload, self.limits),
+                    program.execute(context, &payload, handler_limits),
                 )
                 .await
                 {
                     Ok(outcome) => outcome,
                     Err(_) => HandlerOutcome::rejected("handler_timeout"),
                 };
-                let outcome = if outcome.output_bytes > self.limits.max_output_bytes {
-                    HandlerOutcome::rejected("output_too_large")
-                } else {
-                    outcome
-                };
+                let outcome = normalize_handler_outcome(descriptor, handler_limits, outcome);
                 let reason = outcome.reason.as_deref();
-                let receipt_id = self
-                    .record_execution_receipt(&receipt_signed, outcome.decision, reason, timestamp)
-                    .await;
+                let receipt_id = if descriptor.output_profile.is_some() {
+                    match self
+                        .record_execution_receipt_required(
+                            &receipt_signed,
+                            outcome.decision,
+                            reason,
+                            timestamp,
+                        )
+                        .await
+                    {
+                        Ok(receipt_id) => receipt_id,
+                        Err(ExecutionTransportFailure::ReceiptPersistenceFailed) => {
+                            return libsec_core::response::DecisionResponse::rejected(
+                                "execution_transport_failure",
+                                Some(context.context_id.clone()),
+                                None,
+                            )
+                        }
+                    }
+                } else {
+                    self.record_execution_receipt(
+                        &receipt_signed,
+                        outcome.decision,
+                        reason,
+                        timestamp,
+                    )
+                    .await
+                };
                 let event_kind = match outcome.decision {
                     Decision::Accepted => ReceiptEventKind::HandlerSucceeded,
                     Decision::Rejected => ReceiptEventKind::HandlerFailed,
                 };
                 self.record_operation_event(event_kind, signed, timestamp, reason)
                     .await;
-                match outcome.decision {
-                    Decision::Accepted => libsec_core::response::DecisionResponse::accepted(
-                        Some(context.context_id.clone()),
-                        Some(receipt_id),
-                    ),
-                    Decision::Rejected => libsec_core::response::DecisionResponse::rejected(
-                        outcome.reason.as_deref().unwrap_or("handler_rejected"),
-                        Some(context.context_id.clone()),
-                        Some(receipt_id),
-                    ),
+                if let Some(profile) = &descriptor.output_profile {
+                    let projection = execution_projection(context, profile, receipt_id, outcome);
+                    let _private_output_state = (&projection.output_schema, &projection.output);
+                    match projection.status {
+                        libsec_core::execution_response::ExecutionStatus::Executed => {
+                            libsec_core::response::DecisionResponse::accepted(
+                                projection.context_id,
+                                projection.receipt_id,
+                            )
+                        }
+                        _ => libsec_core::response::DecisionResponse::rejected(
+                            projection
+                                .reason_code
+                                .as_deref()
+                                .unwrap_or("handler_rejected"),
+                            projection.context_id,
+                            projection.receipt_id,
+                        ),
+                    }
+                } else {
+                    match outcome.decision {
+                        Decision::Accepted => libsec_core::response::DecisionResponse::accepted(
+                            Some(context.context_id.clone()),
+                            Some(receipt_id),
+                        ),
+                        Decision::Rejected => libsec_core::response::DecisionResponse::rejected(
+                            outcome.reason.as_deref().unwrap_or("handler_rejected"),
+                            Some(context.context_id.clone()),
+                            Some(receipt_id),
+                        ),
+                    }
                 }
             }
             None => {
@@ -967,6 +1066,45 @@ impl ConfigurableRouter {
         receipt_id
     }
 
+    async fn record_execution_receipt_required(
+        &self,
+        signed: &SignedVerifiedCallContext,
+        decision: Decision,
+        reason: Option<&str>,
+        timestamp: u64,
+    ) -> Result<String, ExecutionTransportFailure> {
+        let receipt_id = format!(
+            "receipt-execute-{timestamp}-{:02x}-{}",
+            signed.context.opcode,
+            context_receipt_suffix(&signed.context)
+        );
+        let receipt = Receipt::execution(
+            receipt_id.clone(),
+            &signed.context,
+            decision,
+            reason,
+            timestamp,
+        );
+        let signed = self
+            .identity
+            .sign_receipt(receipt)
+            .map_err(|_| ExecutionTransportFailure::ReceiptPersistenceFailed)?;
+        self.ledger
+            .record_receipt_with_emitted_event(
+                &signed,
+                ReceiptEventKind::ReceiptEmitted,
+                Some(signed.packet_hash),
+                Some(signed.opcode),
+                signed.operation.as_deref(),
+                signed.handler_id.as_deref(),
+                Some(signed.kind.as_str()),
+                signed.timestamp,
+            )
+            .await
+            .map_err(|_| ExecutionTransportFailure::ReceiptPersistenceFailed)?;
+        Ok(receipt_id)
+    }
+
     async fn record_signed_receipt(&self, receipt: Receipt) {
         let signed = match self.identity.sign_receipt(receipt) {
             Ok(receipt) => receipt,
@@ -1026,6 +1164,65 @@ impl ConfigurableRouter {
         }
     }
 }
+
+fn normalize_handler_outcome(
+    descriptor: &crate::manifest::OperationDescriptor,
+    limits: ExecutionLimits,
+    outcome: HandlerOutcome,
+) -> HandlerOutcome {
+    if outcome.decision == Decision::Rejected && outcome.output.is_some() {
+        return HandlerOutcome::rejected(
+            libsec_core::execution_response::HANDLER_OUTPUT_UNEXPECTED,
+        );
+    }
+    if outcome
+        .output
+        .as_ref()
+        .is_some_and(|output| output.len() > limits.max_output_bytes)
+    {
+        return HandlerOutcome::rejected(libsec_core::execution_response::OUTPUT_TOO_LARGE);
+    }
+    match &descriptor.output_profile {
+        None if outcome.output.is_some() => {
+            HandlerOutcome::rejected(libsec_core::execution_response::HANDLER_OUTPUT_UNEXPECTED)
+        }
+        Some(_) if outcome.decision == Decision::Accepted && outcome.output.is_none() => {
+            HandlerOutcome::rejected(libsec_core::execution_response::HANDLER_OUTPUT_MISSING)
+        }
+        _ => outcome,
+    }
+}
+
+fn execution_projection(
+    context: &VerifiedCallContext,
+    profile: &crate::manifest::OutputProfile,
+    receipt_id: String,
+    outcome: HandlerOutcome,
+) -> ExecutionRouteProjection {
+    match outcome.decision {
+        Decision::Accepted => ExecutionRouteProjection {
+            status: libsec_core::execution_response::ExecutionStatus::Executed,
+            reason_code: None,
+            context_id: Some(context.context_id.clone()),
+            receipt_id: Some(receipt_id),
+            output_schema: Some(profile.schema_id.clone()),
+            output: outcome.output,
+        },
+        Decision::Rejected => ExecutionRouteProjection {
+            status: libsec_core::execution_response::ExecutionStatus::ExecutionRejected,
+            reason_code: Some(
+                outcome
+                    .reason
+                    .unwrap_or_else(|| "handler_rejected".to_string()),
+            ),
+            context_id: Some(context.context_id.clone()),
+            receipt_id: Some(receipt_id),
+            output_schema: None,
+            output: None,
+        },
+    }
+}
+
 pub async fn init_telemetry_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     apply_schema(pool, TELEMETRY_TABLES).await?;
     Ledger::new(pool.clone()).init_schema().await
@@ -1198,16 +1395,17 @@ fn signal_process_group(pid: u32, signal: i32) {
 async fn read_one_chunk<R: AsyncRead + Unpin>(
     reader: &mut Option<R>,
     limit: usize,
-) -> Result<usize, std::io::Error> {
+) -> Result<Vec<u8>, std::io::Error> {
     let Some(stream) = reader.as_mut() else {
-        return Ok(0);
+        return Ok(Vec::new());
     };
     let mut buffer = vec![0u8; limit.clamp(1, 8192)];
     let read = stream.read(&mut buffer).await?;
+    buffer.truncate(read);
     if read == 0 {
         *reader = None;
     }
-    Ok(read)
+    Ok(buffer)
 }
 
 async fn wait_for_bounded_subprocess_output(
@@ -1218,12 +1416,12 @@ async fn wait_for_bounded_subprocess_output(
 ) -> HandlerOutcome {
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
-    let mut output_bytes = 0usize;
+    let mut output = Vec::new();
     let sleep = tokio::time::sleep(timeout_duration);
     tokio::pin!(sleep);
 
     loop {
-        if output_bytes > limit {
+        if output.len() > limit {
             guard.terminate(&mut child).await;
             return HandlerOutcome::rejected("output_too_large");
         }
@@ -1232,7 +1430,7 @@ async fn wait_for_bounded_subprocess_output(
             match child.wait().await {
                 Ok(status) if status.success() => {
                     guard.disarm();
-                    return HandlerOutcome::succeeded_with_output_bytes(output_bytes);
+                    return HandlerOutcome::succeeded();
                 }
                 Ok(_) => {
                     guard.disarm();
@@ -1247,18 +1445,18 @@ async fn wait_for_bounded_subprocess_output(
                 guard.terminate(&mut child).await;
                 return HandlerOutcome::rejected("handler_timeout");
             }
-            result = read_one_chunk(&mut stdout, limit.saturating_sub(output_bytes).saturating_add(1)), if stdout.is_some() => {
+            result = read_one_chunk(&mut stdout, limit.saturating_sub(output.len()).saturating_add(1)), if stdout.is_some() => {
                 match result {
-                    Ok(read) => output_bytes = output_bytes.saturating_add(read),
+                    Ok(chunk) => output.extend_from_slice(&chunk),
                     Err(_) => {
                         guard.terminate(&mut child).await;
                         return HandlerOutcome::rejected("handler_wait_failed");
                     }
                 }
             }
-            result = read_one_chunk(&mut stderr, limit.saturating_sub(output_bytes).saturating_add(1)), if stderr.is_some() => {
+            result = read_one_chunk(&mut stderr, limit.saturating_sub(output.len()).saturating_add(1)), if stderr.is_some() => {
                 match result {
-                    Ok(read) => output_bytes = output_bytes.saturating_add(read),
+                    Ok(chunk) => output.extend_from_slice(&chunk),
                     Err(_) => {
                         guard.terminate(&mut child).await;
                         return HandlerOutcome::rejected("handler_wait_failed");
