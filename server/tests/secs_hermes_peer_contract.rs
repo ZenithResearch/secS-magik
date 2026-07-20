@@ -113,9 +113,53 @@ fn docs_index_and_status_keep_contract_distinct_from_implementation() {
         "implementation status",
         STATUS,
         &[
-            "secS/Hermes peer-chat contract (#261)",
-            "Planned / contract-only",
-            "does not implement handler output transport",
+            "secS/Hermes peer-chat contract (#261/#262)",
+            "Only P3 is implemented; P4–P7 remain blocked/planned",
+            "P3 bounded execution-output transport (#263)",
+        ],
+    );
+}
+
+#[test]
+fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
+    contains_all(
+        "peer-chat contract P3 status",
+        CONTRACT,
+        &[
+            "P3 implementation status: implemented by #263",
+            "DecisionResponse wire shape and version remain unchanged",
+            "exact raw ingress bytes",
+            "handler_unavailable",
+            "handler_timeout",
+            "output_too_large",
+            "internal_transport_failure",
+            "receipt schema v3",
+            "pre-c4b6218",
+            "operator export v3",
+            "bundle-v2/chain-v2",
+            "bundle-v1/chain-v1",
+            "no execution frame",
+            "one directly supplied pinned key",
+            "no peer-key resolver or registry",
+            "P4 remains unimplemented",
+        ],
+    );
+    contains_all(
+        "peer-chat DAG P3 status",
+        DAG,
+        &[
+            "P1/P2 — contract gate | Complete via #261/#262",
+            "P3 — bounded execution-output transport | Implemented by #263",
+            "P4 — receiver-local Hermes adapter | Blocked by P3 merge and exact-head CI",
+        ],
+    );
+    contains_all(
+        "implementation status P3",
+        STATUS,
+        &[
+            "P3 bounded execution-output transport (#263)",
+            "Implemented on the #263 issue branch",
+            "Hermes delivery, trusted peer resolution, and peer chat remain unimplemented",
         ],
     );
 }

@@ -1,7 +1,7 @@
 # secS/Hermes peer-chat implementation DAG
 
 Date: 2026-07-18
-Status: current control surface; P1/P2 contract issue #261 active
+Status: current control surface; P1/P2 complete via #261/#262; P3 implemented by #263 pending exact-head CI/merge; P4–P7 blocked
 Contract: [../specs/secs-hermes-peer-chat-contract.md](../specs/secs-hermes-peer-chat-contract.md)
 
 ## Objective
@@ -54,9 +54,9 @@ Read-only audits of downstream contracts may run in parallel. Runtime implementa
 
 | Node | Status | Owning repo | One-PR objective | Dependency | Evidence to unlock next node |
 |---|---|---|---|---|---|
-| P1/P2 — contract gate | Active as #261 | secS-magik | Lock identity/config, request, trusted metadata, execution response, local delivery, failures, bounds, and non-claims. | Current live baseline | Docs contract test, workspace test/build, clean diff, reviewed issue/PR. |
-| P3 — bounded execution-output transport | Blocked by P1/P2 | secS-magik | Add a separate receiver-signed `ExecutionResponse` and output-carrying handler outcome while preserving `DecisionResponse`. | P1/P2 merged and main CI green | RED/GREEN codec/state/bounds/signature tests; router success/reject/no-frame tests; receipt digest/redaction tests. |
-| P4 — receiver-local Hermes adapter | Blocked by P3 | secS-magik | Add one fixed non-streaming numeric-loopback `/p/<receiver-owned-profile>/v1/chat/completions` adapter using receiver-held config/secret, trusted context metadata, and a dedicated no-tools/no-writable-effects Hermes profile. | P3 merged and main CI green | Handler-not-run negatives; fixed-route/auth/redirect/timeout/size/error-normalization/profile-readiness tests; no-secret scans. |
+| P1/P2 — contract gate | Complete via #261/#262 | secS-magik | Lock identity/config, request, trusted metadata, execution response, local delivery, failures, bounds, and non-claims. | Current live baseline | Docs contract test, workspace test/build, clean diff, reviewed issue/PR. |
+| P3 — bounded execution-output transport | Implemented by #263 | secS-magik | Separate receiver-signed `ExecutionResponse`, exact-ingress correlation, bounded output, and redacted receipt/operator/public-audit projection while preserving `DecisionResponse`. | P1/P2 merged and main CI green | Five ordered RED/GREEN commits, focused/full gates, and exact-head CI; merge remains controller-authorized. |
+| P4 — receiver-local Hermes adapter | Blocked by P3 merge and exact-head CI | secS-magik | Add fixed local-only Hermes delivery owned by the receiver; exact loopback host/profile/path; authenticated with `API_SERVER_KEY`; proxies and redirects disabled; no caller-selected URL/profile/model/tool/workspace. | P3 merged and green | Adapter SSRF/proxy/redirect/auth/profile/path tests plus disabled/down/unavailable response mapping. |
 | P5 — outbound Hermes plugin client | Blocked by P4 | Hermes peer plugin package, owner path to be locked before filing | Resolve `secs_agent_identity`, select configured peer/profile, construct/send request, validate response, return bounded assistant text. | P4 merged and local package ownership accepted | Secure-reference tests; undeclared-peer/profile denial; fail-closed response parser; export/log redaction. |
 | P6 — mutual peer and negative evidence | Blocked by P5 | secS-magik evidence/control repository; one issue and one PR | Prove A→B and B→A with distinct credentials plus full negative/security matrix without modifying another repository. Any discovered code defect inserts an explicit repo-owned prerequisite node such as `P6-S1` or `P6-H1`. | P5 merged and any inserted repair nodes merged with green main CI | Reproducible two-node harness, exact credential identities, handler counters, receipt correlation, leak scans. |
 | P7 — schema-driven extension | Future | Per operation owner | Add only explicitly specified symbolic profiles after chat is accepted. | P6 complete | New descriptor/schema/policy/bounds/negative tests per profile. |

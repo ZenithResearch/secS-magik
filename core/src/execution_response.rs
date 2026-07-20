@@ -504,6 +504,7 @@ impl<'a> Cursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::{format, vec};
     use ed25519_dalek::{Signer, SigningKey};
 
     const DIGEST: [u8; 32] = [0x22; 32];

@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Changed
+- P3/C5: reconciled the execution-output contract, DAG, indexes, and implementation ledger around implemented P3 while keeping Hermes delivery, trusted peer resolution, `agent.chat.v1`, and P4–P7 blocked — this prevents transport evidence from being overstated as peer chat or deployment readiness.
 - P3/C2: replaced trusted handler byte counts with receiver-bounded owned output and private post-receipt routing state — this makes output-declaring success reflect completed handler execution rather than verifier admission.
 - I14-C07: recorded the exact fixture/local node-registration capability and stronger non-claims in the implementation-status ledger after focused and 663-test workspace verification — this keeps status promotion tied to executable descriptor, handler, privacy, and demo evidence.
 - I14-C06: documented the focused accepted/rejected node-registration demo commands and separated registration from membership provisioning, local listing projections, live authority transport, and federation finality — this ties demo wording to the exact `local_fixture`/`local_verified` proof and preserves I16/I17 gates.

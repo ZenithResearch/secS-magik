@@ -12,7 +12,7 @@ Specs define the intended/current architecture. They are not, by themselves, imp
 | [dregg-authority-rail.md](dregg-authority-rail.md) | Dregg authority rail M15.1 / #137 spec that rewrites #73 acceptance criteria while keeping `dregg_authority` distinct from shape-only and fixture-backed rails. |
 | [dregg-live-source-client-contract.md](dregg-live-source-client-contract.md) | Live Castalia Dregg source/client contract for #206: request/response, authentication, freshness/status, timeout/retry/cache, fail-closed readiness, and non-overclaim boundaries before runtime implementation. |
 | [evidence-adapter-readiness-disclosure.md](evidence-adapter-readiness-disclosure.md) | Shared readiness/config/disclosure gate for future production-facing evidence adapters: #71, #74, #75, and #206. |
-| [secs-hermes-peer-chat-contract.md](secs-hermes-peer-chat-contract.md) | Contract-only gate for #261: symmetric per-agent secS identity, `agent.chat.v1`, trusted caller metadata, separate bounded execution output, fixed receiver-local Hermes delivery, and fail-closed/non-leakage boundaries. |
+| [secs-hermes-peer-chat-contract.md](secs-hermes-peer-chat-contract.md) | Accepted P1/P2 contract plus implemented #263 P3 bounded execution-output transport status: authenticated response framing, exact-ingress binding, and redacted receipt/operator/public-audit projections. `agent.chat.v1`, Hermes delivery, trusted peer resolution, and P4–P7 remain blocked/planned. |
 
 ## How to read specs
 
