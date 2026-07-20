@@ -905,6 +905,13 @@ impl ConfigurableRouter {
                             outcome.decision,
                             reason,
                             timestamp,
+                            outcome.output.as_ref().and_then(|_| {
+                                descriptor
+                                    .output_profile
+                                    .as_ref()
+                                    .map(|profile| profile.schema_id.as_str())
+                            }),
+                            outcome.output.as_deref(),
                         )
                         .await
                     {
@@ -1165,19 +1172,24 @@ impl ConfigurableRouter {
         decision: Decision,
         reason: Option<&str>,
         timestamp: u64,
+        output_schema: Option<&str>,
+        output: Option<&[u8]>,
     ) -> Result<String, ExecutionTransportFailure> {
         let receipt_id = format!(
             "receipt-execute-{timestamp}-{:02x}-{}",
             signed.context.opcode,
             context_receipt_suffix(&signed.context)
         );
-        let receipt = Receipt::execution(
+        let receipt = Receipt::execution_with_output(
             receipt_id.clone(),
             &signed.context,
             decision,
             reason,
             timestamp,
-        );
+            output_schema,
+            output,
+        )
+        .map_err(|_| ExecutionTransportFailure::ReceiptPersistenceFailed)?;
         let signed = self
             .identity
             .sign_receipt(receipt)

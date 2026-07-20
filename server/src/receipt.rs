@@ -11,7 +11,34 @@ use libsec_core::ZenithPacket;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const RECEIPT_SCHEMA_VERSION: u16 = 2;
+pub const RECEIPT_SCHEMA_VERSION: u16 = 3;
+const OUTPUT_DIGEST_DOMAIN: &[u8] = b"secs-execution-output-v1/digest";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReceiptOutputProjection {
+    pub schema_id: String,
+    pub byte_count: u64,
+    pub digest_sha256: [u8; 32],
+}
+
+impl ReceiptOutputProjection {
+    pub fn from_output(schema_id: &str, output: &[u8]) -> Result<Self, VerificationError> {
+        if schema_id.is_empty() {
+            return Err(VerificationError::InternalError);
+        }
+        let byte_count =
+            u64::try_from(output.len()).map_err(|_| VerificationError::InternalError)?;
+        let mut hasher = Sha256::new();
+        hasher.update(OUTPUT_DIGEST_DOMAIN);
+        hasher.update(byte_count.to_le_bytes());
+        hasher.update(output);
+        Ok(Self {
+            schema_id: schema_id.to_string(),
+            byte_count,
+            digest_sha256: hasher.finalize().into(),
+        })
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReceiptKind {
@@ -117,7 +144,89 @@ pub struct Receipt {
     pub authenticator_kind: AuthenticatorKind,
     pub signer_key_id: String,
     pub evidence_summary: Vec<String>,
+    pub output_projection: Option<ReceiptOutputProjection>,
     pub signature: Vec<u8>,
+}
+
+#[derive(Serialize)]
+struct LegacyReceiptUnsignedPreC4b6218 {
+    receipt_id: String,
+    kind: ReceiptKind,
+    packet_hash: [u8; 32],
+    session_id: [u8; 16],
+    nonce: [u8; 12],
+    opcode: u8,
+    operation: Option<String>,
+    decision: Decision,
+    reason: Option<String>,
+    handler_id: Option<String>,
+    timestamp: u64,
+    authenticator_kind: AuthenticatorKind,
+    signer_key_id: String,
+    signature: Vec<u8>,
+}
+
+#[derive(Serialize)]
+struct ReceiptUnsignedV1 {
+    schema_version: u16,
+    receipt_id: String,
+    context_id: Option<String>,
+    kind: ReceiptKind,
+    packet_hash: [u8; 32],
+    session_id: [u8; 16],
+    nonce: [u8; 12],
+    opcode: u8,
+    operation: Option<String>,
+    decision: Decision,
+    reason: Option<String>,
+    handler_id: Option<String>,
+    timestamp: u64,
+    authenticator_kind: AuthenticatorKind,
+    signer_key_id: String,
+    signature: Vec<u8>,
+}
+
+#[derive(Serialize)]
+struct ReceiptUnsignedV2 {
+    schema_version: u16,
+    receipt_id: String,
+    context_id: Option<String>,
+    kind: ReceiptKind,
+    packet_hash: [u8; 32],
+    session_id: [u8; 16],
+    nonce: [u8; 12],
+    opcode: u8,
+    operation: Option<String>,
+    decision: Decision,
+    reason: Option<String>,
+    handler_id: Option<String>,
+    timestamp: u64,
+    authenticator_kind: AuthenticatorKind,
+    signer_key_id: String,
+    evidence_summary: Vec<String>,
+    signature: Vec<u8>,
+}
+
+#[derive(Serialize)]
+struct ReceiptUnsignedV3 {
+    schema_version: u16,
+    receipt_id: String,
+    context_id: Option<String>,
+    kind: ReceiptKind,
+    packet_hash: [u8; 32],
+    session_id: [u8; 16],
+    nonce: [u8; 12],
+    opcode: u8,
+    operation: Option<String>,
+    decision: Decision,
+    reason: Option<String>,
+    handler_id: Option<String>,
+    timestamp: u64,
+    authenticator_kind: AuthenticatorKind,
+    signer_key_id: String,
+    evidence_summary: Vec<String>,
+    output_projection: Option<ReceiptOutputProjection>,
+    signature: Vec<u8>,
 }
 
 impl Receipt {
@@ -148,6 +257,7 @@ impl Receipt {
             authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
             signer_key_id: String::new(),
             evidence_summary: Vec::new(),
+            output_projection: None,
             signature: Vec::new(),
         }
     }
@@ -192,6 +302,7 @@ impl Receipt {
             authenticator_kind: signed_context.authenticator_kind,
             signer_key_id: signed_context.signer_key_id.clone(),
             evidence_summary: receipt_evidence_summary(context, Decision::Accepted, None),
+            output_projection: None,
             signature: Vec::new(),
         }
     }
@@ -219,6 +330,7 @@ impl Receipt {
             authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
             signer_key_id: String::new(),
             evidence_summary: Vec::new(),
+            output_projection: None,
             signature: Vec::new(),
         }
     }
@@ -247,8 +359,31 @@ impl Receipt {
             authenticator_kind: AuthenticatorKind::LocalDevUntrusted,
             signer_key_id: String::new(),
             evidence_summary: receipt_evidence_summary(context, decision, reason),
+            output_projection: None,
             signature: Vec::new(),
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn execution_with_output(
+        receipt_id: impl Into<String>,
+        context: &VerifiedCallContext,
+        decision: Decision,
+        reason: Option<&str>,
+        timestamp: u64,
+        output_schema: Option<&str>,
+        output: Option<&[u8]>,
+    ) -> Result<Self, VerificationError> {
+        let output_projection = match (decision, output_schema, output) {
+            (Decision::Accepted, Some(schema_id), Some(output)) => {
+                Some(ReceiptOutputProjection::from_output(schema_id, output)?)
+            }
+            (_, None, None) => None,
+            _ => return Err(VerificationError::InternalError),
+        };
+        let mut receipt = Self::execution(receipt_id, context, decision, reason, timestamp);
+        receipt.output_projection = output_projection;
+        Ok(receipt)
     }
 
     pub fn sign_ed25519(
@@ -278,19 +413,152 @@ impl Receipt {
         &self,
         verifying_key: &VerifyingKey,
     ) -> Result<(), VerificationError> {
+        self.validate_output_projection()?;
         let signature = Signature::from_slice(&self.signature)
             .map_err(|_| VerificationError::InvalidSignature)?;
+        if self.schema_version == 1 {
+            let v1 = bincode::serialize(&receipt_unsigned_v1(self))
+                .map_err(|_| VerificationError::InternalError)?;
+            if verifying_key.verify(&v1, &signature).is_ok() {
+                return Ok(());
+            }
+            if !self.legacy_fallback_eligible() {
+                return Err(VerificationError::InvalidSignature);
+            }
+            let legacy = bincode::serialize(&legacy_receipt_unsigned(self))
+                .map_err(|_| VerificationError::InternalError)?;
+            return verifying_key
+                .verify(&legacy, &signature)
+                .map_err(|_| VerificationError::InvalidSignature);
+        }
         let bytes = self.signed_payload_bytes()?;
-
         verifying_key
             .verify(&bytes, &signature)
             .map_err(|_| VerificationError::InvalidSignature)
     }
 
     fn signed_payload_bytes(&self) -> Result<Vec<u8>, VerificationError> {
-        let mut unsigned = self.clone();
-        unsigned.signature.clear();
-        bincode::serialize(&unsigned).map_err(|_| VerificationError::InternalError)
+        self.validate_output_projection()?;
+        let bytes = match self.schema_version {
+            1 => bincode::serialize(&receipt_unsigned_v1(self)),
+            2 if self.output_projection.is_none() => bincode::serialize(&receipt_unsigned_v2(self)),
+            3 => bincode::serialize(&receipt_unsigned_v3(self)),
+            _ => return Err(VerificationError::InternalError),
+        };
+        bytes.map_err(|_| VerificationError::InternalError)
+    }
+
+    fn legacy_fallback_eligible(&self) -> bool {
+        self.schema_version == 1
+            && self.context_id.is_none()
+            && self.evidence_summary.is_empty()
+            && self.output_projection.is_none()
+    }
+
+    fn validate_output_projection(&self) -> Result<(), VerificationError> {
+        match self.schema_version {
+            1 if !self.evidence_summary.is_empty() || self.output_projection.is_some() => {
+                return Err(VerificationError::InternalError)
+            }
+            2 if self.output_projection.is_some() => return Err(VerificationError::InternalError),
+            1..=3 => {}
+            _ => return Err(VerificationError::InternalError),
+        }
+        if let Some(projection) = &self.output_projection {
+            if self.kind != ReceiptKind::Execute
+                || self.decision != Decision::Accepted
+                || self.reason.is_some()
+                || projection.schema_id.is_empty()
+            {
+                return Err(VerificationError::InternalError);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn legacy_receipt_unsigned(receipt: &Receipt) -> LegacyReceiptUnsignedPreC4b6218 {
+    LegacyReceiptUnsignedPreC4b6218 {
+        receipt_id: receipt.receipt_id.clone(),
+        kind: receipt.kind,
+        packet_hash: receipt.packet_hash,
+        session_id: receipt.session_id,
+        nonce: receipt.nonce,
+        opcode: receipt.opcode,
+        operation: receipt.operation.clone(),
+        decision: receipt.decision,
+        reason: receipt.reason.clone(),
+        handler_id: receipt.handler_id.clone(),
+        timestamp: receipt.timestamp,
+        authenticator_kind: receipt.authenticator_kind,
+        signer_key_id: receipt.signer_key_id.clone(),
+        signature: Vec::new(),
+    }
+}
+
+fn receipt_unsigned_v1(receipt: &Receipt) -> ReceiptUnsignedV1 {
+    ReceiptUnsignedV1 {
+        schema_version: receipt.schema_version,
+        receipt_id: receipt.receipt_id.clone(),
+        context_id: receipt.context_id.clone(),
+        kind: receipt.kind,
+        packet_hash: receipt.packet_hash,
+        session_id: receipt.session_id,
+        nonce: receipt.nonce,
+        opcode: receipt.opcode,
+        operation: receipt.operation.clone(),
+        decision: receipt.decision,
+        reason: receipt.reason.clone(),
+        handler_id: receipt.handler_id.clone(),
+        timestamp: receipt.timestamp,
+        authenticator_kind: receipt.authenticator_kind,
+        signer_key_id: receipt.signer_key_id.clone(),
+        signature: Vec::new(),
+    }
+}
+
+fn receipt_unsigned_v2(receipt: &Receipt) -> ReceiptUnsignedV2 {
+    ReceiptUnsignedV2 {
+        schema_version: receipt.schema_version,
+        receipt_id: receipt.receipt_id.clone(),
+        context_id: receipt.context_id.clone(),
+        kind: receipt.kind,
+        packet_hash: receipt.packet_hash,
+        session_id: receipt.session_id,
+        nonce: receipt.nonce,
+        opcode: receipt.opcode,
+        operation: receipt.operation.clone(),
+        decision: receipt.decision,
+        reason: receipt.reason.clone(),
+        handler_id: receipt.handler_id.clone(),
+        timestamp: receipt.timestamp,
+        authenticator_kind: receipt.authenticator_kind,
+        signer_key_id: receipt.signer_key_id.clone(),
+        evidence_summary: receipt.evidence_summary.clone(),
+        signature: Vec::new(),
+    }
+}
+
+fn receipt_unsigned_v3(receipt: &Receipt) -> ReceiptUnsignedV3 {
+    ReceiptUnsignedV3 {
+        schema_version: receipt.schema_version,
+        receipt_id: receipt.receipt_id.clone(),
+        context_id: receipt.context_id.clone(),
+        kind: receipt.kind,
+        packet_hash: receipt.packet_hash,
+        session_id: receipt.session_id,
+        nonce: receipt.nonce,
+        opcode: receipt.opcode,
+        operation: receipt.operation.clone(),
+        decision: receipt.decision,
+        reason: receipt.reason.clone(),
+        handler_id: receipt.handler_id.clone(),
+        timestamp: receipt.timestamp,
+        authenticator_kind: receipt.authenticator_kind,
+        signer_key_id: receipt.signer_key_id.clone(),
+        evidence_summary: receipt.evidence_summary.clone(),
+        output_projection: receipt.output_projection.clone(),
+        signature: Vec::new(),
     }
 }
 

@@ -7,9 +7,9 @@
 use crate::nullifier::{NullifierCommitment, NullifierDomainV1, NullifierReason};
 use crate::public_audit::{
     public_audit_entry_hash, public_audit_root_hash, sha256_hex, AuditPublisher, PublicAuditBundle,
-    PublicAuditBundleStatus, PublicAuditChainMetadata, PublicAuditPublicationRecord,
-    PublicAuditPublicationStatus, PublicAuditReceiptEntry, PublicAuditRedactionPolicy,
-    PublicAuditSignerKey, PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION,
+    PublicAuditBundleStatus, PublicAuditChainMetadata, PublicAuditOutputProjection,
+    PublicAuditPublicationRecord, PublicAuditPublicationStatus, PublicAuditReceiptEntry,
+    PublicAuditRedactionPolicy, PublicAuditSignerKey, PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION,
 };
 use crate::receipt::{Receipt, ReceiptEventKind};
 use crate::schema::{apply_schema, LEDGER_TABLES};
@@ -18,11 +18,11 @@ use sha2::{Digest, Sha256};
 use sqlx::Row;
 use sqlx::SqlitePool;
 
-pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 2;
+pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 3;
 pub const LEDGER_REDACTION_POLICY: &str =
     "local_redacted_no_payload_or_private_evidence_by_default";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct OperatorReceiptInspection {
     pub export_schema_version: u16,
     pub schema_version: u16,
@@ -46,10 +46,104 @@ pub struct OperatorReceiptInspection {
     pub signature_len: usize,
     pub signature_sha256_hex: Option<String>,
     pub evidence_summary: Vec<String>,
+    pub output_projection: Option<OperatorReceiptOutputProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct OperatorReceiptOutputProjection {
+    pub schema_id: String,
+    pub byte_count: u64,
+    pub digest_sha256_hex: String,
 }
 
 impl OperatorReceiptInspection {
     pub const EXPORT_SCHEMA_VERSION: u16 = OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperatorReceiptExportError {
+    Malformed,
+    UnsupportedVersion,
+    CrossVersionShape,
+    InvalidProjection,
+}
+
+pub fn validate_operator_receipt_export_json(json: &str) -> Result<(), OperatorReceiptExportError> {
+    use std::collections::BTreeSet;
+    let value: serde_json::Value =
+        serde_json::from_str(json).map_err(|_| OperatorReceiptExportError::Malformed)?;
+    let object = value
+        .as_object()
+        .ok_or(OperatorReceiptExportError::Malformed)?;
+    let version = object
+        .get("export_schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(OperatorReceiptExportError::Malformed)?;
+    let common = [
+        "export_schema_version",
+        "schema_version",
+        "redaction_policy",
+        "retention_policy",
+        "receipt_id",
+        "context_id",
+        "timestamp",
+        "kind",
+        "decision",
+        "reason",
+        "operation",
+        "handler_id",
+        "opcode",
+        "packet_hash_hex",
+        "session_id_hex",
+        "nonce_hex",
+        "authenticator_kind",
+        "signer_key_id",
+        "signature_present",
+        "signature_len",
+        "signature_sha256_hex",
+    ];
+    let mut expected: BTreeSet<&str> = common.into_iter().collect();
+    match version {
+        1 => {}
+        2 => {
+            expected.insert("evidence_summary");
+        }
+        3 => {
+            expected.insert("evidence_summary");
+            expected.insert("output_projection");
+        }
+        _ => return Err(OperatorReceiptExportError::UnsupportedVersion),
+    }
+    let actual: BTreeSet<&str> = object.keys().map(String::as_str).collect();
+    if actual != expected {
+        return Err(OperatorReceiptExportError::CrossVersionShape);
+    }
+    if version == 3 {
+        if let Some(projection) = object["output_projection"].as_object() {
+            let projection_keys: BTreeSet<&str> = projection.keys().map(String::as_str).collect();
+            let schema_valid = projection["schema_id"]
+                .as_str()
+                .is_some_and(|schema| !schema.is_empty());
+            let digest_valid = projection["digest_sha256_hex"]
+                .as_str()
+                .is_some_and(|digest| {
+                    digest.len() == 64
+                        && digest
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                });
+            if projection_keys != BTreeSet::from(["schema_id", "byte_count", "digest_sha256_hex"])
+                || !schema_valid
+                || projection["byte_count"].as_u64().is_none()
+                || !digest_valid
+            {
+                return Err(OperatorReceiptExportError::InvalidProjection);
+            }
+        } else if !object["output_projection"].is_null() {
+            return Err(OperatorReceiptExportError::InvalidProjection);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,6 +202,7 @@ struct PublicAuditReceiptRow {
     authenticator_kind: String,
     signer_key_id: String,
     evidence_summary: Vec<String>,
+    output_projection: Option<PublicAuditOutputProjection>,
     signature: Vec<u8>,
 }
 
@@ -292,6 +387,18 @@ impl Ledger {
     }
 
     pub async fn record_receipt(&self, receipt: &Receipt) -> Result<(), sqlx::Error> {
+        let output_schema_id = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.schema_id.as_str());
+        let output_byte_count = receipt
+            .output_projection
+            .as_ref()
+            .and_then(|value| i64::try_from(value.byte_count).ok());
+        let output_digest_sha256 = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.digest_sha256.to_vec());
         sqlx::query(
             "INSERT INTO receipts (
                 receipt_id,
@@ -310,8 +417,11 @@ impl Ledger {
                 authenticator_kind,
                 signer_key_id,
                 evidence_summary,
+                output_schema_id,
+                output_byte_count,
+                output_digest_sha256,
                 signature
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&receipt.receipt_id)
         .bind(i64::from(receipt.schema_version))
@@ -329,6 +439,9 @@ impl Ledger {
         .bind(receipt.authenticator_kind.as_str())
         .bind(&receipt.signer_key_id)
         .bind(serde_json::to_string(&receipt.evidence_summary).unwrap_or_else(|_| "[]".to_string()))
+        .bind(output_schema_id)
+        .bind(output_byte_count)
+        .bind(output_digest_sha256)
         .bind(&receipt.signature)
         .execute(&self.pool)
         .await
@@ -353,12 +466,24 @@ impl Ledger {
         timestamp: u64,
     ) -> Result<(), sqlx::Error> {
         let mut tx = self.pool.begin().await?;
+        let output_schema_id = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.schema_id.as_str());
+        let output_byte_count = receipt
+            .output_projection
+            .as_ref()
+            .and_then(|value| i64::try_from(value.byte_count).ok());
+        let output_digest_sha256 = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.digest_sha256.to_vec());
 
         // Receipt insert (dupe of record_receipt query for tx; keeps record_receipt available for other uses)
         sqlx::query(
             "INSERT INTO receipts (
-                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, evidence_summary, signature
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, evidence_summary, output_schema_id, output_byte_count, output_digest_sha256, signature
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&receipt.receipt_id)
         .bind(i64::from(receipt.schema_version))
@@ -376,6 +501,9 @@ impl Ledger {
         .bind(receipt.authenticator_kind.as_str())
         .bind(&receipt.signer_key_id)
         .bind(serde_json::to_string(&receipt.evidence_summary).unwrap_or_else(|_| "[]".to_string()))
+        .bind(output_schema_id)
+        .bind(output_byte_count)
+        .bind(output_digest_sha256)
         .bind(&receipt.signature)
         .execute(&mut *tx)
         .await?;
@@ -488,6 +616,7 @@ impl Ledger {
                 signer_key_id: row.signer_key_id,
                 signature_hex: hex_lower(&row.signature),
                 evidence_summary: row.evidence_summary,
+                output_projection: row.output_projection,
                 entry_hash_hex: String::new(),
             };
             entry.entry_hash_hex = public_audit_entry_hash(&entry);
@@ -544,6 +673,9 @@ impl Ledger {
                 authenticator_kind,
                 signer_key_id,
                 evidence_summary,
+                output_schema_id,
+                output_byte_count,
+                output_digest_sha256,
                 signature
             FROM receipts
             WHERE context_id = ?
@@ -566,23 +698,34 @@ impl Ledger {
                 let evidence_summary = row.try_get::<String, _>("evidence_summary")?;
                 let evidence_summary =
                     serde_json::from_str::<Vec<String>>(&evidence_summary).unwrap_or_default();
+                let kind: String = row.try_get("kind")?;
+                let decision: String = row.try_get("decision")?;
+                let output_projection =
+                    output_projection_from_row(&row, &kind, &decision)?.map(|projection| {
+                        PublicAuditOutputProjection {
+                            schema_id: projection.schema_id,
+                            byte_count: projection.byte_count,
+                            digest_sha256_hex: projection.digest_sha256_hex,
+                        }
+                    });
                 Ok(PublicAuditReceiptRow {
                     receipt_id: row.try_get("receipt_id")?,
                     schema_version: row.try_get::<i64, _>("schema_version")? as u16,
                     context_id: row.try_get("context_id")?,
                     timestamp: row.try_get::<i64, _>("timestamp")? as u64,
-                    kind: row.try_get("kind")?,
+                    kind,
                     packet_hash: row.try_get("packet_hash")?,
                     session_id: row.try_get("session_id")?,
                     nonce: row.try_get("nonce")?,
                     opcode: row.try_get::<i64, _>("opcode")? as u8,
                     operation: row.try_get("operation")?,
-                    decision: row.try_get("decision")?,
+                    decision,
                     reason: row.try_get("reason")?,
                     handler_id: row.try_get("handler_id")?,
                     authenticator_kind: row.try_get("authenticator_kind")?,
                     signer_key_id: row.try_get("signer_key_id")?,
                     evidence_summary,
+                    output_projection,
                     signature: row.try_get("signature")?,
                 })
             })
@@ -750,6 +893,9 @@ impl Ledger {
                 authenticator_kind,
                 signer_key_id,
                 evidence_summary,
+                output_schema_id,
+                output_byte_count,
+                output_digest_sha256,
                 signature
             FROM receipts
             WHERE context_id = ?
@@ -788,6 +934,9 @@ const OPERATOR_RECEIPT_SELECT_SQL: &str = "SELECT
     authenticator_kind,
     signer_key_id,
     evidence_summary,
+    output_schema_id,
+    output_byte_count,
+    output_digest_sha256,
     signature
 FROM receipts
 WHERE receipt_id = ?";
@@ -859,6 +1008,9 @@ fn operator_inspection_from_row(
     let packet_hash: Vec<u8> = row.try_get("packet_hash")?;
     let session_id: Vec<u8> = row.try_get("session_id")?;
     let nonce: Vec<u8> = row.try_get("nonce")?;
+    let kind: String = row.try_get("kind")?;
+    let decision: String = row.try_get("decision")?;
+    let output_projection = output_projection_from_row(&row, &kind, &decision)?;
 
     let schema_version = u16::try_from(schema_version)
         .map_err(|_| invalid_ledger_data("receipt schema_version is outside u16 range"))?;
@@ -878,8 +1030,8 @@ fn operator_inspection_from_row(
         receipt_id: row.try_get("receipt_id")?,
         context_id: row.try_get("context_id")?,
         timestamp,
-        kind: row.try_get("kind")?,
-        decision: row.try_get("decision")?,
+        kind,
+        decision,
         reason: row.try_get("reason")?,
         operation: row.try_get("operation")?,
         handler_id: row.try_get("handler_id")?,
@@ -893,7 +1045,39 @@ fn operator_inspection_from_row(
         signature_len: signature.len(),
         signature_sha256_hex,
         evidence_summary,
+        output_projection,
     })
+}
+
+fn output_projection_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+    kind: &str,
+    decision: &str,
+) -> Result<Option<OperatorReceiptOutputProjection>, sqlx::Error> {
+    let schema_id: Option<String> = row.try_get("output_schema_id")?;
+    let byte_count: Option<i64> = row.try_get("output_byte_count")?;
+    let digest: Option<Vec<u8>> = row.try_get("output_digest_sha256")?;
+    match (schema_id, byte_count, digest) {
+        (None, None, None) => Ok(None),
+        (Some(schema_id), Some(byte_count), Some(digest)) => {
+            if schema_id.is_empty() || kind != "execute" || decision != "accepted" {
+                return Err(invalid_ledger_data(
+                    "receipt output projection is not valid for this receipt",
+                ));
+            }
+            let byte_count = u64::try_from(byte_count)
+                .map_err(|_| invalid_ledger_data("receipt output byte count is negative"))?;
+            require_blob_len("output_digest_sha256", &digest, 32)?;
+            Ok(Some(OperatorReceiptOutputProjection {
+                schema_id,
+                byte_count,
+                digest_sha256_hex: hex_lower(&digest),
+            }))
+        }
+        _ => Err(invalid_ledger_data(
+            "receipt output projection triple is incomplete",
+        )),
+    }
 }
 
 fn require_blob_len(field: &str, bytes: &[u8], expected: usize) -> Result<(), sqlx::Error> {

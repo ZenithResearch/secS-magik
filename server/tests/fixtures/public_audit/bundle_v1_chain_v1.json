@@ -1,0 +1,45 @@
+{
+  "version": "secs-public-audit-bundle-v1",
+  "redaction_policy": "default_no_payload_or_private_evidence",
+  "status": "complete",
+  "exported_at": 1700000100,
+  "chain": {
+    "algorithm_version": "secs-public-audit-chain-v1",
+    "chain_scope": "context:fixture",
+    "root_hash_hex": "0df3ffd37b231f2a488f04e5f06bfa14a6b10416fb259219d43f951814d8d270",
+    "first_receipt_id": "fixture-receipt",
+    "last_receipt_id": "fixture-receipt",
+    "receipt_count": 1,
+    "complete": true
+  },
+  "signer_keys": [
+    {
+      "signer_key_id": "verifier:fixture",
+      "public_key_hex": "197f6b23e16c8532c6abc838facd5ea789be0c76b2920334039bfa8b3d368d61"
+    }
+  ],
+  "receipts": [
+    {
+      "chain_index": 0,
+      "previous_entry_hash_hex": null,
+      "receipt_id": "fixture-receipt",
+      "schema_version": 1,
+      "context_id": "ctx-fixture",
+      "timestamp": 1700000000,
+      "kind": "reject",
+      "decision": "rejected",
+      "reason": "unknown_operation",
+      "operation": null,
+      "handler_id": null,
+      "opcode": 16,
+      "packet_hash_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+      "session_id_hex": "02020202020202020202020202020202",
+      "nonce_hex": "030303030303030303030303",
+      "authenticator_kind": "ed25519_verifier",
+      "signer_key_id": "verifier:fixture",
+      "signature_hex": "2ece9a5329470612ef223f9dababb99974a4e6f7cf478b6f9bffa20805c111d2fe83a0791f12a421b92f9cc5365a4c30fe4ca02a0f232a13f038643ca354ab0d",
+      "evidence_summary": [],
+      "entry_hash_hex": "a5f3a14df58602279d232c1f3793df3606556fcc2d662af2c8a1473895c3265e"
+    }
+  ]
+}

@@ -138,8 +138,9 @@ async fn public_execution_route_signs_all_three_execution_states() {
         .unwrap()
     };
 
+    let executed_pool = memory_pool().await;
     let mut executed_router =
-        ConfigurableRouter::with_identity(memory_pool().await, identity.clone());
+        ConfigurableRouter::with_identity(executed_pool.clone(), identity.clone());
     executed_router.set_manifest(manifest.clone());
     executed_router.register(0x52, Box::new(OutputProgram));
     let executed = executed_router
@@ -163,6 +164,17 @@ async fn public_execution_route_signs_all_three_execution_states() {
         Some("fixture.response.v1"),
     )
     .unwrap();
+    let receipt_id = executed.receipt_id.as_deref().unwrap();
+    let persisted: (String, i64, Vec<u8>) = sqlx::query_as(
+        "SELECT output_schema_id, output_byte_count, output_digest_sha256 FROM receipts WHERE receipt_id = ?",
+    )
+    .bind(receipt_id)
+    .fetch_one(&executed_pool)
+    .await
+    .unwrap();
+    assert_eq!(persisted.0, "fixture.response.v1");
+    assert_eq!(persisted.1, 7);
+    assert_eq!(persisted.2.len(), 32);
 
     let mut rejected_router =
         ConfigurableRouter::with_identity(memory_pool().await, identity.clone());

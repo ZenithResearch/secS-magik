@@ -736,9 +736,153 @@ async fn operator_inspection_persists_redacted_authority_summary_without_raw_mat
     let verify = chain.iter().find(|row| row.kind == "verify").unwrap();
     let joined = verify.evidence_summary.join("\n");
 
-    assert_eq!(verify.export_schema_version, 2);
+    assert_eq!(verify.export_schema_version, 3);
     assert!(joined.contains("authority_class:dregg_authority"));
     assert!(joined.contains("root_ref_sha256:abc123"));
     assert!(!format!("{verify:?}").contains("dregg-root:raw"));
     assert!(!format!("{verify:?}").contains("dga1_secret"));
+}
+
+#[test]
+fn immutable_operator_export_fixtures_pin_v1_v2_and_v3_shapes() {
+    let cases = [
+        (
+            include_str!("fixtures/operator_receipt_export/v1.json"),
+            1,
+            false,
+            false,
+        ),
+        (
+            include_str!("fixtures/operator_receipt_export/v2.json"),
+            2,
+            true,
+            false,
+        ),
+        (
+            include_str!("fixtures/operator_receipt_export/v3_outputless.json"),
+            3,
+            true,
+            true,
+        ),
+        (
+            include_str!("fixtures/operator_receipt_export/v3_with_output.json"),
+            3,
+            true,
+            true,
+        ),
+    ];
+    for (json, version, has_evidence, has_projection_key) in cases {
+        server::ledger::validate_operator_receipt_export_json(json).unwrap();
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert_eq!(value["export_schema_version"], version);
+        assert_eq!(value.get("evidence_summary").is_some(), has_evidence);
+        assert_eq!(value.get("output_projection").is_some(), has_projection_key);
+        assert!(!json.contains("SENTINEL_RAW_EXECUTION_OUTPUT"));
+    }
+    let v2: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/operator_receipt_export/v2.json")).unwrap();
+    assert!(v2.get("output_projection").is_none());
+    let v3: serde_json::Value = serde_json::from_str(include_str!(
+        "fixtures/operator_receipt_export/v3_with_output.json"
+    ))
+    .unwrap();
+    let projection = v3["output_projection"].as_object().unwrap();
+    assert_eq!(projection.len(), 3);
+    assert!(projection["digest_sha256_hex"]
+        .as_str()
+        .unwrap()
+        .chars()
+        .all(|value| value.is_ascii_digit() || ('a'..='f').contains(&value)));
+
+    let mut unknown = v3.clone();
+    unknown["export_schema_version"] = 99.into();
+    assert!(server::ledger::validate_operator_receipt_export_json(
+        &serde_json::to_string(&unknown).unwrap()
+    )
+    .is_err());
+    let mut cross_version = v2;
+    cross_version["export_schema_version"] = 3.into();
+    assert!(server::ledger::validate_operator_receipt_export_json(
+        &serde_json::to_string(&cross_version).unwrap()
+    )
+    .is_err());
+}
+
+#[tokio::test]
+async fn both_receipt_insert_paths_emit_v3_projection_and_never_store_raw_output() {
+    let ledger = memory_ledger().await;
+    let output = b"SENTINEL_RAW_EXECUTION_OUTPUT";
+    for (receipt_id, atomic) in [("projection-direct", false), ("projection-atomic", true)] {
+        let receipt = Receipt::execution_with_output(
+            receipt_id,
+            &verified_context([1; 16], [receipt_id.len() as u8; 12], 0x50),
+            Decision::Accepted,
+            None,
+            1_800_000_000,
+            Some("fixture.response.v1"),
+            Some(output),
+        )
+        .unwrap();
+        if atomic {
+            ledger
+                .record_receipt_with_emitted_event(
+                    &receipt,
+                    ReceiptEventKind::ReceiptEmitted,
+                    Some(receipt.packet_hash),
+                    Some(receipt.opcode),
+                    receipt.operation.as_deref(),
+                    receipt.handler_id.as_deref(),
+                    Some(receipt.kind.as_str()),
+                    receipt.timestamp,
+                )
+                .await
+                .unwrap();
+        } else {
+            ledger.record_receipt(&receipt).await.unwrap();
+        }
+        let inspection = ledger
+            .inspect_receipt_by_id(receipt_id)
+            .await
+            .unwrap()
+            .unwrap();
+        let inspection_json = serde_json::to_string(&inspection).unwrap();
+        server::ledger::validate_operator_receipt_export_json(&inspection_json).unwrap();
+        assert!(!inspection_json.contains("SENTINEL_RAW_EXECUTION_OUTPUT"));
+        assert_eq!(inspection.export_schema_version, 3);
+        let projection = inspection.output_projection.unwrap();
+        assert_eq!(projection.schema_id, "fixture.response.v1");
+        assert_eq!(projection.byte_count, output.len() as u64);
+        assert_eq!(projection.digest_sha256_hex.len(), 64);
+    }
+    let text: Vec<(Option<String>, Option<String>)> =
+        sqlx::query_as("SELECT output_schema_id, evidence_summary FROM receipts")
+            .fetch_all(ledger.pool())
+            .await
+            .unwrap();
+    assert!(!format!("{text:?}").contains("SENTINEL_RAW_EXECUTION_OUTPUT"));
+}
+
+#[tokio::test]
+async fn operator_projection_decode_rejects_partial_negative_short_and_wrong_state_rows() {
+    let ledger = memory_ledger().await;
+    let receipt = Receipt::execution_with_output(
+        "projection-invalid",
+        &verified_context([1; 16], [9; 12], 0x50),
+        Decision::Accepted,
+        None,
+        1_800_000_001,
+        Some("fixture.response.v1"),
+        Some(b"ok"),
+    )
+    .unwrap();
+    ledger.record_receipt(&receipt).await.unwrap();
+    for update in [
+        "UPDATE receipts SET output_schema_id = NULL WHERE receipt_id = 'projection-invalid'",
+        "UPDATE receipts SET output_schema_id = 'fixture.response.v1', output_byte_count = -1 WHERE receipt_id = 'projection-invalid'",
+        "UPDATE receipts SET output_byte_count = 2, output_digest_sha256 = X'01' WHERE receipt_id = 'projection-invalid'",
+        "UPDATE receipts SET output_digest_sha256 = zeroblob(32), kind = 'verify' WHERE receipt_id = 'projection-invalid'",
+    ] {
+        sqlx::query(update).execute(ledger.pool()).await.unwrap();
+        assert!(ledger.inspect_receipt_by_id("projection-invalid").await.is_err());
+    }
 }

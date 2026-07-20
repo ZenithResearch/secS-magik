@@ -4,13 +4,15 @@
 //! receipts. They are intentionally distinct from the local/operator SQLite
 //! ledger and from any future external anchoring or publication rail.
 
-use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptKind};
+use crate::receipt::{AuthenticatorKind, Decision, Receipt, ReceiptKind, ReceiptOutputProjection};
 use ed25519_dalek::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const PUBLIC_AUDIT_BUNDLE_VERSION: &str = "secs-public-audit-bundle-v1";
-pub const PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION: &str = "secs-public-audit-chain-v1";
+pub const PUBLIC_AUDIT_BUNDLE_VERSION_V1: &str = "secs-public-audit-bundle-v1";
+pub const PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION_V1: &str = "secs-public-audit-chain-v1";
+pub const PUBLIC_AUDIT_BUNDLE_VERSION: &str = "secs-public-audit-bundle-v2";
+pub const PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION: &str = "secs-public-audit-chain-v2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -70,7 +72,16 @@ pub struct PublicAuditReceiptEntry {
     pub signer_key_id: String,
     pub signature_hex: String,
     pub evidence_summary: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_projection: Option<PublicAuditOutputProjection>,
     pub entry_hash_hex: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicAuditOutputProjection {
+    pub schema_id: String,
+    pub byte_count: u64,
+    pub digest_sha256_hex: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -367,15 +378,38 @@ pub fn hex_lower(bytes: &[u8]) -> String {
 }
 
 pub fn public_audit_entry_hash(entry: &PublicAuditReceiptEntry) -> String {
+    public_audit_entry_hash_for(entry, PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION)
+}
+
+fn public_audit_entry_hash_for(entry: &PublicAuditReceiptEntry, chain_version: &str) -> String {
     let mut entry = entry.clone();
     entry.entry_hash_hex.clear();
-    let bytes = serde_json::to_vec(&entry).unwrap_or_default();
+    let mut bytes = Vec::new();
+    if chain_version == PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION {
+        bytes.extend_from_slice(b"secs-public-audit-entry-v2/hash");
+    }
+    bytes.extend_from_slice(&serde_json::to_vec(&entry).unwrap_or_default());
     sha256_hex(&bytes)
 }
 
 pub fn public_audit_root_hash(entries: &[PublicAuditReceiptEntry]) -> String {
+    public_audit_root_hash_for(
+        entries,
+        PUBLIC_AUDIT_BUNDLE_VERSION,
+        PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION,
+    )
+}
+
+fn public_audit_root_hash_for(
+    entries: &[PublicAuditReceiptEntry],
+    bundle_version: &str,
+    chain_version: &str,
+) -> String {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(PUBLIC_AUDIT_BUNDLE_VERSION.as_bytes());
+    bytes.extend_from_slice(bundle_version.as_bytes());
+    if chain_version == PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION {
+        bytes.extend_from_slice(chain_version.as_bytes());
+    }
     for entry in entries {
         bytes.extend_from_slice(entry.entry_hash_hex.as_bytes());
     }
@@ -400,7 +434,11 @@ pub enum PublicAuditVerificationError {
 
 impl PublicAuditBundle {
     pub fn verify_local_public_audit(&self) -> Result<(), PublicAuditVerificationError> {
-        if self.version != Self::VERSION {
+        let supported_v1 = self.version == PUBLIC_AUDIT_BUNDLE_VERSION_V1
+            && self.chain.algorithm_version == PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION_V1;
+        let supported_v2 = self.version == PUBLIC_AUDIT_BUNDLE_VERSION
+            && self.chain.algorithm_version == PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION;
+        if !supported_v1 && !supported_v2 {
             return Err(PublicAuditVerificationError::UnsupportedBundleVersion);
         }
         if self.status != PublicAuditBundleStatus::Complete || !self.chain.complete {
@@ -418,6 +456,9 @@ impl PublicAuditBundle {
             .last()
             .ok_or(PublicAuditVerificationError::IncompleteBundle)?;
         for (index, entry) in self.receipts.iter().enumerate() {
+            if supported_v1 && entry.output_projection.is_some() {
+                return Err(PublicAuditVerificationError::UnsupportedBundleVersion);
+            }
             if entry.chain_index != index {
                 return Err(PublicAuditVerificationError::ReceiptChainLinkMismatch);
             }
@@ -429,7 +470,9 @@ impl PublicAuditBundle {
             if entry.previous_entry_hash_hex.as_deref() != expected_previous {
                 return Err(PublicAuditVerificationError::ReceiptChainLinkMismatch);
             }
-            if entry.entry_hash_hex != public_audit_entry_hash(entry) {
+            if entry.entry_hash_hex
+                != public_audit_entry_hash_for(entry, &self.chain.algorithm_version)
+            {
                 return Err(PublicAuditVerificationError::ReceiptEntryHashMismatch);
             }
             let json = serde_json::to_string(entry).unwrap_or_default();
@@ -452,7 +495,13 @@ impl PublicAuditBundle {
         {
             return Err(PublicAuditVerificationError::ChainEndpointMismatch);
         }
-        if self.chain.root_hash_hex != public_audit_root_hash(&self.receipts) {
+        if self.chain.root_hash_hex
+            != public_audit_root_hash_for(
+                &self.receipts,
+                &self.version,
+                &self.chain.algorithm_version,
+            )
+        {
             return Err(PublicAuditVerificationError::ChainRootMismatch);
         }
         Ok(())
@@ -478,6 +527,17 @@ impl PublicAuditReceiptEntry {
             authenticator_kind: parse_authenticator_kind(&self.authenticator_kind)?,
             signer_key_id: self.signer_key_id.clone(),
             evidence_summary: self.evidence_summary.clone(),
+            output_projection: self
+                .output_projection
+                .as_ref()
+                .map(|projection| {
+                    Ok(ReceiptOutputProjection {
+                        schema_id: projection.schema_id.clone(),
+                        byte_count: projection.byte_count,
+                        digest_sha256: fixed_hex::<32>(&projection.digest_sha256_hex)?,
+                    })
+                })
+                .transpose()?,
             signature: decode_hex(&self.signature_hex)?,
         })
     }
