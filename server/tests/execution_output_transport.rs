@@ -107,6 +107,72 @@ async fn bounded_ingress_carries_digest_of_exact_raw_bytes() {
 }
 
 #[tokio::test]
+async fn output_profile_locks_signed_response_mode_before_proof_verification() {
+    use libsec_core::ZenithPacket;
+    use sha2::{Digest, Sha256};
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+
+    let identity = server::identity::explicit_test_fixture_identity("receiver-key-1", [7; 32]);
+    let public_key = *identity.public_key();
+    let mut router = ConfigurableRouter::with_identity(memory_pool().await, identity);
+    router.set_manifest(ReceiverManifest::new([descriptor(Some(OutputProfile {
+        schema_id: "fixture.response.v1".into(),
+        max_output_bytes: 8,
+        max_execution_response_bytes: 512,
+    }))]));
+    let packet = ZenithPacket {
+        session_id: [1; 16],
+        nonce: [9; 12],
+        opcode: 0x52,
+        proof: Vec::new(),
+        claim_ttl: 30,
+        encrypted_payload: b"request".to_vec(),
+        mac: [0; 16],
+    };
+    let request = bincode::serialize(&packet).unwrap();
+    let request_digest = <[u8; 32]>::from(Sha256::digest(&request));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let max_wire_bytes = request.len() + 1;
+    let server = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        server::ingress::handle_gateway_connection_with_limits(
+            Arc::new(router),
+            socket,
+            max_wire_bytes,
+            Duration::from_secs(2),
+            server::runtime_mode::RuntimeMode::LocalDevPlaintext,
+        )
+        .await;
+    });
+
+    let mut client = TcpStream::connect(addr).await.unwrap();
+    client.write_all(&request).await.unwrap();
+    client.shutdown().await.unwrap();
+    let mut frame = Vec::new();
+    client.read_to_end(&mut frame).await.unwrap();
+    server.await.unwrap();
+
+    let response = ExecutionResponse::decode_and_verify(
+        &frame,
+        512,
+        8,
+        "receiver-key-1",
+        &public_key,
+        request_digest,
+        None,
+    )
+    .unwrap();
+    assert_eq!(response.status, ExecutionStatus::VerifierRejected);
+    assert_eq!(
+        response.reason_code.as_deref(),
+        Some("missing_prototype_proof_envelope")
+    );
+}
+
+#[tokio::test]
 async fn public_execution_route_signs_all_three_execution_states() {
     use libsec_core::ZenithPacket;
     let identity =
