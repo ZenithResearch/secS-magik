@@ -259,8 +259,10 @@ impl ExecutionResponse {
                 &signature,
             )
             .map_err(|_| ExecutionResponseError::ResponseAuthenticationFailed)?;
+        let executed_schema_mismatch = response.status == ExecutionStatus::Executed
+            && response.output_schema.as_deref() != expected_output_schema;
         if response.request_digest != expected_request_digest
-            || response.output_schema.as_deref() != expected_output_schema
+            || executed_schema_mismatch
             || response
                 .output
                 .as_ref()
@@ -788,6 +790,98 @@ mod tests {
                 &key.verifying_key(),
                 DIGEST,
                 Some("agent.chat.response.v1")
+            ),
+            Err(ExecutionResponseError::ResponseAuthenticationFailed)
+        );
+    }
+
+    #[test]
+    fn execution_response_schema_expectation_is_state_aware_after_authentication() {
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        let verifier_rejected = signed(ExecutionResponse {
+            schema_version: EXECUTION_RESPONSE_SCHEMA_VERSION,
+            status: ExecutionStatus::VerifierRejected,
+            reason_code: Some("wrong_audience".into()),
+            request_digest: DIGEST,
+            context_id: None,
+            receipt_id: None,
+            output_schema: None,
+            output: None,
+            authenticator_kind: ExecutionAuthenticatorKind::Ed25519Receiver,
+            signer_key_id: "receiver-key-1".into(),
+            signature: [0; 64],
+        });
+        let execution_rejected = signed(ExecutionResponse {
+            status: ExecutionStatus::ExecutionRejected,
+            reason_code: Some("handler_timeout".into()),
+            context_id: Some("ctx-1".into()),
+            receipt_id: Some("receipt-1".into()),
+            ..verifier_rejected.clone()
+        });
+
+        for response in [verifier_rejected, execution_rejected] {
+            let frame = response.encode_frame(MAX_EXECUTION_RESPONSE_BYTES).unwrap();
+            let verified = ExecutionResponse::decode_and_verify(
+                &frame,
+                MAX_EXECUTION_RESPONSE_BYTES,
+                1024,
+                "receiver-key-1",
+                &key.verifying_key(),
+                DIGEST,
+                Some("agent.chat.response.v1"),
+            )
+            .unwrap();
+            assert_eq!(verified.status, response.status);
+            assert!(verified.output_schema.is_none());
+            assert!(verified.output.is_none());
+            for rejected in [
+                ExecutionResponse::decode_and_verify(
+                    &frame,
+                    MAX_EXECUTION_RESPONSE_BYTES,
+                    1024,
+                    "wrong-signer",
+                    &key.verifying_key(),
+                    DIGEST,
+                    Some("agent.chat.response.v1"),
+                ),
+                ExecutionResponse::decode_and_verify(
+                    &frame,
+                    MAX_EXECUTION_RESPONSE_BYTES,
+                    1024,
+                    "receiver-key-1",
+                    &key.verifying_key(),
+                    [9; 32],
+                    Some("agent.chat.response.v1"),
+                ),
+            ] {
+                assert_eq!(
+                    rejected,
+                    Err(ExecutionResponseError::ResponseAuthenticationFailed)
+                );
+            }
+        }
+
+        let executed = executed(b"ok".to_vec());
+        let frame = executed.encode_frame(MAX_EXECUTION_RESPONSE_BYTES).unwrap();
+        assert!(ExecutionResponse::decode_and_verify(
+            &frame,
+            MAX_EXECUTION_RESPONSE_BYTES,
+            1024,
+            "receiver-key-1",
+            &key.verifying_key(),
+            DIGEST,
+            Some("agent.chat.response.v1"),
+        )
+        .is_ok());
+        assert_eq!(
+            ExecutionResponse::decode_and_verify(
+                &frame,
+                MAX_EXECUTION_RESPONSE_BYTES,
+                1024,
+                "receiver-key-1",
+                &key.verifying_key(),
+                DIGEST,
+                Some("wrong.schema"),
             ),
             Err(ExecutionResponseError::ResponseAuthenticationFailed)
         );

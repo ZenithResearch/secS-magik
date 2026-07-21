@@ -845,6 +845,128 @@ fn operator_export_rejects_receipt_schema_and_projection_state_downgrades() {
 }
 
 #[tokio::test]
+async fn historical_operator_rows_serialize_to_exact_versioned_shapes() {
+    use std::collections::BTreeSet;
+
+    let ledger = memory_ledger().await;
+    let context = verified_context([6; 16], [7; 12], 0x50);
+    for (receipt_id, schema_version, evidence_summary) in [
+        ("historical-operator-v1", 1_u16, "[]"),
+        ("historical-operator-v2", 2, "[\"evidence_kind:fixture\"]"),
+    ] {
+        let receipt = Receipt::execution(
+            receipt_id,
+            &context,
+            Decision::Accepted,
+            None,
+            1_800_000_100 + u64::from(schema_version),
+        );
+        ledger.record_receipt(&receipt).await.unwrap();
+        sqlx::query(
+            "UPDATE receipts SET schema_version = ?, evidence_summary = ? WHERE receipt_id = ?",
+        )
+        .bind(schema_version)
+        .bind(evidence_summary)
+        .bind(receipt_id)
+        .execute(ledger.pool())
+        .await
+        .unwrap();
+    }
+
+    let v1 = ledger
+        .inspect_receipt_by_id("historical-operator-v1")
+        .await
+        .unwrap()
+        .unwrap();
+    let v1_json = serde_json::to_string(&v1).unwrap();
+    server::ledger::validate_operator_receipt_export_json(&v1_json).unwrap();
+    let v1_value: serde_json::Value = serde_json::from_str(&v1_json).unwrap();
+    let v1_fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/operator_receipt_export/v1.json")).unwrap();
+    assert_eq!(
+        v1_value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>(),
+        v1_fixture
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>()
+    );
+
+    let chain = ledger
+        .inspect_receipt_chain_by_context_id(&context.context_id)
+        .await
+        .unwrap();
+    let v2 = chain
+        .iter()
+        .find(|row| row.receipt_id == "historical-operator-v2")
+        .unwrap();
+    let v2_json = serde_json::to_string(v2).unwrap();
+    server::ledger::validate_operator_receipt_export_json(&v2_json).unwrap();
+    let v2_value: serde_json::Value = serde_json::from_str(&v2_json).unwrap();
+    let v2_fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/operator_receipt_export/v2.json")).unwrap();
+    assert_eq!(
+        v2_value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>(),
+        v2_fixture
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>()
+    );
+
+    sqlx::query(
+        "UPDATE receipts SET evidence_summary = '[\"impossible\"]' WHERE receipt_id = 'historical-operator-v1'",
+    )
+    .execute(ledger.pool())
+    .await
+    .unwrap();
+    let impossible_v1 = ledger
+        .inspect_receipt_by_id("historical-operator-v1")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(serde_json::to_string(&impossible_v1).is_err());
+
+    sqlx::query(
+        "UPDATE receipts SET schema_version = 99, evidence_summary = '[]' WHERE receipt_id = 'historical-operator-v1'",
+    )
+    .execute(ledger.pool())
+    .await
+    .unwrap();
+    let unknown = ledger
+        .inspect_receipt_by_id("historical-operator-v1")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(serde_json::to_string(&unknown).is_err());
+
+    sqlx::query(
+        "UPDATE receipts SET output_schema_id = 'fixture.response.v1', output_byte_count = 2, output_digest_sha256 = zeroblob(32) WHERE receipt_id = 'historical-operator-v2'",
+    )
+    .execute(ledger.pool())
+    .await
+    .unwrap();
+    let impossible_v2 = ledger
+        .inspect_receipt_by_id("historical-operator-v2")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(serde_json::to_string(&impossible_v2).is_err());
+}
+
+#[tokio::test]
 async fn both_receipt_insert_paths_emit_v3_projection_and_never_store_raw_output() {
     let ledger = memory_ledger().await;
     let output = b"SENTINEL_RAW_EXECUTION_OUTPUT";

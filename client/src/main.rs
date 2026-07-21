@@ -769,6 +769,79 @@ mod tests {
     }
 
     #[test]
+    fn execution_expectation_accepts_authenticated_schema_less_rejections() {
+        use ed25519_dalek::Signer;
+        use libsec_core::execution_response::{
+            ExecutionAuthenticatorKind, EXECUTION_RESPONSE_SCHEMA_VERSION,
+        };
+        let receiver = SigningKey::from_bytes(&[9; 32]);
+        let expectation = ResponseExpectation::Execution {
+            schema: "fixture.response.v1".into(),
+            signer_key_id: "receiver-1".into(),
+            verifying_key: Box::new(receiver.verifying_key()),
+            max_frame_bytes: 512,
+            max_output_bytes: 16,
+        };
+        let rejection_base = ExecutionResponse {
+            schema_version: EXECUTION_RESPONSE_SCHEMA_VERSION,
+            status: ExecutionStatus::VerifierRejected,
+            reason_code: Some("wrong_audience".into()),
+            request_digest: [1; 32],
+            context_id: None,
+            receipt_id: None,
+            output_schema: None,
+            output: None,
+            authenticator_kind: ExecutionAuthenticatorKind::Ed25519Receiver,
+            signer_key_id: "receiver-1".into(),
+            signature: [0; 64],
+        };
+
+        for mut response in [
+            rejection_base.clone(),
+            ExecutionResponse {
+                status: ExecutionStatus::ExecutionRejected,
+                reason_code: Some("handler_timeout".into()),
+                context_id: Some("ctx".into()),
+                receipt_id: Some("receipt".into()),
+                ..rejection_base.clone()
+            },
+        ] {
+            response.signature = receiver
+                .sign(&response.signature_preimage().unwrap())
+                .to_bytes();
+            let frame = response.encode_frame(512).unwrap();
+            let decoded = decode_expected_gateway_response(&frame, &expectation, [1; 32])
+                .expect("authenticated rejection must satisfy the trusted execution expectation");
+            assert!(
+                matches!(decoded, GatewayResponse::Execution(Ok(value)) if value.status == response.status)
+            );
+        }
+
+        let mut executed = ExecutionResponse {
+            status: ExecutionStatus::Executed,
+            reason_code: None,
+            context_id: Some("ctx".into()),
+            receipt_id: Some("receipt".into()),
+            output_schema: Some("fixture.response.v1".into()),
+            output: Some(b"ok".to_vec()),
+            ..rejection_base
+        };
+        executed.signature = receiver
+            .sign(&executed.signature_preimage().unwrap())
+            .to_bytes();
+        let frame = executed.encode_frame(512).unwrap();
+        assert!(decode_expected_gateway_response(&frame, &expectation, [1; 32]).is_ok());
+        let wrong_schema = ResponseExpectation::Execution {
+            schema: "wrong.schema".into(),
+            signer_key_id: "receiver-1".into(),
+            verifying_key: Box::new(receiver.verifying_key()),
+            max_frame_bytes: 512,
+            max_output_bytes: 16,
+        };
+        assert!(decode_expected_gateway_response(&frame, &wrong_schema, [1; 32]).is_err());
+    }
+
+    #[test]
     fn build_packet_sets_canonical_envelope_fields_without_fixture_identifiers() {
         let identity = fixed_identity();
         let packet = build_packet(&identity, 0x10, b"Hello World".to_vec());

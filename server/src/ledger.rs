@@ -22,7 +22,7 @@ pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 3;
 pub const LEDGER_REDACTION_POLICY: &str =
     "local_redacted_no_payload_or_private_evidence_by_default";
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperatorReceiptInspection {
     pub export_schema_version: u16,
     pub schema_version: u16,
@@ -59,6 +59,209 @@ pub struct OperatorReceiptOutputProjection {
 
 impl OperatorReceiptInspection {
     pub const EXPORT_SCHEMA_VERSION: u16 = OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION;
+}
+
+#[derive(serde::Serialize)]
+struct OperatorReceiptWireV1<'a> {
+    export_schema_version: u16,
+    schema_version: u16,
+    redaction_policy: &'static str,
+    retention_policy: &'static str,
+    receipt_id: &'a str,
+    context_id: Option<&'a str>,
+    timestamp: u64,
+    kind: &'a str,
+    decision: &'a str,
+    reason: Option<&'a str>,
+    operation: Option<&'a str>,
+    handler_id: Option<&'a str>,
+    opcode: u8,
+    packet_hash_hex: &'a str,
+    session_id_hex: &'a str,
+    nonce_hex: &'a str,
+    authenticator_kind: &'a str,
+    signer_key_id: &'a str,
+    signature_present: bool,
+    signature_len: usize,
+    signature_sha256_hex: Option<&'a str>,
+}
+
+#[derive(serde::Serialize)]
+struct OperatorReceiptWireV2<'a> {
+    export_schema_version: u16,
+    schema_version: u16,
+    redaction_policy: &'static str,
+    retention_policy: &'static str,
+    receipt_id: &'a str,
+    context_id: Option<&'a str>,
+    timestamp: u64,
+    kind: &'a str,
+    decision: &'a str,
+    reason: Option<&'a str>,
+    operation: Option<&'a str>,
+    handler_id: Option<&'a str>,
+    opcode: u8,
+    packet_hash_hex: &'a str,
+    session_id_hex: &'a str,
+    nonce_hex: &'a str,
+    authenticator_kind: &'a str,
+    signer_key_id: &'a str,
+    signature_present: bool,
+    signature_len: usize,
+    signature_sha256_hex: Option<&'a str>,
+    evidence_summary: &'a [String],
+}
+
+#[derive(serde::Serialize)]
+struct OperatorReceiptWireV3<'a> {
+    export_schema_version: u16,
+    schema_version: u16,
+    redaction_policy: &'static str,
+    retention_policy: &'static str,
+    receipt_id: &'a str,
+    context_id: Option<&'a str>,
+    timestamp: u64,
+    kind: &'a str,
+    decision: &'a str,
+    reason: Option<&'a str>,
+    operation: Option<&'a str>,
+    handler_id: Option<&'a str>,
+    opcode: u8,
+    packet_hash_hex: &'a str,
+    session_id_hex: &'a str,
+    nonce_hex: &'a str,
+    authenticator_kind: &'a str,
+    signer_key_id: &'a str,
+    signature_present: bool,
+    signature_len: usize,
+    signature_sha256_hex: Option<&'a str>,
+    evidence_summary: &'a [String],
+    output_projection: Option<&'a OperatorReceiptOutputProjection>,
+}
+
+impl OperatorReceiptInspection {
+    fn wire_v1(&self) -> OperatorReceiptWireV1<'_> {
+        OperatorReceiptWireV1 {
+            export_schema_version: self.schema_version,
+            schema_version: self.schema_version,
+            redaction_policy: self.redaction_policy,
+            retention_policy: self.retention_policy,
+            receipt_id: &self.receipt_id,
+            context_id: self.context_id.as_deref(),
+            timestamp: self.timestamp,
+            kind: &self.kind,
+            decision: &self.decision,
+            reason: self.reason.as_deref(),
+            operation: self.operation.as_deref(),
+            handler_id: self.handler_id.as_deref(),
+            opcode: self.opcode,
+            packet_hash_hex: &self.packet_hash_hex,
+            session_id_hex: &self.session_id_hex,
+            nonce_hex: &self.nonce_hex,
+            authenticator_kind: &self.authenticator_kind,
+            signer_key_id: &self.signer_key_id,
+            signature_present: self.signature_present,
+            signature_len: self.signature_len,
+            signature_sha256_hex: self.signature_sha256_hex.as_deref(),
+        }
+    }
+
+    fn wire_v2(&self) -> OperatorReceiptWireV2<'_> {
+        let v1 = self.wire_v1();
+        OperatorReceiptWireV2 {
+            export_schema_version: v1.export_schema_version,
+            schema_version: v1.schema_version,
+            redaction_policy: v1.redaction_policy,
+            retention_policy: v1.retention_policy,
+            receipt_id: v1.receipt_id,
+            context_id: v1.context_id,
+            timestamp: v1.timestamp,
+            kind: v1.kind,
+            decision: v1.decision,
+            reason: v1.reason,
+            operation: v1.operation,
+            handler_id: v1.handler_id,
+            opcode: v1.opcode,
+            packet_hash_hex: v1.packet_hash_hex,
+            session_id_hex: v1.session_id_hex,
+            nonce_hex: v1.nonce_hex,
+            authenticator_kind: v1.authenticator_kind,
+            signer_key_id: v1.signer_key_id,
+            signature_present: v1.signature_present,
+            signature_len: v1.signature_len,
+            signature_sha256_hex: v1.signature_sha256_hex,
+            evidence_summary: &self.evidence_summary,
+        }
+    }
+
+    fn wire_v3(&self) -> OperatorReceiptWireV3<'_> {
+        let v2 = self.wire_v2();
+        OperatorReceiptWireV3 {
+            export_schema_version: v2.export_schema_version,
+            schema_version: v2.schema_version,
+            redaction_policy: v2.redaction_policy,
+            retention_policy: v2.retention_policy,
+            receipt_id: v2.receipt_id,
+            context_id: v2.context_id,
+            timestamp: v2.timestamp,
+            kind: v2.kind,
+            decision: v2.decision,
+            reason: v2.reason,
+            operation: v2.operation,
+            handler_id: v2.handler_id,
+            opcode: v2.opcode,
+            packet_hash_hex: v2.packet_hash_hex,
+            session_id_hex: v2.session_id_hex,
+            nonce_hex: v2.nonce_hex,
+            authenticator_kind: v2.authenticator_kind,
+            signer_key_id: v2.signer_key_id,
+            signature_present: v2.signature_present,
+            signature_len: v2.signature_len,
+            signature_sha256_hex: v2.signature_sha256_hex,
+            evidence_summary: v2.evidence_summary,
+            output_projection: self.output_projection.as_ref(),
+        }
+    }
+}
+
+impl serde::Serialize for OperatorReceiptInspection {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::Error;
+
+        if self.export_schema_version != self.schema_version {
+            return Err(S::Error::custom(
+                "operator export version does not match persisted receipt schema",
+            ));
+        }
+        match self.schema_version {
+            1 if self.evidence_summary.is_empty() && self.output_projection.is_none() => {
+                serde::Serialize::serialize(&self.wire_v1(), serializer)
+            }
+            1 => Err(S::Error::custom(
+                "operator v1 cannot disclose evidence or output projection",
+            )),
+            2 if self.output_projection.is_none() => {
+                serde::Serialize::serialize(&self.wire_v2(), serializer)
+            }
+            2 => Err(S::Error::custom(
+                "operator v2 cannot disclose output projection",
+            )),
+            3 if self.output_projection.is_none()
+                || (self.kind == "execute" && self.decision == "accepted") =>
+            {
+                serde::Serialize::serialize(&self.wire_v3(), serializer)
+            }
+            3 => Err(S::Error::custom(
+                "operator v3 projection requires an accepted execute receipt",
+            )),
+            _ => Err(S::Error::custom(
+                "unsupported persisted receipt schema for operator export",
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1033,7 +1236,7 @@ fn operator_inspection_from_row(
     require_blob_len("nonce", &nonce, 12)?;
 
     Ok(OperatorReceiptInspection {
-        export_schema_version: OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION,
+        export_schema_version: schema_version,
         schema_version,
         redaction_policy: LEDGER_REDACTION_POLICY,
         retention_policy: "local_sqlite_operator_retained_until_database_rotation_or_deletion",
