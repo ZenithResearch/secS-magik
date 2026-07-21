@@ -35,12 +35,14 @@ pub enum PublicAuditBundleStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicAuditSignerKey {
     pub signer_key_id: String,
     pub public_key_hex: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicAuditChainMetadata {
     pub algorithm_version: String,
     pub chain_scope: String,
@@ -52,6 +54,7 @@ pub struct PublicAuditChainMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicAuditReceiptEntry {
     pub chain_index: usize,
     pub previous_entry_hash_hex: Option<String>,
@@ -78,6 +81,7 @@ pub struct PublicAuditReceiptEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicAuditOutputProjection {
     pub schema_id: String,
     pub byte_count: u64,
@@ -85,6 +89,7 @@ pub struct PublicAuditOutputProjection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicAuditBundle {
     pub version: String,
     pub redaction_policy: PublicAuditRedactionPolicy,
@@ -207,6 +212,7 @@ pub const GITHUB_GIST_ANCHOR_SCHEMA_VERSION: &str = "secs-public-audit-github-gi
 pub const GITHUB_GIST_TARGET_KIND: &str = "github-gist";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ExternalAuditAnchorRecord {
     pub anchor_schema_version: String,
     pub target_kind: String,
@@ -456,8 +462,16 @@ impl PublicAuditBundle {
             .last()
             .ok_or(PublicAuditVerificationError::IncompleteBundle)?;
         for (index, entry) in self.receipts.iter().enumerate() {
-            if supported_v1 && entry.output_projection.is_some() {
-                return Err(PublicAuditVerificationError::UnsupportedBundleVersion);
+            if supported_v1 {
+                if !matches!(entry.schema_version, 1 | 2) || entry.output_projection.is_some() {
+                    return Err(PublicAuditVerificationError::UnsupportedBundleVersion);
+                }
+            } else if !matches!(entry.schema_version, 1..=3)
+                || (entry.schema_version < 3 && entry.output_projection.is_some())
+                || (entry.output_projection.is_some()
+                    && (entry.kind != "execute" || entry.decision != "accepted"))
+            {
+                return Err(PublicAuditVerificationError::InvalidReceiptField);
             }
             if entry.chain_index != index {
                 return Err(PublicAuditVerificationError::ReceiptChainLinkMismatch);

@@ -559,3 +559,85 @@ fn immutable_public_audit_v1_and_v2_fixtures_are_version_aware_and_redacted() {
     unknown.version = "secs-public-audit-bundle-v99".into();
     assert!(unknown.verify_local_public_audit().is_err());
 }
+
+#[test]
+fn external_public_audit_dtos_reject_unknown_and_raw_output_fields() {
+    let bundle_json = include_str!("fixtures/public_audit/bundle_v2_chain_v2_with_output.json");
+    let anchor_json = include_str!("fixtures/public_audit/anchor_v1.json");
+    for path in [
+        vec!["unexpected"],
+        vec!["chain", "unexpected"],
+        vec!["signer_keys", "0", "unexpected"],
+        vec!["receipts", "0", "raw_output"],
+        vec!["receipts", "0", "output_projection", "unexpected"],
+    ] {
+        let mut value: serde_json::Value = serde_json::from_str(bundle_json).unwrap();
+        let mut cursor = &mut value;
+        for segment in &path[..path.len() - 1] {
+            cursor = if let Ok(index) = segment.parse::<usize>() {
+                &mut cursor.as_array_mut().unwrap()[index]
+            } else {
+                &mut cursor.as_object_mut().unwrap()[*segment]
+            };
+        }
+        cursor.as_object_mut().unwrap().insert(
+            path.last().unwrap().to_string(),
+            serde_json::json!("SENTINEL_RAW_EXECUTION_OUTPUT"),
+        );
+        assert!(serde_json::from_value::<PublicAuditBundle>(value).is_err());
+    }
+
+    let mut anchor: serde_json::Value = serde_json::from_str(anchor_json).unwrap();
+    anchor
+        .as_object_mut()
+        .unwrap()
+        .insert("unexpected".into(), true.into());
+    assert!(
+        serde_json::from_value::<server::public_audit::ExternalAuditAnchorRecord>(anchor).is_err()
+    );
+}
+
+#[tokio::test]
+async fn rehashed_schema_v3_outputless_receipt_cannot_be_relabelled_as_v1() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-audit-v3-downgrade");
+    ledger
+        .record_receipt(&signed_receipt(
+            "r-public-v3-outputless",
+            &context,
+            1_770_000_020,
+        ))
+        .await
+        .unwrap();
+    let mut bundle = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-audit-v3-downgrade",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+    assert_eq!(bundle.receipts[0].schema_version, 3);
+    assert!(bundle.receipts[0].output_projection.is_none());
+
+    bundle.version = "secs-public-audit-bundle-v1".into();
+    bundle.chain.algorithm_version = "secs-public-audit-chain-v1".into();
+    let mut previous = None;
+    for entry in &mut bundle.receipts {
+        entry.previous_entry_hash_hex = previous;
+        entry.entry_hash_hex.clear();
+        entry.entry_hash_hex =
+            server::public_audit::sha256_hex(&serde_json::to_vec(entry).unwrap());
+        previous = Some(entry.entry_hash_hex.clone());
+    }
+    let mut root_preimage = bundle.version.as_bytes().to_vec();
+    for entry in &bundle.receipts {
+        root_preimage.extend_from_slice(entry.entry_hash_hex.as_bytes());
+    }
+    bundle.chain.root_hash_hex = server::public_audit::sha256_hex(&root_preimage);
+
+    assert!(bundle.verify_local_public_audit().is_err());
+}

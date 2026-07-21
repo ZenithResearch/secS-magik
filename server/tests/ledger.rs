@@ -808,6 +808,42 @@ fn immutable_operator_export_fixtures_pin_v1_v2_and_v3_shapes() {
     .is_err());
 }
 
+#[test]
+fn operator_export_rejects_receipt_schema_and_projection_state_downgrades() {
+    let fixtures = [
+        include_str!("fixtures/operator_receipt_export/v1.json"),
+        include_str!("fixtures/operator_receipt_export/v2.json"),
+        include_str!("fixtures/operator_receipt_export/v3_outputless.json"),
+        include_str!("fixtures/operator_receipt_export/v3_with_output.json"),
+    ];
+    for (index, json) in fixtures.iter().enumerate() {
+        let mut value: serde_json::Value = serde_json::from_str(json).unwrap();
+        value["schema_version"] = ((index + 1) % 3 + 1).into();
+        assert!(server::ledger::validate_operator_receipt_export_json(
+            &serde_json::to_string(&value).unwrap()
+        )
+        .is_err());
+    }
+
+    let source: serde_json::Value = serde_json::from_str(include_str!(
+        "fixtures/operator_receipt_export/v3_with_output.json"
+    ))
+    .unwrap();
+    for (kind, decision) in [
+        ("reject", "accepted"),
+        ("execute", "rejected"),
+        ("verify", "accepted"),
+    ] {
+        let mut invalid = source.clone();
+        invalid["kind"] = kind.into();
+        invalid["decision"] = decision.into();
+        assert!(server::ledger::validate_operator_receipt_export_json(
+            &serde_json::to_string(&invalid).unwrap()
+        )
+        .is_err());
+    }
+}
+
 #[tokio::test]
 async fn both_receipt_insert_paths_emit_v3_projection_and_never_store_raw_output() {
     let ledger = memory_ledger().await;

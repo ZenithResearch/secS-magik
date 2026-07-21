@@ -50,6 +50,7 @@ pub struct OperatorReceiptInspection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OperatorReceiptOutputProjection {
     pub schema_id: String,
     pub byte_count: u64,
@@ -114,6 +115,13 @@ pub fn validate_operator_receipt_export_json(json: &str) -> Result<(), OperatorR
         }
         _ => return Err(OperatorReceiptExportError::UnsupportedVersion),
     }
+    let receipt_schema_version = object
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(OperatorReceiptExportError::Malformed)?;
+    if receipt_schema_version != version {
+        return Err(OperatorReceiptExportError::CrossVersionShape);
+    }
     let actual: BTreeSet<&str> = object.keys().map(String::as_str).collect();
     if actual != expected {
         return Err(OperatorReceiptExportError::CrossVersionShape);
@@ -136,6 +144,8 @@ pub fn validate_operator_receipt_export_json(json: &str) -> Result<(), OperatorR
                 || !schema_valid
                 || projection["byte_count"].as_u64().is_none()
                 || !digest_valid
+                || object["kind"].as_str() != Some("execute")
+                || object["decision"].as_str() != Some("accepted")
             {
                 return Err(OperatorReceiptExportError::InvalidProjection);
             }
