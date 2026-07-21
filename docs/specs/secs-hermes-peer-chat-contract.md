@@ -1,7 +1,7 @@
 # secS/Hermes symmetric peer-chat contract
 
 Date: 2026-07-18
-Status: accepted contract gate for issue #261; runtime not implemented
+Status: P3 bounded execution-output transport implemented by #263; broader peer-chat runtime and P4–P7 unimplemented/blocked
 Profile: `agent.chat.v1`
 
 ## Decision
@@ -41,7 +41,7 @@ The P1/P2 contract below locks the full peer-chat target. P3 is now implemented 
 
 **P3 implementation status: implemented by #263** on its issue branch, subject to exact-head CI and merge authorization. The implementation adds a separate receiver-signed `ExecutionResponse`; the `DecisionResponse wire shape and version remain unchanged`. Execution responses bind the SHA-256 digest of the exact raw ingress bytes, expose only one authenticated bounded frame, and verify against one directly supplied pinned key. There is no peer-key resolver or registry.
 
-The three response states remain `verifier_rejected`, `execution_rejected`, and `executed`. The P3 transport adds exactly four execution reason codes: `handler_unavailable`, `handler_timeout`, `output_too_large`, and `internal_transport_failure`. Receipt-persistence failure produces no execution frame rather than a synthetic rejection or success.
+The three response states remain `verifier_rejected`, `execution_rejected`, and `executed`. The exact four new P3 output reasons are `handler_output_missing`, `handler_output_unexpected`, `output_too_large`, and `execution_response_too_large`. Existing reasons such as `handler_unavailable` and `handler_timeout` remain existing handler reasons rather than new P3 output reasons. Receipt-persistence failure produces no execution frame rather than a synthetic rejection or success.
 
 Accepted execution output crosses the persistence boundary only as a signed receipt schema v3 projection containing schema ID, byte count, and domain-separated SHA-256 digest. Raw output bytes are never persisted, logged, debug-rendered, or exported. Verification preserves the exact `pre-c4b6218`, receipt-v1, and receipt-v2 historical encodings, with constrained v1-first fallback. Every new operator projection uses operator export v3, while historical operator v1/v2 shapes remain immutable. New public export uses `bundle-v2/chain-v2`; historical `bundle-v1/chain-v1` and its external anchor remain verifiable only under v1 semantics.
 
@@ -313,4 +313,4 @@ Return to design if implementation requires:
 
 ## Non-claims
 
-This contract does not implement handler output transport, a Hermes adapter, an outbound plugin client, mutual peer chat, streaming, conversation continuity, delegated authority, arbitrary endpoint exposure, discovery, federation, Dregg finality, public auditability, OS containment, deployment, or production readiness.
+This contract does not implement a Hermes adapter, an outbound plugin client, mutual peer chat, streaming, conversation continuity, delegated authority, arbitrary endpoint exposure, discovery, federation, Dregg finality, public auditability, OS containment, deployment, or production readiness.

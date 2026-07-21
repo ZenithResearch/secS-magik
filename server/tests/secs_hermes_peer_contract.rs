@@ -3,6 +3,7 @@ const DAG: &str = include_str!("../../docs/plans/2026-07-18-secs-hermes-peer-cha
 const STATUS: &str = include_str!("../../docs/implementation-status.md");
 const SPECS_INDEX: &str = include_str!("../../docs/specs/README.md");
 const PLANS_INDEX: &str = include_str!("../../docs/plans/README.md");
+const CHANGELOG: &str = include_str!("../../CHANGELOG.md");
 
 fn contains_all(name: &str, text: &str, required: &[&str]) {
     for item in required {
@@ -132,7 +133,9 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
             "handler_unavailable",
             "handler_timeout",
             "output_too_large",
-            "internal_transport_failure",
+            "handler_output_missing",
+            "handler_output_unexpected",
+            "execution_response_too_large",
             "receipt schema v3",
             "pre-c4b6218",
             "operator export v3",
@@ -150,7 +153,7 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
         &[
             "P1/P2 — contract gate | Complete via #261/#262",
             "P3 — bounded execution-output transport | Implemented by #263",
-            "P4 — receiver-local Hermes adapter | Blocked by P3 merge and exact-head CI",
+            "P4 — receiver-local Hermes adapter | Blocked by authorized P3 merge and green post-merge main CI",
         ],
     );
     contains_all(
@@ -178,6 +181,54 @@ fn peer_chat_contract_does_not_promote_forbidden_first_slice_claims() {
         assert!(
             !CONTRACT.contains(forbidden) && !DAG.contains(forbidden),
             "peer-chat docs must not claim: {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
+    contains_all(
+        "peer-chat P3 hardening status",
+        CONTRACT,
+        &[
+            "Status: P3 bounded execution-output transport implemented by #263; broader peer-chat runtime and P4–P7 unimplemented/blocked",
+            "The exact four new P3 output reasons are `handler_output_missing`, `handler_output_unexpected`, `output_too_large`, and `execution_response_too_large`.",
+            "P4 remains unimplemented",
+            "Hermes adapter",
+            "outbound plugin client",
+            "trusted peer resolution",
+            "streaming",
+            "deployment",
+            "production readiness",
+        ],
+    );
+    contains_all(
+        "peer-chat P3 current DAG boundary",
+        DAG,
+        &[
+            "Issue #263 and draft PR #264 implement this node through exactly eight ordered commits",
+            "P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green",
+        ],
+    );
+
+    for stale in [
+        "Status: accepted contract gate for issue #261; runtime not implemented",
+        "This contract does not implement handler output transport",
+        "## P3 — bounded execution-output transport\n\nFuture issue must include these commit boundaries:",
+        "The P3 transport adds exactly four execution reason codes: `handler_unavailable`, `handler_timeout`, `output_too_large`, and `internal_transport_failure`.",
+    ] {
+        assert!(
+            !CONTRACT.contains(stale) && !DAG.contains(stale) && !STATUS.contains(stale),
+            "P3 docs must reject stale claim: {stale}"
+        );
+    }
+
+    for commit in 1..=8 {
+        let marker = format!("- P3/C{commit}:");
+        assert_eq!(
+            CHANGELOG.matches(&marker).count(),
+            1,
+            "CHANGELOG must contain exactly one rationale for C{commit}"
         );
     }
 }
