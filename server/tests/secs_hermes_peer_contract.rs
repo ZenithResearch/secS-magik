@@ -209,6 +209,8 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
             "Issue #263 and draft PR #264 implement this node through exactly eight ordered commits",
             "Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce84cccb9e8c9d9b887bf2`",
             "Commit 9 is the single additive final-review correction",
+            "Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`",
+            "Commit 10 is the single additive final CTO correction",
             "P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green",
         ],
     );
@@ -225,7 +227,7 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         );
     }
 
-    for commit in 1..=9 {
+    for commit in 1..=10 {
         let marker = format!("- P3/C{commit}:");
         assert_eq!(
             CHANGELOG.matches(&marker).count(),

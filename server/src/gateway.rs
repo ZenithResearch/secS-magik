@@ -31,7 +31,7 @@ use tokio::time::timeout;
 const DESCRIPTOR_CONTEXT_MISMATCH_REASON: &str = "descriptor_context_mismatch";
 const LOCAL_DEV_RECEIPT_SIGNING_KEY: [u8; 32] = [7u8; 32];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct ExecutionRouteProjection {
     status: libsec_core::execution_response::ExecutionStatus,
     reason_code: Option<String>,
@@ -39,6 +39,20 @@ struct ExecutionRouteProjection {
     receipt_id: Option<String>,
     output_schema: Option<String>,
     output: Option<Vec<u8>>,
+}
+
+impl std::fmt::Debug for ExecutionRouteProjection {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ExecutionRouteProjection")
+            .field("status", &self.status)
+            .field("reason_code", &self.reason_code)
+            .field("context_id", &self.context_id)
+            .field("receipt_id", &self.receipt_id)
+            .field("output_schema", &self.output_schema)
+            .field("output_len", &self.output.as_ref().map_or(0, Vec::len))
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,11 +65,22 @@ tokio::task_local! {
     static ROUTED_EXECUTION_STARTED: RefCell<bool>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct HandlerOutcome {
     pub decision: Decision,
     pub reason: Option<String>,
     pub output: Option<Vec<u8>>,
+}
+
+impl std::fmt::Debug for HandlerOutcome {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("HandlerOutcome")
+            .field("decision", &self.decision)
+            .field("reason", &self.reason)
+            .field("output_len", &self.output.as_ref().map_or(0, Vec::len))
+            .finish()
+    }
 }
 
 impl HandlerOutcome {
@@ -825,45 +850,29 @@ impl ConfigurableRouter {
         let _ = ROUTED_EXECUTION_STARTED.try_with(|started| *started.borrow_mut() = true);
 
         if payload.len() > self.limits.max_payload_bytes {
-            let reason = "payload_too_large";
-            let receipt_id = self
-                .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+            return self
+                .post_start_execution_rejection(
+                    descriptor,
+                    &receipt_signed,
+                    "payload_too_large",
+                    timestamp,
+                )
                 .await;
-            self.record_operation_event(
-                ReceiptEventKind::HandlerFailed,
-                signed,
-                timestamp,
-                Some(reason),
-            )
-            .await;
-            return libsec_core::response::DecisionResponse::rejected(
-                reason,
-                Some(context.context_id.clone()),
-                Some(receipt_id),
-            );
         }
 
         let Some(handler_id) = context.handler_id.as_deref() else {
-            let reason = "handler_unavailable";
-            let receipt_id = self
-                .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
-                .await;
-            self.record_operation_event(
-                ReceiptEventKind::HandlerFailed,
-                signed,
-                timestamp,
-                Some(reason),
-            )
-            .await;
             eprintln!(
                 "secS [Router]: rejected verified operation without descriptor handler {} ({:#04x})",
                 context.operation, context.opcode
             );
-            return libsec_core::response::DecisionResponse::rejected(
-                reason,
-                Some(context.context_id.clone()),
-                Some(receipt_id),
-            );
+            return self
+                .post_start_execution_rejection(
+                    descriptor,
+                    &receipt_signed,
+                    "handler_unavailable",
+                    timestamp,
+                )
+                .await;
         };
 
         match self.programs.get(handler_id) {
@@ -976,25 +985,12 @@ impl ConfigurableRouter {
             }
             None => {
                 let reason = "handler_unavailable";
-                let receipt_id = self
-                    .record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
-                    .await;
-                self.record_operation_event(
-                    ReceiptEventKind::HandlerFailed,
-                    signed,
-                    timestamp,
-                    Some(reason),
-                )
-                .await;
                 eprintln!(
                     "secS [Router]: rejected verified operation without handler {} ({:#04x})",
                     context.operation, context.opcode
                 );
-                libsec_core::response::DecisionResponse::rejected(
-                    reason,
-                    Some(context.context_id.clone()),
-                    Some(receipt_id),
-                )
+                self.post_start_execution_rejection(descriptor, &receipt_signed, reason, timestamp)
+                    .await
             }
         }
     }
@@ -1164,6 +1160,52 @@ impl ConfigurableRouter {
         );
         self.record_signed_receipt(receipt).await;
         receipt_id
+    }
+
+    async fn post_start_execution_rejection(
+        &self,
+        descriptor: &crate::manifest::OperationDescriptor,
+        signed: &SignedVerifiedCallContext,
+        reason: &str,
+        timestamp: u64,
+    ) -> libsec_core::response::DecisionResponse {
+        let receipt_id = if descriptor.output_profile.is_some() {
+            match self
+                .record_execution_receipt_required(
+                    signed,
+                    Decision::Rejected,
+                    Some(reason),
+                    timestamp,
+                    None,
+                    None,
+                )
+                .await
+            {
+                Ok(receipt_id) => receipt_id,
+                Err(ExecutionTransportFailure::ReceiptPersistenceFailed) => {
+                    return libsec_core::response::DecisionResponse::rejected(
+                        "execution_transport_failure",
+                        Some(signed.context.context_id.clone()),
+                        None,
+                    )
+                }
+            }
+        } else {
+            self.record_execution_receipt(signed, Decision::Rejected, Some(reason), timestamp)
+                .await
+        };
+        self.record_operation_event(
+            ReceiptEventKind::HandlerFailed,
+            signed,
+            timestamp,
+            Some(reason),
+        )
+        .await;
+        libsec_core::response::DecisionResponse::rejected(
+            reason,
+            Some(signed.context.context_id.clone()),
+            Some(receipt_id),
+        )
     }
 
     async fn record_execution_receipt_required(
@@ -1709,6 +1751,116 @@ pub fn register_dev_subprocess_bindings(router: &mut ConfigurableRouter) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn execution_route_projection_debug_redacts_raw_output() {
+        let sentinel = b"C10_ROUTE_PROJECTION_RAW_OUTPUT_SENTINEL".to_vec();
+        let projection = ExecutionRouteProjection {
+            status: libsec_core::execution_response::ExecutionStatus::Executed,
+            reason_code: None,
+            context_id: Some("ctx".into()),
+            receipt_id: Some("receipt".into()),
+            output_schema: Some("fixture.response.v1".into()),
+            output: Some(sentinel.clone()),
+        };
+        for debug in [
+            format!("{projection:?}"),
+            format!("{:?}", Some(&projection)),
+        ] {
+            assert!(!debug.contains("C10_ROUTE_PROJECTION_RAW_OUTPUT_SENTINEL"));
+            assert!(!debug.contains(&format!("{sentinel:?}")));
+            assert!(debug.contains(&format!("output_len: {}", sentinel.len())));
+        }
+    }
+
+    #[tokio::test]
+    async fn gateway_required_output_rejection_receipts_cover_each_pre_handler_class() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        init_telemetry_schema(&pool).await.unwrap();
+        let identity = crate::identity::explicit_test_fixture_identity("receiver-key", [7; 32]);
+        let router = ConfigurableRouter::with_identity(pool.clone(), identity.clone());
+        let mut descriptor = ReceiverManifest::default_v0().lookup(0x10).unwrap().clone();
+        descriptor.output_profile = Some(crate::manifest::OutputProfile {
+            schema_id: "fixture.response.v1".into(),
+            max_output_bytes: 8,
+            max_execution_response_bytes: 512,
+        });
+        let signed = identity
+            .sign_context(VerifiedCallContext {
+                schema_version: crate::verifier::VERIFIED_CALL_CONTEXT_SCHEMA_VERSION,
+                context_id: "ctx-c10".into(),
+                packet_hash: [1; 32],
+                session_id: [2; 16],
+                nonce: [3; 12],
+                opcode: 0x10,
+                operation: "fixture.output.v1".into(),
+                resource: None,
+                subject: crate::verifier::VerifiedSubject {
+                    subject_id: "subject".into(),
+                    key_id: "subject-key".into(),
+                },
+                audience: "secS://receiver-a".into(),
+                evidence_summary: Vec::new(),
+                proof_metadata: None,
+                capability_result: "ok".into(),
+                credential_result: "ok".into(),
+                issued_at: 100,
+                expires_at: 110,
+                descriptor_fingerprint: "fixture".into(),
+                replay_scope: "session_opcode_nonce".into(),
+                handler_id: None,
+            })
+            .unwrap();
+
+        for (offset, _class, reason) in [
+            (0, "payload-too-large", "payload_too_large"),
+            (1, "missing-handler-binding", "handler_unavailable"),
+            (2, "missing-installed-program", "handler_unavailable"),
+        ] {
+            let response = router
+                .post_start_execution_rejection(
+                    &descriptor,
+                    &signed,
+                    reason,
+                    1_800_000_000 + offset,
+                )
+                .await;
+            let receipt_id = response.receipt_id.expect("persisted receipt id");
+            let persisted: (String, String, String) =
+                sqlx::query_as("SELECT kind, decision, reason FROM receipts WHERE receipt_id = ?")
+                    .bind(receipt_id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(
+                persisted,
+                ("execute".into(), "rejected".into(), reason.into())
+            );
+        }
+
+        sqlx::query("DROP TABLE receipts")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (_class, reason) in [
+            ("payload-too-large", "payload_too_large"),
+            ("missing-handler-binding", "handler_unavailable"),
+            ("missing-installed-program", "handler_unavailable"),
+        ] {
+            let response = router
+                .post_start_execution_rejection(&descriptor, &signed, reason, 1_800_000_100)
+                .await;
+            assert_eq!(
+                response.reason_code.as_deref(),
+                Some("execution_transport_failure")
+            );
+            assert!(response.receipt_id.is_none());
+        }
+    }
 
     #[test]
     fn subprocess_forwarder_new_copies_program_and_args() {

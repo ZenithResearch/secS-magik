@@ -105,6 +105,8 @@ Issue #263 and draft PR #264 implement this node through exactly eight ordered c
 
 Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce84cccb9e8c9d9b887bf2`. Commit 9 is the single additive final-review correction: state-aware trusted execution-schema verification plus persisted-schema-selected historical operator export serialization. No tenth commit is authorized by #263.
 
+Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`. Commit 10 is the single additive final CTO correction: redacted output debug surfaces plus required atomic execute-reject receipt persistence for post-start output-profile rejection branches. No eleventh commit is authorized by #263.
+
 P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green.
 
 Stop if implementation modifies `DecisionResponse` to carry arbitrary output, treats verifier acceptance as execution success, accepts an unauthenticated response, or restores legacy no-frame success.

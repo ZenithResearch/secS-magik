@@ -9,6 +9,7 @@ extern crate alloc;
 
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::fmt;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 pub const EXECUTION_RESPONSE_SCHEMA_VERSION: u16 = 1;
@@ -34,7 +35,7 @@ pub enum ExecutionAuthenticatorKind {
     Ed25519Receiver,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ExecutionResponse {
     pub schema_version: u16,
     pub status: ExecutionStatus,
@@ -47,6 +48,25 @@ pub struct ExecutionResponse {
     pub authenticator_kind: ExecutionAuthenticatorKind,
     pub signer_key_id: String,
     pub signature: [u8; 64],
+}
+
+impl fmt::Debug for ExecutionResponse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ExecutionResponse")
+            .field("schema_version", &self.schema_version)
+            .field("status", &self.status)
+            .field("reason_code", &self.reason_code)
+            .field("request_digest", &self.request_digest)
+            .field("context_id", &self.context_id)
+            .field("receipt_id", &self.receipt_id)
+            .field("output_schema", &self.output_schema)
+            .field("output_len", &self.output.as_ref().map_or(0, Vec::len))
+            .field("authenticator_kind", &self.authenticator_kind)
+            .field("signer_key_id", &self.signer_key_id)
+            .field("signature_len", &self.signature.len())
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -885,6 +905,17 @@ mod tests {
             ),
             Err(ExecutionResponseError::ResponseAuthenticationFailed)
         );
+    }
+
+    #[test]
+    fn execution_response_debug_redacts_raw_output() {
+        let sentinel = b"C10_EXECUTION_RESPONSE_RAW_OUTPUT_SENTINEL".to_vec();
+        let response = executed(sentinel.clone());
+        for debug in [format!("{response:?}"), format!("{:?}", Some(&response))] {
+            assert!(!debug.contains("C10_EXECUTION_RESPONSE_RAW_OUTPUT_SENTINEL"));
+            assert!(!debug.contains(&format!("{sentinel:?}")));
+            assert!(debug.contains(&format!("output_len: {}", sentinel.len())));
+        }
     }
 
     fn hex(bytes: &[u8]) -> String {

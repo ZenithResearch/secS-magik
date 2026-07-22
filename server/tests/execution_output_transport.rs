@@ -270,6 +270,140 @@ async fn public_execution_route_signs_all_three_execution_states() {
     assert_eq!(verifier_rejected.output, None);
 }
 
+#[tokio::test]
+async fn gateway_output_profile_pre_handler_rejections_require_persisted_receipts() {
+    use libsec_core::ZenithPacket;
+    use server::gateway::ExecutionTransportFailure;
+
+    let identity =
+        server::identity::explicit_test_fixture_identity("verifier:local-prototype", [7; 32]);
+    let manifest = ReceiverManifest::new([descriptor(Some(OutputProfile {
+        schema_id: "fixture.response.v1".into(),
+        max_output_bytes: 8,
+        max_execution_response_bytes: 512,
+    }))]);
+    let signed_for = |nonce: u8| {
+        let packet = ZenithPacket {
+            session_id: [3; 16],
+            nonce: [nonce; 12],
+            opcode: 0x52,
+            proof: vec![1],
+            claim_ttl: 30,
+            encrypted_payload: b"request".to_vec(),
+            mac: [0; 16],
+        };
+        Verifier::verify_manifest_operation_and_sign(
+            &packet,
+            &manifest,
+            "secS://receiver-a",
+            now(),
+            "verifier:local-prototype",
+            &[7; 32],
+        )
+        .unwrap()
+    };
+
+    let payload_pool = memory_pool().await;
+    let mut payload_router = ConfigurableRouter::with_limits_and_identity(
+        payload_pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 1,
+            max_output_bytes: 8,
+            handler_timeout: Duration::from_secs(1),
+        },
+        identity.clone(),
+    );
+    payload_router.set_manifest(manifest.clone());
+    let payload_rejected = payload_router
+        .route_verified_for_execution(&signed_for(20), b"too-large".to_vec(), [20; 32])
+        .await
+        .unwrap();
+    assert_eq!(
+        payload_rejected.reason_code.as_deref(),
+        Some("payload_too_large")
+    );
+    let payload_receipt = payload_rejected.receipt_id.unwrap();
+    let payload_row: (String, String, String) =
+        sqlx::query_as("SELECT kind, decision, reason FROM receipts WHERE receipt_id = ?")
+            .bind(payload_receipt)
+            .fetch_one(&payload_pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        payload_row,
+        (
+            "execute".into(),
+            "rejected".into(),
+            "payload_too_large".into()
+        )
+    );
+
+    let payload_failed_pool = memory_pool().await;
+    let mut payload_failed_router = ConfigurableRouter::with_limits_and_identity(
+        payload_failed_pool.clone(),
+        ExecutionLimits {
+            max_payload_bytes: 1,
+            max_output_bytes: 8,
+            handler_timeout: Duration::from_secs(1),
+        },
+        identity.clone(),
+    );
+    payload_failed_router.set_manifest(manifest.clone());
+    sqlx::query("DROP TABLE receipts")
+        .execute(&payload_failed_pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        payload_failed_router
+            .route_verified_for_execution(&signed_for(21), b"too-large".to_vec(), [21; 32])
+            .await,
+        Err(ExecutionTransportFailure::ReceiptPersistenceFailed)
+    );
+
+    let program_pool = memory_pool().await;
+    let mut program_router =
+        ConfigurableRouter::with_identity(program_pool.clone(), identity.clone());
+    program_router.set_manifest(manifest.clone());
+    let program_rejected = program_router
+        .route_verified_for_execution(&signed_for(22), b"request".to_vec(), [22; 32])
+        .await
+        .unwrap();
+    assert_eq!(
+        program_rejected.reason_code.as_deref(),
+        Some("handler_unavailable")
+    );
+    let program_receipt = program_rejected.receipt_id.unwrap();
+    let program_row: (String, String, String) =
+        sqlx::query_as("SELECT kind, decision, reason FROM receipts WHERE receipt_id = ?")
+            .bind(program_receipt)
+            .fetch_one(&program_pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        program_row,
+        (
+            "execute".into(),
+            "rejected".into(),
+            "handler_unavailable".into()
+        )
+    );
+
+    let program_failed_pool = memory_pool().await;
+    let mut program_failed_router =
+        ConfigurableRouter::with_identity(program_failed_pool.clone(), identity);
+    program_failed_router.set_manifest(manifest.clone());
+    sqlx::query("DROP TABLE receipts")
+        .execute(&program_failed_pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        program_failed_router
+            .route_verified_for_execution(&signed_for(23), b"request".to_vec(), [23; 32])
+            .await,
+        Err(ExecutionTransportFailure::ReceiptPersistenceFailed)
+    );
+}
+
 fn descriptor(output_profile: Option<OutputProfile>) -> OperationDescriptor {
     OperationDescriptor {
         opcode: 0x52,
@@ -356,6 +490,17 @@ fn handler_outcome_owns_bytes_and_reason_vocabulary_is_exact() {
             "execution_response_too_large",
         ]
     );
+}
+
+#[test]
+fn handler_outcome_debug_redacts_raw_output() {
+    let sentinel = b"C10_HANDLER_OUTCOME_RAW_OUTPUT_SENTINEL".to_vec();
+    let outcome = HandlerOutcome::succeeded_with_output(sentinel.clone());
+    for debug in [format!("{outcome:?}"), format!("{:?}", Some(&outcome))] {
+        assert!(!debug.contains("C10_HANDLER_OUTCOME_RAW_OUTPUT_SENTINEL"));
+        assert!(!debug.contains(&format!("{sentinel:?}")));
+        assert!(debug.contains(&format!("output_len: {}", sentinel.len())));
+    }
 }
 
 #[test]
