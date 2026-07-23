@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Changed
+- #267: reconciled P3 as complete on `main` through closed #263, merged PR #264, the protected 12-commit head, merge commit, and successful post-merge CI, while gating P4 on a separate Matrix-conversation/secS-machine-call contract correction so status drift cannot authorize implementation.
 - P3/C8: reconciled the accepted contract, implementation DAG, status ledger, and changelog guards around the completed eight-commit P3 branch while preserving every Hermes/P4/deployment non-claim — this prevents bounded output transport from being described as either unimplemented or as completed peer chat.
 - P3/C5: reconciled the execution-output contract, DAG, indexes, and implementation ledger around implemented P3 while keeping Hermes delivery, trusted peer resolution, `agent.chat.v1`, and P4–P7 blocked — this prevents transport evidence from being overstated as peer chat or deployment readiness.
 - P3/C2: replaced trusted handler byte counts with receiver-bounded owned output and private post-receipt routing state — this makes output-declaring success reflect completed handler execution rather than verifier admission.

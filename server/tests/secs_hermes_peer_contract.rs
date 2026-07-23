@@ -86,7 +86,7 @@ fn peer_chat_dag_serializes_runtime_pr_boundaries_and_defers_internal_gating() {
         &[
             "P1/P2 — contract gate",
             "P3 — bounded execution-output transport",
-            "P4 — receiver-local Hermes adapter",
+            "P4 — receiver-local exact-operation adapter",
             "P5 — outbound Hermes plugin client",
             "P6 — mutual peer and negative evidence",
             "P7 — schema-driven extension",
@@ -115,7 +115,7 @@ fn docs_index_and_status_keep_contract_distinct_from_implementation() {
         STATUS,
         &[
             "secS/Hermes peer-chat contract (#261/#262)",
-            "Only P3 is implemented; P4–P7 remain blocked/planned",
+            "P3 is complete on `main`; P4 is dependency-ready but contract-blocked",
             "P3 bounded execution-output transport (#263)",
         ],
     );
@@ -127,7 +127,11 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
         "peer-chat contract P3 status",
         CONTRACT,
         &[
-            "P3 implementation status: implemented by #263",
+            "Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-blocked; P5–P7 unimplemented/blocked",
+            "P3 implementation status: implemented by #263** and complete on `main` through merged PR #264",
+            "c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27",
+            "358b232a3c0de2f96f63b41ffa276c5ae469c19e",
+            "30047659428",
             "DecisionResponse wire shape and version remain unchanged",
             "exact raw ingress bytes",
             "handler_unavailable",
@@ -152,8 +156,9 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
         DAG,
         &[
             "P1/P2 — contract gate | Complete via #261/#262",
-            "P3 — bounded execution-output transport | Implemented by #263",
-            "P4 — receiver-local Hermes adapter | Blocked by authorized P3 merge and green post-merge main CI",
+            "P3 — bounded execution-output transport | Complete on `main` via closed #263 and merged PR #264",
+            "P4 — receiver-local exact-operation adapter | Dependency-ready; contract-blocked pending Matrix conversation / secS exact machine-call scope reconciliation",
+            "Issue #267 does not authorize P4 implementation",
         ],
     );
     contains_all(
@@ -161,7 +166,8 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
         STATUS,
         &[
             "P3 bounded execution-output transport (#263)",
-            "Implemented on the #263 issue branch",
+            "Complete on `main` through closed #263, merged PR #264",
+            "P3/C1–P3/C12 remain the exact governance sequence; No Commit 13 is authorized by #263",
             "Hermes delivery, trusted peer resolution, and peer chat remain unimplemented",
         ],
     );
@@ -191,7 +197,7 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         "peer-chat P3 hardening status",
         CONTRACT,
         &[
-            "Status: P3 bounded execution-output transport implemented by #263; broader peer-chat runtime and P4–P7 unimplemented/blocked",
+            "Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-blocked; P5–P7 unimplemented/blocked",
             "The exact four new P3 output reasons are `handler_output_missing`, `handler_output_unexpected`, `output_too_large`, and `execution_response_too_large`.",
             "P4 remains unimplemented",
             "Hermes adapter",
@@ -206,7 +212,7 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         "peer-chat P3 current DAG boundary",
         DAG,
         &[
-            "Issue #263 and draft PR #264 implement this node through exactly eight ordered commits",
+            "Issue #263 is closed and PR #264 is merged. The protected P3 head `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27` contains exactly 12 ordered commits",
             "Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce84cccb9e8c9d9b887bf2`",
             "Commit 9 is the single additive final-review correction",
             "Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`",
@@ -216,7 +222,10 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
             "Commits 1–11 are an immutable protected prefix ending at `26f23ce2d07ea992c2ad8dd1c15fad6736fa8f3d`",
             "Commit 12 is the sole additive governance-test correction",
             "No Commit 13 is authorized by #263",
-            "P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green",
+            "P3 is complete on `main` through merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e`",
+            "post-merge Rust CI run [30047659428]",
+            "P4 is dependency-ready but contract-blocked",
+            "Issue #267 authorizes only this status reconciliation, not P4 implementation",
         ],
     );
 
@@ -225,6 +234,19 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         "This contract does not implement handler output transport",
         "## P3 — bounded execution-output transport\n\nFuture issue must include these commit boundaries:",
         "The P3 transport adds exactly four execution reason codes: `handler_unavailable`, `handler_timeout`, `output_too_large`, and `internal_transport_failure`.",
+        "draft PR #264",
+        "on its issue branch",
+        "Implemented on the #263 issue branch",
+        "issue-branch-only",
+        "pending authorized merge",
+        "merge authorization pending",
+        "merge remains controller-authorized",
+        "Blocked by authorized P3 merge",
+        "P4 remains blocked until #263",
+        "P4 blocked on P3 merge",
+        "exactly eight ordered commits",
+        "Eight ordered RED/GREEN commits",
+        "completed eight-commit P3 branch",
     ] {
         assert!(
             !CONTRACT.contains(stale) && !DAG.contains(stale) && !STATUS.contains(stale),
