@@ -1,7 +1,7 @@
 # secS/Hermes peer-chat implementation DAG
 
 Date: 2026-07-18
-Status: current control surface; P1/P2 complete via #261/#262; P3 implemented by #263 in draft PR #264 pending authorized merge and green post-merge main CI; P4–P7 blocked
+Status: current control surface; P1/P2 complete via #261/#262; P3 complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-reconciliation-pending; P5–P7 blocked
 Contract: [../specs/secs-hermes-peer-chat-contract.md](../specs/secs-hermes-peer-chat-contract.md)
 
 ## Objective
@@ -55,8 +55,8 @@ Read-only audits of downstream contracts may run in parallel. Runtime implementa
 | Node | Status | Owning repo | One-PR objective | Dependency | Evidence to unlock next node |
 |---|---|---|---|---|---|
 | P1/P2 — contract gate | Complete via #261/#262 | secS-magik | Lock identity/config, request, trusted metadata, execution response, local delivery, failures, bounds, and non-claims. | Current live baseline | Docs contract test, workspace test/build, clean diff, reviewed issue/PR. |
-| P3 — bounded execution-output transport | Implemented by #263 | secS-magik | Separate receiver-signed `ExecutionResponse`, exact-ingress correlation, bounded output, and redacted receipt/operator/public-audit projection while preserving `DecisionResponse`. | P1/P2 merged and main CI green | Eight ordered RED/GREEN commits, focused/full gates, and exact-head CI; merge remains controller-authorized. |
-| P4 — receiver-local Hermes adapter | Blocked by authorized P3 merge and green post-merge main CI | secS-magik | Add fixed local-only Hermes delivery owned by the receiver; exact loopback host/profile/path; authenticated with `API_SERVER_KEY`; proxies and redirects disabled; no caller-selected URL/profile/model/tool/workspace. | P3 merged and green | Adapter SSRF/proxy/redirect/auth/profile/path tests plus disabled/down/unavailable response mapping. |
+| P3 — bounded execution-output transport | Complete on `main` via closed #263 and merged PR #264 | secS-magik | Separate receiver-signed `ExecutionResponse`, exact-ingress correlation, bounded output, and redacted receipt/operator/public-audit projection while preserving `DecisionResponse`. | P1/P2 merged and main CI green | Protected 12-commit head `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27`, merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e`, and successful post-merge CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428). |
+| P4 — receiver-local Hermes adapter | Dependency-ready; contract-reconciliation-pending | secS-magik | Preserve the existing peer-chat adapter contract as unresolved until a separate reconciliation determines whether to retain, revise, or supersede it. | P3 complete on `main`; reconciliation sequenced after #266 | A separate issue must resolve the contract before implementation. Issue #267 authorizes neither P4 architecture resolution nor implementation. |
 | P5 — outbound Hermes plugin client | Blocked by P4 | Hermes peer plugin package, owner path to be locked before filing | Resolve `secs_agent_identity`, select configured peer/profile, construct/send request, validate response, return bounded assistant text. | P4 merged and local package ownership accepted | Secure-reference tests; undeclared-peer/profile denial; fail-closed response parser; export/log redaction. |
 | P6 — mutual peer and negative evidence | Blocked by P5 | secS-magik evidence/control repository; one issue and one PR | Prove A→B and B→A with distinct credentials plus full negative/security matrix without modifying another repository. Any discovered code defect inserts an explicit repo-owned prerequisite node such as `P6-S1` or `P6-H1`. | P5 merged and any inserted repair nodes merged with green main CI | Reproducible two-node harness, exact credential identities, handler counters, receipt correlation, leak scans. |
 | P7 — schema-driven extension | Future | Per operation owner | Add only explicitly specified symbolic profiles after chat is accepted. | P6 complete | New descriptor/schema/policy/bounds/negative tests per profile. |
@@ -92,7 +92,7 @@ Non-claims: no runtime output, adapter, plugin, two-node proof, deployment, or p
 
 ## P3 — bounded execution-output transport
 
-Issue #263 and draft PR #264 implement this node through exactly eight ordered commits:
+Issue #263 is closed and PR #264 is merged. The protected P3 head `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27` contains exactly 12 ordered commits:
 
 1. RED tests and versioned core receiver-signed `ExecutionResponse` codec/state machine.
 2. Output-carrying `HandlerOutcome`/router integration with independent profile and receiver bounds.
@@ -111,11 +111,15 @@ Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c7192
 
 Commits 1–11 are an immutable protected prefix ending at `26f23ce2d07ea992c2ad8dd1c15fad6736fa8f3d`. Commit 12 is the sole additive governance-test correction: exact parsing enforces the complete C1–C12 changelog marker set and the terminal authorization boundary. No Commit 13 is authorized by #263.
 
-P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green.
+P3 is complete on `main` through merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e`; post-merge Rust CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428) succeeded. This post-P3 reconciliation adds no P3 commit and does not authorize Commit 13.
+
+P4 is dependency-ready but contract-reconciliation-pending. The existing receiver-local peer-chat adapter contract remains unresolved until separately reconciled after #266. Issue #267 neither endorses nor demotes that contract and authorizes neither architecture resolution nor implementation.
 
 Stop if implementation modifies `DecisionResponse` to carry arbitrary output, treats verifier acceptance as execution success, accepts an unauthenticated response, or restores legacy no-frame success.
 
 ## P4 — receiver-local Hermes adapter
+
+The pre-existing section below is retained without endorsement or demotion. Its architecture remains unresolved pending separately sequenced P4 reconciliation after #266.
 
 Future issue must include these commit boundaries:
 

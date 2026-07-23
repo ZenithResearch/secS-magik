@@ -1,7 +1,7 @@
 # secS/Hermes symmetric peer-chat contract
 
 Date: 2026-07-18
-Status: P3 bounded execution-output transport implemented by #263; broader peer-chat runtime and P4–P7 unimplemented/blocked
+Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-reconciliation-pending; P5–P7 unimplemented/blocked
 Profile: `agent.chat.v1`
 
 ## Decision
@@ -39,13 +39,13 @@ The P1/P2 contract below locks the full peer-chat target. P3 is now implemented 
 
 ## P3 implementation status
 
-**P3 implementation status: implemented by #263** on its issue branch, subject to exact-head CI and merge authorization. The implementation adds a separate receiver-signed `ExecutionResponse`; the `DecisionResponse wire shape and version remain unchanged`. Execution responses bind the SHA-256 digest of the exact raw ingress bytes, expose only one authenticated bounded frame, and verify against one directly supplied pinned key. There is no peer-key resolver or registry.
+**P3 implementation status: implemented by #263** and complete on `main` through merged PR #264. The protected 12-commit head is `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27`; merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e` landed it, and post-merge Rust CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428) succeeded. The implementation adds a separate receiver-signed `ExecutionResponse`; the `DecisionResponse wire shape and version remain unchanged`. Execution responses bind the SHA-256 digest of the exact raw ingress bytes, expose only one authenticated bounded frame, and verify against one directly supplied pinned key. There is no peer-key resolver or registry.
 
 The three response states remain `verifier_rejected`, `execution_rejected`, and `executed`. The exact four new P3 output reasons are `handler_output_missing`, `handler_output_unexpected`, `output_too_large`, and `execution_response_too_large`. Existing reasons such as `handler_unavailable` and `handler_timeout` remain existing handler reasons rather than new P3 output reasons. Receipt-persistence failure produces no execution frame rather than a synthetic rejection or success.
 
 Accepted execution output crosses the persistence boundary only as a signed receipt schema v3 projection containing schema ID, byte count, and domain-separated SHA-256 digest. Raw output bytes are never persisted, logged, debug-rendered, or exported. Verification preserves the exact `pre-c4b6218`, receipt-v1, and receipt-v2 historical encodings, with constrained v1-first fallback. Every new operator projection uses operator export v3, while historical operator v1/v2 shapes remain immutable. New public export uses `bundle-v2/chain-v2`; historical `bundle-v1/chain-v1` and its external anchor remain verifiable only under v1 semantics.
 
-P4 remains unimplemented: this status does not add a Hermes call, receiver-local Hermes adapter, plugin/profile/tool gating, trusted peer resolution, `agent.chat.v1`, mutual chat, deployment proof, or production-readiness claim.
+P4 remains unimplemented and is dependency-ready but contract-reconciliation-pending after #266. The pre-existing peer-chat contract below remains unresolved; Issue #267 neither endorses nor demotes it and authorizes neither architecture resolution nor implementation. This status does not add a Hermes call, receiver-local Hermes adapter, plugin/profile/tool gating, trusted peer resolution, `agent.chat.v1`, mutual chat, deployment proof, or production-readiness claim.
 
 ## 1. Symmetric identity and configuration
 
