@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Changed
+- #266: replaced timestamp-only identity-test key paths and manual cleanup with atomically created RAII-owned fixtures plus bounded parallel stress coverage; this is an exact test-only fixture boundary with no production identity, key-format, error-order, or authorization changes.
 - #267: reconciled P3 as complete on `main` through closed #263, merged PR #264, the protected 12-commit head, merge commit, and successful post-merge CI, while recording P4 as dependency-ready but contract-reconciliation-pending after #266; #267 resolves neither P4 architecture nor implementation.
 - P3/C8: reconciled the accepted contract, implementation DAG, status ledger, and changelog guards around the completed canonical P3 sequence of C1 through C12 while preserving every Hermes/P4/deployment non-claim — this prevents bounded output transport from being described as either unimplemented or as completed peer chat.
 - P3/C5: reconciled the execution-output contract, DAG, indexes, and implementation ledger around implemented P3 while keeping Hermes delivery, trusted peer resolution, `agent.chat.v1`, and P4–P7 blocked — this prevents transport evidence from being overstated as peer chat or deployment readiness.

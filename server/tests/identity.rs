@@ -1,6 +1,6 @@
 use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use serial_test::serial;
 use server::identity::{
@@ -11,31 +11,182 @@ use server::identity::{
 use server::receipt::{AuthenticatorKind, Decision, Receipt};
 use server::runtime_mode::RuntimeMode;
 use server::verifier::{VerificationError, VerifiedCallContext, VerifiedSubject};
+use tempfile::{Builder, NamedTempFile, TempDir};
 
 const KEY_VALID_NOW: u64 = 150;
 
-fn unique_temp_path(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock should be after unix epoch")
-        .as_nanos();
-    std::env::temp_dir().join(format!("secs-magik-{name}-{nanos}.key"))
+struct OwnedKeyFixture {
+    file: NamedTempFile,
 }
 
-fn write_key_file(bytes: [u8; 32]) -> PathBuf {
-    let path = unique_temp_path("identity-key-config");
-    fs::write(&path, hex_encode(&bytes)).expect("key fixture should be writable");
+impl OwnedKeyFixture {
+    fn new(bytes: [u8; 32]) -> Self {
+        let file = Builder::new()
+            .prefix("secs-magik-identity-key-")
+            .suffix(".key")
+            .tempfile()
+            .expect("owned key fixture should be atomically created");
+        let mut fixture = Self { file };
+        fixture.write_key(bytes);
+        fixture
+    }
+
+    fn path(&self) -> &Path {
+        self.file.path()
+    }
+
+    fn write_key(&mut self, bytes: [u8; 32]) {
+        self.file
+            .as_file_mut()
+            .set_len(0)
+            .expect("owned key fixture should be truncatable");
+        self.file
+            .write_all(hex_encode(&bytes).as_bytes())
+            .expect("owned key fixture should be writable");
+        self.file
+            .flush()
+            .expect("owned key fixture should be flushable");
+        set_owner_private(self.path());
+    }
+}
+
+struct OwnedMissingKeyFixture {
+    _dir: TempDir,
+    path: PathBuf,
+}
+
+impl OwnedMissingKeyFixture {
+    fn new() -> Self {
+        let dir = Builder::new()
+            .prefix("secs-magik-missing-identity-key-")
+            .tempdir()
+            .expect("missing-key fixture directory should be uniquely owned");
+        let path = dir.path().join("missing.key");
+        Self { _dir: dir, path }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+struct OwnedSymlinkKeyFixture {
+    _dir: TempDir,
+    _target: NamedTempFile,
+    link: PathBuf,
+}
+
+impl OwnedSymlinkKeyFixture {
+    fn new(bytes: [u8; 32]) -> Self {
+        let dir = Builder::new()
+            .prefix("secs-magik-identity-key-symlink-")
+            .tempdir()
+            .expect("symlink fixture directory should be uniquely owned");
+        let mut target = Builder::new()
+            .prefix("target-")
+            .suffix(".key")
+            .tempfile_in(dir.path())
+            .expect("symlink target should be atomically created");
+        target
+            .write_all(hex_encode(&bytes).as_bytes())
+            .expect("symlink target should be writable");
+        target.flush().expect("symlink target should be flushable");
+        set_owner_private(target.path());
+
+        let link = dir.path().join("link.key");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(target.path(), &link).expect("test symlink should be creatable");
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(target.path(), &link)
+            .expect("test symlink should be creatable");
+
+        Self {
+            _dir: dir,
+            _target: target,
+            link,
+        }
+    }
+
+    fn path(&self) -> &Path {
+        &self.link
+    }
+}
+
+fn write_key_file(bytes: [u8; 32]) -> OwnedKeyFixture {
+    OwnedKeyFixture::new(bytes)
+}
+
+fn set_owner_private(path: &Path) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
             .expect("key fixture should be owner-private");
     }
-    path
 }
 
 fn hex_encode(bytes: &[u8; 32]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[test]
+fn identity_key_fixtures_are_concurrently_unique_owned_and_cleaned_up() {
+    let mut fixtures = (1u8..=64)
+        .map(|seed| (seed, OwnedKeyFixture::new([seed; 32])))
+        .collect::<Vec<_>>();
+    let paths = fixtures
+        .iter()
+        .map(|(_, fixture)| fixture.path().to_path_buf())
+        .collect::<Vec<_>>();
+    let unique_paths = paths.iter().collect::<std::collections::HashSet<_>>();
+
+    assert_eq!(unique_paths.len(), fixtures.len());
+    for (seed, fixture) in &fixtures {
+        let config = VerifierIdentityConfig {
+            runtime_mode: RuntimeMode::ProductionVerified,
+            verifier_key_path: Some(fixture.path().to_path_buf()),
+            verifier_key_id: None,
+        };
+        let identity = load_node_verifier_identity(&config).unwrap_or_else(|err| {
+            panic!(
+                "owned fixture {} should remain isolated and valid: {err:?}",
+                fixture.path().display()
+            )
+        });
+        let expected = explicit_test_fixture_identity("ignored:fixture-owner", [*seed; 32]);
+
+        assert_eq!(
+            identity.signer_key_id(),
+            derive_ed25519_key_id(expected.public_key())
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(fixture.path())
+                .expect("owned fixture metadata should remain readable")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+    }
+
+    let (_, first_fixture) = fixtures.remove(0);
+    let first_path = first_fixture.path().to_path_buf();
+    drop(first_fixture);
+    assert!(!first_path.exists());
+    for (_, fixture) in &fixtures {
+        assert!(fixture.path().exists());
+    }
+
+    drop(fixtures);
+    for path in paths {
+        assert!(
+            !path.exists(),
+            "dropping an owned fixture should clean only {}",
+            path.display()
+        );
+    }
 }
 
 fn sample_context() -> VerifiedCallContext {
@@ -76,7 +227,8 @@ fn clear_identity_env() {
 #[serial]
 fn identity_key_config_from_env_reads_operator_visible_key_path_and_id() {
     clear_identity_env();
-    let path = write_key_file([0x21; 32]);
+    let fixture = write_key_file([0x21; 32]);
+    let path = fixture.path().to_path_buf();
     std::env::set_var("SECS_RUNTIME_MODE", "production_verified");
     std::env::set_var("SECS_VERIFIER_KEY_PATH", &path);
     std::env::set_var("SECS_VERIFIER_KEY_ID", "node-verifier:env-configured");
@@ -91,7 +243,6 @@ fn identity_key_config_from_env_reads_operator_visible_key_path_and_id() {
     assert_eq!(identity.public_key().as_bytes().len(), 32);
 
     clear_identity_env();
-    let _ = fs::remove_file(path);
 }
 
 #[test]
@@ -110,12 +261,12 @@ fn identity_key_config_production_verified_requires_explicit_key_path() {
 
 #[test]
 fn identity_key_config_malformed_key_path_is_typed_config_failure() {
-    let path = write_key_file([0x42; 32]);
-    fs::write(&path, "not-a-32-byte-ed25519-secret")
+    let fixture = write_key_file([0x42; 32]);
+    fs::write(fixture.path(), "not-a-32-byte-ed25519-secret")
         .expect("malformed key fixture should be writable");
     let config = VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
-        verifier_key_path: Some(path.clone()),
+        verifier_key_path: Some(fixture.path().to_path_buf()),
         verifier_key_id: None,
     };
 
@@ -123,15 +274,14 @@ fn identity_key_config_malformed_key_path_is_typed_config_failure() {
         .expect_err("malformed verifier key must fail as identity config, not fallback");
 
     assert_eq!(err, IdentityConfigError::MalformedVerifierKey);
-    let _ = fs::remove_file(path);
 }
 
 #[test]
 fn identity_key_config_inaccessible_key_path_is_typed_config_failure() {
-    let path = unique_temp_path("missing-identity-key-config");
+    let fixture = OwnedMissingKeyFixture::new();
     let config = VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
-        verifier_key_path: Some(path),
+        verifier_key_path: Some(fixture.path().to_path_buf()),
         verifier_key_id: None,
     };
 
@@ -146,10 +296,10 @@ fn identity_key_config_inaccessible_key_path_is_typed_config_failure() {
 
 #[test]
 fn identity_key_config_loads_operator_key_and_exposes_signer_key_id() {
-    let path = write_key_file([0x11; 32]);
+    let fixture = write_key_file([0x11; 32]);
     let config = VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
-        verifier_key_path: Some(path.clone()),
+        verifier_key_path: Some(fixture.path().to_path_buf()),
         verifier_key_id: Some("node-verifier:operator-configured".to_string()),
     };
 
@@ -199,12 +349,11 @@ fn identity_key_config_loads_operator_key_and_exposes_signer_key_id() {
     registry
         .verify_production_receipt_at(&signed_receipt, 151)
         .expect("configured non-local identity should satisfy production receipt authority");
-    let _ = fs::remove_file(path);
 }
 
 #[test]
 fn identity_key_id_rejects_unsafe_explicit_override_that_looks_like_path_or_secret() {
-    let path = write_key_file([0x71; 32]);
+    let fixture = write_key_file([0x71; 32]);
     for unsafe_key_id in [
         "/tmp/node-verifier.ed25519",
         "relative/path/key",
@@ -212,7 +361,7 @@ fn identity_key_id_rejects_unsafe_explicit_override_that_looks_like_path_or_secr
     ] {
         let config = VerifierIdentityConfig {
             runtime_mode: RuntimeMode::ProductionVerified,
-            verifier_key_path: Some(path.clone()),
+            verifier_key_path: Some(fixture.path().to_path_buf()),
             verifier_key_id: Some(unsafe_key_id.to_string()),
         };
 
@@ -221,7 +370,6 @@ fn identity_key_id_rejects_unsafe_explicit_override_that_looks_like_path_or_secr
 
         assert_eq!(err, IdentityConfigError::UnsafeVerifierKeyId);
     }
-    let _ = fs::remove_file(path);
 }
 
 #[test]
@@ -255,10 +403,10 @@ fn identity_key_id_is_stable_for_same_key_and_changes_for_different_key() {
 
 #[test]
 fn identity_key_id_defaults_to_public_key_fingerprint_for_contexts_and_receipts() {
-    let path = write_key_file([0x41; 32]);
+    let fixture = write_key_file([0x41; 32]);
     let config = VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
-        verifier_key_path: Some(path.clone()),
+        verifier_key_path: Some(fixture.path().to_path_buf()),
         verifier_key_id: None,
     };
 
@@ -280,7 +428,6 @@ fn identity_key_id_defaults_to_public_key_fingerprint_for_contexts_and_receipts(
     assert_eq!(identity.signer_key_id(), expected_key_id);
     assert_eq!(signed_context.signer_key_id, expected_key_id);
     assert_eq!(signed_receipt.signer_key_id, expected_key_id);
-    let _ = fs::remove_file(path);
 }
 
 #[test]
@@ -754,12 +901,12 @@ fn production_verification_rejects_algorithm_metadata_that_does_not_match_ed2551
 fn production_key_loader_rejects_world_readable_key_files() {
     use std::os::unix::fs::PermissionsExt;
 
-    let path = write_key_file([0x93; 32]);
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o644))
+    let fixture = write_key_file([0x93; 32]);
+    fs::set_permissions(fixture.path(), fs::Permissions::from_mode(0o644))
         .expect("test should be able to set unsafe key permissions");
     let config = VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
-        verifier_key_path: Some(path.clone()),
+        verifier_key_path: Some(fixture.path().to_path_buf()),
         verifier_key_id: None,
     };
 
@@ -769,22 +916,14 @@ fn production_key_loader_rejects_world_readable_key_files() {
         format!("{err:?}").contains("UnsafeVerifierKeyFile"),
         "expected unsafe key-file permission error, got {err:?}"
     );
-    let _ = fs::remove_file(path);
 }
 
 #[test]
 fn production_key_loader_rejects_symlink_key_paths_before_reading_secret_material() {
-    let target = write_key_file([0x94; 32]);
-    let link = unique_temp_path("identity-key-symlink");
-
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(&target, &link).expect("test symlink should be creatable");
-    #[cfg(windows)]
-    std::os::windows::fs::symlink_file(&target, &link).expect("test symlink should be creatable");
-
+    let fixture = OwnedSymlinkKeyFixture::new([0x94; 32]);
     let config = VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
-        verifier_key_path: Some(link.clone()),
+        verifier_key_path: Some(fixture.path().to_path_buf()),
         verifier_key_id: None,
     };
     let err = load_node_verifier_identity(&config)
@@ -793,8 +932,6 @@ fn production_key_loader_rejects_symlink_key_paths_before_reading_secret_materia
         format!("{err:?}").contains("UnsafeVerifierKeyFile"),
         "expected unsafe key-file type error, got {err:?}"
     );
-    let _ = fs::remove_file(link);
-    let _ = fs::remove_file(target);
 }
 
 #[test]
