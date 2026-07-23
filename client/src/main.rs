@@ -1,6 +1,9 @@
 use clap::{Parser, Subcommand};
 use ed25519_dalek::SigningKey;
 use libsec_core::caller_proof::{caller_canonical_bytes, encode_caller_proof};
+use libsec_core::execution_response::{
+    ExecutionResponse, ExecutionResponseError, ExecutionStatus, MAX_EXECUTION_RESPONSE_BYTES,
+};
 use libsec_core::ingress_request::{encode_ingress_request_v2, IngressRequestV2};
 use libsec_core::packet_builder::PacketBuilder;
 use libsec_core::response::{DecisionResponse, MAX_DECISION_RESPONSE_BYTES};
@@ -307,6 +310,118 @@ fn build_packet_with_tunnel_mode(
 
 const DECISION_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
+enum GatewayResponse {
+    Decision(Option<DecisionResponse>),
+    Execution(Result<ExecutionResponse, ExecutionResponseError>),
+    InvalidTrustedResponseExpectation,
+}
+
+#[derive(Debug, Clone)]
+pub enum ResponseExpectation {
+    LegacyDecision,
+    Execution {
+        schema: String,
+        signer_key_id: String,
+        verifying_key: Box<ed25519_dalek::VerifyingKey>,
+        max_frame_bytes: usize,
+        max_output_bytes: usize,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResponseExpectationError {
+    MissingTrustedMapping,
+    InvalidTrustedMapping,
+}
+
+impl ResponseExpectation {
+    fn validate(&self) -> Result<(), ResponseExpectationError> {
+        match self {
+            Self::LegacyDecision => Ok(()),
+            Self::Execution {
+                schema,
+                signer_key_id,
+                max_frame_bytes,
+                max_output_bytes,
+                ..
+            } if !schema.is_empty()
+                && !signer_key_id.is_empty()
+                && (1..=MAX_EXECUTION_RESPONSE_BYTES).contains(max_frame_bytes)
+                && *max_output_bytes <= MAX_EXECUTION_RESPONSE_BYTES =>
+            {
+                Ok(())
+            }
+            Self::Execution { .. } => Err(ResponseExpectationError::InvalidTrustedMapping),
+        }
+    }
+}
+
+fn trusted_response_expectation_for_operation(
+    opcode: u8,
+) -> Result<ResponseExpectation, ResponseExpectationError> {
+    match opcode {
+        libsec_core::OPCODE_GENERATE | libsec_core::OPCODE_CHAT => {
+            Ok(ResponseExpectation::LegacyDecision)
+        }
+        _ => Err(ResponseExpectationError::MissingTrustedMapping),
+    }
+}
+
+fn decode_execution_response(
+    frame: &[u8],
+    frame_bound: usize,
+    signer_key_id: &str,
+    verifying_key: &ed25519_dalek::VerifyingKey,
+    request_digest: [u8; 32],
+    output_schema: &str,
+    output_bound: usize,
+) -> Result<ExecutionResponse, ExecutionResponseError> {
+    ExecutionResponse::decode_and_verify(
+        frame,
+        frame_bound,
+        output_bound,
+        signer_key_id,
+        verifying_key,
+        request_digest,
+        Some(output_schema),
+    )
+}
+
+fn decode_expected_gateway_response(
+    frame: &[u8],
+    expectation: &ResponseExpectation,
+    request_digest: [u8; 32],
+) -> Result<GatewayResponse, ExecutionResponseError> {
+    match expectation {
+        ResponseExpectation::LegacyDecision => Ok(GatewayResponse::Decision(if frame.is_empty() {
+            None
+        } else {
+            DecisionResponse::decode(frame)
+        })),
+        ResponseExpectation::Execution {
+            schema,
+            signer_key_id,
+            verifying_key,
+            max_frame_bytes,
+            max_output_bytes,
+        } => {
+            if frame.is_empty() {
+                return Err(ExecutionResponseError::ResponseAuthenticationFailed);
+            }
+            decode_execution_response(
+                frame,
+                *max_frame_bytes,
+                signer_key_id,
+                verifying_key.as_ref(),
+                request_digest,
+                schema,
+                *max_output_bytes,
+            )
+            .map(|response| GatewayResponse::Execution(Ok(response)))
+        }
+    }
+}
+
 /// Send one packet and read the gateway's decision frame. Returns the decoded
 /// decision, or `None` when the server closed without answering (older
 /// gateways) — the send itself still succeeded in that case.
@@ -315,7 +430,11 @@ async fn dispatch_packet(
     server_addr: &str,
     opcode: u8,
     payload: Vec<u8>,
-) -> Option<DecisionResponse> {
+    response_expectation: ResponseExpectation,
+) -> GatewayResponse {
+    if response_expectation.validate().is_err() {
+        return GatewayResponse::InvalidTrustedResponseExpectation;
+    }
     let tunnel_mode = load_tunnel_mode_from_env()
         .unwrap_or_else(|error| panic!("client: invalid tunnel configuration - {error}"));
     let built = build_packet_with_tunnel_mode(identity, opcode, payload, tunnel_mode);
@@ -329,6 +448,7 @@ async fn dispatch_packet(
         .expect("client-built ingress v2 request is bounded"),
         None => bincode::serialize(&built.packet).unwrap(),
     };
+    let request_digest = Sha256::digest(&bytes).into();
     // Demo/test affordance: persist the exact wire bytes so a demo can replay
     // them verbatim and show the gateway's replay rejection.
     if let Some(path) = std::env::var_os("SECS_SAVE_PACKET_PATH") {
@@ -346,25 +466,38 @@ async fn dispatch_packet(
     stream.shutdown().await.expect("Failed to close write half");
 
     let mut frame = Vec::new();
+    let response_limit = match &response_expectation {
+        ResponseExpectation::LegacyDecision => MAX_DECISION_RESPONSE_BYTES,
+        ResponseExpectation::Execution {
+            max_frame_bytes, ..
+        } => *max_frame_bytes,
+    };
     let read = tokio::time::timeout(
         DECISION_READ_TIMEOUT,
         stream
-            .take((MAX_DECISION_RESPONSE_BYTES + 1) as u64)
+            .take((response_limit + 1) as u64)
             .read_to_end(&mut frame),
     )
     .await;
     match read {
-        Ok(Ok(_)) if frame.is_empty() => None,
-        Ok(Ok(_)) => DecisionResponse::decode(&frame),
-        Ok(Err(_)) | Err(_) => None,
+        Ok(Ok(_)) => {
+            decode_expected_gateway_response(&frame, &response_expectation, request_digest)
+                .unwrap_or_else(|error| GatewayResponse::Execution(Err(error)))
+        }
+        Ok(Err(_)) | Err(_) => match response_expectation {
+            ResponseExpectation::Execution { .. } => GatewayResponse::Execution(Err(
+                ExecutionResponseError::ResponseAuthenticationFailed,
+            )),
+            ResponseExpectation::LegacyDecision => GatewayResponse::Decision(None),
+        },
     }
 }
 
 /// Print the decision for humans/scripts and convert it to an exit code:
 /// accept (or no frame from an older gateway) exits 0, reject exits 1.
-fn report_decision(response: Option<DecisionResponse>) -> i32 {
+fn report_decision(response: GatewayResponse) -> i32 {
     match response {
-        Some(response) if response.is_accepted() => {
+        GatewayResponse::Decision(Some(response)) if response.is_accepted() => {
             println!(
                 "Client: decision=accepted context={} receipt={}",
                 response.context_id.as_deref().unwrap_or("-"),
@@ -372,7 +505,7 @@ fn report_decision(response: Option<DecisionResponse>) -> i32 {
             );
             0
         }
-        Some(response) => {
+        GatewayResponse::Decision(Some(response)) => {
             println!(
                 "Client: decision=rejected reason={} context={} receipt={}",
                 response.reason_code.as_deref().unwrap_or("-"),
@@ -381,11 +514,52 @@ fn report_decision(response: Option<DecisionResponse>) -> i32 {
             );
             1
         }
-        None => {
+        GatewayResponse::Decision(None) => {
             println!("Client: decision=none (gateway closed without a decision frame)");
             0
         }
+        GatewayResponse::Execution(Ok(response))
+            if response.status == ExecutionStatus::Executed =>
+        {
+            println!(
+                "Client: execution=executed context={} receipt={} schema={} output_bytes={}",
+                response.context_id.as_deref().unwrap_or("-"),
+                response.receipt_id.as_deref().unwrap_or("-"),
+                response.output_schema.as_deref().unwrap_or("-"),
+                response.output.as_ref().map_or(0, Vec::len),
+            );
+            0
+        }
+        GatewayResponse::Execution(Ok(response)) => {
+            println!(
+                "Client: execution=rejected reason={} context={} receipt={}",
+                response.reason_code.as_deref().unwrap_or("-"),
+                response.context_id.as_deref().unwrap_or("-"),
+                response.receipt_id.as_deref().unwrap_or("-"),
+            );
+            1
+        }
+        GatewayResponse::Execution(Err(_)) => {
+            println!("Client: execution=invalid (missing, malformed, oversized, or unauthenticated frame)");
+            1
+        }
+        GatewayResponse::InvalidTrustedResponseExpectation => {
+            println!("Client: response expectation is missing or invalid for this operation");
+            1
+        }
     }
+}
+
+async fn dispatch_with_trusted_operation_mapping(
+    identity: &CallerIdentity,
+    server_addr: &str,
+    opcode: u8,
+    payload: Vec<u8>,
+) -> GatewayResponse {
+    let Ok(expectation) = trusted_response_expectation_for_operation(opcode) else {
+        return GatewayResponse::InvalidTrustedResponseExpectation;
+    };
+    dispatch_packet(identity, server_addr, opcode, payload, expectation).await
 }
 
 #[tokio::main]
@@ -400,7 +574,13 @@ async fn main() {
                 identity.key_id
             );
             report_decision(
-                dispatch_packet(&identity, &cli.server, 0x01, prompt.into_bytes()).await,
+                dispatch_with_trusted_operation_mapping(
+                    &identity,
+                    &cli.server,
+                    0x01,
+                    prompt.into_bytes(),
+                )
+                .await,
             )
         }
         Commands::Chat { message } => {
@@ -409,7 +589,13 @@ async fn main() {
                 identity.key_id
             );
             report_decision(
-                dispatch_packet(&identity, &cli.server, 0x02, message.into_bytes()).await,
+                dispatch_with_trusted_operation_mapping(
+                    &identity,
+                    &cli.server,
+                    0x02,
+                    message.into_bytes(),
+                )
+                .await,
             )
         }
         Commands::Hub { opcode, payload } => {
@@ -418,7 +604,13 @@ async fn main() {
                 opcode, identity.key_id
             );
             report_decision(
-                dispatch_packet(&identity, &cli.server, opcode, payload.into_bytes()).await,
+                dispatch_with_trusted_operation_mapping(
+                    &identity,
+                    &cli.server,
+                    opcode,
+                    payload.into_bytes(),
+                )
+                .await,
             )
         }
         Commands::Identity => {
@@ -455,6 +647,198 @@ mod tests {
             signing_key,
             key_id,
         }
+    }
+
+    #[test]
+    fn execution_response_client_rejects_request_digest_mismatch() {
+        use ed25519_dalek::Signer;
+        use libsec_core::execution_response::{
+            ExecutionAuthenticatorKind, ExecutionResponse, ExecutionStatus,
+            EXECUTION_RESPONSE_SCHEMA_VERSION, MAX_EXECUTION_RESPONSE_BYTES,
+        };
+        let receiver = SigningKey::from_bytes(&[9; 32]);
+        let mut response = ExecutionResponse {
+            schema_version: EXECUTION_RESPONSE_SCHEMA_VERSION,
+            status: ExecutionStatus::Executed,
+            reason_code: None,
+            request_digest: [1; 32],
+            context_id: Some("ctx".into()),
+            receipt_id: Some("receipt".into()),
+            output_schema: Some("fixture.response.v1".into()),
+            output: Some(b"ok".to_vec()),
+            authenticator_kind: ExecutionAuthenticatorKind::Ed25519Receiver,
+            signer_key_id: "receiver-1".into(),
+            signature: [0; 64],
+        };
+        response.signature = receiver
+            .sign(&response.signature_preimage().unwrap())
+            .to_bytes();
+        let frame = response.encode_frame(MAX_EXECUTION_RESPONSE_BYTES).unwrap();
+        assert!(decode_execution_response(
+            &frame,
+            MAX_EXECUTION_RESPONSE_BYTES,
+            "receiver-1",
+            &receiver.verifying_key(),
+            [2; 32],
+            "fixture.response.v1",
+            MAX_EXECUTION_RESPONSE_BYTES,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn trusted_response_expectation_is_complete_bounded_and_opcode_scoped() {
+        let receiver = SigningKey::from_bytes(&[9; 32]);
+        assert!(matches!(
+            trusted_response_expectation_for_operation(0x01).unwrap(),
+            ResponseExpectation::LegacyDecision
+        ));
+        assert_eq!(
+            trusted_response_expectation_for_operation(0x52).unwrap_err(),
+            ResponseExpectationError::MissingTrustedMapping
+        );
+
+        let expectation = |schema: &str, signer_key_id: &str, max_frame_bytes, max_output_bytes| {
+            ResponseExpectation::Execution {
+                schema: schema.into(),
+                signer_key_id: signer_key_id.into(),
+                verifying_key: Box::new(receiver.verifying_key()),
+                max_frame_bytes,
+                max_output_bytes,
+            }
+        };
+        assert!(expectation("fixture.response.v1", "receiver-1", 512, 8)
+            .validate()
+            .is_ok());
+        for invalid in [
+            expectation("", "receiver-1", 512, 8),
+            expectation("fixture.response.v1", "", 512, 8),
+            expectation("fixture.response.v1", "receiver-1", 0, 8),
+            expectation(
+                "fixture.response.v1",
+                "receiver-1",
+                MAX_EXECUTION_RESPONSE_BYTES + 1,
+                8,
+            ),
+            expectation(
+                "fixture.response.v1",
+                "receiver-1",
+                512,
+                MAX_EXECUTION_RESPONSE_BYTES + 1,
+            ),
+        ] {
+            assert_eq!(
+                invalid.validate().unwrap_err(),
+                ResponseExpectationError::InvalidTrustedMapping
+            );
+        }
+    }
+
+    #[test]
+    fn execution_expectation_applies_independent_trusted_bounds() {
+        use ed25519_dalek::Signer;
+        use libsec_core::execution_response::{
+            ExecutionAuthenticatorKind, EXECUTION_RESPONSE_SCHEMA_VERSION,
+        };
+        let receiver = SigningKey::from_bytes(&[9; 32]);
+        let expectation = ResponseExpectation::Execution {
+            schema: "fixture.response.v1".into(),
+            signer_key_id: "receiver-1".into(),
+            verifying_key: Box::new(receiver.verifying_key()),
+            max_frame_bytes: 512,
+            max_output_bytes: 2,
+        };
+        let mut response = ExecutionResponse {
+            schema_version: EXECUTION_RESPONSE_SCHEMA_VERSION,
+            status: ExecutionStatus::Executed,
+            reason_code: None,
+            request_digest: [1; 32],
+            context_id: Some("ctx".into()),
+            receipt_id: Some("receipt".into()),
+            output_schema: Some("fixture.response.v1".into()),
+            output: Some(b"too-long".to_vec()),
+            authenticator_kind: ExecutionAuthenticatorKind::Ed25519Receiver,
+            signer_key_id: "receiver-1".into(),
+            signature: [0; 64],
+        };
+        response.signature = receiver
+            .sign(&response.signature_preimage().unwrap())
+            .to_bytes();
+        let frame = response.encode_frame(512).unwrap();
+        assert!(decode_expected_gateway_response(&frame, &expectation, [1; 32]).is_err());
+    }
+
+    #[test]
+    fn execution_expectation_accepts_authenticated_schema_less_rejections() {
+        use ed25519_dalek::Signer;
+        use libsec_core::execution_response::{
+            ExecutionAuthenticatorKind, EXECUTION_RESPONSE_SCHEMA_VERSION,
+        };
+        let receiver = SigningKey::from_bytes(&[9; 32]);
+        let expectation = ResponseExpectation::Execution {
+            schema: "fixture.response.v1".into(),
+            signer_key_id: "receiver-1".into(),
+            verifying_key: Box::new(receiver.verifying_key()),
+            max_frame_bytes: 512,
+            max_output_bytes: 16,
+        };
+        let rejection_base = ExecutionResponse {
+            schema_version: EXECUTION_RESPONSE_SCHEMA_VERSION,
+            status: ExecutionStatus::VerifierRejected,
+            reason_code: Some("wrong_audience".into()),
+            request_digest: [1; 32],
+            context_id: None,
+            receipt_id: None,
+            output_schema: None,
+            output: None,
+            authenticator_kind: ExecutionAuthenticatorKind::Ed25519Receiver,
+            signer_key_id: "receiver-1".into(),
+            signature: [0; 64],
+        };
+
+        for mut response in [
+            rejection_base.clone(),
+            ExecutionResponse {
+                status: ExecutionStatus::ExecutionRejected,
+                reason_code: Some("handler_timeout".into()),
+                context_id: Some("ctx".into()),
+                receipt_id: Some("receipt".into()),
+                ..rejection_base.clone()
+            },
+        ] {
+            response.signature = receiver
+                .sign(&response.signature_preimage().unwrap())
+                .to_bytes();
+            let frame = response.encode_frame(512).unwrap();
+            let decoded = decode_expected_gateway_response(&frame, &expectation, [1; 32])
+                .expect("authenticated rejection must satisfy the trusted execution expectation");
+            assert!(
+                matches!(decoded, GatewayResponse::Execution(Ok(value)) if value.status == response.status)
+            );
+        }
+
+        let mut executed = ExecutionResponse {
+            status: ExecutionStatus::Executed,
+            reason_code: None,
+            context_id: Some("ctx".into()),
+            receipt_id: Some("receipt".into()),
+            output_schema: Some("fixture.response.v1".into()),
+            output: Some(b"ok".to_vec()),
+            ..rejection_base
+        };
+        executed.signature = receiver
+            .sign(&executed.signature_preimage().unwrap())
+            .to_bytes();
+        let frame = executed.encode_frame(512).unwrap();
+        assert!(decode_expected_gateway_response(&frame, &expectation, [1; 32]).is_ok());
+        let wrong_schema = ResponseExpectation::Execution {
+            schema: "wrong.schema".into(),
+            signer_key_id: "receiver-1".into(),
+            verifying_key: Box::new(receiver.verifying_key()),
+            max_frame_bytes: 512,
+            max_output_bytes: 16,
+        };
+        assert!(decode_expected_gateway_response(&frame, &wrong_schema, [1; 32]).is_err());
     }
 
     #[test]
@@ -607,22 +991,22 @@ mod tests {
     #[test]
     fn decision_reporting_maps_to_exit_codes() {
         assert_eq!(
-            report_decision(Some(DecisionResponse::accepted(
+            report_decision(GatewayResponse::Decision(Some(DecisionResponse::accepted(
                 Some("ctx".to_string()),
                 Some("receipt".to_string())
-            ))),
+            )))),
             0
         );
         assert_eq!(
-            report_decision(Some(DecisionResponse::rejected(
+            report_decision(GatewayResponse::Decision(Some(DecisionResponse::rejected(
                 "bad_caller_proof",
                 None,
                 Some("receipt".to_string())
-            ))),
+            )))),
             1
         );
         // Older gateways close without a frame: the send still succeeded.
-        assert_eq!(report_decision(None), 0);
+        assert_eq!(report_decision(GatewayResponse::Decision(None)), 0);
     }
 
     #[test]

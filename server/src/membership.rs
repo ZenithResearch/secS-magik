@@ -91,7 +91,7 @@ mod tests {
             .execute(&context, br#"{"membership":"requested"}"#, limits)
             .await;
         assert_eq!(accepted.decision, crate::receipt::Decision::Accepted);
-        assert_eq!(accepted.output_bytes, 0, "handler emits no output bytes");
+        assert_eq!(accepted.output, None, "handler emits no output bytes");
 
         let oversized = vec![0u8; limits.max_payload_bytes + 1];
         let rejected = program.execute(&context, &oversized, limits).await;

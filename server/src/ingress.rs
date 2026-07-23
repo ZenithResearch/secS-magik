@@ -11,6 +11,7 @@ use bincode::Options;
 use libsec_core::ZenithPacket;
 use rand::rngs::OsRng;
 use rand::Rng;
+use sha2::{Digest, Sha256};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -72,6 +73,7 @@ pub struct DecodedIngressRequest {
     pub evidence_inputs: EvidenceInputs,
     pub versioned_request: bool,
     pub client_ephemeral_public_key: Option<[u8; 32]>,
+    pub request_digest: [u8; 32],
 }
 
 pub async fn read_bounded_ingress_request<R>(
@@ -99,6 +101,7 @@ where
             limit: max_wire_bytes,
         });
     }
+    let request_digest = Sha256::digest(&wire_bytes).into();
 
     if wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V1_MAGIC)
         || wire_bytes.starts_with(libsec_core::ingress_request::INGRESS_REQUEST_V2_MAGIC)
@@ -113,6 +116,7 @@ where
                     ),
                     versioned_request: true,
                     client_ephemeral_public_key: None,
+                    request_digest,
                 }));
             }
             Ok(libsec_core::ingress_request::IngressFrame::V2(request)) => {
@@ -124,6 +128,7 @@ where
                     ),
                     versioned_request: true,
                     client_ephemeral_public_key: Some(request.client_ephemeral_public_key),
+                    request_digest,
                 }));
             }
             Ok(libsec_core::ingress_request::IngressFrame::Legacy(packet)) => {
@@ -132,6 +137,7 @@ where
                     evidence_inputs: EvidenceInputs::default(),
                     versioned_request: false,
                     client_ephemeral_public_key: None,
+                    request_digest,
                 }));
             }
             Err(libsec_core::ingress_request::IngressRequestError::FrameTooLarge)
@@ -163,6 +169,7 @@ where
                 evidence_inputs: EvidenceInputs::default(),
                 versioned_request: false,
                 client_ephemeral_public_key: None,
+                request_digest,
             })
         })
         .map_err(IngressReadError::MalformedPacket)
@@ -282,6 +289,84 @@ async fn write_decision_response(
     }
 }
 
+async fn write_execution_response(
+    write_half: &mut tokio::net::tcp::OwnedWriteHalf,
+    response: &libsec_core::execution_response::ExecutionResponse,
+    write_timeout: Duration,
+) {
+    let Ok(bytes) =
+        response.encode_frame(libsec_core::execution_response::MAX_EXECUTION_RESPONSE_BYTES)
+    else {
+        return;
+    };
+    let _ = timeout(write_timeout, async {
+        write_half.write_all(&bytes).await?;
+        write_half.shutdown().await
+    })
+    .await;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReceiverResponseMode {
+    LegacyDecision,
+    Execution,
+}
+
+fn signed_output_profile_verifier_rejection(
+    identity: &crate::identity::NodeVerifierIdentity,
+    request_digest: [u8; 32],
+    reason: &str,
+    receipt_id: Option<String>,
+) -> Result<libsec_core::execution_response::ExecutionResponse, VerificationError> {
+    identity.sign_execution_response(libsec_core::execution_response::ExecutionResponse {
+        schema_version: libsec_core::execution_response::EXECUTION_RESPONSE_SCHEMA_VERSION,
+        status: libsec_core::execution_response::ExecutionStatus::VerifierRejected,
+        reason_code: Some(reason.to_string()),
+        request_digest,
+        context_id: None,
+        receipt_id,
+        output_schema: None,
+        output: None,
+        authenticator_kind:
+            libsec_core::execution_response::ExecutionAuthenticatorKind::Ed25519Receiver,
+        signer_key_id: identity.signer_key_id().to_string(),
+        signature: [0; 64],
+    })
+}
+
+async fn write_post_decode_verifier_rejection(
+    router: &ConfigurableRouter,
+    write_half: &mut tokio::net::tcp::OwnedWriteHalf,
+    packet: &ZenithPacket,
+    error: VerificationError,
+    request_digest: [u8; 32],
+    response_mode: ReceiverResponseMode,
+    write_timeout: Duration,
+) {
+    let reason = error.reason_code();
+    let receipt_id = router.record_reject(packet, error).await;
+    match response_mode {
+        ReceiverResponseMode::LegacyDecision => {
+            write_decision_response(
+                write_half,
+                &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+                write_timeout,
+            )
+            .await;
+        }
+        ReceiverResponseMode::Execution => {
+            if let Ok(response) = signed_output_profile_verifier_rejection(
+                router.identity(),
+                request_digest,
+                reason,
+                Some(receipt_id),
+            ) {
+                write_execution_response(write_half, &response, write_timeout).await;
+            }
+        }
+    }
+}
+
 pub async fn handle_gateway_connection_with_limits(
     router: Arc<ConfigurableRouter>,
     socket: TcpStream,
@@ -351,20 +436,33 @@ pub async fn handle_gateway_connection_with_limits(
             return;
         }
     };
+    let request_digest = decoded_request.request_digest;
     let evidence_inputs = decoded_request.evidence_inputs;
     let client_ephemeral_public_key = decoded_request.client_ephemeral_public_key;
     let packet = decoded_request.packet;
+    let response_mode = if router
+        .manifest()
+        .lookup(packet.opcode)
+        .ok()
+        .is_some_and(|descriptor| descriptor.output_profile.is_some())
+    {
+        ReceiverResponseMode::Execution
+    } else {
+        ReceiverResponseMode::LegacyDecision
+    };
 
     if let Err(error) = Verifier::verify_prototype_envelope(&packet) {
         eprintln!(
             "secS [Auth]: rejected packet with invalid prototype proof envelope - {}",
             error.reason_code()
         );
-        let reason = error.reason_code();
-        let receipt_id = router.record_reject(&packet, error).await;
-        write_decision_response(
+        write_post_decode_verifier_rejection(
+            &router,
             &mut write_half,
-            &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+            &packet,
+            error,
+            request_digest,
+            response_mode,
             read_timeout,
         )
         .await;
@@ -377,11 +475,13 @@ pub async fn handle_gateway_connection_with_limits(
             "secS [Crypto]: rejected production tunnel packet without session handshake - {}",
             error.reason_code()
         );
-        let reason = error.reason_code();
-        let receipt_id = router.record_reject(&packet, error).await;
-        write_decision_response(
+        write_post_decode_verifier_rejection(
+            &router,
             &mut write_half,
-            &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+            &packet,
+            error,
+            request_digest,
+            response_mode,
             read_timeout,
         )
         .await;
@@ -395,11 +495,13 @@ pub async fn handle_gateway_connection_with_limits(
                 "secS [Crypto]: rejected tunnel handshake - {}",
                 error.reason_code()
             );
-            let reason = error.reason_code();
-            let receipt_id = router.record_reject(&packet, error).await;
-            write_decision_response(
+            write_post_decode_verifier_rejection(
+                &router,
                 &mut write_half,
-                &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+                &packet,
+                error,
+                request_digest,
+                response_mode,
                 read_timeout,
             )
             .await;
@@ -413,18 +515,15 @@ pub async fn handle_gateway_connection_with_limits(
         session_tunnel_key.as_ref().map(|key| key.key),
     ) {
         Ok(payload) => payload,
-        Err(e) => {
-            eprintln!("secS [Crypto]: rejected undecryptable payload - {}", e);
-            let receipt_id = router
-                .record_reject(&packet, crate::verifier::VerificationError::BadMac)
-                .await;
-            write_decision_response(
+        Err(error) => {
+            eprintln!("secS [Crypto]: rejected undecryptable payload - {}", error);
+            write_post_decode_verifier_rejection(
+                &router,
                 &mut write_half,
-                &libsec_core::response::DecisionResponse::rejected(
-                    crate::verifier::VerificationError::BadMac.reason_code(),
-                    None,
-                    Some(receipt_id),
-                ),
+                &packet,
+                crate::verifier::VerificationError::BadMac,
+                request_digest,
+                response_mode,
                 read_timeout,
             )
             .await;
@@ -454,15 +553,13 @@ pub async fn handle_gateway_connection_with_limits(
                         "secS [Manifest]: rejected evidence-backed packet before handler lookup - {}",
                         error.reason_code()
                     );
-                    let reason = error.reason_code();
-                    let receipt_id = router.record_reject(&packet, error).await;
-                    write_decision_response(
+                    write_post_decode_verifier_rejection(
+                        &router,
                         &mut write_half,
-                        &libsec_core::response::DecisionResponse::rejected(
-                            reason,
-                            None,
-                            Some(receipt_id),
-                        ),
+                        &packet,
+                        error,
+                        request_digest,
+                        response_mode,
                         read_timeout,
                     )
                     .await;
@@ -475,11 +572,13 @@ pub async fn handle_gateway_connection_with_limits(
                     "secS [Manifest]: rejected evidence-backed packet without configured adapter - {}",
                     error.reason_code()
                 );
-                let reason = error.reason_code();
-                let receipt_id = router.record_reject(&packet, error).await;
-                write_decision_response(
+                write_post_decode_verifier_rejection(
+                    &router,
                     &mut write_half,
-                    &libsec_core::response::DecisionResponse::rejected(reason, None, Some(receipt_id)),
+                    &packet,
+                    error,
+                    request_digest,
+                    response_mode,
                     read_timeout,
                 )
                 .await;
@@ -502,15 +601,13 @@ pub async fn handle_gateway_connection_with_limits(
                     "secS [Manifest]: rejected packet before handler lookup - {}",
                     error.reason_code()
                 );
-                let reason = error.reason_code();
-                let receipt_id = router.record_reject(&packet, error).await;
-                write_decision_response(
+                write_post_decode_verifier_rejection(
+                    &router,
                     &mut write_half,
-                    &libsec_core::response::DecisionResponse::rejected(
-                        reason,
-                        None,
-                        Some(receipt_id),
-                    ),
+                    &packet,
+                    error,
+                    request_digest,
+                    response_mode,
                     read_timeout,
                 )
                 .await;
@@ -523,15 +620,13 @@ pub async fn handle_gateway_connection_with_limits(
         match annotate_tunnel_key_id(signed_context, tunnel_key_id, router.identity()) {
             Ok(context) => context,
             Err(error) => {
-                let reason = error.reason_code();
-                let receipt_id = router.record_reject(&packet, error).await;
-                write_decision_response(
+                write_post_decode_verifier_rejection(
+                    &router,
                     &mut write_half,
-                    &libsec_core::response::DecisionResponse::rejected(
-                        reason,
-                        None,
-                        Some(receipt_id),
-                    ),
+                    &packet,
+                    error,
+                    request_digest,
+                    response_mode,
                     read_timeout,
                 )
                 .await;
@@ -539,8 +634,17 @@ pub async fn handle_gateway_connection_with_limits(
             }
         };
 
-    let response = router.route_verified(&signed_context, payload).await;
-    write_decision_response(&mut write_half, &response, read_timeout).await;
+    if response_mode == ReceiverResponseMode::Execution {
+        if let Ok(response) = router
+            .route_verified_for_execution(&signed_context, payload, request_digest)
+            .await
+        {
+            write_execution_response(&mut write_half, &response, read_timeout).await;
+        }
+    } else {
+        let response = router.route_verified(&signed_context, payload).await;
+        write_decision_response(&mut write_half, &response, read_timeout).await;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -763,5 +867,60 @@ pub fn install_configured_proof_metadata_policy(router: &mut ConfigurableRouter)
             });
         let (registry, policies) = config.into_parts();
         router.set_proof_metadata_policy(registry, policies);
+    }
+}
+
+#[cfg(test)]
+mod response_mode_tests {
+    use super::*;
+    use libsec_core::execution_response::{
+        ExecutionResponse, ExecutionStatus, MAX_EXECUTION_RESPONSE_BYTES,
+    };
+
+    #[test]
+    fn output_profile_verifier_rejections_are_signed_and_request_bound_across_seams() {
+        let identity = explicit_test_fixture_identity("receiver-key-1", [7; 32]);
+        let request_digest = [4; 32];
+        let seam_errors = [
+            VerificationError::BadPrototypeProofEnvelope,
+            VerificationError::MissingTunnelKey,
+            VerificationError::BadMac,
+            VerificationError::InsufficientEvidence,
+            VerificationError::UnknownOperation,
+            VerificationError::PrivacyPolicyViolation,
+            VerificationError::InternalError,
+        ];
+
+        for error in seam_errors {
+            let response = signed_output_profile_verifier_rejection(
+                &identity,
+                request_digest,
+                error.reason_code(),
+                Some("receipt-1".into()),
+            )
+            .unwrap();
+            assert_eq!(response.status, ExecutionStatus::VerifierRejected);
+            let frame = response.encode_frame(MAX_EXECUTION_RESPONSE_BYTES).unwrap();
+            ExecutionResponse::decode_and_verify(
+                &frame,
+                MAX_EXECUTION_RESPONSE_BYTES,
+                MAX_EXECUTION_RESPONSE_BYTES,
+                "receiver-key-1",
+                identity.public_key(),
+                request_digest,
+                None,
+            )
+            .unwrap();
+            assert!(ExecutionResponse::decode_and_verify(
+                &frame,
+                MAX_EXECUTION_RESPONSE_BYTES,
+                MAX_EXECUTION_RESPONSE_BYTES,
+                "receiver-key-1",
+                identity.public_key(),
+                [5; 32],
+                None,
+            )
+            .is_err());
+        }
     }
 }

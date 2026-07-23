@@ -1,8 +1,25 @@
 use ed25519_dalek::{SigningKey, VerifyingKey};
+use serde::Deserialize;
 use server::receipt::{
-    AuthenticatorKind, Decision, Receipt, ReceiptEventKind, ReceiptKind, RECEIPT_SCHEMA_VERSION,
+    AuthenticatorKind, Decision, Receipt, ReceiptEventKind, ReceiptKind, ReceiptOutputProjection,
+    RECEIPT_SCHEMA_VERSION,
 };
 use server::verifier::{VerificationError, VerifiedCallContext, VerifiedSubject};
+
+#[derive(Deserialize)]
+struct SignedReceiptFixture {
+    discriminator: String,
+    unsigned_hex: String,
+    public_key_hex: String,
+    signer_key_id: String,
+    signature_hex: String,
+    receipt: Receipt,
+}
+
+fn decode_hex<const N: usize>(value: &str) -> [u8; N] {
+    assert_eq!(value.len(), N * 2);
+    std::array::from_fn(|index| u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap())
+}
 
 fn sample_context() -> VerifiedCallContext {
     VerifiedCallContext {
@@ -114,7 +131,7 @@ fn execution_receipt_references_handler_decision_and_never_payload_content() {
 
 #[test]
 fn receipt_schema_version_is_explicit_and_stable_for_migrations() {
-    assert_eq!(RECEIPT_SCHEMA_VERSION, 2);
+    assert_eq!(RECEIPT_SCHEMA_VERSION, 3);
 
     let receipt = Receipt::execution(
         "receipt-exec-versioned",
@@ -129,6 +146,49 @@ fn receipt_schema_version_is_explicit_and_stable_for_migrations() {
 }
 
 #[test]
+fn accepted_execution_output_projects_exact_domain_digest_without_raw_bytes() {
+    use sha2::{Digest, Sha256};
+    let output = b"SENTINEL_RAW_EXECUTION_OUTPUT";
+    let receipt = Receipt::execution_with_output(
+        "receipt-output-v3",
+        &sample_context(),
+        Decision::Accepted,
+        None,
+        177,
+        Some("fixture.response.v1"),
+        Some(output),
+    )
+    .unwrap();
+    let projection = receipt.output_projection.as_ref().unwrap();
+    let mut preimage = b"secs-execution-output-v1/digest".to_vec();
+    preimage.extend_from_slice(&(output.len() as u64).to_le_bytes());
+    preimage.extend_from_slice(output);
+    assert_eq!(
+        projection,
+        &ReceiptOutputProjection {
+            schema_id: "fixture.response.v1".into(),
+            byte_count: output.len() as u64,
+            digest_sha256: Sha256::digest(preimage).into(),
+        }
+    );
+    assert!(!format!("{receipt:?}").contains("SENTINEL_RAW_EXECUTION_OUTPUT"));
+}
+
+#[test]
+fn output_projection_is_allowed_only_on_accepted_execute_receipts() {
+    assert!(Receipt::execution_with_output(
+        "receipt-rejected-output",
+        &sample_context(),
+        Decision::Rejected,
+        Some("handler_rejected"),
+        178,
+        Some("fixture.response.v1"),
+        Some(b"forbidden"),
+    )
+    .is_err());
+}
+
+#[test]
 fn receipt_signature_rejects_tampering_and_wrong_key() {
     let key = [3u8; 32];
     let signed_context = sample_context()
@@ -138,19 +198,77 @@ fn receipt_signature_rejects_tampering_and_wrong_key() {
         Receipt::verify_from_signed_context("receipt-verify-2", &signed_context, 150)
             .sign_ed25519("verifier:test", &key, AuthenticatorKind::Ed25519Verifier)
             .unwrap();
-
     signed_receipt.verify_ed25519(&key).unwrap();
-
     let mut tampered = signed_receipt.clone();
     tampered.reason = Some("changed_after_signing".to_string());
     assert_eq!(
         tampered.verify_ed25519(&key).unwrap_err(),
         VerificationError::InvalidSignature
     );
-
     assert_eq!(
         signed_receipt.verify_ed25519(&[4u8; 32]).unwrap_err(),
         VerificationError::InvalidSignature
+    );
+}
+
+#[test]
+fn immutable_receipt_fixtures_verify_only_their_exact_historical_layouts() {
+    let fixtures = [
+        include_str!("fixtures/receipts/pre_c4b6218_signed.json"),
+        include_str!("fixtures/receipts/schema_v1_signed.json"),
+        include_str!("fixtures/receipts/schema_v2_signed.json"),
+        include_str!("fixtures/receipts/schema_v3_signed.json"),
+    ];
+    let parsed: Vec<SignedReceiptFixture> = fixtures
+        .into_iter()
+        .map(|json| serde_json::from_str(json).unwrap())
+        .collect();
+    for fixture in &parsed {
+        assert!(!fixture.discriminator.is_empty());
+        assert!(!fixture.unsigned_hex.is_empty());
+        assert_eq!(fixture.receipt.signer_key_id, fixture.signer_key_id);
+        assert_eq!(
+            fixture.receipt.signature,
+            decode_hex::<64>(&fixture.signature_hex)
+        );
+        let key = VerifyingKey::from_bytes(&decode_hex::<32>(&fixture.public_key_hex)).unwrap();
+        fixture.receipt.verify_ed25519_with_key(&key).unwrap();
+        let mut tampered = fixture.receipt.clone();
+        tampered.opcode ^= 1;
+        assert_eq!(
+            tampered.verify_ed25519_with_key(&key).unwrap_err(),
+            VerificationError::InvalidSignature
+        );
+    }
+    let key = VerifyingKey::from_bytes(&decode_hex::<32>(&parsed[0].public_key_hex)).unwrap();
+    let mut ineligible_fallback = parsed[1].receipt.clone();
+    ineligible_fallback.signature = parsed[0].receipt.signature.clone();
+    assert!(ineligible_fallback.context_id.is_some());
+    assert_eq!(
+        ineligible_fallback
+            .verify_ed25519_with_key(&key)
+            .unwrap_err(),
+        VerificationError::InvalidSignature
+    );
+    let mut later_layout_value = parsed[1].receipt.clone();
+    later_layout_value.evidence_summary.push("not-v1".into());
+    assert_eq!(
+        later_layout_value
+            .verify_ed25519_with_key(&key)
+            .unwrap_err(),
+        VerificationError::InternalError
+    );
+    let mut cross_version = parsed[2].receipt.clone();
+    cross_version.schema_version = 3;
+    assert_eq!(
+        cross_version.verify_ed25519_with_key(&key).unwrap_err(),
+        VerificationError::InvalidSignature
+    );
+    let mut unknown = parsed[3].receipt.clone();
+    unknown.schema_version = 99;
+    assert_eq!(
+        unknown.verify_ed25519_with_key(&key).unwrap_err(),
+        VerificationError::InternalError
     );
 }
 

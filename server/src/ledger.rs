@@ -7,9 +7,9 @@
 use crate::nullifier::{NullifierCommitment, NullifierDomainV1, NullifierReason};
 use crate::public_audit::{
     public_audit_entry_hash, public_audit_root_hash, sha256_hex, AuditPublisher, PublicAuditBundle,
-    PublicAuditBundleStatus, PublicAuditChainMetadata, PublicAuditPublicationRecord,
-    PublicAuditPublicationStatus, PublicAuditReceiptEntry, PublicAuditRedactionPolicy,
-    PublicAuditSignerKey, PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION,
+    PublicAuditBundleStatus, PublicAuditChainMetadata, PublicAuditOutputProjection,
+    PublicAuditPublicationRecord, PublicAuditPublicationStatus, PublicAuditReceiptEntry,
+    PublicAuditRedactionPolicy, PublicAuditSignerKey, PUBLIC_AUDIT_CHAIN_ALGORITHM_VERSION,
 };
 use crate::receipt::{Receipt, ReceiptEventKind};
 use crate::schema::{apply_schema, LEDGER_TABLES};
@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use sqlx::Row;
 use sqlx::SqlitePool;
 
-pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 2;
+pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 3;
 pub const LEDGER_REDACTION_POLICY: &str =
     "local_redacted_no_payload_or_private_evidence_by_default";
 
@@ -46,10 +46,317 @@ pub struct OperatorReceiptInspection {
     pub signature_len: usize,
     pub signature_sha256_hex: Option<String>,
     pub evidence_summary: Vec<String>,
+    pub output_projection: Option<OperatorReceiptOutputProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperatorReceiptOutputProjection {
+    pub schema_id: String,
+    pub byte_count: u64,
+    pub digest_sha256_hex: String,
 }
 
 impl OperatorReceiptInspection {
     pub const EXPORT_SCHEMA_VERSION: u16 = OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION;
+}
+
+#[derive(serde::Serialize)]
+struct OperatorReceiptWireV1<'a> {
+    export_schema_version: u16,
+    schema_version: u16,
+    redaction_policy: &'static str,
+    retention_policy: &'static str,
+    receipt_id: &'a str,
+    context_id: Option<&'a str>,
+    timestamp: u64,
+    kind: &'a str,
+    decision: &'a str,
+    reason: Option<&'a str>,
+    operation: Option<&'a str>,
+    handler_id: Option<&'a str>,
+    opcode: u8,
+    packet_hash_hex: &'a str,
+    session_id_hex: &'a str,
+    nonce_hex: &'a str,
+    authenticator_kind: &'a str,
+    signer_key_id: &'a str,
+    signature_present: bool,
+    signature_len: usize,
+    signature_sha256_hex: Option<&'a str>,
+}
+
+#[derive(serde::Serialize)]
+struct OperatorReceiptWireV2<'a> {
+    export_schema_version: u16,
+    schema_version: u16,
+    redaction_policy: &'static str,
+    retention_policy: &'static str,
+    receipt_id: &'a str,
+    context_id: Option<&'a str>,
+    timestamp: u64,
+    kind: &'a str,
+    decision: &'a str,
+    reason: Option<&'a str>,
+    operation: Option<&'a str>,
+    handler_id: Option<&'a str>,
+    opcode: u8,
+    packet_hash_hex: &'a str,
+    session_id_hex: &'a str,
+    nonce_hex: &'a str,
+    authenticator_kind: &'a str,
+    signer_key_id: &'a str,
+    signature_present: bool,
+    signature_len: usize,
+    signature_sha256_hex: Option<&'a str>,
+    evidence_summary: &'a [String],
+}
+
+#[derive(serde::Serialize)]
+struct OperatorReceiptWireV3<'a> {
+    export_schema_version: u16,
+    schema_version: u16,
+    redaction_policy: &'static str,
+    retention_policy: &'static str,
+    receipt_id: &'a str,
+    context_id: Option<&'a str>,
+    timestamp: u64,
+    kind: &'a str,
+    decision: &'a str,
+    reason: Option<&'a str>,
+    operation: Option<&'a str>,
+    handler_id: Option<&'a str>,
+    opcode: u8,
+    packet_hash_hex: &'a str,
+    session_id_hex: &'a str,
+    nonce_hex: &'a str,
+    authenticator_kind: &'a str,
+    signer_key_id: &'a str,
+    signature_present: bool,
+    signature_len: usize,
+    signature_sha256_hex: Option<&'a str>,
+    evidence_summary: &'a [String],
+    output_projection: Option<&'a OperatorReceiptOutputProjection>,
+}
+
+impl OperatorReceiptInspection {
+    fn wire_v1(&self) -> OperatorReceiptWireV1<'_> {
+        OperatorReceiptWireV1 {
+            export_schema_version: self.schema_version,
+            schema_version: self.schema_version,
+            redaction_policy: self.redaction_policy,
+            retention_policy: self.retention_policy,
+            receipt_id: &self.receipt_id,
+            context_id: self.context_id.as_deref(),
+            timestamp: self.timestamp,
+            kind: &self.kind,
+            decision: &self.decision,
+            reason: self.reason.as_deref(),
+            operation: self.operation.as_deref(),
+            handler_id: self.handler_id.as_deref(),
+            opcode: self.opcode,
+            packet_hash_hex: &self.packet_hash_hex,
+            session_id_hex: &self.session_id_hex,
+            nonce_hex: &self.nonce_hex,
+            authenticator_kind: &self.authenticator_kind,
+            signer_key_id: &self.signer_key_id,
+            signature_present: self.signature_present,
+            signature_len: self.signature_len,
+            signature_sha256_hex: self.signature_sha256_hex.as_deref(),
+        }
+    }
+
+    fn wire_v2(&self) -> OperatorReceiptWireV2<'_> {
+        let v1 = self.wire_v1();
+        OperatorReceiptWireV2 {
+            export_schema_version: v1.export_schema_version,
+            schema_version: v1.schema_version,
+            redaction_policy: v1.redaction_policy,
+            retention_policy: v1.retention_policy,
+            receipt_id: v1.receipt_id,
+            context_id: v1.context_id,
+            timestamp: v1.timestamp,
+            kind: v1.kind,
+            decision: v1.decision,
+            reason: v1.reason,
+            operation: v1.operation,
+            handler_id: v1.handler_id,
+            opcode: v1.opcode,
+            packet_hash_hex: v1.packet_hash_hex,
+            session_id_hex: v1.session_id_hex,
+            nonce_hex: v1.nonce_hex,
+            authenticator_kind: v1.authenticator_kind,
+            signer_key_id: v1.signer_key_id,
+            signature_present: v1.signature_present,
+            signature_len: v1.signature_len,
+            signature_sha256_hex: v1.signature_sha256_hex,
+            evidence_summary: &self.evidence_summary,
+        }
+    }
+
+    fn wire_v3(&self) -> OperatorReceiptWireV3<'_> {
+        let v2 = self.wire_v2();
+        OperatorReceiptWireV3 {
+            export_schema_version: v2.export_schema_version,
+            schema_version: v2.schema_version,
+            redaction_policy: v2.redaction_policy,
+            retention_policy: v2.retention_policy,
+            receipt_id: v2.receipt_id,
+            context_id: v2.context_id,
+            timestamp: v2.timestamp,
+            kind: v2.kind,
+            decision: v2.decision,
+            reason: v2.reason,
+            operation: v2.operation,
+            handler_id: v2.handler_id,
+            opcode: v2.opcode,
+            packet_hash_hex: v2.packet_hash_hex,
+            session_id_hex: v2.session_id_hex,
+            nonce_hex: v2.nonce_hex,
+            authenticator_kind: v2.authenticator_kind,
+            signer_key_id: v2.signer_key_id,
+            signature_present: v2.signature_present,
+            signature_len: v2.signature_len,
+            signature_sha256_hex: v2.signature_sha256_hex,
+            evidence_summary: v2.evidence_summary,
+            output_projection: self.output_projection.as_ref(),
+        }
+    }
+}
+
+impl serde::Serialize for OperatorReceiptInspection {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::Error;
+
+        if self.export_schema_version != self.schema_version {
+            return Err(S::Error::custom(
+                "operator export version does not match persisted receipt schema",
+            ));
+        }
+        match self.schema_version {
+            1 if self.evidence_summary.is_empty() && self.output_projection.is_none() => {
+                serde::Serialize::serialize(&self.wire_v1(), serializer)
+            }
+            1 => Err(S::Error::custom(
+                "operator v1 cannot disclose evidence or output projection",
+            )),
+            2 if self.output_projection.is_none() => {
+                serde::Serialize::serialize(&self.wire_v2(), serializer)
+            }
+            2 => Err(S::Error::custom(
+                "operator v2 cannot disclose output projection",
+            )),
+            3 if self.output_projection.is_none()
+                || (self.kind == "execute" && self.decision == "accepted") =>
+            {
+                serde::Serialize::serialize(&self.wire_v3(), serializer)
+            }
+            3 => Err(S::Error::custom(
+                "operator v3 projection requires an accepted execute receipt",
+            )),
+            _ => Err(S::Error::custom(
+                "unsupported persisted receipt schema for operator export",
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperatorReceiptExportError {
+    Malformed,
+    UnsupportedVersion,
+    CrossVersionShape,
+    InvalidProjection,
+}
+
+pub fn validate_operator_receipt_export_json(json: &str) -> Result<(), OperatorReceiptExportError> {
+    use std::collections::BTreeSet;
+    let value: serde_json::Value =
+        serde_json::from_str(json).map_err(|_| OperatorReceiptExportError::Malformed)?;
+    let object = value
+        .as_object()
+        .ok_or(OperatorReceiptExportError::Malformed)?;
+    let version = object
+        .get("export_schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(OperatorReceiptExportError::Malformed)?;
+    let common = [
+        "export_schema_version",
+        "schema_version",
+        "redaction_policy",
+        "retention_policy",
+        "receipt_id",
+        "context_id",
+        "timestamp",
+        "kind",
+        "decision",
+        "reason",
+        "operation",
+        "handler_id",
+        "opcode",
+        "packet_hash_hex",
+        "session_id_hex",
+        "nonce_hex",
+        "authenticator_kind",
+        "signer_key_id",
+        "signature_present",
+        "signature_len",
+        "signature_sha256_hex",
+    ];
+    let mut expected: BTreeSet<&str> = common.into_iter().collect();
+    match version {
+        1 => {}
+        2 => {
+            expected.insert("evidence_summary");
+        }
+        3 => {
+            expected.insert("evidence_summary");
+            expected.insert("output_projection");
+        }
+        _ => return Err(OperatorReceiptExportError::UnsupportedVersion),
+    }
+    let receipt_schema_version = object
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or(OperatorReceiptExportError::Malformed)?;
+    if receipt_schema_version != version {
+        return Err(OperatorReceiptExportError::CrossVersionShape);
+    }
+    let actual: BTreeSet<&str> = object.keys().map(String::as_str).collect();
+    if actual != expected {
+        return Err(OperatorReceiptExportError::CrossVersionShape);
+    }
+    if version == 3 {
+        if let Some(projection) = object["output_projection"].as_object() {
+            let projection_keys: BTreeSet<&str> = projection.keys().map(String::as_str).collect();
+            let schema_valid = projection["schema_id"]
+                .as_str()
+                .is_some_and(|schema| !schema.is_empty());
+            let digest_valid = projection["digest_sha256_hex"]
+                .as_str()
+                .is_some_and(|digest| {
+                    digest.len() == 64
+                        && digest
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                });
+            if projection_keys != BTreeSet::from(["schema_id", "byte_count", "digest_sha256_hex"])
+                || !schema_valid
+                || projection["byte_count"].as_u64().is_none()
+                || !digest_valid
+                || object["kind"].as_str() != Some("execute")
+                || object["decision"].as_str() != Some("accepted")
+            {
+                return Err(OperatorReceiptExportError::InvalidProjection);
+            }
+        } else if !object["output_projection"].is_null() {
+            return Err(OperatorReceiptExportError::InvalidProjection);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,6 +415,7 @@ struct PublicAuditReceiptRow {
     authenticator_kind: String,
     signer_key_id: String,
     evidence_summary: Vec<String>,
+    output_projection: Option<PublicAuditOutputProjection>,
     signature: Vec<u8>,
 }
 
@@ -292,6 +600,18 @@ impl Ledger {
     }
 
     pub async fn record_receipt(&self, receipt: &Receipt) -> Result<(), sqlx::Error> {
+        let output_schema_id = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.schema_id.as_str());
+        let output_byte_count = receipt
+            .output_projection
+            .as_ref()
+            .and_then(|value| i64::try_from(value.byte_count).ok());
+        let output_digest_sha256 = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.digest_sha256.to_vec());
         sqlx::query(
             "INSERT INTO receipts (
                 receipt_id,
@@ -310,8 +630,11 @@ impl Ledger {
                 authenticator_kind,
                 signer_key_id,
                 evidence_summary,
+                output_schema_id,
+                output_byte_count,
+                output_digest_sha256,
                 signature
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&receipt.receipt_id)
         .bind(i64::from(receipt.schema_version))
@@ -329,6 +652,9 @@ impl Ledger {
         .bind(receipt.authenticator_kind.as_str())
         .bind(&receipt.signer_key_id)
         .bind(serde_json::to_string(&receipt.evidence_summary).unwrap_or_else(|_| "[]".to_string()))
+        .bind(output_schema_id)
+        .bind(output_byte_count)
+        .bind(output_digest_sha256)
         .bind(&receipt.signature)
         .execute(&self.pool)
         .await
@@ -353,12 +679,24 @@ impl Ledger {
         timestamp: u64,
     ) -> Result<(), sqlx::Error> {
         let mut tx = self.pool.begin().await?;
+        let output_schema_id = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.schema_id.as_str());
+        let output_byte_count = receipt
+            .output_projection
+            .as_ref()
+            .and_then(|value| i64::try_from(value.byte_count).ok());
+        let output_digest_sha256 = receipt
+            .output_projection
+            .as_ref()
+            .map(|value| value.digest_sha256.to_vec());
 
         // Receipt insert (dupe of record_receipt query for tx; keeps record_receipt available for other uses)
         sqlx::query(
             "INSERT INTO receipts (
-                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, evidence_summary, signature
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                receipt_id, schema_version, context_id, timestamp, kind, packet_hash, session_id, nonce, opcode, operation, decision, reason, handler_id, authenticator_kind, signer_key_id, evidence_summary, output_schema_id, output_byte_count, output_digest_sha256, signature
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&receipt.receipt_id)
         .bind(i64::from(receipt.schema_version))
@@ -376,6 +714,9 @@ impl Ledger {
         .bind(receipt.authenticator_kind.as_str())
         .bind(&receipt.signer_key_id)
         .bind(serde_json::to_string(&receipt.evidence_summary).unwrap_or_else(|_| "[]".to_string()))
+        .bind(output_schema_id)
+        .bind(output_byte_count)
+        .bind(output_digest_sha256)
         .bind(&receipt.signature)
         .execute(&mut *tx)
         .await?;
@@ -488,6 +829,7 @@ impl Ledger {
                 signer_key_id: row.signer_key_id,
                 signature_hex: hex_lower(&row.signature),
                 evidence_summary: row.evidence_summary,
+                output_projection: row.output_projection,
                 entry_hash_hex: String::new(),
             };
             entry.entry_hash_hex = public_audit_entry_hash(&entry);
@@ -544,6 +886,9 @@ impl Ledger {
                 authenticator_kind,
                 signer_key_id,
                 evidence_summary,
+                output_schema_id,
+                output_byte_count,
+                output_digest_sha256,
                 signature
             FROM receipts
             WHERE context_id = ?
@@ -566,23 +911,34 @@ impl Ledger {
                 let evidence_summary = row.try_get::<String, _>("evidence_summary")?;
                 let evidence_summary =
                     serde_json::from_str::<Vec<String>>(&evidence_summary).unwrap_or_default();
+                let kind: String = row.try_get("kind")?;
+                let decision: String = row.try_get("decision")?;
+                let output_projection =
+                    output_projection_from_row(&row, &kind, &decision)?.map(|projection| {
+                        PublicAuditOutputProjection {
+                            schema_id: projection.schema_id,
+                            byte_count: projection.byte_count,
+                            digest_sha256_hex: projection.digest_sha256_hex,
+                        }
+                    });
                 Ok(PublicAuditReceiptRow {
                     receipt_id: row.try_get("receipt_id")?,
                     schema_version: row.try_get::<i64, _>("schema_version")? as u16,
                     context_id: row.try_get("context_id")?,
                     timestamp: row.try_get::<i64, _>("timestamp")? as u64,
-                    kind: row.try_get("kind")?,
+                    kind,
                     packet_hash: row.try_get("packet_hash")?,
                     session_id: row.try_get("session_id")?,
                     nonce: row.try_get("nonce")?,
                     opcode: row.try_get::<i64, _>("opcode")? as u8,
                     operation: row.try_get("operation")?,
-                    decision: row.try_get("decision")?,
+                    decision,
                     reason: row.try_get("reason")?,
                     handler_id: row.try_get("handler_id")?,
                     authenticator_kind: row.try_get("authenticator_kind")?,
                     signer_key_id: row.try_get("signer_key_id")?,
                     evidence_summary,
+                    output_projection,
                     signature: row.try_get("signature")?,
                 })
             })
@@ -750,6 +1106,9 @@ impl Ledger {
                 authenticator_kind,
                 signer_key_id,
                 evidence_summary,
+                output_schema_id,
+                output_byte_count,
+                output_digest_sha256,
                 signature
             FROM receipts
             WHERE context_id = ?
@@ -788,6 +1147,9 @@ const OPERATOR_RECEIPT_SELECT_SQL: &str = "SELECT
     authenticator_kind,
     signer_key_id,
     evidence_summary,
+    output_schema_id,
+    output_byte_count,
+    output_digest_sha256,
     signature
 FROM receipts
 WHERE receipt_id = ?";
@@ -859,6 +1221,9 @@ fn operator_inspection_from_row(
     let packet_hash: Vec<u8> = row.try_get("packet_hash")?;
     let session_id: Vec<u8> = row.try_get("session_id")?;
     let nonce: Vec<u8> = row.try_get("nonce")?;
+    let kind: String = row.try_get("kind")?;
+    let decision: String = row.try_get("decision")?;
+    let output_projection = output_projection_from_row(&row, &kind, &decision)?;
 
     let schema_version = u16::try_from(schema_version)
         .map_err(|_| invalid_ledger_data("receipt schema_version is outside u16 range"))?;
@@ -871,15 +1236,15 @@ fn operator_inspection_from_row(
     require_blob_len("nonce", &nonce, 12)?;
 
     Ok(OperatorReceiptInspection {
-        export_schema_version: OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION,
+        export_schema_version: schema_version,
         schema_version,
         redaction_policy: LEDGER_REDACTION_POLICY,
         retention_policy: "local_sqlite_operator_retained_until_database_rotation_or_deletion",
         receipt_id: row.try_get("receipt_id")?,
         context_id: row.try_get("context_id")?,
         timestamp,
-        kind: row.try_get("kind")?,
-        decision: row.try_get("decision")?,
+        kind,
+        decision,
         reason: row.try_get("reason")?,
         operation: row.try_get("operation")?,
         handler_id: row.try_get("handler_id")?,
@@ -893,7 +1258,39 @@ fn operator_inspection_from_row(
         signature_len: signature.len(),
         signature_sha256_hex,
         evidence_summary,
+        output_projection,
     })
+}
+
+fn output_projection_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+    kind: &str,
+    decision: &str,
+) -> Result<Option<OperatorReceiptOutputProjection>, sqlx::Error> {
+    let schema_id: Option<String> = row.try_get("output_schema_id")?;
+    let byte_count: Option<i64> = row.try_get("output_byte_count")?;
+    let digest: Option<Vec<u8>> = row.try_get("output_digest_sha256")?;
+    match (schema_id, byte_count, digest) {
+        (None, None, None) => Ok(None),
+        (Some(schema_id), Some(byte_count), Some(digest)) => {
+            if schema_id.is_empty() || kind != "execute" || decision != "accepted" {
+                return Err(invalid_ledger_data(
+                    "receipt output projection is not valid for this receipt",
+                ));
+            }
+            let byte_count = u64::try_from(byte_count)
+                .map_err(|_| invalid_ledger_data("receipt output byte count is negative"))?;
+            require_blob_len("output_digest_sha256", &digest, 32)?;
+            Ok(Some(OperatorReceiptOutputProjection {
+                schema_id,
+                byte_count,
+                digest_sha256_hex: hex_lower(&digest),
+            }))
+        }
+        _ => Err(invalid_ledger_data(
+            "receipt output projection triple is incomplete",
+        )),
+    }
 }
 
 fn require_blob_len(field: &str, bytes: &[u8], expected: usize) -> Result<(), sqlx::Error> {

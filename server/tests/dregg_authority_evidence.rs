@@ -26,6 +26,7 @@ fn descriptor() -> OperationDescriptor {
         opcode: 0x44,
         name: OperationName::new(OPERATION),
         payload_schema: Some(RESOURCE.to_string()),
+        output_profile: None,
         target_kind: TargetKind::ReceiverProductionHandler,
         required_credentials: vec![],
         required_capabilities: vec!["dregg_authority".to_string()],

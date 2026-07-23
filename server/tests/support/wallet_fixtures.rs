@@ -32,6 +32,7 @@ pub fn wallet_descriptor(opcode: u8) -> OperationDescriptor {
         opcode,
         name: OperationName::new(WALLET_OPERATION),
         payload_schema: Some(WALLET_RESOURCE.to_string()),
+        output_profile: None,
         target_kind: TargetKind::LocalDevProcess,
         required_credentials: vec!["wallet.presentation".to_string()],
         required_capabilities: vec!["wallet.present".to_string()],

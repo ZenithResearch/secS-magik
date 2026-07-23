@@ -15,6 +15,7 @@ fn descriptor(opcode: u8, accepted_evidence: Vec<&str>) -> OperationDescriptor {
         opcode,
         name: OperationName::new("candidate.dev.evidence_tier"),
         payload_schema: Some("application/json".to_string()),
+        output_profile: None,
         target_kind: TargetKind::LocalDevProcess,
         required_credentials: vec!["tier.fixture".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],

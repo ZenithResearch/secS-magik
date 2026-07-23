@@ -125,3 +125,15 @@ async fn ledger_schema_ontology_names_audit_publication_status_table() {
         ]
     );
 }
+
+#[test]
+fn receipts_schema_declares_nullable_redacted_output_projection_columns() {
+    let receipts = LEDGER_TABLES
+        .iter()
+        .find(|table| table.name == "receipts")
+        .unwrap();
+    assert!(receipts.ddl.contains("output_schema_id TEXT"));
+    assert!(receipts.ddl.contains("output_byte_count INTEGER"));
+    assert!(receipts.ddl.contains("output_digest_sha256 BLOB"));
+    assert!(!receipts.ddl.contains("raw_output"));
+}

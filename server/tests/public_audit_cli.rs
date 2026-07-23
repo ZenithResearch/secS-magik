@@ -116,8 +116,8 @@ async fn verifier_cli_engine_accepts_valid_bundle_without_database_access() {
         report,
         PublicAuditCliVerification {
             valid: true,
-            bundle_version: "secs-public-audit-bundle-v1".to_string(),
-            chain_algorithm_version: "secs-public-audit-chain-v1".to_string(),
+            bundle_version: "secs-public-audit-bundle-v2".to_string(),
+            chain_algorithm_version: "secs-public-audit-chain-v2".to_string(),
             chain_scope: "context:ctx-public-audit-cli-valid".to_string(),
             root_hash_hex: bundle.chain.root_hash_hex,
             receipt_count: 2,

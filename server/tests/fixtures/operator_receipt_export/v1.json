@@ -1,0 +1,23 @@
+{
+  "export_schema_version": 1,
+  "schema_version": 1,
+  "redaction_policy": "local_redacted_no_payload_or_private_evidence_by_default",
+  "retention_policy": "local_sqlite_operator_retained_until_database_rotation_or_deletion",
+  "receipt_id": "operator-v1-fixture",
+  "context_id": null,
+  "timestamp": 1700000000,
+  "kind": "reject",
+  "decision": "rejected",
+  "reason": "unknown_operation",
+  "operation": null,
+  "handler_id": null,
+  "opcode": 16,
+  "packet_hash_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+  "session_id_hex": "02020202020202020202020202020202",
+  "nonce_hex": "030303030303030303030303",
+  "authenticator_kind": "local_dev_untrusted",
+  "signer_key_id": "",
+  "signature_present": false,
+  "signature_len": 0,
+  "signature_sha256_hex": null
+}

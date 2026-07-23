@@ -11,6 +11,7 @@ pub mod ffi;
 #[cfg(all(feature = "uniffi", target_arch = "wasm32"))]
 uniffi::setup_scaffolding!();
 pub mod caller_proof;
+pub mod execution_response;
 pub mod ingress_request;
 pub mod packet_builder;
 pub mod response;

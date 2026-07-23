@@ -21,6 +21,7 @@ fn evidence_descriptor(opcode: u8) -> OperationDescriptor {
         opcode,
         name: OperationName::new("candidate.dev.local_static"),
         payload_schema: Some("application/json".to_string()),
+        output_profile: None,
         target_kind: TargetKind::LocalDevProcess,
         required_credentials: vec!["local_static.subject".to_string()],
         required_capabilities: vec!["dev.execute".to_string()],

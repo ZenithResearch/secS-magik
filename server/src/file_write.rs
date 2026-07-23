@@ -123,7 +123,7 @@ impl MachineProgram for DemoFileWriteProgram {
             Err(reason) => return HandlerOutcome::rejected(reason),
         };
         match std::fs::write(&target, payload) {
-            Ok(()) => HandlerOutcome::succeeded_with_output_bytes(payload.len()),
+            Ok(()) => HandlerOutcome::succeeded(),
             Err(_) => HandlerOutcome::rejected(reject_reason::WRITE_FAILED),
         }
     }

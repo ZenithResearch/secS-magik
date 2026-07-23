@@ -1,0 +1,12 @@
+{
+  "anchor_schema_version": "secs-public-audit-github-gist-anchor-v1",
+  "target_kind": "github-gist",
+  "target_ref": "fixture-anchor",
+  "bundle_version": "secs-public-audit-bundle-v1",
+  "chain_algorithm_version": "secs-public-audit-chain-v1",
+  "chain_scope": "context:fixture",
+  "root_hash_hex": "0df3ffd37b231f2a488f04e5f06bfa14a6b10416fb259219d43f951814d8d270",
+  "receipt_count": 1,
+  "published_at": 1700000101,
+  "verifier_command": "secz audit verify <bundle.json>"
+}

@@ -46,6 +46,9 @@ pub const RECEIPTS_TABLE: RuntimeTable = RuntimeTable {
         authenticator_kind TEXT NOT NULL,
         signer_key_id TEXT NOT NULL,
         evidence_summary TEXT NOT NULL DEFAULT '[]',
+        output_schema_id TEXT,
+        output_byte_count INTEGER,
+        output_digest_sha256 BLOB,
         signature BLOB NOT NULL
     );",
 };
@@ -156,6 +159,27 @@ async fn ensure_receipts_columns(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         "receipts",
         "evidence_summary",
         "ALTER TABLE receipts ADD COLUMN evidence_summary TEXT NOT NULL DEFAULT '[]'",
+    )
+    .await?;
+    ensure_column(
+        pool,
+        "receipts",
+        "output_schema_id",
+        "ALTER TABLE receipts ADD COLUMN output_schema_id TEXT",
+    )
+    .await?;
+    ensure_column(
+        pool,
+        "receipts",
+        "output_byte_count",
+        "ALTER TABLE receipts ADD COLUMN output_byte_count INTEGER",
+    )
+    .await?;
+    ensure_column(
+        pool,
+        "receipts",
+        "output_digest_sha256",
+        "ALTER TABLE receipts ADD COLUMN output_digest_sha256 BLOB",
     )
     .await
 }

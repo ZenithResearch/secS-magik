@@ -102,8 +102,8 @@ async fn github_gist_anchor_publisher_records_external_redacted_status_and_ancho
         Some("https://gist.github.com/ZenithResearch/example-anchor")
     );
     assert_eq!(anchor.target_kind, "github-gist");
-    assert_eq!(anchor.bundle_version, "secs-public-audit-bundle-v1");
-    assert_eq!(anchor.chain_algorithm_version, "secs-public-audit-chain-v1");
+    assert_eq!(anchor.bundle_version, "secs-public-audit-bundle-v2");
+    assert_eq!(anchor.chain_algorithm_version, "secs-public-audit-chain-v2");
     assert_eq!(anchor.chain_scope, "context:ctx-public-audit-gist-anchor");
     assert_eq!(anchor.root_hash_hex, bundle.chain.root_hash_hex);
     assert_eq!(anchor.receipt_count, 2);
@@ -159,8 +159,8 @@ fn external_anchor_record_is_versioned_and_public_safe_json() {
         anchor_schema_version: "secs-public-audit-github-gist-anchor-v1".to_string(),
         target_kind: "github-gist".to_string(),
         target_ref: "https://gist.github.com/ZenithResearch/example-anchor".to_string(),
-        bundle_version: "secs-public-audit-bundle-v1".to_string(),
-        chain_algorithm_version: "secs-public-audit-chain-v1".to_string(),
+        bundle_version: "secs-public-audit-bundle-v2".to_string(),
+        chain_algorithm_version: "secs-public-audit-chain-v2".to_string(),
         chain_scope: "context:ctx".to_string(),
         root_hash_hex: "ab".repeat(32),
         receipt_count: 2,

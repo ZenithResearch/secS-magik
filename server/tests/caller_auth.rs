@@ -287,6 +287,7 @@ mod runtime_wiring {
             opcode: PRODUCTION_OPCODE,
             name: OperationName::new("test.production.echo"),
             payload_schema: None,
+            output_profile: None,
             target_kind: TargetKind::LocalDevProcess,
             required_credentials: vec![],
             required_capabilities: vec![],

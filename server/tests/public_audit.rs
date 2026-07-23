@@ -11,7 +11,7 @@ fn public_audit_bundle_schema_is_versioned_redacted_and_serializable() {
         status: PublicAuditBundleStatus::Complete,
         exported_at: 1_770_000_000,
         chain: PublicAuditChainMetadata {
-            algorithm_version: "secs-public-audit-chain-v1".to_string(),
+            algorithm_version: "secs-public-audit-chain-v2".to_string(),
             chain_scope: "context:ctx-1".to_string(),
             root_hash_hex: "root-hash".to_string(),
             first_receipt_id: "r-1".to_string(),
@@ -43,12 +43,13 @@ fn public_audit_bundle_schema_is_versioned_redacted_and_serializable() {
             signer_key_id: "verifier:test".to_string(),
             signature_hex: "dd".repeat(64),
             evidence_summary: vec!["evidence_kind:local_static".to_string()],
+            output_projection: None,
             entry_hash_hex: "ee".repeat(32),
         }],
     };
 
     let json = serde_json::to_string(&bundle).expect("public audit bundle should serialize");
-    assert!(json.contains("secs-public-audit-bundle-v1"));
+    assert!(json.contains("secs-public-audit-bundle-v2"));
     assert!(json.contains("default_no_payload_or_private_evidence"));
     assert!(!json.contains("raw_payload"));
     assert!(!json.contains("raw_private_evidence"));
@@ -269,7 +270,7 @@ async fn audit_chain_export_records_versioned_ordered_hash_links() {
         .await
         .unwrap();
 
-    assert_eq!(bundle.chain.algorithm_version, "secs-public-audit-chain-v1");
+    assert_eq!(bundle.chain.algorithm_version, "secs-public-audit-chain-v2");
     assert_eq!(
         bundle.chain.chain_scope,
         "context:ctx-public-audit-chain-links"
@@ -386,8 +387,8 @@ async fn local_audit_publisher_records_idempotent_redacted_publication_status() 
     );
     assert_eq!(second.idempotency_key, first.idempotency_key);
     assert_eq!(second.attempt_count, 2);
-    assert_eq!(second.bundle_version, "secs-public-audit-bundle-v1");
-    assert_eq!(second.chain_algorithm_version, "secs-public-audit-chain-v1");
+    assert_eq!(second.bundle_version, "secs-public-audit-bundle-v2");
+    assert_eq!(second.chain_algorithm_version, "secs-public-audit-chain-v2");
     assert_eq!(second.chain_scope, "context:ctx-public-audit-publisher-ok");
     assert_eq!(second.root_hash_hex, bundle.chain.root_hash_hex);
     assert_eq!(second.receipt_count, 2);
@@ -466,4 +467,177 @@ async fn audit_publication_failure_is_visible_and_does_not_rewrite_receipts() {
         rejected,
         server::ledger::PublicAuditPublicationError::BundleVerificationFailed
     );
+}
+
+#[tokio::test]
+async fn public_audit_v2_exports_only_signed_output_projection_metadata() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-output");
+    let receipt = Receipt::execution_with_output(
+        "r-public-output",
+        &context,
+        Decision::Accepted,
+        None,
+        1_770_000_300,
+        Some("fixture.response.v1"),
+        Some(b"SENTINEL_RAW_EXECUTION_OUTPUT"),
+    )
+    .unwrap()
+    .sign_ed25519(
+        "verifier:public-audit-test",
+        &[7u8; 32],
+        AuthenticatorKind::Ed25519NodeAndVerifier,
+    )
+    .unwrap();
+    ledger.record_receipt(&receipt).await.unwrap();
+    let bundle = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-output",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_301,
+        )
+        .await
+        .unwrap();
+    let projection = bundle.receipts[0].output_projection.as_ref().unwrap();
+    assert_eq!(projection.schema_id, "fixture.response.v1");
+    assert_eq!(projection.byte_count, 29);
+    assert_eq!(projection.digest_sha256_hex.len(), 64);
+    let json = serde_json::to_string(&bundle).unwrap();
+    assert!(!json.contains("SENTINEL_RAW_EXECUTION_OUTPUT"));
+    bundle.verify_local_public_audit().unwrap();
+}
+
+#[test]
+fn immutable_public_audit_v1_and_v2_fixtures_are_version_aware_and_redacted() {
+    use server::public_audit::{verify_external_audit_anchor_record, ExternalAuditAnchorRecord};
+    let v1_json = include_str!("fixtures/public_audit/bundle_v1_chain_v1.json");
+    let v2_outputless_json =
+        include_str!("fixtures/public_audit/bundle_v2_chain_v2_outputless.json");
+    let v2_output_json = include_str!("fixtures/public_audit/bundle_v2_chain_v2_with_output.json");
+    let anchor_json = include_str!("fixtures/public_audit/anchor_v1.json");
+    let v1: PublicAuditBundle = serde_json::from_str(v1_json).unwrap();
+    let v2_outputless: PublicAuditBundle = serde_json::from_str(v2_outputless_json).unwrap();
+    let v2_output: PublicAuditBundle = serde_json::from_str(v2_output_json).unwrap();
+    let anchor: ExternalAuditAnchorRecord = serde_json::from_str(anchor_json).unwrap();
+
+    assert_eq!(v1.version, "secs-public-audit-bundle-v1");
+    assert_eq!(v1.chain.algorithm_version, "secs-public-audit-chain-v1");
+    assert!(v1.receipts[0].output_projection.is_none());
+    v1.verify_local_public_audit().unwrap();
+    verify_external_audit_anchor_record(&v1, &anchor).unwrap();
+
+    for bundle in [&v2_outputless, &v2_output] {
+        assert_eq!(bundle.version, "secs-public-audit-bundle-v2");
+        assert_eq!(bundle.chain.algorithm_version, "secs-public-audit-chain-v2");
+        bundle.verify_local_public_audit().unwrap();
+    }
+    assert!(v2_outputless.receipts[0].output_projection.is_none());
+    let projection = v2_output.receipts[0].output_projection.as_ref().unwrap();
+    assert_eq!(projection.schema_id, "fixture.response.v1");
+    assert_eq!(projection.digest_sha256_hex.len(), 64);
+
+    for json in [v1_json, v2_outputless_json, v2_output_json, anchor_json] {
+        assert!(!json.contains("SENTINEL_RAW_EXECUTION_OUTPUT"));
+        assert!(!json.contains("raw_output"));
+    }
+
+    let mut cross_version = v2_output.clone();
+    cross_version.version = "secs-public-audit-bundle-v1".into();
+    cross_version.chain.algorithm_version = "secs-public-audit-chain-v1".into();
+    assert!(cross_version.verify_local_public_audit().is_err());
+    let mut tampered = v2_output;
+    tampered.receipts[0]
+        .output_projection
+        .as_mut()
+        .unwrap()
+        .byte_count += 1;
+    assert!(tampered.verify_local_public_audit().is_err());
+    let mut unknown = v1;
+    unknown.version = "secs-public-audit-bundle-v99".into();
+    assert!(unknown.verify_local_public_audit().is_err());
+}
+
+#[test]
+fn external_public_audit_dtos_reject_unknown_and_raw_output_fields() {
+    let bundle_json = include_str!("fixtures/public_audit/bundle_v2_chain_v2_with_output.json");
+    let anchor_json = include_str!("fixtures/public_audit/anchor_v1.json");
+    for path in [
+        vec!["unexpected"],
+        vec!["chain", "unexpected"],
+        vec!["signer_keys", "0", "unexpected"],
+        vec!["receipts", "0", "raw_output"],
+        vec!["receipts", "0", "output_projection", "unexpected"],
+    ] {
+        let mut value: serde_json::Value = serde_json::from_str(bundle_json).unwrap();
+        let mut cursor = &mut value;
+        for segment in &path[..path.len() - 1] {
+            cursor = if let Ok(index) = segment.parse::<usize>() {
+                &mut cursor.as_array_mut().unwrap()[index]
+            } else {
+                &mut cursor.as_object_mut().unwrap()[*segment]
+            };
+        }
+        cursor.as_object_mut().unwrap().insert(
+            path.last().unwrap().to_string(),
+            serde_json::json!("SENTINEL_RAW_EXECUTION_OUTPUT"),
+        );
+        assert!(serde_json::from_value::<PublicAuditBundle>(value).is_err());
+    }
+
+    let mut anchor: serde_json::Value = serde_json::from_str(anchor_json).unwrap();
+    anchor
+        .as_object_mut()
+        .unwrap()
+        .insert("unexpected".into(), true.into());
+    assert!(
+        serde_json::from_value::<server::public_audit::ExternalAuditAnchorRecord>(anchor).is_err()
+    );
+}
+
+#[tokio::test]
+async fn rehashed_schema_v3_outputless_receipt_cannot_be_relabelled_as_v1() {
+    let ledger = memory_ledger().await;
+    let context = context("ctx-public-audit-v3-downgrade");
+    ledger
+        .record_receipt(&signed_receipt(
+            "r-public-v3-outputless",
+            &context,
+            1_770_000_020,
+        ))
+        .await
+        .unwrap();
+    let mut bundle = ledger
+        .export_public_audit_bundle_for_context(
+            "ctx-public-audit-v3-downgrade",
+            [(
+                "verifier:public-audit-test",
+                signer_key().verifying_key().as_bytes(),
+            )],
+            1_770_000_100,
+        )
+        .await
+        .unwrap();
+    assert_eq!(bundle.receipts[0].schema_version, 3);
+    assert!(bundle.receipts[0].output_projection.is_none());
+
+    bundle.version = "secs-public-audit-bundle-v1".into();
+    bundle.chain.algorithm_version = "secs-public-audit-chain-v1".into();
+    let mut previous = None;
+    for entry in &mut bundle.receipts {
+        entry.previous_entry_hash_hex = previous;
+        entry.entry_hash_hex.clear();
+        entry.entry_hash_hex =
+            server::public_audit::sha256_hex(&serde_json::to_vec(entry).unwrap());
+        previous = Some(entry.entry_hash_hex.clone());
+    }
+    let mut root_preimage = bundle.version.as_bytes().to_vec();
+    for entry in &bundle.receipts {
+        root_preimage.extend_from_slice(entry.entry_hash_hex.as_bytes());
+    }
+    bundle.chain.root_hash_hex = server::public_audit::sha256_hex(&root_preimage);
+
+    assert!(bundle.verify_local_public_audit().is_err());
 }

@@ -9,7 +9,7 @@ Plans are not implementation status. Use [../implementation-status.md](../implem
 | Plan | Status | Use it for |
 |---|---|---|
 | [2026-06-02-ready-for-prod-checklist.md](2026-06-02-ready-for-prod-checklist.md) | Current control surface | Ready-for-prod track checklist, completion checkpoints, remaining D/E/I authority path, and forbidden-claim boundaries. |
-| [2026-07-18-secs-hermes-peer-chat-dag.md](2026-07-18-secs-hermes-peer-chat-dag.md) | Current contract/delivery control surface | Dependency-ordered P1/P2–P7 path for symmetric authenticated Hermes peer chat, with one-issue/one-PR boundaries, evidence gates, and deferred internal tool gating. |
+| [2026-07-18-secs-hermes-peer-chat-dag.md](2026-07-18-secs-hermes-peer-chat-dag.md) | Current P1/P2–P7 control surface; P3 implemented by #263, P4 blocked | Dependency-ordered path for symmetric authenticated Hermes peer chat, preserving one-issue/one-PR boundaries, exact evidence gates, and deferred internal tool gating. |
 | [2026-06-01-implementation-progress-checklist.md](2026-06-01-implementation-progress-checklist.md) | Historical/current progress ledger | Early issue-train progress and CI alignment notes. |
 | [2026-06-01-secs-magik-implementation-issue-slices.md](2026-06-01-secs-magik-implementation-issue-slices.md) | Historical issue-slice import | Original issue-level sequence and acceptance criteria from the 2026-06-01 baseline. Many early slices have since landed. |
 
