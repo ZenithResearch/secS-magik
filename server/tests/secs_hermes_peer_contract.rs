@@ -211,6 +211,8 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
             "Commit 9 is the single additive final-review correction",
             "Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`",
             "Commit 10 is the single additive final CTO correction",
+            "Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c71928c746fec014de330fd03`",
+            "Commit 11 is the single additive roundtable correction",
             "P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green",
         ],
     );
@@ -227,7 +229,7 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         );
     }
 
-    for commit in 1..=10 {
+    for commit in 1..=11 {
         let marker = format!("- P3/C{commit}:");
         assert_eq!(
             CHANGELOG.matches(&marker).count(),

@@ -103,9 +103,11 @@ Issue #263 and draft PR #264 implement this node through exactly eight ordered c
 7. Public-audit and operator downgrade-resistance hardening.
 8. Claim and governance reconciliation with mechanical C1–C8 changelog guards.
 
-Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce84cccb9e8c9d9b887bf2`. Commit 9 is the single additive final-review correction: state-aware trusted execution-schema verification plus persisted-schema-selected historical operator export serialization. No tenth commit is authorized by #263.
+Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce84cccb9e8c9d9b887bf2`. Commit 9 is the single additive final-review correction: state-aware trusted execution-schema verification plus persisted-schema-selected historical operator export serialization.
 
-Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`. Commit 10 is the single additive final CTO correction: redacted output debug surfaces plus required atomic execute-reject receipt persistence for post-start output-profile rejection branches. No eleventh commit is authorized by #263.
+Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`. Commit 10 is the single additive final CTO correction: redacted output debug surfaces plus required atomic execute-reject receipt persistence for post-start output-profile rejection branches.
+
+Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c71928c746fec014de330fd03`. Commit 11 is the single additive roundtable correction: output-profile contexts with an authenticated missing handler binding pass active-manifest matching only to reach required atomic `handler_unavailable` rejection persistence through public ingress. No Commit 12 is authorized by #263.
 
 P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green.
 

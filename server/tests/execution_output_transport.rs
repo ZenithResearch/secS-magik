@@ -404,6 +404,104 @@ async fn gateway_output_profile_pre_handler_rejections_require_persisted_receipt
     );
 }
 
+#[tokio::test]
+async fn public_execution_route_persists_missing_handler_binding_or_emits_no_frame() {
+    use libsec_core::ZenithPacket;
+    use server::gateway::ExecutionTransportFailure;
+
+    let identity =
+        server::identity::explicit_test_fixture_identity("verifier:local-prototype", [7; 32]);
+    let manifest = ReceiverManifest::new([descriptor(Some(OutputProfile {
+        schema_id: "fixture.response.v1".into(),
+        max_output_bytes: 8,
+        max_execution_response_bytes: 512,
+    }))]);
+    let signed_without_handler = |nonce: u8| {
+        let packet = ZenithPacket {
+            session_id: [4; 16],
+            nonce: [nonce; 12],
+            opcode: 0x52,
+            proof: vec![1],
+            claim_ttl: 30,
+            encrypted_payload: b"request".to_vec(),
+            mac: [0; 16],
+        };
+        let mut context = Verifier::verify_manifest_operation_and_sign(
+            &packet,
+            &manifest,
+            "secS://receiver-a",
+            now(),
+            "verifier:local-prototype",
+            &[7; 32],
+        )
+        .unwrap()
+        .context;
+        context.handler_id = None;
+        identity.sign_context(context).unwrap()
+    };
+
+    let healthy_pool = memory_pool().await;
+    let mut healthy_router =
+        ConfigurableRouter::with_identity(healthy_pool.clone(), identity.clone());
+    healthy_router.set_manifest(manifest.clone());
+    let response = healthy_router
+        .route_verified_for_execution(&signed_without_handler(30), b"request".to_vec(), [30; 32])
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::ExecutionRejected);
+    assert_eq!(response.reason_code.as_deref(), Some("handler_unavailable"));
+    let receipt_id = response
+        .receipt_id
+        .expect("persisted execute-reject receipt");
+    let receipt: (String, String, String, Option<String>) = sqlx::query_as(
+        "SELECT kind, decision, reason, handler_id FROM receipts WHERE receipt_id = ?",
+    )
+    .bind(receipt_id)
+    .fetch_one(&healthy_pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        (
+            "execute".into(),
+            "rejected".into(),
+            "handler_unavailable".into(),
+            None,
+        )
+    );
+    let emitted: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM events WHERE event_kind = 'receipt_emitted' AND reason = 'execute'",
+    )
+    .fetch_one(&healthy_pool)
+    .await
+    .unwrap();
+    assert_eq!(emitted, 1);
+
+    let failed_pool = memory_pool().await;
+    let mut failed_router =
+        ConfigurableRouter::with_identity(failed_pool.clone(), identity.clone());
+    failed_router.set_manifest(manifest.clone());
+    sqlx::query("DROP TABLE events")
+        .execute(&failed_pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        failed_router
+            .route_verified_for_execution(
+                &signed_without_handler(31),
+                b"request".to_vec(),
+                [31; 32],
+            )
+            .await,
+        Err(ExecutionTransportFailure::ReceiptPersistenceFailed)
+    );
+    let receipts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receipts")
+        .fetch_one(&failed_pool)
+        .await
+        .unwrap();
+    assert_eq!(receipts, 0);
+}
+
 fn descriptor(output_profile: Option<OutputProfile>) -> OperationDescriptor {
     OperationDescriptor {
         opcode: 0x52,

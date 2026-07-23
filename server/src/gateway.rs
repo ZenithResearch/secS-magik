@@ -1417,7 +1417,10 @@ fn signed_context_matches_active_manifest(
         return false;
     }
     context.operation == descriptor.name.as_str()
-        && context.handler_id.as_deref() == Some(descriptor.handler_id.as_str())
+        && match context.handler_id.as_deref() {
+            Some(handler_id) => handler_id == descriptor.handler_id.as_str(),
+            None => descriptor.output_profile.is_some(),
+        }
 }
 
 fn production_context_uses_dev_descriptor(
