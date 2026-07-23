@@ -107,7 +107,9 @@ Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce8
 
 Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`. Commit 10 is the single additive final CTO correction: redacted output debug surfaces plus required atomic execute-reject receipt persistence for post-start output-profile rejection branches.
 
-Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c71928c746fec014de330fd03`. Commit 11 is the single additive roundtable correction: output-profile contexts with an authenticated missing handler binding pass active-manifest matching only to reach required atomic `handler_unavailable` rejection persistence through public ingress. No Commit 12 is authorized by #263.
+Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c71928c746fec014de330fd03`. Commit 11 is the single additive roundtable correction: output-profile contexts with an authenticated missing handler binding pass active-manifest matching only to reach required atomic `handler_unavailable` rejection persistence through public ingress.
+
+Commits 1–11 are an immutable protected prefix ending at `26f23ce2d07ea992c2ad8dd1c15fad6736fa8f3d`. Commit 12 is the sole additive governance-test correction: exact parsing enforces the complete C1–C12 changelog marker set and the terminal authorization boundary. No Commit 13 is authorized by #263.
 
 P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green.
 

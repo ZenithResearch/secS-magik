@@ -213,6 +213,9 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
             "Commit 10 is the single additive final CTO correction",
             "Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c71928c746fec014de330fd03`",
             "Commit 11 is the single additive roundtable correction",
+            "Commits 1–11 are an immutable protected prefix ending at `26f23ce2d07ea992c2ad8dd1c15fad6736fa8f3d`",
+            "Commit 12 is the sole additive governance-test correction",
+            "No Commit 13 is authorized by #263",
             "P4 remains blocked until #263 is authorized to merge and post-merge `main` CI is green",
         ],
     );
@@ -229,12 +232,34 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         );
     }
 
-    for commit in 1..=11 {
-        let marker = format!("- P3/C{commit}:");
+    let mut marker_counts = std::collections::BTreeMap::new();
+    for (offset, _) in CHANGELOG.match_indices("P3/C") {
+        let suffix = &CHANGELOG[offset + "P3/C".len()..];
+        let digit_count = suffix.bytes().take_while(u8::is_ascii_digit).count();
+        assert!(digit_count > 0, "malformed P3/C marker at byte {offset}");
         assert_eq!(
-            CHANGELOG.matches(&marker).count(),
-            1,
-            "CHANGELOG must contain exactly one rationale for C{commit}"
+            suffix.as_bytes().get(digit_count),
+            Some(&b':'),
+            "malformed P3/C marker at byte {offset}"
         );
+        let digits = &suffix[..digit_count];
+        let commit: u32 = digits
+            .parse()
+            .unwrap_or_else(|_| panic!("malformed P3/C marker at byte {offset}"));
+        assert_eq!(
+            digits,
+            commit.to_string(),
+            "non-canonical P3/C marker at byte {offset}"
+        );
+        assert!(
+            (1..=12).contains(&commit),
+            "out-of-range P3/C{commit} marker"
+        );
+        *marker_counts.entry(commit).or_insert(0usize) += 1;
     }
+    let expected = (1..=12).map(|commit| (commit, 1usize)).collect();
+    assert_eq!(
+        marker_counts, expected,
+        "CHANGELOG P3 rationale markers must be exactly C1 through C12, each once"
+    );
 }
