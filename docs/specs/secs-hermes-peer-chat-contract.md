@@ -1,7 +1,7 @@
 # secS/Hermes symmetric peer-chat contract
 
 Date: 2026-07-18
-Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-blocked; P5–P7 unimplemented/blocked
+Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-reconciliation-pending; P5–P7 unimplemented/blocked
 Profile: `agent.chat.v1`
 
 ## Decision
@@ -45,7 +45,7 @@ The three response states remain `verifier_rejected`, `execution_rejected`, and 
 
 Accepted execution output crosses the persistence boundary only as a signed receipt schema v3 projection containing schema ID, byte count, and domain-separated SHA-256 digest. Raw output bytes are never persisted, logged, debug-rendered, or exported. Verification preserves the exact `pre-c4b6218`, receipt-v1, and receipt-v2 historical encodings, with constrained v1-first fallback. Every new operator projection uses operator export v3, while historical operator v1/v2 shapes remain immutable. New public export uses `bundle-v2/chain-v2`; historical `bundle-v1/chain-v1` and its external anchor remain verifiable only under v1 semantics.
 
-P4 remains unimplemented and is dependency-ready but contract-blocked. Before a separate P4 issue can authorize code, the historical receiver-local chat-adapter wording must be reconciled with Matrix as the conversation plane and secS as the authority plane for exact machine calls. Issue #267 does not add a Hermes call, receiver-local adapter, plugin/profile/tool gating, trusted peer resolution, `agent.chat.v1`, mutual chat, deployment proof, or production-readiness claim and does not authorize P4 implementation.
+P4 remains unimplemented and is dependency-ready but contract-reconciliation-pending after #266. The pre-existing peer-chat contract below remains unresolved; Issue #267 neither endorses nor demotes it and authorizes neither architecture resolution nor implementation. This status does not add a Hermes call, receiver-local Hermes adapter, plugin/profile/tool gating, trusted peer resolution, `agent.chat.v1`, mutual chat, deployment proof, or production-readiness claim.
 
 ## 1. Symmetric identity and configuration
 

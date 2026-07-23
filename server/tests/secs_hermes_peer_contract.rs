@@ -86,7 +86,7 @@ fn peer_chat_dag_serializes_runtime_pr_boundaries_and_defers_internal_gating() {
         &[
             "P1/P2 — contract gate",
             "P3 — bounded execution-output transport",
-            "P4 — receiver-local exact-operation adapter",
+            "P4 — receiver-local Hermes adapter",
             "P5 — outbound Hermes plugin client",
             "P6 — mutual peer and negative evidence",
             "P7 — schema-driven extension",
@@ -115,7 +115,7 @@ fn docs_index_and_status_keep_contract_distinct_from_implementation() {
         STATUS,
         &[
             "secS/Hermes peer-chat contract (#261/#262)",
-            "P3 is complete on `main`; P4 is dependency-ready but contract-blocked",
+            "P3 is complete on `main`; P4 is dependency-ready but contract-reconciliation-pending after #266",
             "P3 bounded execution-output transport (#263)",
         ],
     );
@@ -127,7 +127,7 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
         "peer-chat contract P3 status",
         CONTRACT,
         &[
-            "Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-blocked; P5–P7 unimplemented/blocked",
+            "Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-reconciliation-pending; P5–P7 unimplemented/blocked",
             "P3 implementation status: implemented by #263** and complete on `main` through merged PR #264",
             "c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27",
             "358b232a3c0de2f96f63b41ffa276c5ae469c19e",
@@ -157,8 +157,8 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
         &[
             "P1/P2 — contract gate | Complete via #261/#262",
             "P3 — bounded execution-output transport | Complete on `main` via closed #263 and merged PR #264",
-            "P4 — receiver-local exact-operation adapter | Dependency-ready; contract-blocked pending Matrix conversation / secS exact machine-call scope reconciliation",
-            "Issue #267 does not authorize P4 implementation",
+            "P4 — receiver-local Hermes adapter | Dependency-ready; contract-reconciliation-pending",
+            "Issue #267 authorizes neither P4 architecture resolution nor implementation",
         ],
     );
     contains_all(
@@ -169,6 +169,7 @@ fn p3_docs_reconcile_implemented_transport_without_promoting_p4() {
             "Complete on `main` through closed #263, merged PR #264",
             "P3/C1–P3/C12 remain the exact governance sequence; No Commit 13 is authorized by #263",
             "Hermes delivery, trusted peer resolution, and peer chat remain unimplemented",
+            "P4 is dependency-ready but contract-reconciliation-pending after #266",
         ],
     );
 }
@@ -197,7 +198,7 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         "peer-chat P3 hardening status",
         CONTRACT,
         &[
-            "Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-blocked; P5–P7 unimplemented/blocked",
+            "Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-reconciliation-pending; P5–P7 unimplemented/blocked",
             "The exact four new P3 output reasons are `handler_output_missing`, `handler_output_unexpected`, `output_too_large`, and `execution_response_too_large`.",
             "P4 remains unimplemented",
             "Hermes adapter",
@@ -224,8 +225,9 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
             "No Commit 13 is authorized by #263",
             "P3 is complete on `main` through merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e`",
             "post-merge Rust CI run [30047659428]",
-            "P4 is dependency-ready but contract-blocked",
-            "Issue #267 authorizes only this status reconciliation, not P4 implementation",
+            "P4 is dependency-ready but contract-reconciliation-pending",
+            "The existing receiver-local peer-chat adapter contract remains unresolved",
+            "Issue #267 neither endorses nor demotes that contract and authorizes neither architecture resolution nor implementation",
         ],
     );
 
@@ -244,13 +246,24 @@ fn p3_review_hardening_reconciles_current_claims_and_changelog_governance() {
         "Blocked by authorized P3 merge",
         "P4 remains blocked until #263",
         "P4 blocked on P3 merge",
+    ] {
+        assert!(
+            !CONTRACT.contains(stale) && !DAG.contains(stale) && !STATUS.contains(stale),
+            "P3 status surfaces must reject stale claim: {stale}"
+        );
+    }
+
+    for stale in [
         "exactly eight ordered commits",
         "Eight ordered RED/GREEN commits",
         "completed eight-commit P3 branch",
     ] {
         assert!(
-            !CONTRACT.contains(stale) && !DAG.contains(stale) && !STATUS.contains(stale),
-            "P3 docs must reject stale claim: {stale}"
+            !CONTRACT.contains(stale)
+                && !DAG.contains(stale)
+                && !STATUS.contains(stale)
+                && !CHANGELOG.contains(stale),
+            "P3 status and changelog surfaces must reject stale eight-commit claim: {stale}"
         );
     }
 
