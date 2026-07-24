@@ -1,197 +1,172 @@
-# secS/Hermes peer-chat implementation DAG
+# secS/Hermes exact-operation implementation DAG
 
 Date: 2026-07-18
-Status: current control surface; P1/P2 complete via #261/#262; P3 complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-reconciliation-pending; P5–P7 blocked
+Reconciled: 2026-07-23
+Status: current control surface; P1/P2 and P3 complete; P4-R in progress through Issue #270; P4-O through P7 blocked
 Contract: [../specs/secs-hermes-peer-chat-contract.md](../specs/secs-hermes-peer-chat-contract.md)
 
 ## Objective
 
-Deliver one symmetric authenticated Hermes A↔B chat path through secS while preserving distinct per-agent credentials, receiver-local authority, denial-before-handler behavior, bounded output, and strict non-leakage.
+Replace the superseded peer-chat delivery sequence with a gated path for one operator-ratified exact authority-bearing machine operation. Matrix remains the conversation plane. secS preserves distinct caller credentials, receiver-local authority, denial-before-handler behavior, bounded authenticated output, and strict non-leakage.
 
-Internal Hermes tool gating is deferred and is not in this DAG's first-slice dependency path.
+This plan ratifies no operation, identifier, schema, endpoint, ABI, IPC, transport, socket, route, package, repository owner, or runtime implementation.
 
-## Dependency DAG
+## Active dependency DAG
 
 ```mermaid
 graph TD
-  P12[P1/P2 — contract gate #261]
+  P12[P1/P2 — contract gate]
   P3[P3 — bounded execution-output transport]
-  P4[P4 — receiver-local Hermes adapter]
-  P5[P5 — outbound Hermes plugin client]
-  P6[P6 — mutual peer and negative evidence]
-  P7[P7 — schema-driven extension]
+  P4R[P4-R — peer-chat contract reconciliation]
+  P4O[P4-O — first named exact-operation ratification]
+  P4H[P4-H — stable Hermes exact-operation endpoint]
+  P4S[P4-S — secS receiver-side adapter]
+  P5C[P5-C — outbound authorized caller]
+  P6E[P6-E — exact-operation E2E and negative evidence]
+  P7[P7 — separately ratified extensions]
 
   P12 --> P3
-  P3 --> P4
-  P4 --> P5
-  P5 --> P6
-  P6 --> P7
+  P3 --> P4R
+  P4R --> P4O
+  P4O --> P4H
+  P4H --> P4S
+  P4S --> P5C
+  P5C --> P6E
+  P6E --> P7
 ```
 
-Serialized execution edges:
+The active serialized sequence is exactly:
 
 ```text
-P1/P2 --> P3
-P3 --> P4
-P4 --> P5
-P5 --> P6
-P6 --> P7
+P4-R -> P4-O -> P4-H -> P4-S -> P5-C -> P6-E -> P7
 ```
 
-Read-only audits of downstream contracts may run in parallel. Runtime implementation does not cross an unresolved dependency edge.
+P1/P2 and P3 are completed prerequisites. No runtime implementation may cross an unresolved edge. Read-only contract audits may run in parallel, but implementation remains serialized by the active edges.
 
-## Live baseline reconciled on 2026-07-18
+## Live baseline
 
-- Repository: `ZenithResearch/secS-magik` `main` at `184a347dd` (post-#258) when #261 was filed.
-- The latest `main` push `Rust CI` run, `29140543441`, is green. A later dynamic dependency-update `cargo` run, `29419019795`, failed without changing `main`; it is recorded separately and is not treated as the branch gate for this contract PR.
-- Existing: caller proof, `VerifiedCallContext`, audience/operation/replay/expiry checks, receiver-local policy, bounded handler accounting, receipts, and `DecisionResponse`.
-- Missing: handler output bytes, `agent.chat.v1` descriptor/handler, fixed local Hermes adapter, outbound Hermes plugin client, and A↔B evidence.
-- `legacy.chat` remains a legacy example and is not a substitute.
-- No pre-existing issue/PR/comment owned `agent.chat.v1` or symmetric Hermes peer chat.
-- Hermes upstream/core change is not a first-slice dependency. Live upstream `main` at `614dc194e` exposes authenticated `POST /p/<profile>/v1/chat/completions`, requires `API_SERVER_KEY` even on loopback, and therefore supports the fixed receiver-owned profile route without caller-selected path or profile controls.
+- P1/P2 contract governance completed through Issues #261/#262.
+- P3 completed through closed Issue #263 and merged PR #264.
+- The protected P3 head `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27` contains exactly 12 ordered commits.
+- Merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e` landed P3; post-merge Rust CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428) passed.
+- Post-P3 status synchronization completed through #267/#268.
+- Identity-fixture hygiene completed through #266/#269 at clean base `801ce5a7f954107dfb9a83d1cb7c2b93d4d76ad3`.
+- Issue #270 owns P4-R only. It authorizes contract/governance reconciliation and no runtime implementation.
 
-## Node table
+## Active node table
 
-| Node | Status | Owning repo | One-PR objective | Dependency | Evidence to unlock next node |
-|---|---|---|---|---|---|
-| P1/P2 — contract gate | Complete via #261/#262 | secS-magik | Lock identity/config, request, trusted metadata, execution response, local delivery, failures, bounds, and non-claims. | Current live baseline | Docs contract test, workspace test/build, clean diff, reviewed issue/PR. |
-| P3 — bounded execution-output transport | Complete on `main` via closed #263 and merged PR #264 | secS-magik | Separate receiver-signed `ExecutionResponse`, exact-ingress correlation, bounded output, and redacted receipt/operator/public-audit projection while preserving `DecisionResponse`. | P1/P2 merged and main CI green | Protected 12-commit head `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27`, merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e`, and successful post-merge CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428). |
-| P4 — receiver-local Hermes adapter | Dependency-ready; contract-reconciliation-pending | secS-magik | Preserve the existing peer-chat adapter contract as unresolved until a separate reconciliation determines whether to retain, revise, or supersede it. | P3 complete on `main`; reconciliation sequenced after #266 | A separate issue must resolve the contract before implementation. Issue #267 authorizes neither P4 architecture resolution nor implementation. |
-| P5 — outbound Hermes plugin client | Blocked by P4 | Hermes peer plugin package, owner path to be locked before filing | Resolve `secs_agent_identity`, select configured peer/profile, construct/send request, validate response, return bounded assistant text. | P4 merged and local package ownership accepted | Secure-reference tests; undeclared-peer/profile denial; fail-closed response parser; export/log redaction. |
-| P6 — mutual peer and negative evidence | Blocked by P5 | secS-magik evidence/control repository; one issue and one PR | Prove A→B and B→A with distinct credentials plus full negative/security matrix without modifying another repository. Any discovered code defect inserts an explicit repo-owned prerequisite node such as `P6-S1` or `P6-H1`. | P5 merged and any inserted repair nodes merged with green main CI | Reproducible two-node harness, exact credential identities, handler counters, receipt correlation, leak scans. |
-| P7 — schema-driven extension | Future | Per operation owner | Add only explicitly specified symbolic profiles after chat is accepted. | P6 complete | New descriptor/schema/policy/bounds/negative tests per profile. |
+| Node | Status | One-PR objective | Dependency | Gate to unlock the next node |
+|---|---|---|---|---|
+| P1/P2 — contract gate | Complete via #261/#262 | Preserve credential references, distinct caller identity, receiver verification/policy, signed context, response, and non-leakage invariants. | Historical baseline | Completed evidence remains provenance; peer-chat delivery commitments are superseded. |
+| P3 — bounded execution-output transport | Complete on `main` via #263/#264 | Preserve signed exact-request-correlated bounded `ExecutionResponse`, unchanged `DecisionResponse`, and digest-only receipt projections. | P1/P2 complete | Exact P3/C1–P3/C12 history and green post-merge CI. |
+| P4-R — peer-chat contract reconciliation | In progress via #270 | Supersede `agent.chat.v1`, chat schemas, prompt projection, chat-completions/API-key delivery, peer-chat profile/plugin, and mutual-chat targets while preserving P1/P3 invariants. | P3 and #266/#267 complete on `main` | PR merged, post-merge `main` CI passes, issue evidence reconciled. |
+| P4-O — first named exact-operation ratification | Blocked by P4-R | Obtain an operator-ratified first named operation before any implementation, including exact authority/resource/schema/bounds/freshness/replay/idempotency/receipt/non-claim semantics. | P4-R merged and post-merge green | One accepted operation contract; no placeholder, generic identifier, or multiplexer. |
+| P4-H — stable Hermes exact-operation endpoint | Blocked by P4-O | Expose one stable fail-closed local Hermes operation boundary for the ratified operation only. | P4-O merged and post-merge green | Focused endpoint contract and implementation evidence without generic API-server or caller-controlled dispatch. |
+| P4-S — secS receiver-side adapter | Blocked by P4-H | Bind verified secS authority to the fixed P4-H boundary for the ratified operation. | P4-H merged and post-merge green | Denial-before-dispatch, exact resource/attenuation, bounded response, and redaction evidence. |
+| P5-C — outbound authorized caller | Blocked by P4-S | Construct and authenticate the single declared operation without caller-selected receiver-local controls. | P4-S merged and post-merge green | Credential/reference safety, exact request/response validation, and fail-closed negative evidence. |
+| P6-E — exact-operation E2E and negative evidence | Blocked by P5-C | Prove authorized success plus the complete identity/authority/replay/resource/response/redaction negative matrix. | P5-C merged and post-merge green | Reproducible evidence in one owning repository; repair nodes merged first if defects are found. |
+| P7 — separately ratified extensions | Future after P6-E | Add only separately ratified operations or transports through their own contracts and DAG nodes. | P6-E merged and post-merge green | Each extension has an operator-ratified contract and independent negative evidence. |
 
-## PR boundary audit
+## Superseded node table
 
-The execution rule is **one DAG node = one issue = one PR** and each checked task is one commit unless the issue explicitly records a narrower mapping. A node may collect evidence from multiple repositories, but it may modify only its owning repository.
+The former delivery nodes are historical provenance only. They are explicitly superseded, not renamed into the active sequence.
 
-- P1/P2 is one coherent docs/control-surface contract PR.
-- P3 is secS transport/runtime code only; it does not call Hermes.
-- P4 is one receiver adapter only; it does not add the outbound plugin.
-- P5 is one plugin package PR after repository ownership is locked.
-- P6 is one evidence/QA issue and one evidence PR in its owning repository. It cannot contain repo-local child PRs or modify another repository.
-- If P6 discovers a secS defect, insert `P6-S1` as an explicit prerequisite DAG node with one secS issue and one secS PR before work begins. If it discovers a Hermes defect, insert `P6-H1` as an explicit prerequisite DAG node with one Hermes issue and one Hermes PR before work begins. Additional fixes follow the same explicit `P6-<repo><n>` pattern.
-- Those repair nodes must be inserted as explicit prerequisite DAG nodes with their own table rows and edges before P6 can resume; unmodeled child PRs are forbidden.
-- P7 never exposes a discovered endpoint automatically.
+| Former node | Status | Superseded commitment |
+|---|---|---|
+| Former P4 — receiver-local Hermes adapter | Superseded | Fixed chat-completions delivery, `API_SERVER_KEY` plumbing, trusted metadata system prompt, and dedicated peer-chat profile. |
+| Former P5 — outbound Hermes plugin client | Superseded | `agent.chat.v1` peer/profile selection and outbound chat plugin delivery. |
+| Former P6 — mutual peer and negative evidence | Superseded | A-to-B/B-to-A mutual-chat target and chat-specific evidence matrix. |
 
-## P1/P2 — contract gate
+The former P7 schema-driven chat extension rule is also inactive. The active P7 permits only separately ratified operations or transports after P6-E; it does not revive chat or expose discovered endpoints automatically.
 
-Issue: https://github.com/ZenithResearch/secS-magik/issues/261
+## P4-R — contract reconciliation
+
+Issue: https://github.com/ZenithResearch/secS-magik/issues/270
+
+P4-R changes only the contract, this plan, implementation status, both documentation indexes, and the executable governance test. It preserves historical filenames and adds no changelog or runtime source change.
 
 Acceptance:
 
-- five decisions are explicit;
-- limits and stable failure classes are pinned;
-- trusted identity metadata is structurally separate from message text;
-- output transport is separate from `DecisionResponse`;
-- loopback Hermes auth remains receiver-local plumbing;
-- internal Hermes tool gating is explicitly deferred;
-- status/index/changelog and executable docs tests agree.
+- Matrix owns conversation, and chat text/Matrix events are not executable authority;
+- secS admits exact authority-bearing machine operations only;
+- the generic Hermes API server stays disabled;
+- all former peer-chat delivery commitments are explicitly superseded;
+- P1/P3 authority, response, redaction, and historical-verification invariants remain intact;
+- no first operation, operation ID, schema, endpoint, ABI, IPC, transport, package, repository owner, or runtime implementation is ratified.
 
-Non-claims: no runtime output, adapter, plugin, two-node proof, deployment, or production readiness.
+P4-R is not complete merely because its PR checks are green. Completion requires merge, post-merge `main` CI, issue evidence reconciliation, and controller-authorized issue closure.
 
-## P3 — bounded execution-output transport
+## P4-O — first exact-operation contract gate
 
-Issue #263 is closed and PR #264 is merged. The protected P3 head `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27` contains exactly 12 ordered commits:
+P4-O must ratify one named operation before any implementation. Its issue must define:
 
-1. RED tests and versioned core receiver-signed `ExecutionResponse` codec/state machine.
-2. Output-carrying `HandlerOutcome`/router integration with independent profile and receiver bounds.
-3. Ingress/client framing that rejects no frame, duplicate/trailing frame, malformed status/schema, oversized output, missing/mismatched request digests, unsigned/wrong-key/replayed responses, and output substitution.
-4. Receipt output schema/byte-count/domain-separated digest projection with raw output absent.
-5. Docs/status and full workspace verification.
-6. Trusted response expectations and receiver-signed post-descriptor verifier rejection hardening.
-7. Public-audit and operator downgrade-resistance hardening.
-8. Claim and governance reconciliation with mechanical C1–C8 changelog guards.
+1. the operation name and purpose without a generic placeholder;
+2. caller and receiver-held authority policy;
+3. exact resource binding, attenuation, and non-amplification;
+4. request and response semantics;
+5. input, output, and timeout bounds;
+6. freshness, replay, and idempotency rules;
+7. receipt persistence and disclosure rules;
+8. complete acceptance/negative matrix and non-claims.
 
-Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce84cccb9e8c9d9b887bf2`. Commit 9 is the single additive final-review correction: state-aware trusted execution-schema verification plus persisted-schema-selected historical operator export serialization.
+P4-O ratifies semantics only. It must not preselect a local ABI, IPC mechanism, transport, socket, route, endpoint, package, repository, handler implementation, URL, header, key, opcode, model, provider, prompt, role, tool, toolset, workspace, session, or plugin.
 
-Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`. Commit 10 is the single additive final CTO correction: redacted output debug surfaces plus required atomic execute-reject receipt persistence for post-start output-profile rejection branches.
+## Implementation-node boundaries
 
-Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c71928c746fec014de330fd03`. Commit 11 is the single additive roundtable correction: output-profile contexts with an authenticated missing handler binding pass active-manifest matching only to reach required atomic `handler_unavailable` rejection persistence through public ingress.
+- P4-H owns only the stable Hermes local boundary for the already-ratified operation.
+- P4-S owns only the secS receiver-side adapter to that fixed boundary.
+- P5-C owns only the outbound authorized caller.
+- P6-E owns evidence, not opportunistic defect fixes.
+- P7 owns only later separately ratified operations/transports.
 
-Commits 1–11 are an immutable protected prefix ending at `26f23ce2d07ea992c2ad8dd1c15fad6736fa8f3d`. Commit 12 is the sole additive governance-test correction: exact parsing enforces the complete C1–C12 changelog marker set and the terminal authorization boundary. No Commit 13 is authorized by #263.
+The execution rule is **one DAG node = one issue = one PR**. Each checked task is one commit unless its live issue explicitly records a narrower mapping. A node may collect evidence from multiple repositories but may modify only its owning repository.
 
-P3 is complete on `main` through merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e`; post-merge Rust CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428) succeeded. This post-P3 reconciliation adds no P3 commit and does not authorize Commit 13.
+Package and repository ownership remain unratified until the owning node's accepted issue resolves them from live source evidence.
 
-P4 is dependency-ready but contract-reconciliation-pending. The existing receiver-local peer-chat adapter contract remains unresolved until separately reconciled after #266. Issue #267 neither endorses nor demotes that contract and authorizes neither architecture resolution nor implementation.
+## Repair-node rule
 
-Stop if implementation modifies `DecisionResponse` to carry arbitrary output, treats verifier acceptance as execution success, accepts an unauthenticated response, or restores legacy no-frame success.
+If P4-H, P4-S, P5-C, or P6-E discovers a defect outside its accepted boundary, stop and insert an explicit repo-owned repair node before dependent work resumes. Use a node name derived from the blocked parent and owning surface, give it one issue and one PR, add its table row and DAG edges before implementation, and merge it with green post-merge CI before returning to the blocked node.
 
-## P4 — receiver-local Hermes adapter
+Unmodeled child PRs, bundled cross-repository fixes, and evidence-only claims that bypass a required repair node are forbidden.
 
-The pre-existing section below is retained without endorsement or demotion. Its architecture remains unresolved pending separately sequenced P4 reconciliation after #266.
+## P3 immutable governance history
 
-Future issue must include these commit boundaries:
+Issue #263 is closed and PR #264 is merged. The protected P3 head `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27` contains exactly 12 ordered commits.
 
-1. RED request-builder tests for numeric-loopback-only URL/path, no redirects, receiver-owned auth, fixed non-streaming body, trusted metadata projection, dedicated no-tools/no-writable-effects profile readiness, and caller-control rejection.
-2. RED response/error tests for unavailable/auth/timeout/malformed/oversized paths.
-3. Minimal adapter resolving one installed receiver profile and implementing fixed `POST /p/<receiver-owned-profile>/v1/chat/completions` plus typed `ExecutionResponse` projection.
-4. Readiness and no-secret/log/receipt regression checks.
-5. Docs/status and full workspace verification.
+Commits 1–8 are an immutable protected prefix ending at `3d14174c966f075debce84cccb9e8c9d9b887bf2`. Commit 9 is the single additive final-review correction.
 
-Stop if the caller can supply the URL, path, header, local key, model/provider/toolset/workspace, system template, or session controls, or if the dedicated receiver profile exposes ambient effect capabilities.
+Commits 1–9 are an immutable protected prefix ending at `ada11e55a90d3e59632b90af67a07ef54bc5b53d`. Commit 10 is the single additive final CTO correction.
 
-## P5 — outbound Hermes plugin client
+Commits 1–10 are an immutable protected prefix ending at `e5012a36b4cb166c71928c746fec014de330fd03`. Commit 11 is the single additive roundtable correction.
 
-Repository ownership is deliberately unresolved between the existing fork runtime and a separate plugin package. Before filing P5:
+Commits 1–11 are an immutable protected prefix ending at `26f23ce2d07ea992c2ad8dd1c15fad6736fa8f3d`. Commit 12 is the sole additive governance-test correction. No Commit 13 is authorized by #263.
 
-- select the canonical package/repository;
-- verify its credential-store and plugin-schema conventions from live source;
-- preserve unrelated dirty runtime work;
-- file one repo-local issue and open a visible draft PR after its first commit.
+P3 is complete on `main` through merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e`; post-merge Rust CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428) succeeded. P4-R adds no P3 commit and does not change P3 wire, response, receipt, or historical-verification behavior.
 
-The client must never receive receiver-local `API_SERVER_KEY` material and must reject undeclared peer/profile selection before network activity.
-
-## P6 — evidence matrix
-
-Required proof:
-
-- A→B uses A's credential; B→A uses B's distinct credential;
-- unknown/revoked/expired/not-yet-valid caller rejects before Hermes;
-- wrong audience/operation, replay, expiry, policy denial, malformed/oversized request, and missing handler reject before Hermes;
-- unavailable/auth-failed/timed-out/malformed/oversized local Hermes execution is `execution_rejected`, not `executed`;
-- no response, malformed response, unknown status/schema, duplicate/trailing response, oversized response, missing/mismatched request digest, unsigned/wrong-key/replayed response, and output substitution fail closed at the caller;
-- receipt correlation exists without raw chat or secret material;
-- no undeclared operation, route, handler, model, provider, toolset, workspace, role, or session control is caller-selectable;
-- no A→B→C credential forwarding occurs.
-
-## P7 — extension rule
-
-A later profile is start-ready only after it has:
-
-- a symbolic profile and versioned request/response schemas;
-- a receiver descriptor and fixed handler mapping;
-- caller/capability policy;
-- replay/idempotency semantics;
-- input/output/timeout bounds;
-- receipt/redaction rules;
-- acceptance and negative tests;
-- an explicit non-claim boundary.
-
-Capability discovery is compatibility evidence, never automatic authorization.
-
-## Transition gates
+## Transition and post-merge gates
 
 A node completes only after:
 
-1. issue acceptance and one-PR scope are reconciled;
-2. TDD RED/GREEN evidence exists for runtime changes;
-3. focused and workspace gates pass;
-4. security/redaction checks pass;
-5. PR comments/reviews are resolved;
-6. PR merges;
+1. its issue acceptance and one-PR scope are reconciled;
+2. TDD RED/GREEN evidence exists for implementation changes;
+3. focused and required repository gates pass;
+4. security, authority, and redaction checks pass;
+5. PR comments and required independent reviews are resolved on one exact head;
+6. the PR merges;
 7. post-merge `main` CI passes;
-8. issue state and this DAG are reconciled.
+8. issue state, status ledger, indexes, and this DAG are reconciled.
 
-Green PR checks alone do not complete a node.
+Green PR checks alone do not complete a node. No descendant begins before the predecessor's post-merge gate is satisfied.
 
-## Deferred track
+## Stop conditions
 
-The historical internal Hermes tool-gating design remains deferred:
+Stop and return to design if any node:
 
-- no `pre_tool_call` dependency;
-- no per-tool gate in P1–P6;
-- no ambient OS-containment claim;
-- no delegated tool-capability propagation claim.
-
-It may become a separate future DAG after peer chat is evidenced. It must not be smuggled into this first slice through P4 or P5.
+- relabels chat, arbitrary prompts, or `agent.chat.v1` as an exact operation;
+- invents a generic operation identifier or machine-operation multiplexer;
+- authorizes implementation before P4-O operator ratification;
+- changes P3 `DecisionResponse`, `ExecutionResponse`, receipt, or historical verification semantics;
+- permits caller-selected receiver controls;
+- enables the generic Hermes API server as an authority boundary;
+- smuggles a package, repository, ABI, IPC, transport, socket, route, endpoint, schema, URL, path, header, key, handler, model, provider, prompt, role, tool, toolset, workspace, session, plugin, or opcode choice through an earlier node;
+- treats Matrix conversation as executable authority or makes Matrix integration depend on this DAG.

@@ -86,22 +86,34 @@ fn contract_ratifies_no_operation_or_delivery_mechanism() {
 }
 
 #[test]
-fn pre_reconciliation_dag_and_status_remain_historically_bounded() {
+fn replacement_dag_serializes_exact_operation_gates_and_supersedes_old_nodes() {
     contains_all(
-        "pre-reconciliation DAG",
+        "replacement DAG",
         DAG,
         &[
             "P1/P2 — contract gate",
             "P3 — bounded execution-output transport",
-            "P4 — receiver-local Hermes adapter",
-            "P5 — outbound Hermes plugin client",
-            "P6 — mutual peer and negative evidence",
+            "P4-R — peer-chat contract reconciliation",
+            "P4-O — first named exact-operation ratification",
+            "P4-H — stable Hermes exact-operation endpoint",
+            "P4-S — secS receiver-side adapter",
+            "P5-C — outbound authorized caller",
+            "P6-E — exact-operation E2E and negative evidence",
+            "P7 — separately ratified extensions",
+            "P4-R -> P4-O -> P4-H -> P4-S -> P5-C -> P6-E -> P7",
+            "operator-ratified first named operation before any implementation",
             "one DAG node = one issue = one PR",
-            "P6-S1",
-            "P6-H1",
-            "inserted as explicit prerequisite DAG nodes",
+            "Former P4 — receiver-local Hermes adapter | Superseded",
+            "Former P5 — outbound Hermes plugin client | Superseded",
+            "Former P6 — mutual peer and negative evidence | Superseded",
+            "repair node",
+            "post-merge `main` CI passes",
         ],
     );
+}
+
+#[test]
+fn unreconciled_status_and_indexes_remain_bounded_until_commit_three() {
     contains_all(
         "pre-reconciliation status",
         STATUS,
