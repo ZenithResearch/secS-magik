@@ -1,6 +1,8 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Barrier};
+use std::thread;
 
 use serial_test::serial;
 use server::identity::{
@@ -71,8 +73,8 @@ impl OwnedMissingKeyFixture {
 }
 
 struct OwnedSymlinkKeyFixture {
-    _dir: TempDir,
     _target: NamedTempFile,
+    _dir: TempDir,
     link: PathBuf,
 }
 
@@ -101,14 +103,18 @@ impl OwnedSymlinkKeyFixture {
             .expect("test symlink should be creatable");
 
         Self {
-            _dir: dir,
             _target: target,
+            _dir: dir,
             link,
         }
     }
 
     fn path(&self) -> &Path {
         &self.link
+    }
+
+    fn directory_path(&self) -> &Path {
+        self._dir.path()
     }
 }
 
@@ -129,11 +135,70 @@ fn hex_encode(bytes: &[u8; 32]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+fn create_owned_key_fixtures_concurrently() -> Vec<(u8, OwnedKeyFixture)> {
+    const WORKER_COUNT: u8 = 64;
+
+    let start = Arc::new(Barrier::new(usize::from(WORKER_COUNT)));
+    thread::scope(|scope| {
+        let workers = (1..=WORKER_COUNT)
+            .map(|seed| {
+                let start = Arc::clone(&start);
+                scope.spawn(move || {
+                    start.wait();
+                    (seed, OwnedKeyFixture::new([seed; 32]))
+                })
+            })
+            .collect::<Vec<_>>();
+
+        workers
+            .into_iter()
+            .map(|worker| {
+                worker
+                    .join()
+                    .expect("owned key fixture worker should not panic")
+            })
+            .collect()
+    })
+}
+
+fn assert_owned_key_fixture_is_valid(seed: u8, fixture: &OwnedKeyFixture) {
+    assert!(
+        fixture.path().exists(),
+        "owned fixture path should remain live: {}",
+        fixture.path().display()
+    );
+    let config = VerifierIdentityConfig {
+        runtime_mode: RuntimeMode::ProductionVerified,
+        verifier_key_path: Some(fixture.path().to_path_buf()),
+        verifier_key_id: None,
+    };
+    let identity = load_node_verifier_identity(&config).unwrap_or_else(|err| {
+        panic!(
+            "owned fixture {} should remain isolated and valid: {err:?}",
+            fixture.path().display()
+        )
+    });
+    let expected = explicit_test_fixture_identity("ignored:fixture-owner", [seed; 32]);
+
+    assert_eq!(
+        identity.signer_key_id(),
+        derive_ed25519_key_id(expected.public_key())
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(fixture.path())
+            .expect("owned fixture metadata should remain readable")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+}
+
 #[test]
 fn identity_key_fixtures_are_concurrently_unique_owned_and_cleaned_up() {
-    let mut fixtures = (1u8..=64)
-        .map(|seed| (seed, OwnedKeyFixture::new([seed; 32])))
-        .collect::<Vec<_>>();
+    let mut fixtures = create_owned_key_fixtures_concurrently();
     let paths = fixtures
         .iter()
         .map(|(_, fixture)| fixture.path().to_path_buf())
@@ -142,41 +207,15 @@ fn identity_key_fixtures_are_concurrently_unique_owned_and_cleaned_up() {
 
     assert_eq!(unique_paths.len(), fixtures.len());
     for (seed, fixture) in &fixtures {
-        let config = VerifierIdentityConfig {
-            runtime_mode: RuntimeMode::ProductionVerified,
-            verifier_key_path: Some(fixture.path().to_path_buf()),
-            verifier_key_id: None,
-        };
-        let identity = load_node_verifier_identity(&config).unwrap_or_else(|err| {
-            panic!(
-                "owned fixture {} should remain isolated and valid: {err:?}",
-                fixture.path().display()
-            )
-        });
-        let expected = explicit_test_fixture_identity("ignored:fixture-owner", [*seed; 32]);
-
-        assert_eq!(
-            identity.signer_key_id(),
-            derive_ed25519_key_id(expected.public_key())
-        );
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = fs::metadata(fixture.path())
-                .expect("owned fixture metadata should remain readable")
-                .permissions()
-                .mode()
-                & 0o777;
-            assert_eq!(mode, 0o600);
-        }
+        assert_owned_key_fixture_is_valid(*seed, fixture);
     }
 
     let (_, first_fixture) = fixtures.remove(0);
     let first_path = first_fixture.path().to_path_buf();
     drop(first_fixture);
     assert!(!first_path.exists());
-    for (_, fixture) in &fixtures {
-        assert!(fixture.path().exists());
+    for (seed, fixture) in &fixtures {
+        assert_owned_key_fixture_is_valid(*seed, fixture);
     }
 
     drop(fixtures);
@@ -921,6 +960,7 @@ fn production_key_loader_rejects_world_readable_key_files() {
 #[test]
 fn production_key_loader_rejects_symlink_key_paths_before_reading_secret_material() {
     let fixture = OwnedSymlinkKeyFixture::new([0x94; 32]);
+    let directory_path = fixture.directory_path().to_path_buf();
     let config = VerifierIdentityConfig {
         runtime_mode: RuntimeMode::ProductionVerified,
         verifier_key_path: Some(fixture.path().to_path_buf()),
@@ -931,6 +971,12 @@ fn production_key_loader_rejects_symlink_key_paths_before_reading_secret_materia
     assert!(
         format!("{err:?}").contains("UnsafeVerifierKeyFile"),
         "expected unsafe key-file type error, got {err:?}"
+    );
+    drop(fixture);
+    assert!(
+        !directory_path.exists(),
+        "dropping the symlink fixture should remove its owned directory {}",
+        directory_path.display()
     );
 }
 
