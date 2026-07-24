@@ -113,18 +113,55 @@ fn replacement_dag_serializes_exact_operation_gates_and_supersedes_old_nodes() {
 }
 
 #[test]
-fn unreconciled_status_and_indexes_remain_bounded_until_commit_three() {
+fn status_and_indexes_expose_only_the_superseded_chat_and_exact_operation_gate() {
     contains_all(
-        "pre-reconciliation status",
+        "reconciled implementation status",
         STATUS,
         &[
-            "secS/Hermes peer-chat contract (#261/#262)",
+            "Superseded secS/Hermes peer-chat delivery contract (#261/#262/#270)",
             "P3 bounded execution-output transport (#263)",
             "P3/C1–P3/C12 remain the exact governance sequence; No Commit 13 is authorized by #263",
+            "Matrix owns conversation",
+            "chat text and Matrix events are not executable authority",
+            "P4-R is in progress through Issue #270",
+            "P4-O is blocked until an operator ratifies one named exact operation before any implementation",
+            "No replacement operation, identifier, schema, endpoint, ABI, IPC, transport, socket, route, package, repository owner, or runtime implementation is ratified",
         ],
     );
-    assert!(SPECS_INDEX.contains("secs-hermes-peer-chat-contract.md"));
-    assert!(PLANS_INDEX.contains("2026-07-18-secs-hermes-peer-chat-dag.md"));
+    contains_all(
+        "specs index",
+        SPECS_INDEX,
+        &[
+            "secs-hermes-peer-chat-contract.md",
+            "Superseded peer-chat delivery contract",
+            "Matrix conversation/secS exact-operation boundary",
+            "no replacement operation or delivery mechanism ratified",
+        ],
+    );
+    contains_all(
+        "plans index",
+        PLANS_INDEX,
+        &[
+            "2026-07-18-secs-hermes-peer-chat-dag.md",
+            "Current exact-operation control surface",
+            "P4-R -> P4-O -> P4-H -> P4-S -> P5-C -> P6-E -> P7",
+            "former peer-chat P4/P5/P6 nodes superseded",
+        ],
+    );
+
+    let discovery = [STATUS, SPECS_INDEX, PLANS_INDEX].join("\n");
+    for stale in [
+        "The pre-existing peer-chat contract is retained without endorsement or demotion",
+        "P4 is dependency-ready but contract-reconciliation-pending",
+        "Accepted P1/P2 contract plus implemented #263 P3",
+        "Current P1/P2–P7 control surface; P3 implemented by #263, P4 blocked",
+        "Dependency-ordered path for symmetric authenticated Hermes peer chat",
+    ] {
+        assert!(
+            !discovery.contains(stale),
+            "discovery surfaces must reject stale peer-chat claim: {stale}"
+        );
+    }
 }
 
 #[test]
