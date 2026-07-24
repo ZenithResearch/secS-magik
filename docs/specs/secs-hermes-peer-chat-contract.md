@@ -1,316 +1,111 @@
-# secS/Hermes symmetric peer-chat contract
+# secS/Hermes peer-chat contract supersession
 
 Date: 2026-07-18
-Status: P3 bounded execution-output transport complete on `main` through closed #263 and merged PR #264; P4 dependency-ready but contract-reconciliation-pending; P5–P7 unimplemented/blocked
-Profile: `agent.chat.v1`
+Reconciled: 2026-07-23
+Status: superseded by Issue #270; P3 bounded execution-output transport remains implemented; no replacement operation or delivery mechanism is ratified
 
 ## Decision
 
-The first secS/Hermes slice is symmetric authenticated peer chat. Each Hermes agent has its own secS caller identity and invokes only configured symbolic operations on configured peers. The receiving secS node verifies the caller and receiver-local policy before a fixed handler may invoke the local Hermes agent.
+The former peer-chat delivery design is explicitly superseded, never relabeled as an exact machine operation. Matrix owns conversation, including human-agent and agent-agent rooms, direct messages, history, E2EE, membership, identity presentation, and conversational continuity. Chat text and Matrix events are not executable authority.
 
-```text
-Hermes A
-  -> A's `secs_agent_identity` credential reference
-  -> configured secS Server B and expected audience
-  -> Server B caller registry + verifier + receiver-local policy
-  -> installed `agent.chat.v1` handler
-  -> fixed receiver-local Hermes adapter
-  -> bounded execution response + receipt correlation
-```
+secS admits exact authority-bearing machine operations only. A Matrix message may discuss or request an action, but it cannot create, renew, delegate, or widen secS authority and cannot itself invoke a protected handler. Any consequential operation requires a separately constructed secS call that satisfies its own ratified authority contract.
 
-Hermes B uses B's distinct identity for the reverse direction. No implicit credential forwarding occurs when B later talks to C.
+The first cloud Hermes profile keeps Matrix as its remote conversational ingress. The generic Hermes API server remains disabled. This document's historical filename is preserved so existing links and git history continue to resolve; its active effect is supersession and invariant preservation, not peer-chat acceptance.
 
-Internal Hermes tool gating is deferred. It is not a dependency of this peer-chat contract.
+## Superseded commitments
 
-## Existing evidence boundary
+The following commitments are inactive and must not be restored by renaming them or substituting a generic operation label:
 
-Current secS `main` already provides:
+- the `agent.chat.v1` operation profile;
+- the `agent.chat.request.v1` and `agent.chat.response.v1` chat message/conversation schemas;
+- projection of trusted metadata as a system prompt;
+- local delivery through `/v1/chat/completions` or the former profile-prefixed chat-completions route;
+- the receiver-local `API_SERVER_KEY` chat adapter;
+- a dedicated peer-chat profile;
+- an outbound chat plugin;
+- a mutual-chat target or A-to-B/B-to-A chat evidence milestone.
 
-- receiver-held Ed25519 caller-key verification;
-- signed `VerifiedCallContext` with authenticated subject, audience, operation, replay, expiry, descriptor, and handler bindings;
-- receiver-local permission policy before handler dispatch;
-- bounded handler payload/output/timeout accounting;
-- typed verify and execute receipts;
-- a versioned, redaction-safe `DecisionResponse`.
+These names remain only as historical identifiers for the design that Issue #270 supersedes. They are not aliases for a future exact operation. `legacy.chat` at `0x02` also remains a legacy example and is not promoted or relabeled.
 
-At the P1/P2 baseline, secS did not return handler output: `MachineProgram::execute` returned only a decision, reason, and output-byte count. P3 replaces that count-only outcome with receiver-owned bounded bytes and a separate authenticated response. `DecisionResponse` remains explicitly not handler output, and `legacy.chat` at `0x02` remains a legacy example rather than `agent.chat.v1`.
+## Matrix and secS boundary
 
-The P1/P2 contract below locks the full peer-chat target. P3 is now implemented at the bounded transport layer; P4–P7 remain contract-only.
+### Matrix conversation plane
 
-## P3 implementation status
+Matrix owns conversational transport and continuity. Matrix identity, room membership, decrypted message text, mentions, reactions, and power levels are communication facts only. They grant no permission to deploy, mutate a protected resource, use a secret, spend funds, invoke a tool, or widen another principal's authority.
 
-**P3 implementation status: implemented by #263** and complete on `main` through merged PR #264. The protected 12-commit head is `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27`; merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e` landed it, and post-merge Rust CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428) succeeded. The implementation adds a separate receiver-signed `ExecutionResponse`; the `DecisionResponse wire shape and version remain unchanged`. Execution responses bind the SHA-256 digest of the exact raw ingress bytes, expose only one authenticated bounded frame, and verify against one directly supplied pinned key. There is no peer-key resolver or registry.
+Matrix integration is not implemented or changed by this reconciliation. The boundary is ratified; no Matrix account, room, bridge, client, or deployment work is authorized here.
 
-The three response states remain `verifier_rejected`, `execution_rejected`, and `executed`. The exact four new P3 output reasons are `handler_output_missing`, `handler_output_unexpected`, `output_too_large`, and `execution_response_too_large`. Existing reasons such as `handler_unavailable` and `handler_timeout` remain existing handler reasons rather than new P3 output reasons. Receipt-persistence failure produces no execution frame rather than a synthetic rejection or success.
+### secS authority plane
 
-Accepted execution output crosses the persistence boundary only as a signed receipt schema v3 projection containing schema ID, byte count, and domain-separated SHA-256 digest. Raw output bytes are never persisted, logged, debug-rendered, or exported. Verification preserves the exact `pre-c4b6218`, receipt-v1, and receipt-v2 historical encodings, with constrained v1-first fallback. Every new operator projection uses operator export v3, while historical operator v1/v2 shapes remain immutable. New public export uses `bundle-v2/chain-v2`; historical `bundle-v1/chain-v1` and its external anchor remain verifiable only under v1 semantics.
+secS may admit only a named operation whose complete contract has been separately ratified. The receiver verifies the caller and the operation's authority bindings before fixed handler dispatch. Generic prompts, arbitrary chat, and generic machine-operation multiplexers are outside this boundary.
 
-P4 remains unimplemented and is dependency-ready but contract-reconciliation-pending after #266. The pre-existing peer-chat contract below remains unresolved; Issue #267 neither endorses nor demotes it and authorizes neither architecture resolution nor implementation. This status does not add a Hermes call, receiver-local Hermes adapter, plugin/profile/tool gating, trusted peer resolution, `agent.chat.v1`, mutual chat, deployment proof, or production-readiness claim.
+No future operation may treat conversation text, a Matrix event, a caller-selected operation string, or a model decision as authority. The operation descriptor, handler binding, resource, limits, and receiver policy remain receiver-owned.
 
-## 1. Symmetric identity and configuration
+## Preserved P1 and P3 invariants
 
-### Local caller identity
+Superseding peer chat does not weaken the transport and authority work already accepted and implemented:
 
-Each enabled Hermes node declares exactly one secure credential reference for its outbound secS identity:
+1. Credential references remain outside model-visible payloads and configuration exports, and distinct caller identities remain distinct. No credential forwarding or ambient inheritance is permitted.
+2. The receiver verifies caller identity, audience, operation, freshness, replay, expiry, and receiver-local policy before protected handler lookup or dispatch.
+3. `VerifiedCallContext` is the sole authority metadata source presented to protected routing. Caller prose, Matrix metadata, display labels, and request fields cannot replace it.
+4. Receiver-owned descriptor and handler binding, exact resource binding, attenuation, and non-amplification remain mandatory. The caller cannot widen held authority or select an undeclared handler.
+5. Successful or rejected execution uses the signed, exact-request-correlated, bounded `ExecutionResponse`. Admission is not execution success, and a missing response frame is failure.
+6. `DecisionResponse` remains unchanged as the redaction-safe decision projection and does not carry arbitrary handler output.
+7. Accepted output persistence remains limited to receipt schema v3 metadata: schema ID, byte count, and domain-separated SHA-256 digest. Raw output bytes are never persisted, logged, debug-rendered, or exported.
+8. No credential forwarding and no caller-selected receiver-local controls are permitted. The caller cannot select a model, provider, prompt, role, tool, toolset, workspace, session, plugin, handler, path, header, key, URL, opcode, or local delivery mechanism.
 
-```yaml
-credential_slots:
-  - id: secs_agent_identity
-    purpose: Authenticate this Hermes agent to configured secS peers
-    required: true
+These are abstract secS invariants. They do not define the first operation, its request or response schema, or its local delivery mechanism.
 
-secs:
-  local_identity_ref: secs_agent_identity
-```
+## P3 bounded transport remains implemented
 
-The plugin resolves the reference from secure plugin/application storage. Private key bytes never appear in:
+P3 bounded execution-output transport remains implemented on `main` through closed Issue #263 and merged PR #264. The protected 12-commit head is `c3c87bedb9a3cee8aeb9ad4d25f52cb096cb2c27`; merge commit `358b232a3c0de2f96f63b41ffa276c5ae469c19e` landed it; post-merge Rust CI run [30047659428](https://github.com/ZenithResearch/secS-magik/actions/runs/30047659428) succeeded.
 
-- plugin schemas or exported peer config;
-- prompts or model-visible setup;
-- chat request/response payloads;
-- tool arguments;
-- logs, decisions, receipts, or operator summaries.
+The three response states remain `verifier_rejected`, `execution_rejected`, and `executed`. The exact four P3 output reasons remain `handler_output_missing`, `handler_output_unexpected`, `output_too_large`, and `execution_response_too_large`. Existing reasons such as `handler_unavailable` and `handler_timeout` remain existing handler reasons rather than new P3 output reasons.
 
-The initial credential is the existing secS Ed25519 caller identity. The receiver registers the corresponding public caller key and lifecycle state. A caller key is necessary but not sufficient authority: receiver policy still binds caller, audience, operation, profile, validity, and replay state.
+`ExecutionResponse` remains receiver-signed and binds the SHA-256 digest of the exact raw ingress bytes. Caller verification remains against one directly supplied pinned key, with no peer-key resolver or registry. Receipt schema v3 stores only the output schema/count/digest projection. Historical pre-c4b6218, receipt-v1, and receipt-v2 encodings remain verifiable under their exact historical semantics. New operator projections remain operator export v3. New public export remains `bundle-v2/chain-v2`, while historical `bundle-v1/chain-v1` remains verifiable only under v1 semantics.
 
-### Peer profile configuration
+Issue #270 adds no P3 commit, changes no wire or receipt behavior, and does not authorize P3/C13. The exact P3/C1–P3/C12 governance recorded in `CHANGELOG.md` remains terminal for Issue #263.
 
-```yaml
-secs:
-  peers:
-    - id: agent-b
-      server_ref: agent-b-secs
-      audience: secS://agent-b
-      response_verifier_key_ref: agent-b-response-key
-      operations:
-        chat:
-          profile: agent.chat.v1
-          enabled: true
-```
+## P4-R reconciliation boundary
 
-The peer entry is operator/application configuration, not model input. It may name only a registered server reference, expected audience, pinned receiver response-verifier key reference, and symbolic profile. It cannot contain arbitrary receiver-local URLs, paths, headers, handler IDs, opcodes, bearer tokens, models, providers, toolsets, or workspaces.
+Issue #270 implements only P4-R: contract supersession and active-plan reconciliation. It authorizes no implementation. The next gate is operator ratification of one named exact operation, not selection of an implementation mechanism.
 
-The receiver manifest owns the local `u8` opcode binding for `agent.chat.v1`. The outbound peer profile resolves that binding through trusted peer configuration. No global opcode is ratified by this issue, and `0x02` remains `legacy.chat`.
+Before implementation can be considered, a separate P4-O issue must ratify one named operation and its exact:
 
-### Inbound configuration
+- authority and caller policy;
+- receiver-owned resource binding and attenuation rules;
+- request and response semantics;
+- input, output, and timeout bounds;
+- freshness, replay, and idempotency behavior;
+- receipt and disclosure rules;
+- negative matrix and explicit non-claims.
 
-```yaml
-secs:
-  inbound:
-    enabled: true
-    audience: secS://agent-b
-    operations:
-      chat:
-        profile: agent.chat.v1
-        enabled: true
-```
+P4-O cannot use a placeholder, generic operation identifier, arbitrary prompt, or machine-operation multiplexer to keep the delivery DAG moving.
 
-Inbound declaration does not self-grant authority. The receiver separately owns caller keys, permission policy, descriptor-to-handler binding, limits, local Hermes adapter config, and receipt disclosure.
+## Explicit non-ratifications
 
-## 2. `agent.chat.request.v1`
-
-The caller payload is exactly one non-streaming user message:
-
-```json
-{
-  "schema_version": 1,
-  "message": "Hello from Agent A",
-  "conversation_ref": null
-}
-```
-
-Rules:
-
-1. `schema_version` is exactly `1`.
-2. Unknown JSON fields reject as `malformed_request`.
-3. `message` is a non-empty UTF-8 string after decoding and is at most 65,536 UTF-8 bytes.
-4. The complete encoded request is at most 69,632 bytes; the stricter of this profile limit and receiver `SECS_MAX_PAYLOAD_BYTES` applies.
-5. `conversation_ref` must be absent or `null` in slice one. A non-null value rejects as `conversation_ref_unsupported`.
-6. The caller cannot submit system, developer, assistant, or tool roles.
-7. The caller cannot select receiver-local models, providers, toolsets, or workspaces.
-8. The caller cannot set a local URL, path, Authorization header, API key, session header, idempotency header, or handler ID.
-9. Caller identity is not accepted from a `from_agent` field, display label, or message prose.
-10. Unknown caller, wrong audience, wrong operation, replay, expired/not-yet-valid requests, and policy denial fail closed before handler lookup or local Hermes delivery.
-
-The stable failure vocabulary must preserve the distinctions `unknown caller`, `wrong audience`, `wrong operation`, `replay`, `expired`, and `policy denial`; none may collapse into acceptance or reach the protected handler.
-
-The profile uses the existing packet/envelope caller proof, audience, TTL, nonce, and replay checks. This JSON is only the operation payload; it does not replace the secS envelope.
-
-## 3. Trusted caller metadata handoff
-
-Authority-bearing peer metadata comes only from `VerifiedCallContext.subject`, not the request body. The handler receives receiver-owned typed metadata alongside the untrusted request:
-
-```text
-AuthenticatedPeerMetadata {
-  subject_id: VerifiedCallContext.subject.subject_id,
-  key_id: VerifiedCallContext.subject.key_id,
-  audience: VerifiedCallContext.audience,
-  operation: VerifiedCallContext.operation,
-  context_id: VerifiedCallContext.context_id
-}
-```
-
-The metadata object is constructed after context verification and active-manifest/policy checks. It is structurally separate from `agent.chat.request.v1.message` inside the secS handler API.
-
-For the loopback Hermes adapter, the receiver may project this value into a fixed receiver-owned system-context template. The adapter must:
-
-- use only the verified stable subject/key identifiers;
-- JSON-escape all inserted values;
-- keep the caller message in a separate user message;
-- reject an unexpected operation/audience before local HTTP;
-- never concatenate caller message text into the metadata template;
-- never represent a caller-provided label as authenticated identity.
-
-This is provenance context for the local Hermes agent, not a delegation grant and not authority to bypass the receiving Hermes profile's own restrictions.
-
-## 4. Bounded execution response
-
-### Preserve the decision projection
-
-`DecisionResponse remains unchanged`. It continues to be the small redaction-safe admission/decision projection. It must not grow arbitrary handler output.
-
-P3 introduces a separate versioned `ExecutionResponse` frame for operations that explicitly declare an output profile.
-
-### Outer response
-
-Contract ID: `secs-execution-response-v1`.
-
-```text
-ExecutionResponse {
-  schema_version: 1,
-  status: verifier_rejected | execution_rejected | executed,
-  reason_code: optional stable typed reason,
-  request_digest: SHA-256 of the exact sent ingress frame,
-  context_id: optional receiver-generated id,
-  receipt_id: optional receiver-generated id,
-  output_schema: optional symbolic schema id,
-  output: optional bounded bytes,
-  authenticator_kind: ed25519_receiver,
-  signer_key_id: receiver response key id,
-  signature: receiver signature over canonical response bytes
-}
-```
-
-State rules:
-
-| Status | Context | Receipt | Output | Meaning |
-|---|---|---|---|---|
-| `verifier_rejected` | absent unless verification created one | reject receipt when available | absent | Caller/envelope/audience/operation/freshness/replay/policy failed before execution. |
-| `execution_rejected` | required | execute-reject receipt required | absent | Verification succeeded, but handler was unavailable, timed out, rejected, failed, or exceeded bounds. |
-| `executed` | required | accepted execute receipt required | required | The fixed handler completed and returned output conforming to the declared output schema. |
-
-Invalid state combinations reject during decode. `executed` is never inferred from admission alone. A missing response frame is failure, never legacy success.
-
-The signature preimage is the domain separator `secs-execution-response-v1/signature` followed by the canonical unsigned response. The canonical unsigned response contains `schema_version`, `status`, `reason_code`, `request_digest`, `context_id`, `receipt_id`, `output_schema`, the exact output bytes, `authenticator_kind`, and `signer_key_id`; it excludes only the signature field. Canonical field order, option tags, integer encoding, and byte lengths are fixed by the versioned codec. This makes the preimage finite and unambiguous while binding every non-signature field and the exact output bytes.
-
-`request_digest` binds the response to the exact encoded ingress frame the caller sent, including its session/nonce/opcode/TTL/payload bindings; the caller recomputes and compares it before accepting the response. The caller then verifies `authenticator_kind`, `signer_key_id`, and `signature` against the peer's pinned `response_verifier_key_ref` before accepting status, reason, references, or output. Missing/mismatched request correlation, unknown keys, key-id mismatch, invalid signatures, unsigned responses, replayed responses, and output substitution reject as `response_authentication_failed`. Transport/session correlation alone is not response authenticity.
-
-### Chat output
-
-Output schema ID: `agent.chat.response.v1`.
-
-```json
-{
-  "schema_version": 1,
-  "message": "Hello from Agent B",
-  "conversation_ref": null
-}
-```
-
-Rules:
-
-- output is UTF-8 JSON with unknown fields rejected;
-- message is at most 262,144 UTF-8 bytes;
-- the encoded `ExecutionResponse` is at most 266,240 bytes;
-- the stricter of the profile cap and receiver `SECS_MAX_OUTPUT_BYTES` applies;
-- `conversation_ref` remains absent/null in slice one;
-- malformed response, unknown schema/status, missing required references, duplicate frame, no frame, trailing frame, and oversized output fail closed;
-- output is useful handler data, not new caller authority.
-
-### Receipts and disclosure
-
-Receipts store:
-
-- execution status and stable reason;
-- context and receipt correlation;
-- output schema ID;
-- output byte count;
-- a domain-separated output digest.
-
-Receipts never store raw chat text. Slice one provides no configuration, disclosure mode, debug switch, or error path that can persist it. Receipts also exclude private key bytes, bearer tokens, raw headers, internal URLs, provider credentials, receiver configuration, stack traces, and unrestricted tool traces. The output digest is correlation evidence, not proof of model quality or public auditability.
-
-## 5. Receiver-local Hermes delivery
-
-The first implementation uses Hermes' receiver-profile route over fixed loopback HTTP:
-
-```text
-POST /p/<receiver-owned-profile>/v1/chat/completions
-```
-
-The adapter constructs a non-streaming request with:
-
-- one fixed receiver-owned provenance/system message derived from authenticated metadata;
-- one user message containing only `agent.chat.request.v1.message`;
-- `stream: false`;
-- a receiver-configured dedicated peer-chat Hermes profile reference resolved locally into the profile route;
-- receiver-created timeout and idempotency values when supported.
-
-`API_SERVER_KEY` is receiver-local plumbing. It is loaded from receiver-owned secret storage and inserted only by the local adapter. It never identifies the remote peer and never leaves the receiver node.
-
-The dedicated slice-one Hermes profile is text-only and has no tools, delegation, shell/browser/file access, gateway sends, cron, skill/memory mutation, deployment capability, and no writable workspace. This profile constraint prevents authenticated chat from becoming an indirect arbitrary-effect channel while internal tool gating remains deferred.
-
-The caller cannot influence the loopback host, port, profile reference, path, Authorization header, model route, provider credentials, system template, tools, workspace, or session controls. The receiver resolves the profile reference against installed local profiles and constructs the route; it never accepts a raw path. Redirects are disabled.
-
-The adapter must use a proxy-disabled HTTP client with environment and system proxy discovery disabled. `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, system proxy settings, and proxy auto-configuration must not affect this request; `NO_PROXY` alone is not sufficient. Readiness fails closed if the client implementation cannot guarantee direct loopback connection without proxy routing.
-
-The configured origin must use a numeric loopback address (`127.0.0.1` or `[::1]`); hostnames, userinfo, query strings, fragments, unknown profiles, and non-loopback targets reject at readiness. Raw upstream errors are normalized to stable secS reasons.
-
-Required adapter failures include:
-
-- `handler_unavailable` for no installed adapter;
-- `hermes_unavailable` for connection/readiness failure;
-- `handler_timeout` for the fixed deadline;
-- `hermes_auth_failed` for receiver-local auth rejection;
-- `hermes_response_malformed` for invalid upstream shape;
-- `output_too_large` for profile or receiver limit violation;
-- `handler_rejected` for a bounded upstream execution rejection not covered above.
-
-All failures become `execution_rejected`; none degrade to verifier acceptance or legacy no-frame success.
-
-## Fail-closed matrix
-
-At minimum, P3–P6 must prove:
-
-- unknown/revoked/expired/not-yet-valid caller key rejects before Hermes;
-- wrong audience and wrong operation reject before Hermes;
-- replay and expired claim reject before Hermes;
-- receiver-local policy denial rejects before Hermes;
-- missing descriptor/handler rejects before local HTTP;
-- malformed/empty/oversized request rejects before local HTTP;
-- unavailable Hermes, receiver-local auth failure, timeout, malformed response, and oversized response produce `execution_rejected`;
-- accepted verification cannot be mistaken for `executed`;
-- missing/malformed/oversized/duplicate output frames fail closed at the caller;
-- unsigned, wrong-key, invalid-signature, replayed, wrong-request, or output-substituted responses fail closed at the caller;
-- receipts/logs/config exports contain no credential material, raw chat text, local URL/header, or unrestricted trace;
-- A→B uses A's credential and B→A uses B's distinct credential;
-- no undeclared operation can be selected through schema or payload strings.
+- No first operation or operation identifier is ratified.
+- No generic machine-operation multiplexer is ratified.
+- No local ABI, IPC, transport, socket, route, or endpoint is ratified.
+- No new request or response schema is ratified beyond the preserved abstract P3 invariants.
+- No package or repository ownership is ratified for a Hermes adapter, secS adapter, or outbound caller.
+- No runtime implementation is authorized.
+- No generic Hermes API server is enabled or accepted as an authority gate.
+- No caller control over model, provider, prompt, role, tool, toolset, workspace, session, plugin, handler, path, header, key, URL, or opcode is ratified.
+- No deployment, production readiness, Dregg finality, OS containment, Matrix integration, streaming, discovery, federation, or public-auditability claim is made.
 
 ## Stop conditions
 
-Return to design if implementation requires:
+Return to design if later work:
 
-- one private credential shared by multiple Hermes agents;
-- payload text determining caller identity;
-- a remote Hermes bearer token as secS caller identity;
-- arbitrary receiver-local URLs, headers, handlers, models, providers, toolsets, or workspaces;
-- denied requests reaching Hermes;
-- forwarding A's credential through B to C;
-- changing `DecisionResponse` into an output carrier;
-- raw private chat or credentials in receipts;
-- relabeling `legacy.chat` as the peer protocol;
-- internal Hermes tool hooks for the first chat slice.
-- a slice-one receiver profile with ambient tools or writable effect surfaces.
+- relabels chat, an arbitrary prompt, or `agent.chat.v1` as the first exact operation;
+- invents a generic operation identifier or multiplexer;
+- authorizes implementation before one named operation is operator-ratified;
+- changes P3 runtime, wire, response, receipt, or historical verification behavior;
+- permits caller-selected receiver-local controls;
+- relies on generic Hermes HTTP, internal tool dispatch, middleware, or plugin hooks as a mandatory authority gate;
+- makes Matrix or another product integration depend on this reconciliation.
 
 ## Non-claims
 
-This contract does not implement a Hermes adapter, an outbound plugin client, mutual peer chat, streaming, conversation continuity, delegated authority, arbitrary endpoint exposure, discovery, federation, Dregg finality, public auditability, OS containment, deployment, or production readiness.
+This reconciliation does not implement an operation, operation identifier, schema, adapter, endpoint, ABI, IPC mechanism, transport, socket, route, package, plugin, caller, Matrix integration, deployment, or production-ready system. It does not identify where future code belongs. It supersedes the old peer-chat delivery contract while preserving the already implemented secS authority and bounded-response invariants.
