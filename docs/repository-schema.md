@@ -17,7 +17,7 @@ server/
   secS verifier/RPC substrate, receiver manifests, signed contexts, receipts, evidence adapters, and bounded execution
 
 docs/
-  source-of-truth specs, current plans, current status, specs, plans, and public messaging drafts
+  current-state orientation, source-of-truth status/specs, plans, non-authoritative ideas, and public messaging drafts
 ```
 
 Do not organize the repo as though secZ is the server-side verifier. secZ is a client-side / outgoing-call vocabulary surface in the corrected architecture. The existing `server/src/bin/secz.rs` file is now a thin compatibility wrapper. Canonical reusable gateway behavior lives in library modules and the canonical prototype binary is `server/src/bin/secs-gateway.rs`.
@@ -67,6 +67,7 @@ secS-magik/
 │           └── secz.rs              # historical compatibility wrapper
 └── docs/
     ├── README.md                    # docs index
+    ├── current-state.md             # concise orientation derived from the status ledger
     ├── implementation-status.md     # current status ledger
     ├── repository-schema.md         # this file
     ├── client-surfaces.md           # client-side/outgoing-call boundary
@@ -78,6 +79,9 @@ secS-magik/
     │   ├── 2026-06-01-implementation-progress-checklist.md
     │   ├── 2026-06-01-secs-magik-implementation-issue-slices.md
     │   └── 2026-06-02-ready-for-prod-checklist.md
+    ├── ideas/
+    │   ├── README.md                # non-authoritative idea registry and status vocabulary
+    │   └── optional-inference-weave-middleware.md
     └── announcement-thread.md       # public-language draft with prototype caveats
 ```
 
@@ -129,10 +133,12 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 | Path | Purpose | Update rule |
 |---|---|---|
 | `README.md` | Root orientation map. | Keep current, shallow, searchable, boundary-safe, and status-explicit. |
+| `docs/current-state.md` | Concise repository orientation derived from the status ledger. | Update when the top-level request path, posture, active decisions, or authoritative-doc locations change; never override the ledger. |
 | `docs/implementation-status.md` | Implementation status ledger. | Update whenever docs/code status changes; prevents future/planned work from being described as implemented. |
 | `docs/repository-schema.md` | File-system/schema target for implementation agents. | Update before moving modules or adding new doc classes. |
 | `docs/specs/` | Current architecture/specification docs. | Current source-of-truth specs only. |
 | `docs/plans/` | Implementation plans/issue slices. | Reviewable plans; do not mix with historical audits. |
+| `docs/ideas/` | Non-authoritative exploratory proposals. | Every note must state status, issue, conflicts, promotion gates, and non-claims; promote accepted work into specs/plans rather than silently treating an idea as architecture. |
 | `docs/announcement-thread.md` | External narrative draft. | Must not claim production-secure/ZK behavior before verifier proof exists. |
 | `AGENTS.md` | Agent rules. | Keep aligned with current boundaries; stale rules are dangerous. |
 | `CHANGELOG.md` | Commit reasoning. | Required when committing changes. |

@@ -122,6 +122,7 @@ These are accepted next-pass targets after the completed issue train and the A0/
 | Dregg authority rail beyond the M12.3 shape seam | Future after capability, revocation, root freshness, and semantic proof/capability validation are defined. M12.3 implements only the Dregg-shaped receipt/capability-reference shape + author-signature seam. | Do not describe M12.3 shape/signature verification or M14 `dregg_backed` fixtures as M15 `dregg_authority`, Dregg consensus/finality/capability/revocation authority, or live Dregg discovery. |
 | Cardano settlement evidence | Future for capital/settlement operations only. | Do not treat Cardano as generic RPC verification. |
 | Public chain anchoring of receipts | Future external proof/settlement rail. | Do not claim current SQLite telemetry is public auditability. |
+| Optional inference weave middleware (#274) | Future / design-gated idea only. `docs/ideas/optional-inference-weave-middleware.md` evaluates optional record/managed branching around receiver-local inference handlers, with `universal-weave` only as a candidate. Runtime work is blocked on #270 compatibility, ownership, privacy, storage, context, retry, streaming, and side-effect decisions. | Do not claim inference, chat, conversation continuity, branching, a weave store, `universal-weave` integration, or accepted secS ownership. |
 
 ## Out-of-scope for this repo
 

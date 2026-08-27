@@ -16,17 +16,20 @@ Corrected boundary:
 
 Do not describe secZ as the generic Castalia interface or as the verifier. The current `server/src/bin/secz.rs` file is a historical/prototype gateway binary and must be documented as such until it is refactored.
 
-## Source-of-truth docs
+## Source-of-truth and orientation docs
 
 Read these before implementation work:
 
 - `README.md` — root orientation map and current boundary.
+- `docs/current-state.md` — concise orientation derived from the status ledger; update it when top-level posture or active decisions change, but never let it override the ledger.
 - `docs/implementation-status.md` — status ledger for solid/current, partial/prototype, planned, future, and out-of-scope surfaces.
 - `docs/repository-schema.md` — objective file-system schema for the next implementation pass.
 - `docs/specs/2026-06-01-secs-magik-objectives-spec.md` — current architecture/objectives spec.
 - `docs/plans/2026-06-01-secs-magik-implementation-issue-slices.md` — issue-level implementation sequence, if present.
 
 Historical reviews under `docs/reviews/` are evidence/provenance. Do not silently rewrite them as current architecture.
+
+Exploratory notes under `docs/ideas/` are non-authoritative. They must state status, tracking issue, conflicts, promotion gates, and non-claims. Do not implement an idea until it is promoted into an accepted spec/plan under a separately authorized issue boundary.
 
 Status discipline: every docs/code claim should make clear whether a surface is solid/implemented, partial/prototype, planned next, future/optional, or out of scope. If unsure, mark it partial/prototype or planned, not implemented.
 

@@ -289,13 +289,19 @@ If telemetry or ledger code is added, keep SQL runtime-checkable unless the repo
 
 ## Documentation Map
 
-Current source of truth:
+Start with [docs/current-state.md](docs/current-state.md) for a concise orientation; the detailed implementation ledger remains authoritative.
+
+Current source-of-truth and control documents:
 
 - [docs/implementation-status.md](docs/implementation-status.md) — status ledger: implemented vs partial vs planned vs future vs out-of-scope.
 - [docs/repository-schema.md](docs/repository-schema.md) — objective file-system schema and repository boundary map.
 - [docs/client-surfaces.md](docs/client-surfaces.md) — client-side local Hermes/secC/secZ packet-construction boundary.
 - [docs/specs/2026-06-01-secs-magik-objectives-spec.md](docs/specs/2026-06-01-secs-magik-objectives-spec.md) — current architecture/objectives spec.
 - [docs/plans/2026-06-02-ready-for-prod-checklist.md](docs/plans/2026-06-02-ready-for-prod-checklist.md) — current ready-for-prod track checklist and completion checkpoints.
+
+Exploratory and public-language material:
+
+- [docs/ideas/README.md](docs/ideas/README.md) — non-authoritative, design-gated proposals awaiting promotion or rejection.
 - [docs/announcement-thread.md](docs/announcement-thread.md) — public-language draft, intentionally caveated until verifier work lands.
 
 ## Current Non-Goals
