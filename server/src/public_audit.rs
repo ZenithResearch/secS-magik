@@ -608,7 +608,7 @@ fn decode_hex(value: &str) -> Result<Vec<u8>, PublicAuditVerificationError> {
     }
     let mut bytes = Vec::with_capacity(value.len() / 2);
     let chars: Vec<u8> = value.as_bytes().to_vec();
-    for pair in chars.chunks_exact(2) {
+    for pair in chars.as_chunks::<2>().0 {
         let high = hex_nibble(pair[0])?;
         let low = hex_nibble(pair[1])?;
         bytes.push((high << 4) | low);
