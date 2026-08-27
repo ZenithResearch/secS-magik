@@ -112,7 +112,7 @@ fn parse_hex_secret_key(raw: &str) -> Result<[u8; 32], CallerKeyFileError> {
     }
 
     let mut bytes = [0u8; 32];
-    for (index, chunk) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, chunk) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let hex = std::str::from_utf8(chunk).map_err(|_| CallerKeyFileError::Malformed)?;
         bytes[index] = u8::from_str_radix(hex, 16).map_err(|_| CallerKeyFileError::Malformed)?;
     }
