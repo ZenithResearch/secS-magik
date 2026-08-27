@@ -1,6 +1,6 @@
 # secS-magik docs index
 
-This directory separates current implementation status, architecture specs, implementation plans, and external-language drafts.
+This directory separates current implementation status, architecture specs, implementation plans, exploratory ideas, and external-language drafts.
 
 Use this index as the docs navigation layer. Use [implementation-status.md](implementation-status.md) before treating any spec or plan claim as implemented.
 
@@ -11,6 +11,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 - [Directory READMEs](#directory-readmes)
 - [Plans and checklists](#plans-and-checklists)
 - [Specs](#specs)
+- [Ideas](#ideas)
 - [Draft / external-language docs](#draft--external-language-docs)
 - [Historical / evidence docs](#historical--evidence-docs)
 - [Boundary reminder](#boundary-reminder)
@@ -20,6 +21,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 
 | Need | Start here |
 |---|---|
+| What is the concise current-state orientation? | [current-state.md](current-state.md) |
 | What is implemented now? | [implementation-status.md](implementation-status.md) |
 | What is the architecture target? | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) |
 | Where should code live? | [repository-schema.md](repository-schema.md) |
@@ -30,6 +32,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | What is the shortest authoritative demo README? | [../examples/m15-dregg-authority-demo/README.md](../examples/m15-dregg-authority-demo/README.md) |
 | What is the Track E local phase status? | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) |
 | What was the original issue-slice sequence? | [plans/2026-06-01-secs-magik-implementation-issue-slices.md](plans/2026-06-01-secs-magik-implementation-issue-slices.md) |
+| Which proposals are exploratory rather than accepted? | [ideas/README.md](ideas/README.md) |
 | What is public-language draft material? | [announcement-thread.md](announcement-thread.md) |
 
 ## Current source-of-truth docs
@@ -53,6 +56,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | `specs/` | [specs/README.md](specs/README.md) | Architecture/objective specifications. |
 | `ops/` | [ops/production-deployment-proof.md](ops/production-deployment-proof.md) | Operator-facing proof/runbook contracts for deployment claims. |
 | `plans/` | [plans/README.md](plans/README.md) | Plans, checklists, issue-slice history, and phase controls. |
+| `ideas/` | [ideas/README.md](ideas/README.md) | Non-authoritative, design-gated proposals awaiting promotion or rejection. |
 
 The root repository also has child READMEs for [../core/](../core/README.md), [../client/](../client/README.md), [../server/](../server/README.md), [../examples/](../examples/README.md), and [../scripts/](../scripts/README.md).
 
@@ -73,6 +77,12 @@ Plans define intended sequence and acceptance criteria. They do not override [im
 |---|---|---|
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Corrected secS-magik architecture, target verifier pipeline, repository boundary, and non-goals. |
 | [specs/dregg-authority-rail.md](specs/dregg-authority-rail.md) | Current M15 spec/status surface | Dregg authority rail spec for `dregg_authority`; #137 rewrote #73 acceptance, M15.2–M15.8 now provide bounded static receiver-held policy-admission, resource-lock, attenuation, and local-operator disclosure seams, #162 evidence-ref/public-input ingress propagation has landed, and #206 is implemented at the no-live-network source-client boundary. These remain bounded seams, not live Dregg authority/finality/proof rails. |
+
+## Ideas
+
+Ideas preserve useful proposals without granting implementation authority. Read [ideas/README.md](ideas/README.md) for status rules and the current list. The first recorded proposal is the design-gated [optional inference weave middleware](ideas/optional-inference-weave-middleware.md), tracked by [#274](https://github.com/ZenithResearch/secS-magik/issues/274).
+
+GitHub Pages is not currently enabled for this repository. The ideas directory is portable Markdown and can participate in a future docs site, but hosting configuration requires a separate decision.
 
 ## Draft / external-language docs
 
