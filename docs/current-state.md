@@ -1,6 +1,6 @@
 # secS-magik current state
 
-Last verified: 2026-08-27 against `main` at [`801ce5a`](https://github.com/ZenithResearch/secS-magik/commit/801ce5a)
+Last verified: 2026-08-27 against `main` after merged PRs [#277](https://github.com/ZenithResearch/secS-magik/pull/277) and [#275](https://github.com/ZenithResearch/secS-magik/pull/275), at [`c079336`](https://github.com/ZenithResearch/secS-magik/commit/c0793363ee75d96395b9d6fdcbd45039aaf7402c)
 
 This is the short orientation page for the repository. The detailed and authoritative status ledger remains [implementation-status.md](implementation-status.md). If this page and the ledger disagree, use the ledger and correct this page in the same change.
 
@@ -8,13 +8,14 @@ This is the short orientation page for the repository. The detailed and authorit
 
 | Area | Current state | Boundary |
 |---|---|---|
-| Repository | Active Rust prototype with `core`, `client`, and `server` workspace members. | Not deployment or production-readiness evidence. |
+| Repository | Active Rust prototype with `core`, `client`, `server`, `permissions`, and `panel` workspace members. | Not deployment or production-readiness evidence. |
 | Packet contract | `ZenithPacket` v0 and `opcode: u8` are preserved; bounded ingress and versioned payload envelopes exist. | A packet is a transport envelope, not authority by itself. |
 | Verification | Receiver-held caller identity, descriptor, audience, freshness, replay, permission, evidence, and signed-context checks exist across tested paths. | Several external/federated/proof rails remain bounded, fixture-backed, design-gated, or future. |
 | Execution | Receiver-local manifests bind verified operations to bounded handlers. | secS is not a generic shell, centralized orchestrator, or product-policy engine. |
 | Responses | P3 provides a separate receiver-signed, exact-request-correlated, bounded `ExecutionResponse`. | `DecisionResponse` is still not arbitrary handler output. |
 | Audit | Signed receipts/events persist to local SQLite; redacted bundle/chain verification and a bounded Gist publication witness exist. | This is not blockchain immutability, deployment proof, or unrestricted payload retention. |
 | Chat/generation | `OPCODE_GENERATE = 0x01` and `OPCODE_CHAT = 0x02` exist as legacy/core examples and manifest descriptors. | No generic inference backend, managed conversation store, or weave runtime is implemented on `main`. |
+| Documentation delivery | The root README is the canonical front door; the Pages workflow renders it with tracked docs, generated host/wasm32 Rust API docs, and the existing no-network permission panel. | Documentation hosting does not establish gateway deployment, public auditability, or remote policy administration. |
 
 ## Current request path
 
@@ -63,6 +64,7 @@ These are components of a production-shaped verifier path. They do not collectiv
 - General orchestration or arbitrary shell authority.
 - Production deployment evidence for an operator-run gateway.
 - Every reserved stronger verification tier, including the full future I16-I19 chain.
+- A trusted CLI response mapping for arbitrary non-legacy `hub` opcodes; the current shipped client refuses them before TCP dispatch.
 
 ## Active architecture decisions
 
@@ -91,6 +93,8 @@ The implementation ledger remains the source for current I16-I19, wallet-core pa
 | What is the target architecture? | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) |
 | What remains on the readiness path? | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) |
 | Which documents are exploratory? | [ideas/README.md](ideas/README.md) |
+| How do the binaries and environment variables behave? | [reference/runtime.md](reference/runtime.md) |
+| What is published as WASM/API/Pages documentation? | [reference/wasm-and-pages.md](reference/wasm-and-pages.md) |
 
 ## Maintenance rule
 

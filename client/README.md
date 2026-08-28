@@ -43,11 +43,15 @@ cargo run -p client -- --server 127.0.0.1:9001 chat "hello"
 cargo run -p client -- --server 127.0.0.1:9001 hub 16 "hello from secC"
 ```
 
+Current dispatch limitation: the trusted response mapping contains only the legacy `generate`/`chat` opcodes (`0x01`/`0x02`). Although `hub` parses decimal `u8` values, other opcodes currently report a missing/invalid response expectation and return before connecting. Server-side non-legacy operations are exercised through library/integration-test paths until response schema/key mappings become configurable.
+
 The server address can also come from `SECS_URL`:
 
 ```bash
 SECS_URL=127.0.0.1:9001 cargo run -p client -- hub 16 "hello from secC"
 ```
+
+The client default is `127.0.0.1:9000`, while the local-dev gateway default is `127.0.0.1:9001`; set `--server` or `SECS_URL` explicitly for local runs.
 
 ## Opcode input rule
 

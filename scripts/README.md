@@ -8,6 +8,8 @@
 |---|---|
 | `production-gateway-smoke.sh` | Builds the real `secs-gateway`, starts it with fixture-only `production_verified` env, sends malformed and oversized TCP input, and verifies the gateway rejects those frames without exiting. |
 | `tier-1-dregg-authority-snapshot-smoke.sh` | Prints redaction-safe #72/#195 evidence for the David Lab Dregg-shaped authority snapshot, audits the fixture for secret/private-token markers, and runs the active/negative direct lookup and evidence-adapter authority snapshot tests. |
+| `stress-identity-tests.sh` | Repeats the identity-focused tests to stress atomic fixture/key handling; not a load or deployment test. |
+| `build-pages.sh` | Safely assembles the README-led Markdown site, host and wasm32 rustdoc, and release WASM permission panel into a generated destination. |
 
 ## production-gateway-smoke.sh
 
@@ -79,3 +81,15 @@ smoke_ok: active snapshot accepts the controlled David Lab resource; stale, revo
 ```
 
 The script is deterministic and local. It does not start a gateway, contact a Dregg node, require external services, or prove production Castalia federation/finality/deployment/public-auditability.
+
+## build-pages.sh
+
+Build the complete Pages source tree from the repository root:
+
+```bash
+./scripts/build-pages.sh .pages/source
+```
+
+Requirements: `rg`, the wasm32 Rust target, and `wasm-pack`. The script validates its output path, recreates only the generated source/build directories, derives `index.md` from the root README, copies tracked docs/readmes with generated Jekyll front matter, runs host and wasm32 `cargo doc`, and builds the existing panel under `panel/` in the generated tree.
+
+It does not copy arbitrary repository files, runtime databases, environment files, packet captures, logs, private evidence, or operator secrets. Jekyll rendering and deployment are owned by `.github/workflows/pages.yml`.

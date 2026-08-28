@@ -31,4 +31,4 @@ Every idea note should state:
 
 ## Publication
 
-These files use portable Markdown and relative links so `docs/` can be published as a static documentation site later. GitHub Pages was not enabled for this repository when this directory was created. Enabling Pages, selecting a source/build system, and adding deployment automation require a separate repository decision; an idea note alone must not silently change hosting or publication state.
+These files use portable Markdown and relative links and are published with the rest of `docs/` on the repository's GitHub Pages site. Publication is presentation only: it does not promote an idea, resolve its design gates, or grant runtime implementation authority.

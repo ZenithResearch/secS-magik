@@ -20,10 +20,11 @@ Do not describe secZ as the generic Castalia interface or as the verifier. The c
 
 Read these before implementation work:
 
-- `README.md` — root orientation map and current boundary.
+- `README.md` — canonical repository front door, current operating map, and current boundary.
 - `docs/current-state.md` — concise orientation derived from the status ledger; update it when top-level posture or active decisions change, but never let it override the ledger.
 - `docs/implementation-status.md` — status ledger for solid/current, partial/prototype, planned, future, and out-of-scope surfaces.
 - `docs/repository-schema.md` — objective file-system schema for the next implementation pass.
+- `docs/reference/` — current runtime and WASM/Pages reference; these pages describe present code and do not override the status ledger.
 - `docs/specs/2026-06-01-secs-magik-objectives-spec.md` — current architecture/objectives spec.
 - `docs/plans/2026-06-01-secs-magik-implementation-issue-slices.md` — issue-level implementation sequence, if present.
 
@@ -102,6 +103,8 @@ Keep module ownership explicit:
 
 - `core/src/lib.rs` — `ZenithPacket` v0, constants, exports.
 - `core/src/packet_builder.rs` — verifier-free packet construction helper.
+- `permissions/src/lib.rs` — shared receiver-local permission records and fail-closed evaluator.
+- `panel/src/lib.rs` — no-network wasm-bindgen wrapper over the permission model.
 - `server/src/verifier.rs` — typed verifier errors, prototype envelope checks, and signed context helpers.
 - `server/src/identity.rs` — Ed25519 key loading, signer key IDs, signature verification helpers, and local public-key registry checks.
 - `server/src/config.rs` — runtime config and readiness inputs.
@@ -135,6 +138,12 @@ For docs-only changes:
 
 ```bash
 git diff --check -- README.md AGENTS.md docs/
+```
+
+For documentation delivery changes, also assemble the complete Pages source:
+
+```bash
+./scripts/build-pages.sh .pages/source
 ```
 
 ### SQLx
@@ -172,13 +181,15 @@ secS-magik/
 ├── core/                  # verifier-free packet/core primitives
 ├── client/                # outgoing CLI / secC-like sender
 ├── server/                # secS verifier substrate and prototype binaries
-├── docs/                  # specs, plans, reviews, external messaging drafts
-├── README.md              # root orientation map
+├── permissions/           # shared receiver-local permission model
+├── panel/                 # browser WASM permission wrapper and static UI
+├── docs/                  # current references, status, specs, plans, ideas, ops
+├── README.md              # canonical repository front door
 ├── AGENTS.md              # agent/editor rules
 └── Cargo.toml             # workspace definition
 ```
 
-Current workspace members are `core`, `client`, and `server`.
+Current workspace members are `core`, `client`, `server`, `permissions`, and `panel`.
 
 Untracked local directories such as `hub/`, `ops/`, or `docs/reviews/` are not part of the Cargo workspace unless explicitly added and documented.
 

@@ -16,8 +16,14 @@ client/
 server/
   secS verifier/RPC substrate, receiver manifests, signed contexts, receipts, evidence adapters, and bounded execution
 
+permissions/
+  shared receiver-local permission records and evaluator
+
+panel/
+  no-network wasm-bindgen permission wrapper and static browser UI
+
 docs/
-  current-state orientation, source-of-truth status/specs, plans, non-authoritative ideas, and public messaging drafts
+  current-state orientation, current references, source-of-truth status/specs, plans, non-authoritative ideas, Pages config, and public messaging drafts
 ```
 
 Do not organize the repo as though secZ is the server-side verifier. secZ is a client-side / outgoing-call vocabulary surface in the corrected architecture. The existing `server/src/bin/secz.rs` file is now a thin compatibility wrapper. Canonical reusable gateway behavior lives in library modules and the canonical prototype binary is `server/src/bin/secs-gateway.rs`.
@@ -64,13 +70,31 @@ secS-magik/
 │       ├── session.rs               # local in-memory session utility
 │       └── bin/
 │           ├── secs-gateway.rs      # canonical prototype gateway wrapper
-│           └── secz.rs              # historical compatibility wrapper
+│           ├── secs-permctl.rs      # receiver-local permission policy CLI
+│           └── secz.rs              # historical compatibility and audit wrapper
+├── permissions/
+│   ├── Cargo.toml
+│   └── src/lib.rs                   # shared receiver-local permission model
+├── panel/
+│   ├── Cargo.toml
+│   ├── src/lib.rs                   # wasm-bindgen permission wrapper
+│   └── www/                         # static no-network browser UI
+├── .github/workflows/
+│   ├── ci.yml                       # Rust, audit, and wasm checks
+│   └── pages.yml                    # README/docs/rustdoc/WASM Pages build and deploy
+├── scripts/build-pages.sh           # safe generated-site source assembly
 └── docs/
     ├── README.md                    # docs index
     ├── current-state.md             # concise orientation derived from the status ledger
     ├── implementation-status.md     # current status ledger
     ├── repository-schema.md         # this file
     ├── client-surfaces.md           # client-side/outgoing-call boundary
+    ├── reference/
+    │   ├── README.md
+    │   ├── runtime.md
+    │   └── wasm-and-pages.md
+    ├── pages/
+    │   └── _config.yml              # generated-site Jekyll config
     ├── specs/
     │   ├── README.md
     │   └── 2026-06-01-secs-magik-objectives-spec.md
@@ -104,6 +128,8 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 | `core/src/packet_builder.rs` | Verifier-free `ZenithPacket` construction helper. | Capabilities, credential checks, evidence verification, authority decisions. |
 | `core/src/zk.rs` | Low-level signing/proof helper primitives. | The full secS verifier pipeline or public claims that proof bytes are enough. |
 | `client/src/main.rs` | CLI packet sending; current secC-like outgoing path. | Server-side verification, receiver-local operation authority. |
+| `permissions/src/lib.rs` | Shared receiver-local permission records, JSON model, and fail-closed evaluator. | Gateway transport, browser state, or external authority. |
+| `panel/src/lib.rs` | No-network wasm-bindgen permission-model wrapper. | Remote gateway administration, file access, product wallet UX, or federation authority. |
 | `server/src/verifier.rs` | Typed verifier errors, prototype envelope check, signed context helpers. | Product policy, app login, settlement, arbitrary handler execution. |
 | `server/src/ingress.rs` | Prototype TCP ingress and verifier/payload handoff. | Receiver-local manifest semantics or handler implementation details. |
 | `server/src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle receipt/event emission. | Packet decode or payload decryption policy; durable distributed broker semantics; arbitrary shell authority. |
@@ -132,13 +158,15 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 
 | Path | Purpose | Update rule |
 |---|---|---|
-| `README.md` | Root orientation map. | Keep current, shallow, searchable, boundary-safe, and status-explicit. |
+| `README.md` | Canonical repository front door and operating map. | Keep current, evidence-derived, searchable, boundary-safe, and status-explicit; link deep evidence to the ledger/reference docs. |
 | `docs/current-state.md` | Concise repository orientation derived from the status ledger. | Update when the top-level request path, posture, active decisions, or authoritative-doc locations change; never override the ledger. |
 | `docs/implementation-status.md` | Implementation status ledger. | Update whenever docs/code status changes; prevents future/planned work from being described as implemented. |
 | `docs/repository-schema.md` | File-system/schema target for implementation agents. | Update before moving modules or adding new doc classes. |
 | `docs/specs/` | Current architecture/specification docs. | Current source-of-truth specs only. |
 | `docs/plans/` | Implementation plans/issue slices. | Reviewable plans; do not mix with historical audits. |
 | `docs/ideas/` | Non-authoritative exploratory proposals. | Every note must state status, issue, conflicts, promotion gates, and non-claims; promote accepted work into specs/plans rather than silently treating an idea as architecture. |
+| `docs/reference/` | Present runtime/operations and WASM/Pages behavior. | Update with current code; never override implementation-status evidence. |
+| `docs/pages/` | Static-site build configuration. | Must not contain secrets, generated outputs, runtime data, or a second canonical homepage. |
 | `docs/announcement-thread.md` | External narrative draft. | Must not claim production-secure/ZK behavior before verifier proof exists. |
 | `AGENTS.md` | Agent rules. | Keep aligned with current boundaries; stale rules are dangerous. |
 | `CHANGELOG.md` | Commit reasoning. | Required when committing changes. |

@@ -1,0 +1,114 @@
+name: Documentation Pages
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/pages.yml"
+      - "README.md"
+      - "AGENTS.md"
+      - "CHANGELOG.md"
+      - "SECURITY.md"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "core/**"
+      - "client/README.md"
+      - "server/README.md"
+      - "permissions/**"
+      - "panel/**"
+      - "docs/**"
+      - "examples/README.md"
+      - "scripts/README.md"
+      - "scripts/build-pages.sh"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/pages.yml"
+      - "README.md"
+      - "AGENTS.md"
+      - "CHANGELOG.md"
+      - "SECURITY.md"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "core/**"
+      - "client/README.md"
+      - "server/README.md"
+      - "permissions/**"
+      - "panel/**"
+      - "docs/**"
+      - "examples/README.md"
+      - "scripts/README.md"
+      - "scripts/build-pages.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "pages-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "secs-magik-pages"
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - name: Assemble README, docs, Rust API, WASM API, and panel
+        run: ./scripts/build-pages.sh .pages/source
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Render Markdown with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./.pages/source
+          destination: ./.pages/site
+
+      - name: Verify rendered artifact
+        run: |
+          touch .pages/site/.nojekyll
+          test -s .pages/site/index.html
+          test -s .pages/site/api/index.html
+          test -s .pages/site/wasm-api/index.html
+          test -s .pages/site/panel/index.html
+          test -s .pages/site/panel/pkg/panel.js
+          test -s .pages/site/panel/pkg/panel_bg.wasm
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./.pages/site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

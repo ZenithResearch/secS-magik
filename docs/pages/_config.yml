@@ -1,0 +1,21 @@
+title: secS-magik
+description: Permissioned machine-to-machine RPC and verifier substrate
+url: https://zenithresearch.github.io
+baseurl: /secS-magik
+theme: minima
+
+plugins:
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+  collections: true
+
+header_pages:
+  - docs/current-state.md
+  - docs/implementation-status.md
+  - docs/reference/README.md
+  - docs/ideas/README.md
+
+exclude:
+  - README.md.tmp

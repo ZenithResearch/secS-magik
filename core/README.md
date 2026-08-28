@@ -9,11 +9,15 @@ Status: implemented as shared primitives. It is not the server verifier, not pro
 | Path | Responsibility |
 |---|---|
 | `Cargo.toml` | Crate metadata for `libsec-core`; optional UniFFI feature and library types. |
-| `src/lib.rs` | `ZenithPacket` v0, `SessionHandshake`, opcode constants, and module exports. |
+| `src/lib.rs` | `ZenithPacket` v0, `SessionHandshake`, opcode constants, feature gating, and module exports. |
+| `src/caller_proof.rs` | Canonical caller-envelope bytes and versioned caller key-reference/signature encoding. |
+| `src/ingress_request.rs` | Legacy Packet v0 plus bounded v1/v2 ingress request envelopes. |
+| `src/response.rs` | Bounded legacy decision response. |
+| `src/execution_response.rs` | Bounded receiver-signed execution output response. |
 | `src/packet_builder.rs` | Verifier-free `ZenithPacket` construction helper. |
 | `src/tunnel.rs` | ChaCha20Poly1305 tunnel helper functions and tests. |
 | `src/zk.rs` | Ed25519 proof/signature helper primitives; not a full ZK verifier. |
-| `src/ffi.rs` | UniFFI bindings behind the optional feature. |
+| `src/ffi.rs` | wasm32 wasm-bindgen tunnel exports behind the optional `uniffi` feature. |
 
 ## Boundary
 
