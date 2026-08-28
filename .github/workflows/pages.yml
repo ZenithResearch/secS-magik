@@ -83,7 +83,6 @@ jobs:
 
       - name: Verify rendered artifact
         run: |
-          touch .pages/site/.nojekyll
           test -s .pages/site/index.html
           test -s .pages/site/api/index.html
           test -s .pages/site/wasm-api/index.html
