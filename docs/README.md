@@ -2,7 +2,7 @@
 
 This directory separates current implementation status, architecture specs, implementation plans, exploratory ideas, and external-language drafts.
 
-Use this index as the docs navigation layer. Use [implementation-status.md](implementation-status.md) before treating any spec or plan claim as implemented.
+Use the root [README](../README.md) as the canonical project front door and this file as the docs navigation layer. Use [implementation-status.md](implementation-status.md) before treating any spec or plan claim as implemented.
 
 ## Table of Contents
 
@@ -33,6 +33,8 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | What is the Track E local phase status? | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) |
 | What was the original issue-slice sequence? | [plans/2026-06-01-secs-magik-implementation-issue-slices.md](plans/2026-06-01-secs-magik-implementation-issue-slices.md) |
 | Which proposals are exploratory rather than accepted? | [ideas/README.md](ideas/README.md) |
+| How do the current binaries and configuration behave? | [reference/runtime.md](reference/runtime.md) |
+| What WASM/API/Pages artifacts are published? | [reference/wasm-and-pages.md](reference/wasm-and-pages.md) |
 | What is public-language draft material? | [announcement-thread.md](announcement-thread.md) |
 
 ## Current source-of-truth docs
@@ -42,6 +44,7 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | [implementation-status.md](implementation-status.md) | Current source of truth | Status ledger separating solid/current, partial/prototype, planned, future, and out-of-scope surfaces. |
 | [repository-schema.md](repository-schema.md) | Current schema map | Objective file-system schema and module ownership map. |
 | [client-surfaces.md](client-surfaces.md) | Current boundary doc | Client-side local Hermes/secC/secZ packet-construction boundary. |
+| [reference/README.md](reference/README.md) | Current reference index | Present runtime, operations, WASM, and documentation-delivery behavior. |
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Architecture/objectives spec. Check status ledger before treating target behavior as implemented. |
 | [specs/dregg-authority-rail.md](specs/dregg-authority-rail.md) | Current M15.1 spec | Dregg authority rail spec for `dregg_authority`; #137 rewrote #73 acceptance, M15.2–M15.6 now provide a bounded static receiver-held policy-admission/operator-inspection seam, and #144/M15.8 reconciles the bounded M15.8 resource-lock / attenuation boundary after #160 implements bounded receiver-held resource-lock evidence; #169 is the trusted requested-authority attenuation seam and #159/#162/#167 are landed bounded postures. |
 | [ops/production-deployment-proof.md](ops/production-deployment-proof.md) | Planned / contract-only | Production deployment proof profile (#33) defining the `secs-gateway-production-v1` deployment evidence packet; it keeps `scripts/production-gateway-smoke.sh` scoped as fixture-only local smoke until an operator deployment is actually evidenced. |
@@ -57,6 +60,8 @@ Use this index as the docs navigation layer. Use [implementation-status.md](impl
 | `ops/` | [ops/production-deployment-proof.md](ops/production-deployment-proof.md) | Operator-facing proof/runbook contracts for deployment claims. |
 | `plans/` | [plans/README.md](plans/README.md) | Plans, checklists, issue-slice history, and phase controls. |
 | `ideas/` | [ideas/README.md](ideas/README.md) | Non-authoritative, design-gated proposals awaiting promotion or rejection. |
+| `reference/` | [reference/README.md](reference/README.md) | Current runtime/operations and WASM/Pages reference. |
+| `pages/` | `pages/_config.yml` | Jekyll configuration copied only into the generated Pages source tree. |
 
 The root repository also has child READMEs for [../core/](../core/README.md), [../client/](../client/README.md), [../server/](../server/README.md), [../examples/](../examples/README.md), and [../scripts/](../scripts/README.md).
 
@@ -82,7 +87,7 @@ Plans define intended sequence and acceptance criteria. They do not override [im
 
 Ideas preserve useful proposals without granting implementation authority. Read [ideas/README.md](ideas/README.md) for status rules and the current list. The first recorded proposal is the design-gated [optional inference weave middleware](ideas/optional-inference-weave-middleware.md), tracked by [#274](https://github.com/ZenithResearch/secS-magik/issues/274).
 
-GitHub Pages is not currently enabled for this repository. The ideas directory is portable Markdown and can participate in a future docs site, but hosting configuration requires a separate decision.
+The documentation workflow publishes the root README, tracked Markdown, host/wasm32 Rust API docs, and the existing no-network permission panel to [GitHub Pages](https://zenithresearch.github.io/secS-magik/). Publication changes no idea's status or implementation authority.
 
 ## Draft / external-language docs
 

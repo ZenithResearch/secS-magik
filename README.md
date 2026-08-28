@@ -1,189 +1,116 @@
 # secS-magik
 
-secS-magik is a Rust workspace for a permissioned machine-to-machine RPC and verifier substrate.
+[![Rust CI](https://github.com/ZenithResearch/secS-magik/actions/workflows/ci.yml/badge.svg)](https://github.com/ZenithResearch/secS-magik/actions/workflows/ci.yml)
+[![Documentation Pages](https://github.com/ZenithResearch/secS-magik/actions/workflows/pages.yml/badge.svg)](https://github.com/ZenithResearch/secS-magik/actions/workflows/pages.yml)
 
-Status: active prototype being realigned toward the 2026-06-01 objectives spec. Current code preserves the v0 packet shape and `u8` opcode dispatch; exposes client, core, and server crates; and hardens the canonical gateway with bounded ingress, explicit runtime config/readiness, receiver-local manifest routing, signed context/receipt posture, local SQLite receipt/event persistence, redacted operator inspection, bounded handler execution, cryptographic wallet-presentation verification through an explicitly temporary minimal-equivalent secS challenge contract, and the L0 truth-control/status guardrails from I01/I02/I03/I10.
+secS-magik is a Rust workspace for a receiver-controlled, permissioned machine-to-machine RPC and verifier substrate. A caller constructs a bounded packet, the receiver verifies the packet and authority context, a receiver-local manifest selects an exact operation, and a bounded local handler may run only after those checks succeed.
 
-Production-shaped surfaces in this repo are local/fixture/receiver-held only: Track E static trusted issuer/root policy on `main`, Track I local production-shaped `membership.provision` E2E on `main` via PR #76, and the #77 fail-closed descriptor-only `production_verified` runtime guard for canonical `0x44` `membership.provision`. These are not production deployment proof or production readiness.
+This repository is an active, production-shaped **local prototype**. It contains real protocol types, cryptography, verification and policy components, bounded execution, signed responses and receipts, SQLite persistence, local audit export/verification, native CLIs, and browser WASM. It does **not** contain evidence of an operator production deployment, a generic AI inference service, a durable conversation service, live federation consensus, or public-chain settlement.
 
-Bounded Dregg/static verifier rails include M15.2–M15.8 policy-admission, resource-lock, attenuation, operator-inspection, and configured-ref checks. They use receiver-held or fixture/configured material and preserve fail-closed proof/finality blocker posture; they must not be read as live Castalia/Dregg authority, federated finality, light-client verification, recursive proof-carrying state, Midnight/Cardano settlement, or public auditability.
+## Start here
 
-Non-claims: secS-magik does not currently prove production deployment, public auditability, live Castalia/Dregg discovery or authority, federated finality, anonymous/unlinkable wallet membership, light-client or recursive proof verification, Midnight proof verification, Cardano authority/settlement, or full Castalia Wallet wallet-core parity.
-
-## Table of Contents
-
-- [Status / Updates](#status--updates)
-- [Overview](#overview)
-- [Current Boundary](#current-boundary)
-- [System Architecture](#system-architecture)
-- [Components / Repository Map](#components--repository-map)
-- [Directory READMEs / Wiki Map](#directory-readmes--wiki-map)
-- [Demoable Milestone (M12)](#demoable-milestone-m12)
-- [How It Works](#how-it-works)
-- [Key Design Decisions](#key-design-decisions)
-- [Packet v0](#packet-v0)
-- [Opcode Governance](#opcode-governance)
-- [Running Locally](#running-locally)
-- [Testing and Verification](#testing-and-verification)
-- [Documentation Map](#documentation-map)
-- [Current Non-Goals](#current-non-goals)
-- [Operational Boundaries](#operational-boundaries)
-- [License](#license)
-
-## Status / Updates
-
-Use these labels across all docs:
-
-| Label | Meaning in this repo |
+| Destination | Purpose |
 |---|---|
-| Solid / implemented | Present in current code and covered by tests or direct inspection. |
-| Partial / prototype | Present, but incomplete, local-only, misleadingly named, or not strong enough for production/security claims. |
-| Planned / next implementation | Accepted next-pass design; not yet in code. |
-| Future / optional rail | Later-stage direction. |
-| Out of scope | This repository should not own it. |
+| [Documentation site](https://zenithresearch.github.io/secS-magik/) | This README rendered as the project home, plus the tracked Markdown corpus. |
+| [Rust API documentation](https://zenithresearch.github.io/secS-magik/api/) | Generated host-target API docs for the five workspace crates. |
+| [WASM API documentation](https://zenithresearch.github.io/secS-magik/wasm-api/) | Generated wasm32 API docs for `libsec-core` and the permission panel. |
+| [Browser permission panel](https://zenithresearch.github.io/secS-magik/panel/) | Existing no-network receiver-local policy authoring/evaluation UI. |
+| [Current state](docs/current-state.md) | Short, date-stamped orientation derived from the implementation ledger. |
+| [Implementation status](docs/implementation-status.md) | Evidence-level status ledger and the authority for implemented/partial/planned claims. |
+| [Runtime reference](docs/reference/runtime.md) | Binaries, modes, configuration groups, operations, storage, and audit commands. |
+| [WASM and Pages reference](docs/reference/wasm-and-pages.md) | WASM exports, browser boundary, local builds, and Pages layout. |
 
-Short current status:
+The root README is the canonical front door and operating map. The implementation ledger remains authoritative when a claim requires exact evidence or caveats.
 
-- Solid on `main`: v0 packet shape, `u8` opcode field, `0x01`/`0x02` constants, CLI decimal opcode parsing, packet round-trip tests, tunnel helper tests, Ed25519 helper primitives, signed verifier context helpers, explicit runtime payload modes, receiver-local manifest descriptors, descriptor-bound local handler routing, receiver-local permission policy loading/readiness for canonical gateway startup, receiver-local durable replay/session/expiry enforcement within the configured local replay store/scope, typed receipt/event objects, local SQLite receipt/event persistence, redacted local/operator inspection by receipt/context id, own-verifier key lifecycle seam, production-shaped runtime config/readiness, deterministic `local_static` local-dev-test evidence seam, cryptographic `wallet_presentation` verification over the temporary minimal-equivalent secS challenge contract, Track E static trusted issuer/root policy for signed membership/provisioning credentials, and Track I local production-shaped `membership.provision` E2E.
-- Solid on this I08 branch: receiver-held `SECS_PROOF_METADATA_CONFIG_PATH` startup validation/installation and a route-scoped static trusted verification-key/circuit/public-input-schema registry metadata policy. `ConfigurableRouter::route_verified` evaluates protected opcodes before replay/nullifier reservation, accepted receipts/events, or handler execution; matching active metadata is carried into signed receipts/operator inspection only as redaction-safe `proof_metadata_bound` / `proof_registry_checked` fields. This is not light-client or recursive proof verification; I18 and I19 own those verifier rails.
-- Partial / prototype: current secS TCP listener/prototype verifier path, `server/src/bin/secz.rs` compatibility wrapper, prototype proof/TTL envelope checks, legacy `node_telemetry`, and local/dev handler bindings.
-- Planned next: replacement/reconciliation of the temporary wallet challenge contract with full Castalia Wallet wallet-core parity, #144 finalizer reconciliation for #73 after the landed #169 trusted requested-authority attenuation seam and #160 bounded Dregg resource-lock scope; #169 is only the trusted requested-authority no-widening seam, #77 is only the fail-closed descriptor-only runtime guard, and #162 is the live ingress evidence-ref wire path.
-- Future / optional: external proof, federation receipt, and settlement evidence adapters.
-- Out of scope: product policy, app/browser login UX, external consensus, settlement logic, centralized orchestration, arbitrary shell access, and application membership semantics.
+## Status at a glance
 
-## Overview
+| Surface | Current status | Exact boundary |
+|---|---|---|
+| Workspace | Solid / implemented | Five members: `libsec-core`, `client`, `server`, `secs-permissions`, and `panel`. |
+| Packet compatibility | Solid / implemented | `ZenithPacket` v0 retains a `u8` opcode and its original bincode field order. The final `mac` field is reserved and unauthenticated. |
+| Ingress | Solid local hardening; prototype transport | Bounded TCP reads, legacy Packet v0 plus versioned ingress envelopes, explicit payload modes, typed rejects, and concurrency limits. No TLS listener or deployed-service proof. |
+| Caller and receiver identity | Solid local implementation | Ed25519 caller proofs, receiver signing identities, key identifiers, owner-private key-file checks, and receiver-held registries. Registry distribution/rotation remains operator-owned. |
+| Verification and dispatch | Solid receiver-local implementation | Descriptor lookup, signed verified contexts, descriptor fingerprint rebinding checks, replay/session/expiry gates, permission checks, and handler routing. |
+| Handler execution | Solid bounded local implementation | Native handlers and local-dev subprocess handlers with payload/output/time limits and lifecycle receipts. Not arbitrary shell authority. |
+| Permission model | Solid / implemented | Shared receiver-local allow/deny records, exact or prefix resources, validity windows, revocation, deny-wins evaluation, CLI, and browser WASM panel. |
+| Evidence adapters | Mixed | Local fixtures, wallet proof-of-possession over a temporary challenge contract, trusted issuer fixtures, and bounded Dregg-shaped/verifier seams exist. Live federation discovery/finality is not established. |
+| Receipts and audit | Solid local/operator implementation | Signed receipt/event records, SQLite persistence, redacted inspection, versioned audit bundles/chains, local verification, and bounded external-anchor witnesses. Not blockchain immutability or public auditability. |
+| Execution output transport | Solid core/server transport | Bounded, receiver-signed, request-correlated `ExecutionResponse` exists. The shipped client CLI does not yet have trusted response mappings for arbitrary non-legacy operations. |
+| WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt exports and a no-network permission-policy panel. No browser wallet product or remote administration plane. |
+| `generate` / `chat` | Legacy examples only | Constants, client commands, and descriptors exist, but no inference backend, model routing, managed conversation store, or weave runtime is installed. |
+| Production deployment | Not evidenced | `production_verified` fails closed on missing operator config, but repository tests and fixture smoke are not proof of a deployed production service. |
 
-- What it does now: defines the v0 packet type, sends packets from a CLI, runs prototype TCP listeners, bounds ingress wire reads before packet deserialization, checks prototype proof/TTL envelopes, handles payload decryption through explicit runtime modes, describes receiver-local operations, signs/verifies typed verifier contexts, enforces descriptor max TTL/session validity and receiver-local replay reservation before handler execution, routes verified bounded opcodes to configured local machine programs, persists typed receipt/event records to local SQLite without storing payload content by default, and exposes redacted local/operator receipt inspection.
-- What production-shaped gateway startup additionally requires now: `production_verified` must provide `SECS_PERMISSION_POLICY_PATH`; the file is parsed as receiver-local `PermissionPolicy` during readiness and installed into the canonical ingress router before local handler dispatch. When `SECS_ALLOWED_EVIDENCE_ADAPTERS` includes `dregg_authority`, startup/readiness also requires `SECS_DREGG_AUTHORITY_REGISTRY_PATH` and parses it as the receiver-held Dregg issuer/root/epoch policy registry. Missing or invalid policy files fail startup/readiness closed.
-- What it is becoming: a typed secS verifier pipeline with receiver-local operation manifests, signed `VerifiedCallContext`, signed receipts, local event ledger, and evidence adapters.
-- Who it is for: developers and operators building owned machine-call rails instead of broad bearer-token APIs.
-- Primary stack: Rust workspace with `core`, `client`, and `server`; Tokio TCP; bincode packet serialization; optional ChaCha20Poly1305 tunnel decryption; SQLite through SQLx runtime queries.
+## What secS is—and is not
 
-## Current Boundary
-
-The corrected role split is:
+The intended ownership split is:
 
 ```text
-client-side surfaces
-  CLI, library, local tool, or service client
-  constructs outgoing secS-compatible calls from user/local/app/node intent
-
-secS-magik / secS
-  permissioned RPC and verifier substrate
-  validates envelope, signatures, presentations, replay/expiry, capabilities, credentials, evidence, and receipts
-
-receiver-local manifest
-  binds local u8 opcodes to operation descriptors and local handlers after secS verification
+user / local tool / service / agent harness
+  -> client-side secS packet construction
+  -> secS gateway and verifier
+  -> receiver-local operation descriptor
+  -> receiver-local bounded handler
+  -> signed response + receipt/event evidence
 ```
 
-Important boundaries:
+- `client`, secC-like tools, local Hermes integrations, and future harness adapters are **callers**. They construct or carry requests; they do not decide receiver authority.
+- `server` is the secS verifier and permissioned RPC substrate. It validates the receiver's conditions and produces typed signed handoff/audit objects.
+- `ReceiverManifest` assigns local meaning to compact `u8` opcodes. An opcode alone never grants authority.
+- Dregg, wallet, Midnight, Cardano, or other proof systems can enter through evidence adapters or anchors. They do not replace secS verification.
+- Configured metadata-only routes can consult a trusted verification-key/circuit/public-input-schema registry and record `proof_metadata_bound`. That gate is not light-client or recursive proof verification: I18 light-client verification and I19 recursive proof-carrying state remain separate future boundaries.
+- `server/src/bin/secz.rs` is a historical compatibility gateway and audit CLI surface, not the generic Castalia interface and not separate verifier ownership.
+- Browser/app WalletAuth and product login UX are outside this internal RPC repository.
 
-- Client surfaces construct outbound packets; they are not the verifier.
-- secS verifies packets and produces typed handoff/audit objects.
-- Receiver-local manifests bind verified operations to local handlers.
-- External proof, federation, and settlement systems enter through typed evidence adapters or anchors; they do not replace the secS verifier boundary. The current Dregg-shaped adapter verifies envelope **shape + author signature only** (`secs-dregg-receipt-shape-v1`, a temporary minimal-equivalent contract); it is not Dregg blocklace finality, capability, nullifier, CapTP, or revocation authority — the earlier M12.3 shape-only seam is superseded by the bounded #144/M15.8 resource-lock / attenuation boundary; live Dregg proof/finality remains unsupported.
-- #177-#180 define bounded Dregg live-evidence contract and fail-closed verifier seams: versioned DTOs, verifier traits/config, typed refs, stable missing/unsupported-live-verifier reason codes, and readiness rejection when a receiver requires live evidence dependencies that are absent. These seams may check configured fixture/trusted refs in tests, but they must not be described as live Castalia/Dregg authority, federated finality, light-client verification, recursive proof-carrying state, production deployment proof, public auditability, Midnight, or Cardano settlement.
-- Browser/app login is separate from secS internal RPC.
+## Request lifecycle
 
-## System Architecture
+The canonical prototype path is:
 
 ```text
-client / local tool / service
-  -> ZenithPacket v0
-  -> bounded TCP ingress
-  -> frame/decode/prototype envelope/runtime checks
-  -> receiver-local descriptor lookup
-  -> signed VerifiedCallContext or reject receipt
-  -> receiver-local replay/session/expiry gate
-  -> bounded local handler routing
-  -> signed receipt + event pair
-  -> local SQLite operator ledger
-  -> redacted operator inspection/export
+1. caller identity + operation intent
+2. ZenithPacket v0 or versioned IngressRequest envelope
+3. bounded TCP read and frame decoding
+4. caller proof, packet, payload-mode, and manifest checks
+5. evidence / credential / capability / privacy policy evaluation
+6. receiver-signed VerifiedCallContext
+7. context signature + active-descriptor fingerprint revalidation
+8. receiver-local replay, session, expiry, nullifier, and permission gates
+9. bounded receiver-local handler execution
+10. DecisionResponse or authenticated ExecutionResponse
+11. signed receipt/event persistence and redacted operator/audit projections
 ```
 
-This is local/operator evidence. It is not public chain anchoring, public auditability, or production deployment proof.
+Important ordering guarantees are covered by integration tests: verification failures and policy denials must not invoke handlers; descriptor mismatches fail before mutable route side effects; replay/nullifier reservations are receiver-local and bounded; output is bounded before it reaches signed response and receipt projections.
 
+## Workspace inventory
 
-### Public audit bundle contract (#181)
+The root `Cargo.toml` contains five members:
 
-#181 defines `secs-public-audit-bundle-v1`, a redacted local export bundle and local verifier contract for complete signed receipt chains. The bundle includes receipt ids, context ids, receipt signatures, signer public-key material, redacted evidence summaries, and deterministic chain metadata. This is local public-bundle verification, not external anchoring, immutable publication, chain settlement, or production deployment proof; #182-#185 continue the public-audit train beyond this first contract slice.
-
-
-## Components / Repository Map
-
-| Path | Responsibility | Boundary |
+| Package | Kind | What is actually present |
 |---|---|---|
-| `README.md` | Root orientation map. | Broad/shallow; link deeper docs instead of becoming the full spec. |
-| `Cargo.toml` | Workspace definition. | Current members: `core`, `client`, `server`. |
-| `core/` | Shared packet and verifier-free core primitives. | Owns the v0 packet shape and constants; should not own product policy or receiver-local dispatch semantics. |
-| `client/` | CLI packet sender; current secC-like client surface. | Builds and sends packets; does not verify inbound authority. |
-| `server/` | secS prototype gateway/verifier substrate. | Owns current ingress, verifier helpers, manifests, evidence seam, receipts, local ledger, runtime config, and bounded local routing. |
-| `server/src/bin/secs-gateway.rs` | Canonical current prototype configurable gateway binary on port `9001` unless configured otherwise. | Thin wrapper over library modules. |
-| `server/src/bin/secz.rs` | Compatibility wrapper for the historical secZ-named gateway command. | Kept for current command compatibility, not canonical verifier ownership. |
-| `server/src/manifest.rs` | Receiver-local operation descriptors and opcode governance. | Descriptor semantics are wired into signed-context creation and receiver-local bounded handler routing; this is not final global opcode ratification. |
-| `server/src/evidence.rs` | Evidence adapter seam. | Defines typed evidence requests/results, deterministic `local_static` local-dev-test adapter, cryptographic `wallet_presentation` proof-of-possession for the claimed subject using the explicitly temporary minimal-equivalent secS challenge contract, receiver-held `TrustedIssuerEntry` registry policy, and signed `membership_credential` / `provisioning_credential` verification against static fixture roots. Track D alone remains not trusted issuer/root/registry policy; Track E supplies the separate static trusted-issuer fixture policy on this phase branch. Full Castalia Wallet wallet-core import, live Castalia/Dregg discovery, Midnight/Cardano authority, public auditability, and deployment proof remain outside this repo-local Track E branch. |
-| `server/src/receipt.rs` | Typed receipt/event objects. | Defines reject/verify/execute/forward receipt kinds, typed decisions/reasons/authenticator kinds, stable event names, and Ed25519 receipt signing helpers. |
-| `server/src/ledger.rs` | Event/receipt ledger. | Persists events and receipts with runtime SQL; exports `secs-public-audit-bundle-v1` redacted public-audit bundles for local public-bundle verification, not external anchoring; does not store payload content by default. |
-| `docs/` | Specs, plans, status ledgers, and external-language drafts. | Docs must distinguish implemented behavior from target/planned behavior. |
-| `AGENTS.md` | Contributor/agent rules. | Internal editing conventions for future automated work. |
+| [`libsec-core`](core/README.md) | `rlib`, `cdylib`, `staticlib` | `ZenithPacket`, ingress frames, caller-proof encoding, decision/execution responses, packet builder, tunnel primitives, signature/Merkle helpers, and optional wasm32 exports. It is verifier-free. |
+| [`client`](client/README.md) | Native binary | `generate`, `chat`, `hub`, and `identity` commands; caller-key lifecycle; packet signing; plaintext/static/session tunnel modes; bounded response decoding. |
+| [`server`](server/README.md) | Library + three binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, and gateway CLIs. |
+| `secs-permissions` | Reusable library | Receiver-local permission records and fail-closed policy evaluation shared by the server, native policy CLI, and WASM panel. |
+| [`panel`](panel/README.md) | `cdylib`, `rlib` | Four wasm-bindgen functions plus a static HTML/JavaScript policy panel that stores policy JSON in the browser. |
 
-Untracked local directories such as `hub/`, `ops/`, or `docs/reviews/` in a working checkout are not part of the current Cargo workspace unless deliberately added and documented.
+### Shipped binaries
 
-## Directory READMEs / Wiki Map
-
-Each repository directory owns its local map. Start here, then follow the child README for depth:
-
-| Directory | README | Purpose |
+| Command | Package | Status and purpose |
 |---|---|---|
-| `core/` | [core/README.md](core/README.md) | Shared verifier-free packet and crypto primitives. |
-| `client/` | [client/README.md](client/README.md) | CLI / secC-like outgoing packet sender. |
-| `server/` | [server/README.md](server/README.md) | secS gateway/verifier substrate, manifests, receipts, local ledger, runtime modes, and bounded routing. |
-| `docs/` | [docs/README.md](docs/README.md) | Documentation index and status/spec/plan navigation. |
-| `docs/specs/` | [docs/specs/README.md](docs/specs/README.md) | Current architecture/objective specifications. |
-| `docs/plans/` | [docs/plans/README.md](docs/plans/README.md) | Implementation plans, checklists, and issue-slice control surfaces. |
-| `examples/` | [examples/README.md](examples/README.md) | Runnable local examples and demos. |
-| `scripts/` | [scripts/README.md](scripts/README.md) | Smoke and local verification helper scripts. |
+| `client` | `client` | Prototype outgoing packet CLI. `generate`/`chat` use the two legacy opcodes; `hub` parses decimal `u8` opcodes; `identity` prints a receiver-registry entry. |
+| `secs-gateway` | `server` | Canonical configurable TCP gateway wrapper. Default mode is fail-closed `production_verified`; local use must explicitly select a dev mode. |
+| `secz` | `server` | Historical compatibility name for a local gateway plus `audit verify` and `audit anchor verify` commands. |
+| `secs-permctl` | `server` | Authors, revokes, lists, and evaluates receiver-local permission-policy JSON. |
 
-## Demoable Milestone (M12)
+### A client limitation worth knowing
 
-`./examples/m12-demo.sh` demonstrates the end-to-end verifier state against
-the live local gateway: authenticated caller accept (with the signed decision
-returned to the caller), forged-proof and unknown-caller typed rejects,
-replay and expiry rejects, wallet + Dregg-shaped evidence composition at the
-adapter seam, and operator inspection of the verify/execute/reject receipt
-chain. The demo proves local verifier behavior only — not production
-deployment (#33), public auditability (#37), wallet-core parity (#71), live
-Castalia registry discovery beyond the bounded #72 Dregg-shaped snapshot seam, or Dregg/Midnight/Cardano authority (#73-#75);
-live evidence-aware ingress is the #162 rail, while trusted requested-authority attenuation is bounded to #169 and resource locks remain #160.
+The CLI exposes `hub <opcode> <payload>`, but its current trusted response mapping contains only opcodes `0x01` and `0x02`. For other opcodes it reports `response expectation is missing or invalid for this operation` before opening the TCP connection. Server-side non-legacy operations are exercised through library/integration-test paths; making arbitrary CLI response-key/schema mappings configurable is separate work.
 
-## How It Works
+That distinction matters when reading older shell examples that call `hub 16`: the parser and historical examples exist, but current client dispatch intentionally refuses operations without a pinned response contract.
 
-Current request lifecycle:
+## Wire and response contracts
 
-1. A client constructs a `ZenithPacket` v0.
-2. The gateway accepts bounded TCP input and rejects oversize/malformed frames before unsafe decode behavior.
-3. Prototype envelope, TTL, runtime-mode payload, and descriptor checks run.
-4. The gateway creates a signed verified context or a typed reject receipt.
-5. Receiver-local replay/session/expiry checks run before handler execution.
-6. The receiver-local manifest selects the local handler by descriptor metadata.
-7. Bounded handler routing enforces payload, output, timeout, and production/dev binding limits.
-8. Receipts and events are persisted to local SQLite, with receipt+event pairs written atomically where required.
-9. Operators inspect redacted local receipt/event chains by receipt id, context id, packet hash, or related tuple depending on the helper/test surface.
-
-## Key Design Decisions
-
-- Preserve the v0 packet shape and `u8` opcode compatibility until an explicit versioned migration is approved.
-- Keep client packet construction separate from server-side authority verification.
-- Treat receiver-local manifests as local opcode-to-operation/handler maps, not global product policy.
-- Mark local/dev evidence and plaintext modes as visibly non-authoritative.
-- Keep current ledger claims bounded to local/operator SQLite evidence.
-- Keep the Track D wallet cryptographic verifier bounded to the temporary minimal-equivalent secS challenge contract until full Castalia Wallet wallet-core parity replaces or reconciles it; wallet proof-of-possession remains necessary where required but never sufficient issuer/root authority.
-- Keep Track E authority receiver-held: static fixture `TrustedIssuerEntry` registry metadata, signed membership/provisioning credentials, `trust_root_ref` / `registry_root_ref` matching, and descriptor-local policy decide production evidence acceptance. Caller-supplied keys/root refs, `local_static`, plaintext/prototype evidence, and wallet-only evidence do not become sufficient authority.
-- Keep Dregg, Midnight, and Cardano as future adapter/anchor rails. M15.2 adds the receiver-held static `dregg_authority` issuer/root/epoch registry and production startup/readiness requirement when that adapter is enabled; it still does not verify Dregg token admission, revocation proofs, finality, Midnight, Cardano, public auditability, or deployment proof.
-
-## Packet v0
-
-The v0 packet remains the compatibility anchor:
+### Packet v0 compatibility anchor
 
 ```rust
 pub struct ZenithPacket {
@@ -197,185 +124,275 @@ pub struct ZenithPacket {
 }
 ```
 
-Rules:
+- The packet uses bincode and keeps `opcode: u8`.
+- `proof` currently carries a versioned caller key reference plus Ed25519 signature over canonical envelope bytes on the client path. Prototype proof-envelope helpers remain elsewhere for bounded fixture paths.
+- `encrypted_payload` can be plaintext only in explicit local-dev mode, statically tunneled in local-dev mode, or protected by a v2 X25519/HKDF session-derived key.
+- `mac` is retained only for v0 byte-layout compatibility. Current clients write zeroes; the server never treats it as authentication.
 
-- Preserve `opcode: u8`.
-- Preserve current bincode round-trip compatibility while using bounded ingress decode for externally supplied frames.
-- The CLI parses opcodes as decimal `u8`; use `16`, not `0x10`.
-- Current prototype proof bytes are not real ZK verification. Treat them as a `PrototypeProofEnvelope` until replaced by a proof adapter with defined statements and public inputs. With a configured caller registry, `proof` additionally carries the versioned caller proof-of-origin envelope (M12.1).
-- `encrypted_payload` remains opaque to secS except for cryptographic/tunnel verification and handler handoff rules. The local client can encrypt payloads with either the static local-dev tunnel key (`SECS_TUNNEL_KEY_HEX`) or the v2 per-session tunnel path (`SECS_TUNNEL_SERVER_X25519_PUBLIC_HEX` client-side, `SECS_TUNNEL_X25519_SECRET_HEX` gateway-side); the latter derives the AEAD key via X25519 + HKDF and carries only the client ephemeral public key in the ingress envelope.
-- `mac` is **reserved and zeroed** (M12.6, option b). It is kept only for v0 byte-layout compatibility, is never verified, and provides no authentication — do not mistake it for a MAC. Caller authenticity comes from the caller proof envelope (M12.1); payload integrity under tunnel keys comes from ChaCha20Poly1305 AEAD bound to the envelope (M12.4). Making it a real verified MAC or removing it would be an explicit, owned wire-format migration.
+### Ingress envelopes
 
-## Opcode Governance
+- A bare bincode `ZenithPacket` remains a legacy-compatible ingress frame.
+- `IngressRequestV1` adds bounded `evidence_refs` and `public_inputs`.
+- `IngressRequestV2` adds the client ephemeral X25519 public key for session-derived tunnel keys.
+- Evidence inputs are count- and size-bounded before verifier use.
 
-The implementation plan reserves opcode ranges by governance tier:
+### Responses
 
-| Range | Governance | Meaning |
-|---:|---|---|
-| `0x01`–`0x0A` | secS/core standardized | Very small cross-runtime baseline operations and legacy examples. |
-| `0x0B`–`0x3F` | Portable candidate | Ecosystem operations whose names/evidence expectations should become portable across compliant receivers. |
-| `0x40`–`0xFF` | Operator-defined | Receiver/operator local operations declared by the receiver manifest. |
+- `DecisionResponse` is the small accepted/rejected decision frame retained for legacy operations.
+- `ExecutionResponse` is a versioned, receiver-signed frame with exact request-digest correlation, bounded output/schema fields, typed execution status/reasons, context/receipt references, and Ed25519 receiver authentication.
+- Receipt schema v3 can carry a bounded redacted output projection. Raw payload and private evidence are excluded from ordinary receipt/operator/public-audit surfaces.
 
-Current legacy/core examples:
+## Receiver-local operations
 
-- `0x01` / decimal `1`: `OPCODE_GENERATE`
-- `0x02` / decimal `2`: `OPCODE_CHAT`
+`ReceiverManifest::default_v0()` currently contains these descriptors:
 
-Current prototype/dev bindings:
+| Opcode | Decimal | Operation | Target/status | Runtime binding |
+|---:|---:|---|---|---|
+| `0x01` | `1` | `legacy.generate` | Legacy core example | No generic inference handler is registered. |
+| `0x02` | `2` | `legacy.chat` | Legacy core example | No generic chat or conversation handler is registered. |
+| `0x10` | `16` | `candidate.dev.bash_echo` | Local-dev subprocess candidate | `bash` echo/cat binding in local-dev modes only. |
+| `0x20` | `32` | `candidate.dev.json_validate` | Local-dev native candidate | Local Rust queue stub in local-dev modes only. |
+| `0x30` | `48` | `candidate.dev.jq_identity` | Local-dev subprocess candidate | `jq .` binding in local-dev modes only. |
+| `0x44` | `68` | `membership.provision` | Production-shaped receiver handler | Native handler is registered, but authority/evidence gates still fail closed. |
+| `0x45` | `69` | `node.registration.v0` | Receiver handler with local-fixture authority mode | Native registration handler; not live federation authority. |
 
-- `0x10` / decimal `16`: Bash echo pipe.
-- `0x20` / decimal `32`: native Rust queue stub.
-- `0x30` / decimal `48`: `jq .` JSON formatter/parser.
+Additional demo descriptors, including the permissioned file-write and Dregg-shaped demo routes, are installed explicitly by tests/demos and are not part of the default manifest.
 
-These `0x10`/`0x20`/`0x30` bindings are portable candidates or dev bindings, not final ratified global semantics.
+Canonical `0x44 membership.provision` remains protected by Issue #77's fail-closed descriptor-only runtime evidence guard: handler binding is not authority, and only the configured evidence adapter path can produce the evidence-backed signed context required to reach it.
 
-## Running Locally
+Opcode governance:
 
-Build and test the workspace:
+| Range | Governance |
+|---:|---|
+| `0x01`–`0x0A` | Small secS/core-standardized range; current `0x01` and `0x02` remain legacy examples. |
+| `0x0B`–`0x3F` | Castalia-standard candidate range; current entries are dev candidates, not ratified portable operations. |
+| `0x40`–`0xFF` | Receiver/operator-defined range. Meaning comes from the receiver manifest and descriptor fingerprint. |
+
+## Verification, authority, and privacy
+
+The server library contains:
+
+- caller proof-of-origin verification against receiver-held caller keys;
+- receiver/verifier Ed25519 identity loading, deterministic key IDs, key status/validity checks, and signed context/receipt verification;
+- descriptor-bound `VerifiedCallContext` with active-manifest authorization-fingerprint revalidation;
+- receiver-local session, replay, expiry, scoped-nullifier, and permission enforcement;
+- deny-by-default disclosure policies and JSON/string privacy scanners for receipt, operator, readiness, demo, and audit surfaces;
+- evidence adapters for local static fixtures, wallet presentation proof-of-possession, signed federated credentials under receiver-held issuer metadata, bounded Dregg authority/snapshot material, and explicitly configured live-verifier seams;
+- proof metadata/key registry gates for route-scoped configured proof expectations.
+
+Evidence maturity is mixed. Tests exercise cryptographic and fail-closed properties, but fixtures, configured roots, in-process verifier seams, and local source-client contracts are not equivalent to live Castalia/Dregg finality, public network discovery, light-client verification, recursive proof-carrying state, Midnight proof settlement, or Cardano settlement.
+
+The wallet adapter verifies a temporary minimal-equivalent secS challenge contract. It proves possession of the presented subject key under that contract; it is not full Castalia Wallet wallet-core parity and is not sufficient issuer/root authority by itself.
+
+## Runtime modes
+
+The gateway defaults to `production_verified` when no mode is provided.
+
+| Mode | Behavior |
+|---|---|
+| `local_dev_plaintext` | Explicit local fixture mode; permits plaintext and local dev bindings. Defaults to `127.0.0.1:9001` and a local SQLite file unless overridden. |
+| `local_dev_tunnel` | Explicit local fixture mode; requires static tunnel material and enables local dev bindings. |
+| `production_verified` | Fail-closed mode requiring explicit bind, DB/ledger, receiver audience, verifier/tunnel keys, caller/trust/permission registries, limits, and adapter-specific readiness inputs. Dev/legacy descriptors cannot acquire production authority. |
+
+See [the runtime reference](docs/reference/runtime.md) for the complete grouped environment-variable inventory and readiness boundaries.
+
+## Local quick start
+
+Requirements: a current Rust toolchain. Some local-dev handlers also require `bash` or `jq`; browser builds require `wasm-pack` and the `wasm32-unknown-unknown` target.
+
+Build and test:
 
 ```bash
-cargo test --workspace
 cargo build --workspace
+cargo test --workspace
 ```
 
-Run the canonical current prototype gateway for local development on port `9001`:
+Start the canonical gateway in explicit plaintext local-dev mode:
 
 ```bash
 SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secs-gateway
 ```
 
-The bare command defaults to `production_verified`, which intentionally fails fast unless the operator provides explicit `SECS_*` runtime limits, verifier key, ledger path, trust registry, receiver audience, and bind address. For a no-real-secret production-shaped fixture smoke, use:
+It listens on `127.0.0.1:9001` by default in local-dev modes. The client default is currently `127.0.0.1:9000`, so provide the server address:
+
+```bash
+cargo run -p client -- --server 127.0.0.1:9001 identity
+cargo run -p client -- --server 127.0.0.1:9001 generate "hello"
+cargo run -p client -- --server 127.0.0.1:9001 chat "hello"
+```
+
+The last two commands exercise legacy admission/decision surfaces. They do not call a model or return generated/chat content because no inference handlers are installed.
+
+For a fixture-only production-shaped startup smoke:
 
 ```bash
 ./scripts/production-gateway-smoke.sh
 ```
 
-Fixture smoke output is not `membership.provision` success by itself. For the Track I membership-provisioning contract, success requires an inspectable receipt chain for the same context with both `verify accepted` and `execute accepted`; verifier-only acceptance, handler-unavailable routing, stdout/stderr/log output, or fixture smoke output without an accepted execute receipt remains non-success.
+That script creates temporary fixture material and local SQLite state. It is intentionally not production deployment proof.
 
-The historical `secz` binary remains as a compatibility wrapper for the same prototype gateway:
+## Permission policy tools
 
-```bash
-SECS_RUNTIME_MODE=local_dev_plaintext cargo run -p server --bin secz
-```
-
-Send a packet with a decimal opcode:
+Native CLI example:
 
 ```bash
-cargo run -p client -- \
-  --server 127.0.0.1:9001 \
-  hub 16 'hello from secC'
+cargo run -p server --bin secs-permctl -- \
+  --policy /tmp/secs-permissions.json \
+  grant \
+  --caller secS://caller-a \
+  --opcode 0x50 \
+  --operation demo.file.write \
+  --resource file:///tmp/secs-demo/ \
+  --prefix
+
+cargo run -p server --bin secs-permctl -- \
+  --policy /tmp/secs-permissions.json \
+  evaluate \
+  --caller secS://caller-a \
+  --opcode 0x50 \
+  --operation demo.file.write \
+  --resource file:///tmp/secs-demo/demo.txt
 ```
 
-The CLI currently accepts decimal `16`, `32`, or `48` for the prototype bindings. Hex input such as `0x10` is not accepted unless CLI parsing is deliberately extended later.
+The browser panel exposes the same shared model through `grant`, `revoke`, `evaluate`, and `list`. Policy stays in browser local storage; the panel has no server or network client and cannot change a running gateway by itself.
 
-## Testing and Verification
+## Receipts, persistence, and audit
 
-Primary checks:
+The server uses SQLx runtime queries against SQLite for:
+
+- signed receipts;
+- emitted lifecycle events;
+- receiver-local replay reservations;
+- scoped nullifier uses;
+- audit publication status;
+- legacy node telemetry.
+
+Receipt/event pairs are written atomically on the covered paths. Operator inspection is schema-versioned and redacts payloads, credentials, raw private evidence, and raw signature material. Execution output is represented only under bounded output-projection rules.
+
+The public-audit subsystem provides versioned bundle and chain formats, context-scoped range export, signer public-key material, deterministic entry/root hashes, local/no-op publisher semantics, and a standalone verifier that does not require SQLite database access. It also supports a bounded GitHub Gist anchor witness and local anchor-record verification.
 
 ```bash
-cargo test --workspace
-cargo build --workspace
+cargo run -p server --bin secz -- audit verify <bundle.json>
+cargo run -p server --bin secz -- audit anchor verify <bundle.json> <anchor.json>
 ```
 
-Docs/path consistency check:
+These commands validate the repository's bundle/chain/anchor contracts. A Gist or local anchor record is not blockchain immutability, external consensus, production deployment proof, or proof that publication cannot be deleted.
+
+## WASM and browser surfaces
+
+Two wasm32 surfaces exist:
+
+1. `libsec-core` with feature `uniffi` exports `wasm_encrypt` and `wasm_decrypt` for ChaCha20Poly1305 using caller-supplied key, nonce, plaintext/ciphertext, and associated data.
+2. `panel` exports permission-policy `grant`, `revoke`, `evaluate`, and `list` functions and supplies a vanilla HTML/JavaScript UI in `panel/www`.
+
+Build the panel locally:
 
 ```bash
-for p in Cargo.toml core/ client/ server/ docs/ docs/repository-schema.md docs/specs/2026-06-01-secs-magik-objectives-spec.md; do
-  test -e "$p" || echo "missing $p"
-done
+rustup target add wasm32-unknown-unknown
+wasm-pack build panel --target web --out-dir www/pkg --out-name panel
+python3 -m http.server --directory panel/www 8000
 ```
 
-If telemetry or ledger code is added, keep SQL runtime-checkable unless the repo also commits and maintains the required SQLx offline cache.
+Open `http://127.0.0.1:8000/`. See [WASM and Pages](docs/reference/wasm-and-pages.md) for export contracts, security boundaries, site generation, and published paths.
 
-## Documentation Map
+## Examples and scripts
 
-Start with [docs/current-state.md](docs/current-state.md) for a concise orientation; the detailed implementation ledger remains authoritative.
+| Path | What it demonstrates | Current caveat |
+|---|---|---|
+| `examples/hello-world.sh` | Historical local gateway/client round trip. | Uses non-legacy `hub 16`; current client refuses it without a trusted response mapping. |
+| `examples/m12-demo.sh` | Caller authentication, expiry, replay, and receipt behavior. | Also uses `hub 16`; rely on focused integration tests until the CLI mapping is reconciled. |
+| `examples/m12-tunnel-demo.sh` | Static local-dev tunnel and wrong-key rejection. | Same non-legacy client mapping caveat; v2 session tunnel behavior is covered by tests. |
+| `examples/m13-permission-demo.sh` | Receiver-local permission CLI/model flow. | Demo authority only; no production filesystem authority. |
+| `examples/m15-dregg-authority-demo.sh` | Bounded receiver-held Dregg-shaped resource-lock/attenuation checks. | Local fixtures and tests only; no live Dregg finality. |
+| `scripts/production-gateway-smoke.sh` | Real gateway startup and malformed/oversized ingress rejects under full fixture config. | Fixture-only local smoke. |
+| `scripts/tier-1-dregg-authority-snapshot-smoke.sh` | Snapshot fixture audit and focused positive/negative tests. | No network or federation finality. |
+| `scripts/stress-identity-tests.sh` | Repeated identity-focused test execution. | Test stress helper, not load or deployment evidence. |
 
-Current source-of-truth and control documents:
+## Development and verification
 
-- [docs/implementation-status.md](docs/implementation-status.md) — status ledger: implemented vs partial vs planned vs future vs out-of-scope.
-- [docs/repository-schema.md](docs/repository-schema.md) — objective file-system schema and repository boundary map.
-- [docs/client-surfaces.md](docs/client-surfaces.md) — client-side local Hermes/secC/secZ packet-construction boundary.
-- [docs/specs/2026-06-01-secs-magik-objectives-spec.md](docs/specs/2026-06-01-secs-magik-objectives-spec.md) — current architecture/objectives spec.
-- [docs/plans/2026-06-02-ready-for-prod-checklist.md](docs/plans/2026-06-02-ready-for-prod-checklist.md) — current ready-for-prod track checklist and completion checkpoints.
+CI enforces:
 
-Exploratory and public-language material:
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo build --workspace --all-targets --all-features
+cargo test --workspace --all-targets --all-features
+cargo audit
+cargo check -p libsec-core --target wasm32-unknown-unknown --features uniffi
+cargo check -p panel --target wasm32-unknown-unknown
+```
 
-- [docs/ideas/README.md](docs/ideas/README.md) — non-authoritative, design-gated proposals awaiting promotion or rejection.
-- [docs/announcement-thread.md](docs/announcement-thread.md) — public-language draft, intentionally caveated until verifier work lands.
+The integration suite covers packet compatibility, caller authentication, context binding, ingress bounds, runtime readiness, permissions, replay/session/expiry, nullifiers, evidence tiers, wallet presentation, trusted issuer policy, Dregg-shaped verifier seams, node registration, handler negative matrices, receipts/ledger/audit formats, privacy redaction, and documentation overclaim guards.
 
-## Current Non-Goals
+Useful focused commands:
 
-This repo does not own:
+```bash
+cargo test -p libsec-core --all-features
+cargo test -p server --test runtime_config
+cargo test -p server --test gateway_layout
+cargo test -p server --test execution_output_transport
+cargo test -p server --test public_audit_cli
+cargo test -p server --test docs_overclaim_status_ledger
+```
 
-- product policy;
-- app/browser login UX;
-- external consensus;
-- public settlement logic;
-- auction or business logic;
-- arbitrary shell access;
-- centralized orchestration;
-- application membership semantics.
+## Repository map
 
-## Operational Boundaries
+```text
+secS-magik/
+├── core/                 packet, ingress, response, tunnel, crypto, WASM primitives
+├── client/               outgoing native CLI and caller identity/tunnel handling
+├── server/               verifier, gateway, evidence, handlers, receipts, ledger, CLIs
+├── permissions/          shared receiver-local permission model
+├── panel/                wasm-bindgen permission wrapper + static browser UI
+├── docs/
+│   ├── current-state.md  concise derived orientation
+│   ├── implementation-status.md  authoritative status ledger
+│   ├── reference/        current runtime and WASM reference
+│   ├── specs/            accepted/target contracts; check status before claiming runtime
+│   ├── plans/            implementation sequencing and historical controls
+│   ├── ideas/            non-authoritative design-gated proposals
+│   └── ops/              runbook and deployment-evidence contracts
+├── examples/             local scripts and fixture-oriented demonstrations
+├── fixtures/             tracked public test/demo fixtures; never operator secrets
+├── scripts/              smoke, stress, and documentation build helpers
+└── .github/workflows/    Rust CI and documentation Pages automation
+```
 
-The verifier-facing protocol boundary is the packet/verifier/manifest/receipt path. Application policy, login UX, consensus, settlement, and orchestration systems should integrate through explicit adapters or client surfaces rather than becoming core verifier logic.
+## Documentation authority and maintenance
+
+| Question | Source |
+|---|---|
+| What is this repository and how do I use it? | This root README. |
+| What is implemented, partial, planned, future, or out of scope? | [`docs/implementation-status.md`](docs/implementation-status.md). |
+| What changed in top-level posture recently? | [`docs/current-state.md`](docs/current-state.md). |
+| What architecture is targeted? | [`docs/specs/2026-06-01-secs-magik-objectives-spec.md`](docs/specs/2026-06-01-secs-magik-objectives-spec.md). |
+| What is exploratory only? | [`docs/ideas/README.md`](docs/ideas/README.md). |
+| What would count as production deployment evidence? | [`docs/ops/production-deployment-proof.md`](docs/ops/production-deployment-proof.md). |
+
+Specs and plans describe contracts or intended sequences; they do not override the implementation ledger. Historical issue and PR references are provenance, not a substitute for current code inspection.
+
+## Active architecture decisions
+
+- [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) proposes Matrix-owned conversation with secS restricted to exact authority-bearing machine operations. That decision is not implemented on `main` merely because a contract or draft exists.
+- [Issue #274](https://github.com/ZenithResearch/secS-magik/issues/274) records an optional weave middleware idea around inference handlers. It remains design-gated; no weave storage, conversation continuity, loom UI, or inference middleware exists in runtime code.
+
+## Explicit non-claims
+
+The repository currently does not establish:
+
+- a deployed production gateway or production secret-management system;
+- a generic model inference server, agent harness, peer-chat runtime, or weave/loom service;
+- live Castalia/Dregg discovery, consensus, capability authority, revocation finality, or recursive proof-carrying state;
+- full Castalia Wallet wallet-core parity or browser WalletAuth product behavior;
+- Midnight proof verification or Cardano settlement/authority;
+- distributed/global/cross-Hub replay protection;
+- public-chain immutability or public auditability from local SQLite, bundles, Gists, or Pages;
+- arbitrary receiver shell, browser, filesystem, tool, model, provider, credential, or workspace selection by callers.
+
+## Security
+
+See [SECURITY.md](SECURITY.md). Never commit operator private keys, tunnel secrets, bearer tokens, production registries, live packet captures, private evidence, or local telemetry databases. Tracked fixtures and smoke scripts are intentionally public and must remain visibly non-authoritative.
 
 ## License
 
 See [LICENSE](LICENSE).
-
-
-#160 implements bounded receiver-held resource-lock evidence: an accepted bounded Dregg-shaped / receiver-held authority evidence bundle may bind an exact verifier-derived trusted requested resource as `resource_lock:verified`, reject mismatches as `resource_lock_violation`, and propagate the locked resource into the signed context for handler/policy use. This is separate from #169 trusted requested-authority attenuation, does not implement live Dregg revocation proof/BLS finality/rotated-replay proof verification, and #159 remains fail-closed blocker posture only. #144/M15.8 reconciles the bounded M15.8 resource-lock / attenuation boundary.
-
-
-#144/M15.8 reconciles the bounded local M15.8 resource-lock / attenuation demo boundary across #162 live ingress evidence refs/public inputs, #167 delegated attenuation / non-amplification, #169 trusted requested-authority attenuation, and #160 receiver-held resource-lock evidence. The boundary preserves `resource_lock:verified` acceptance, `resource_lock_violation` rejection, redaction-safe operator summaries, and signed-context propagation of the verified locked resource for handler/policy use. See `examples/m15-dregg-authority-demo.sh` for the bounded production-shaped local demo/checklist. This is not deployment proof, not public auditability, not live Dregg revocation proof, not BLS threshold finality, not rotated-replay proof verification, not Midnight, and not Cardano.
-
-- Tunnel key lifecycle (#175): v2 session-key clients may pin `SECS_TUNNEL_SERVER_X25519_PUBLIC_ID`, while gateways expose redacted `tunnel:x25519:<hash>` identities for current/next X25519 keys and record accepted v2 key ids in verify receipts.
-
-
-### Receipt-chain audit export model (#182)
-
-#182 strengthens `secs-public-audit-bundle-v1` with the versioned `secs-public-audit-chain-v1` root algorithm. Every exported receipt entry carries a `chain_index` and `previous_entry_hash_hex`, and the bundle chain metadata records a deterministic context-scoped range export (`chain_scope: context:<id>`). Context-scoped range export rejects missing endpoints and local bundle verification rejects reordered or broken hash-link chains. This is still local public-bundle verification, not external anchoring or immutable public publication.
-
-
-### Audit publisher abstraction (#183) — audit publisher abstraction (#183)
-
-#183 adds a local audit publisher abstraction and persisted `audit_publication_status` table for public audit bundles. Publication status is keyed by an `idempotency_key` over bundle version, chain algorithm version, chain scope, root hash, receipt count, and target kind. Target references are stored as `target_ref_digest_hex`, never raw target refs. The included local/no-op publisher proves status, retry, idempotency, and failure semantics without external anchoring claims. Publication verifies the local public audit bundle before recording success or failure, and publication failures do not rewrite receipt rows or bundle contents.
-
-
-### Public audit verifier CLI (#184) — public audit verifier CLI (#184)
-
-#184 adds the redaction-safe public audit verifier CLI. Use:
-
-```bash
-cargo run -p server --bin secz -- audit verify <bundle.json>
-# installed binary form:
-secz audit verify <bundle.json>
-```
-
-A valid local public audit bundle prints a single summary line such as:
-
-```text
-valid=true bundle_version=secs-public-audit-bundle-v1 chain_algorithm_version=secs-public-audit-chain-v1 chain_scope=context:example root_hash_hex=<hex> receipt_count=2
-```
-
-The verifier does not require SQLite database access or private signing material. It loads the JSON `PublicAuditBundle`, verifies bundle version, signer public keys, signatures, entry hashes, receipt chain links, endpoints, root hash, and redaction boundaries, then exits 0 only when all checks pass. Invalid bundles exit nonzero and print stable error names such as `UnsupportedBundleVersion`, `ReceiptChainLinkMismatch`, `ChainRootMismatch`, `ReceiptEntryHashMismatch`, `UnknownSignerKey`, or `RedactionViolation` without printing raw payloads, private evidence, raw target refs, or local SQLite rows.
-
-This is not external anchoring, public immutability, settlement finality, or production publication proof.
-
-
-### External audit anchor adapter (#185) — external audit anchor adapter (#185)
-
-#185 locks the first external publication target as `github-gist`. The anchor record schema is `secs-public-audit-github-gist-anchor-v1` and contains only public/redacted metadata: target kind, public target ref, bundle version, chain algorithm version, chain scope, root hash, receipt count, publication timestamp, and verifier command.
-
-Run local verification before publishing or accepting an anchor:
-
-```bash
-secz audit verify <bundle.json>
-secz audit anchor verify <bundle.json> <anchor.json>
-```
-
-`secz audit anchor verify <bundle.json> <anchor.json>` first verifies the local public audit bundle, then compares the external anchor record against the bundle version, chain algorithm version, chain scope, root hash, and receipt count. The GitHub Gist adapter records publication status through `Ledger::publish_public_audit_bundle(...)` using target kind `github-gist` and persists only `target_ref_digest_hex` in local status rows.
-
-The GitHub Gist target is a public publication witness, not blockchain immutability, Cardano/Midnight settlement finality, censorship-proof storage, or production deployment proof. The adapter and runbook must not publish raw payloads, private evidence, local SQLite rows, or private signing material.

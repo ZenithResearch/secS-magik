@@ -2,6 +2,10 @@
 
 `examples/` contains local runnable demos for secS-magik prototype behavior.
 
+## Current client compatibility note
+
+`hello-world.sh`, `m12-demo.sh`, and `m12-tunnel-demo.sh` retain historical `hub 16` calls. The current client parses that opcode but refuses to dispatch it because only `0x01`/`0x02` have pinned trusted response mappings. Treat those scripts as retained demonstrations of the intended flows and use the focused integration tests as executable evidence until the CLI mapping is reconciled.
+
 ## Current examples
 
 | File | Purpose |

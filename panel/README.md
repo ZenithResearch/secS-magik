@@ -11,6 +11,10 @@ and no network**: this is local receiver-local policy authoring and evaluation
 only. It makes no Dregg authority, deployment-proof, or public-auditability
 claims.
 
+Hosted panel: <https://zenithresearch.github.io/secS-magik/panel/>
+
+Generated Rust/WASM API docs: <https://zenithresearch.github.io/secS-magik/wasm-api/panel/>
+
 ## What it does
 
 - **Grant** a permission record (caller × opcode × operation × resource scope,
@@ -26,7 +30,7 @@ with [`wasm-pack`](https://drager.github.io/wasm-pack/):
 
 ```bash
 # from the repo root
-wasm-pack build panel --target web --out-dir www/pkg
+wasm-pack build panel --target web --out-dir www/pkg --out-name panel
 ```
 
 ## Run
@@ -50,3 +54,5 @@ python3 -m http.server 8000
 - `list(policy) -> newline-separated record summaries`
 
 The wasm32 build is checked in CI (`cargo check -p panel --target wasm32-unknown-unknown`).
+
+The GitHub Pages workflow also performs a release `wasm-pack` build into its generated artifact. Generated `www/pkg` or Pages output remains untracked.
