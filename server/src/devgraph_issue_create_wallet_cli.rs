@@ -129,8 +129,8 @@ struct HttpResponse {
 }
 
 struct HttpReadFailure {
-    partial_request: Option<HttpRequest>,
-    response: HttpResponse,
+    partial_request: Option<Box<HttpRequest>>,
+    response: Box<HttpResponse>,
 }
 
 enum HandleOutcome {
@@ -298,7 +298,7 @@ pub async fn run(
                     return Err(phase_expiry_error(signed_deadline.is_some()));
                 }
                 match failure.partial_request {
-                    Some(request) => request,
+                    Some(request) => *request,
                     None => {
                         if write_http_response_before(&mut stream, &failure.response, deadline)
                             .await
@@ -490,8 +490,11 @@ async fn read_http_request(
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(value);
             }
-            std::collections::btree_map::Entry::Occupied(_) => {
+            std::collections::btree_map::Entry::Occupied(entry) => {
                 syntactically_valid = false;
+                if entry.key() == CSRF_HEADER {
+                    entry.remove();
+                }
             }
         }
     }
@@ -545,8 +548,8 @@ fn parse_content_length(value: &str) -> Option<usize> {
 
 fn read_failure(response: HttpResponse, bytes: &[u8]) -> HttpReadFailure {
     HttpReadFailure {
-        partial_request: partial_exact_post_from_wire(bytes),
-        response,
+        partial_request: partial_exact_post_from_wire(bytes).map(Box::new),
+        response: Box::new(response),
     }
 }
 
@@ -568,7 +571,9 @@ fn partial_exact_post_from_wire(bytes: &[u8]) -> Option<HttpRequest> {
         if line_end == cursor {
             break;
         }
-        let line = std::str::from_utf8(&bytes[cursor..line_end]).ok()?;
+        let Ok(line) = std::str::from_utf8(&bytes[cursor..line_end]) else {
+            break;
+        };
         let Some((name, value)) = line.split_once(':') else {
             break;
         };
@@ -584,9 +589,13 @@ fn partial_exact_post_from_wire(bytes: &[u8]) -> Option<HttpRequest> {
         }
         let name = name.to_ascii_lowercase();
         let value = value.trim_matches([' ', '\t']).to_owned();
-        if headers.insert(name, value).is_some() {
+        if headers.contains_key(&name) {
+            if name == CSRF_HEADER {
+                headers.remove(CSRF_HEADER);
+            }
             break;
         }
+        headers.insert(name, value);
         cursor = line_end + 2;
     }
     Some(HttpRequest {
@@ -1144,12 +1153,101 @@ mod tests {
         let partial = failure
             .partial_request
             .expect("exact path and prior CSRF must survive as a consumable partial request");
-        let response = match ceremony.handle(partial, NOW + 1) {
+        let response = match ceremony.handle(*partial, NOW + 1) {
             HandleOutcome::Consumed(response, WalletCeremonyError::CeremonyConsumed) => response,
             _ => panic!("correct CSRF must consume after later header failure"),
         };
         assert_eq!(response.status, "400 Bad Request");
         assert_eq!(ceremony.state, CeremonyState::Finished);
+    }
+
+    #[tokio::test]
+    async fn raw_non_utf8_header_after_unique_exact_csrf_consumes_without_retry() {
+        let mut ceremony = WalletCeremony::new(REQUEST, "issue-golden-create-0001");
+        assert!(matches!(
+            ceremony.handle(get("/"), NOW),
+            HandleOutcome::Respond(_)
+        ));
+        let csrf = csrf(&ceremony);
+        let mut wire = format!(
+            "POST /presentation HTTP/1.1\r\nHost: {WALLET_CEREMONY_BIND_V1}\r\nOrigin: {WALLET_CEREMONY_ORIGIN_V1}\r\nSec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\nSec-Fetch-Dest: empty\r\nContent-Type: application/json\r\nContent-Length: 2\r\nX-SecS-CSRF: {csrf}\r\nX-Later: "
+        )
+        .into_bytes();
+        wire.extend_from_slice(&[0xff, b'\r', b'\n', b'\r', b'\n', b'{', b'}']);
+        let failure = match raw_request(&wire, Instant::now() + Duration::from_secs(10)).await {
+            Err(failure) => failure,
+            Ok(_) => panic!("later non-UTF-8 header must fail wire parsing"),
+        };
+        assert_eq!(failure.response.status, "400 Bad Request");
+        let partial = failure
+            .partial_request
+            .expect("unique prior CSRF must survive later non-UTF-8 bytes");
+        let response = match ceremony.handle(*partial, NOW + 1) {
+            HandleOutcome::Consumed(response, WalletCeremonyError::CeremonyConsumed) => response,
+            _ => panic!("unique correct CSRF must consume after later non-UTF-8 bytes"),
+        };
+        assert_eq!(response.status, "400 Bad Request");
+        let retry = match ceremony.handle(post("/presentation", &csrf, b"{}"), NOW + 1) {
+            HandleOutcome::Respond(response) => response,
+            _ => panic!("consumed ceremony must reject retry"),
+        };
+        assert_eq!(retry.status, "410 Gone");
+    }
+
+    #[tokio::test]
+    async fn raw_malformed_or_duplicate_csrf_does_not_consume() {
+        let mut malformed_ceremony = WalletCeremony::new(REQUEST, "issue-golden-create-0001");
+        assert!(matches!(
+            malformed_ceremony.handle(get("/"), NOW),
+            HandleOutcome::Respond(_)
+        ));
+        let mut malformed = b"POST /presentation HTTP/1.1\r\nX-SecS-CSRF: ".to_vec();
+        malformed.extend_from_slice(&[0xff, b'\r', b'\n', b'\r', b'\n']);
+        let failure = match raw_request(&malformed, Instant::now() + Duration::from_secs(10)).await
+        {
+            Err(failure) => failure,
+            Ok(_) => panic!("non-UTF-8 CSRF must fail wire parsing"),
+        };
+        let partial = failure
+            .partial_request
+            .expect("exact POST path remains available for rejection");
+        let rejected = match malformed_ceremony.handle(*partial, NOW + 1) {
+            HandleOutcome::Respond(response) => response,
+            _ => panic!("malformed CSRF must not consume"),
+        };
+        assert_eq!(rejected.status, "404 Not Found");
+        assert!(matches!(
+            malformed_ceremony.state,
+            CeremonyState::AwaitingWallet { .. }
+        ));
+
+        let mut duplicate_ceremony = WalletCeremony::new(REQUEST, "issue-golden-create-0001");
+        assert!(matches!(
+            duplicate_ceremony.handle(get("/"), NOW),
+            HandleOutcome::Respond(_)
+        ));
+        let duplicate_csrf = csrf(&duplicate_ceremony);
+        let duplicate = format!(
+            "POST /presentation HTTP/1.1\r\nHost: {WALLET_CEREMONY_BIND_V1}\r\nOrigin: {WALLET_CEREMONY_ORIGIN_V1}\r\nSec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\nSec-Fetch-Dest: empty\r\nContent-Type: application/json\r\nContent-Length: 2\r\nX-SecS-CSRF: {duplicate_csrf}\r\nX-SecS-CSRF: {duplicate_csrf}\r\n\r\n{{}}"
+        );
+        let request = match raw_request(
+            duplicate.as_bytes(),
+            Instant::now() + Duration::from_secs(10),
+        )
+        .await
+        {
+            Ok(request) => request,
+            Err(_) => panic!("duplicate header is represented as a malformed request"),
+        };
+        let rejected = match duplicate_ceremony.handle(request, NOW + 1) {
+            HandleOutcome::Respond(response) => response,
+            _ => panic!("duplicate CSRF must not consume"),
+        };
+        assert_eq!(rejected.status, "404 Not Found");
+        assert!(matches!(
+            duplicate_ceremony.state,
+            CeremonyState::AwaitingWallet { .. }
+        ));
     }
 
     #[tokio::test]
