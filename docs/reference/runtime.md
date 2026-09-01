@@ -77,6 +77,31 @@ secs-permctl [--policy <path>] evaluate --caller ... --opcode ... --operation ..
 
 Unlike the client `hub` command, permission CLI opcodes accept decimal (`80`) or hex (`0x50`). Missing policy files load as an empty policy, which denies evaluation by default. Explicit deny records win over allows.
 
+### `secs-devgraph-issue-create-v1`
+
+This separate local binary invokes only the fixed DG-P producer. Its complete
+argument surface is:
+
+```text
+secs-devgraph-issue-create-v1 \
+  --request-file <owner-private-file> \
+  --idempotency-key-file <owner-private-file> \
+  --signed-projection-output <owner-private-file>
+```
+
+Receiver policy, service identity, public-key registry, producer manifest, and
+replay database are loaded only from the canonical owner-controlled layout in
+[the fixed-adapter reference](devgraph-issue-create-v1-cli.md). There are no
+operation, audience, scope, policy, signer, key, database, route, handler, URL,
+or transport flags. Success and denial summaries are bounded JSON and never
+print the request, raw idempotency key, Wallet presentation/signature, service
+key, or signed projection. The projection is written to the requested output
+as canonical JSON plus one LF using an owner-private atomic replacement.
+
+This is a local producer adapter, not a TCP/HTTP service, Devgraph Work
+mutation, `EventReceipt`, deployment proof, Wallet vault reader, or hybrid/PQ
+authorization path.
+
 ## Runtime modes
 
 | Value | Plaintext | Dev bindings | Key/config posture |

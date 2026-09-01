@@ -1,7 +1,7 @@
 # `devgraph.issue.create.v1` exact-operation contract
 
 Date: 2026-08-31
-Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer implemented on the #281 branch; consumers unimplemented
+Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer merged through PR #284; a fixed local producer adapter is implemented on the DG-E1 branch
 Depends on: P4-R completed by PR #271 merge `5dfeb950da1d6baf80d98e0843684625c9af6f4f` and green post-merge Rust CI run `33448400000`
 Repair: P4-O-DG-R1 / Issue #282, before DG-P
 
@@ -410,7 +410,9 @@ headers, or storage details.
 - DG-P implements a fixed producer module, narrow production Ed25519
   signer/verifier seam, and dedicated replay ledger only. No API route, CLI
   command, Wallet method, manifest descriptor, handler, Devgraph consumer,
-  receipt schema, transport, or deployment is implemented by DG-P.
+  receipt schema, transport, or deployment is implemented by DG-P. The later
+  DG-E1 adapter invokes only this exact producer from owner-private files; it
+  does not change the DG-P library boundary or add a route/handler/Work mutation.
 
 Stop and return to contract review if implementation needs a generic operation,
 accepts caller-selected receiver controls, treats secS verification as Work

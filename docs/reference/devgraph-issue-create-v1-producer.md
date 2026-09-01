@@ -1,7 +1,8 @@
 # `devgraph.issue.create.v1` authority producer reference
 
-Status: DG-P implemented in secS; downstream consumers remain blocked by the
-serialized cross-repository DAG.
+Status: DG-P merged in secS through PR #284 at `7233a80`; the separate DG-E1
+branch adds only the fixed local invocation adapter documented in
+[devgraph-issue-create-v1-cli.md](devgraph-issue-create-v1-cli.md).
 
 Contract: [../specs/devgraph-issue-create-v1.md](../specs/devgraph-issue-create-v1.md)
 
@@ -14,8 +15,9 @@ receiver-held policy, emits one portable signed JSON authority projection, and
 durably reserves `(session_id, operation, nonce)` before returning it.
 
 It is not an ingress route, gateway descriptor, opcode, handler, generic Work
-API, operation multiplexer, Devgraph client, Wallet method, CLI command, or
-deployment. Devgraph still owns Work validation/mutation/idempotency/audit and
+API, operation multiplexer, Devgraph client, Wallet method, or deployment.
+The separate DG-E1 binary is only a fixed file adapter around this function;
+it does not widen the producer into a generic command. Devgraph still owns Work validation/mutation/idempotency/audit and
 `EventReceipt`. `.castaway` remains only a vault and is not consulted by this
 producer.
 

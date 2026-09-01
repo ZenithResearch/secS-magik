@@ -6,6 +6,7 @@ These pages describe the current code and delivery surfaces. They are subordinat
 |---|---|
 | [Runtime and operations](runtime.md) | Binaries, request/response behavior, runtime modes, configuration groups, persistence, and audit commands. |
 | [Devgraph Issue-create producer](devgraph-issue-create-v1-producer.md) | Exact DG-P Wallet presentation, receiver policy, portable projection, replay, vectors, and non-route boundaries. |
+| [Devgraph Issue-create fixed adapter](devgraph-issue-create-v1-cli.md) | DG-E1 owner-private data-root layout, three-file CLI, atomic output, and non-generic boundaries. |
 | [WASM and Pages](wasm-and-pages.md) | wasm32 exports, browser panel behavior, local builds, generated API docs, and GitHub Pages delivery. |
 
 Reference pages document present behavior. They do not promote specs, plans, ideas, fixtures, or smoke output into production claims.

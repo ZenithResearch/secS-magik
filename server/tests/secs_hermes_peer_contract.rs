@@ -272,8 +272,9 @@ fn status_and_indexes_expose_only_the_superseded_chat_and_exact_operation_gate()
             "chat text and Matrix events are not executable authority",
             "P4-R completed through merged #270/#271",
             "P4-O-DG then ratified exactly `devgraph.issue.create.v1` in merged PR #280",
-            "DG-P is the implemented producer-only #281 branch slice",
-            "No peer-chat runtime, generic Work API, route/transport, Wallet method, Devgraph mutation, or end-to-end result was revived or inferred",
+            "DG-P merged through PR #284",
+            "DG-E1 on this branch is only a fixed local producer adapter",
+            "No peer-chat runtime, generic Work API, generic route/transport, Wallet custody, Devgraph mutation, or end-to-end result was revived or inferred",
         ],
     );
     contains_all(

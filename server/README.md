@@ -11,6 +11,9 @@ Status: production-shaped local hardening is implemented for the current prototy
 | `Cargo.toml` | Server crate metadata and binary declarations. |
 | `src/bin/secs-gateway.rs` | Canonical current configurable gateway wrapper. |
 | `src/bin/secz.rs` | Historical command compatibility wrapper; not canonical verifier ownership. |
+| `src/bin/secs-devgraph-issue-create-v1.rs` | Thin wrapper for the fixed three-file DG-E1 producer adapter. |
+| `src/devgraph_authority.rs` | Exact `devgraph.issue.create.v1` request/Wallet/policy verification, projection signing, and replay semantics. |
+| `src/devgraph_issue_create_cli.rs` | Owner-private fixed data-root/input loading and atomic projection output; no generic route or Devgraph mutation. |
 | `src/config.rs` | Typed runtime config and readiness inputs. |
 | `src/runtime_mode.rs` | `local_dev_plaintext`, `local_dev_tunnel`, and `production_verified` modes. |
 | `src/ingress.rs` | Bounded TCP ingress, packet decode, and verifier/payload handoff. |
