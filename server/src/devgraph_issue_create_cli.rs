@@ -726,7 +726,15 @@ fn metadata_at(
 }
 
 fn stat_matches_metadata(left: &libc::stat, right: &fs::Metadata) -> bool {
-    u64::try_from(left.st_dev) == Ok(right.dev()) && left.st_ino == right.ino()
+    nonnegative_u128(left.st_dev) == Some(u128::from(right.dev()))
+        && nonnegative_u128(left.st_ino) == Some(u128::from(right.ino()))
+}
+
+fn nonnegative_u128<T>(value: T) -> Option<u128>
+where
+    T: TryInto<u128>,
+{
+    value.try_into().ok()
 }
 
 fn unlinkat_entry(parent: &File, name: &std::ffi::CStr) -> std::io::Result<()> {
