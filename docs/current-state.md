@@ -1,6 +1,6 @@
 # secS-magik current state
 
-Last verified: 2026-09-01 against `main` after merged DG-P [PR #284](https://github.com/ZenithResearch/secS-magik/pull/284) at [`7233a80`](https://github.com/ZenithResearch/secS-magik/commit/7233a806aa71e0462b87b26a1053a9dbfd6d3be0); the current DG-E1 branch adds only the fixed local file adapter
+Last verified: 2026-09-01 against `main` after merged DG-E1 PR #285 at `212b6e537bcdf4c1c6847ec1d24820d9ca27cdea`; this branch adds only the fixed DG-E2 one-shot Wallet adapter
 
 This is the short orientation page for the repository. The detailed and authoritative status ledger remains [implementation-status.md](implementation-status.md). If this page and the ledger disagree, use the ledger and correct this page in the same change.
 
@@ -11,7 +11,7 @@ This is the short orientation page for the repository. The detailed and authorit
 | Repository | Active Rust prototype with `core`, `client`, `server`, `permissions`, and `panel` workspace members. | Not deployment or production-readiness evidence. |
 | Packet contract | `ZenithPacket` v0 and `opcode: u8` are preserved; bounded ingress and versioned payload envelopes exist. | A packet is a transport envelope, not authority by itself. |
 | Verification | Receiver-held caller identity, descriptor, audience, freshness, replay, permission, evidence, and signed-context checks exist across tested paths. | Several external/federated/proof rails remain bounded, fixture-backed, design-gated, or future. |
-| Devgraph exact-operation authority | P4-O-DG-R1 and DG-P are merged. The current DG-E1 branch adds one owner-private three-file CLI around exactly the existing Ed25519 producer. | Local projection production only: no ingress/manifest route, generic operation selector, Devgraph mutation/receipt, Wallet custody, deployment, or hybrid/PQ v1 authority. |
+| Devgraph exact-operation authority | P4-O-DG-R1, DG-P, and DG-E1 are merged. The current DG-E2 branch adds one fixed-origin, owner-private three-file Wallet ceremony around exactly the existing Ed25519 producer. | Local projection production only: no ingress/manifest route, generic browser RPC, Devgraph mutation/receipt, Wallet custody, deployment, or hybrid/PQ v1 authority. |
 | Execution | Receiver-local manifests bind verified operations to bounded handlers. | secS is not a generic shell, centralized orchestrator, or product-policy engine. |
 | Responses | P3 provides a separate receiver-signed, exact-request-correlated, bounded `ExecutionResponse`. | `DecisionResponse` is still not arbitrary handler output. |
 | Audit | Signed receipts/events persist to local SQLite; redacted bundle/chain verification and a bounded Gist publication witness exist. | This is not blockchain immutability, deployment proof, or unrestricted payload retention. |
@@ -40,11 +40,11 @@ Important distinctions:
 - The secS verifier/RPC substrate verifies and produces signed handoff/audit objects.
 - Receiver manifests own opcode-to-operation and handler bindings after verification.
 - Raw payload, handler output, credentials, and private evidence do not enter ordinary receipt/operator/public-audit projections.
-- DG-P is a separate non-routed producer library seam. DG-E1 invokes it only through fixed owner-private files and still does not enter the canonical Packet/manifest handler path or make Devgraph Work success a secS outcome.
+- DG-P is a separate non-routed producer library seam. DG-E1 invokes it only through fixed owner-private files. DG-E2 obtains its exact Wallet presentation through a fixed one-shot loopback page, closes the listener, and then invokes the same typed producer/output seam. Neither enters the canonical Packet/manifest handler path or makes Devgraph Work success a secS outcome.
 
 ## What is solid enough to build on
 
-The implementation ledger records the exact evidence and caveats. At orientation level, current `main` includes DG-P; the DG-E1 adapter is explicitly limited to the current branch:
+The implementation ledger records the exact evidence and caveats. At orientation level, current `main` includes DG-P and DG-E1; the DG-E2 adapter is explicitly limited to the current branch:
 
 - the stable Packet v0 shape and legacy opcode constants;
 - bounded ingress, explicit runtime payload modes, and tunnel context binding;
@@ -54,7 +54,7 @@ The implementation ledger records the exact evidence and caveats. At orientation
 - multiple bounded evidence-policy seams, including local fixtures, wallet presentation verification over the temporary secS challenge contract, static trusted issuer/root policy, and bounded Dregg-shaped authority work;
 - local SQLite receipt/event persistence with redacted operator inspection;
 - receiver-signed bounded execution-output transport with exact-request correlation;
-- on `main`, one fixed `devgraph.issue.create.v1` portable authority producer with byte-exact consumer vectors, receiver policy, production Ed25519 signer verification, and durable exact replay; on this branch, its bounded DG-E1 file adapter;
+- on `main`, one fixed `devgraph.issue.create.v1` portable authority producer with byte-exact consumer vectors, receiver policy, production Ed25519 signer verification, durable exact replay, and bounded DG-E1 file adapter; on this branch, its fixed DG-E2 Wallet ceremony;
 - versioned redacted public-audit bundle/chain verification and bounded publication-witness tooling.
 
 These are components of a production-shaped verifier path. They do not collectively prove a deployed production service, live federation finality, every future proof tier, or public-chain settlement.
@@ -68,7 +68,7 @@ These are components of a production-shaped verifier path. They do not collectiv
 - Production deployment evidence for an operator-run gateway.
 - Every reserved stronger verification tier, including the full future I16-I19 chain.
 - A trusted CLI response mapping for arbitrary non-legacy `hub` opcodes; the current shipped client refuses them before TCP dispatch.
-- Any in-repository evidence that a Devgraph consumer performed Work mutation/outbox/`EventReceipt`, that Wallet custody was exercised live, or that the cross-repository end-to-end path succeeded. DG-E1 writes only the secS projection file.
+- Any in-repository evidence that a Devgraph consumer performed Work mutation/outbox/`EventReceipt`, that the DG-E2 ceremony was exercised in a loaded Wallet browser, or that the cross-repository end-to-end path succeeded. DG-E2 writes only the secS projection file.
 
 ## Active architecture decisions
 
@@ -76,7 +76,7 @@ These are components of a production-shaped verifier path. They do not collectiv
 
 [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) and merged [PR #271](https://github.com/ZenithResearch/secS-magik/pull/271) superseded the retained peer-chat direction: Matrix owns conversation and secS admits only exact authority-bearing machine operations. Merged [PR #280](https://github.com/ZenithResearch/secS-magik/pull/280) then ratified the first exact contract, `devgraph.issue.create.v1`.
 
-[P4-O-DG-R1 / Issue #282](https://github.com/ZenithResearch/secS-magik/issues/282) merged through PR #283 and binds every RFC 8785-canonicalized integer to the interoperable IEEE-754 safe range with committed boundary, escaping, Unicode no-normalization, and array-order vectors. DG-P then merged through PR #284 as the producer seam described in [the reference](reference/devgraph-issue-create-v1-producer.md). DG-E1 adds only [the fixed local adapter](reference/devgraph-issue-create-v1-cli.md); cross-repository Devgraph mutation and receipt correlation remain separate evidence.
+[P4-O-DG-R1 / Issue #282](https://github.com/ZenithResearch/secS-magik/issues/282) merged through PR #283 and binds every RFC 8785-canonicalized integer to the interoperable IEEE-754 safe range with committed boundary, escaping, Unicode no-normalization, and array-order vectors. DG-P then merged through PR #284, and DG-E1 through PR #285 as [the fixed local adapter](reference/devgraph-issue-create-v1-cli.md). DG-E2 adds only [the fixed Wallet adapter](reference/devgraph-issue-create-v1-wallet-cli.md); cross-repository Devgraph mutation and receipt correlation remain separate evidence.
 
 ### Optional inference weaving
 

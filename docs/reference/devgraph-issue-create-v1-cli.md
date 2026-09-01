@@ -1,6 +1,6 @@
 # Fixed `devgraph.issue.create.v1` producer adapter
 
-Status: DG-E1 implemented on this branch as a local file adapter; no deployment
+Status: DG-E1 merged through PR #285 as a local file adapter; no deployment
 or cross-repository end-to-end success is claimed.
 
 Contract: [../specs/devgraph-issue-create-v1.md](../specs/devgraph-issue-create-v1.md)
@@ -15,9 +15,10 @@ does not produce a Work mutation or `EventReceipt`.
 
 Version 1 remains Ed25519-only. The binary never reads `.castaway`, exports a
 Wallet or service key, reuses a Wallet root as the service key, or claims
-ML-DSA/hybrid/PQ authority. A one-shot loopback Wallet page is intentionally
-deferred to DG-E2 so the file adapter can be reviewed without a new browser or
-network boundary.
+ML-DSA/hybrid/PQ authority. The separate
+[DG-E2 Wallet adapter](devgraph-issue-create-v1-wallet-cli.md) reuses this
+adapter's typed producer/output seam after its fixed one-shot listener closes;
+it does not change this envelope CLI.
 
 ## Canonical receiver data root
 

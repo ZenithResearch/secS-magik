@@ -1,7 +1,7 @@
 # `devgraph.issue.create.v1` exact-operation contract
 
 Date: 2026-08-31
-Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer merged through PR #284; a fixed local producer adapter is implemented on the DG-E1 branch
+Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer merged through PR #284; DG-E1 fixed producer adapter merged through PR #285; DG-E2 fixed one-shot Wallet adapter implemented on its branch
 Depends on: P4-R completed by PR #271 merge `5dfeb950da1d6baf80d98e0843684625c9af6f4f` and green post-merge Rust CI run `33448400000`
 Repair: P4-O-DG-R1 / Issue #282, before DG-P
 

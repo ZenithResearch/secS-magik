@@ -7,7 +7,7 @@
 
 use crate::devgraph_authority::{
     issue_devgraph_issue_create_authority_v1, DevgraphAuthorityError,
-    DevgraphIssueCreateAuthorityInputV1, DevgraphIssueCreatePolicyV1,
+    DevgraphIssueCreateAuthorityInputV1, DevgraphIssueCreatePolicyV1, DevgraphIssueCreateRequestV1,
     DEVGRAPH_ISSUE_CREATE_OPERATION_V1, DEVGRAPH_JSON_SAFE_INTEGER_MAX_V1,
 };
 use crate::identity::{
@@ -216,6 +216,26 @@ struct PreparedOutput {
     name: std::ffi::CString,
 }
 
+/// One preflighted invocation of the exact DG-P producer. This crate-private
+/// type is the only seam shared by the file envelope and Wallet ceremony
+/// adapters; it cannot select another operation, audience, policy, signer,
+/// replay store, or output mode.
+pub(crate) struct PreparedExactProducerInvocation {
+    idempotency_key: String,
+    output: PreparedOutput,
+    request_json: Vec<u8>,
+}
+
+impl PreparedExactProducerInvocation {
+    pub(crate) fn wallet_request_json(&self) -> &[u8] {
+        &self.request_json
+    }
+
+    pub(crate) fn wallet_idempotency_key(&self) -> &str {
+        &self.idempotency_key
+    }
+}
+
 pub async fn run(cli: DevgraphIssueCreateCli) -> Result<ProducerSuccessSummary, ProducerCliError> {
     let data_root = canonical_data_root()?;
     run_with_data_root_and_clock(cli, &data_root, crate::clock::failclosed_unix_seconds).await
@@ -252,27 +272,104 @@ where
         return Err(ProducerCliError::MalformedInputEnvelope);
     }
 
-    let idempotency_bytes = read_private_regular_file(
+    let invocation = prepare_exact_producer_invocation(
+        input.request.get().as_bytes().to_vec(),
+        &cli.request_file,
         &cli.idempotency_key_file,
+        &cli.signed_projection_output,
+        data_root,
+    )?;
+    issue_prepared_exact_producer_with_clock(
+        invocation,
+        input.wallet_presentation.get().as_bytes(),
+        data_root,
+        &mut clock,
+    )
+    .await
+}
+
+/// Read and validate one raw Issue request, the LF-terminated idempotency key,
+/// and the create-only output boundary without opening receiver authority or
+/// replay state. The Wallet ceremony uses this before it starts listening.
+pub(crate) fn prepare_raw_exact_producer_invocation(
+    request_file: &Path,
+    idempotency_key_file: &Path,
+    signed_projection_output: &Path,
+    data_root: &Path,
+) -> Result<PreparedExactProducerInvocation, ProducerCliError> {
+    let request_json = read_private_regular_file(
+        request_file,
+        MAX_INPUT_ENVELOPE_BYTES,
+        FileRole::CallerInput,
+    )?;
+    DevgraphIssueCreateRequestV1::from_json(&request_json).map_err(map_authority_error)?;
+    prepare_exact_producer_invocation(
+        request_json,
+        request_file,
+        idempotency_key_file,
+        signed_projection_output,
+        data_root,
+    )
+}
+
+fn prepare_exact_producer_invocation(
+    request_json: Vec<u8>,
+    request_file: &Path,
+    idempotency_key_file: &Path,
+    signed_projection_output: &Path,
+    data_root: &Path,
+) -> Result<PreparedExactProducerInvocation, ProducerCliError> {
+    let idempotency_bytes = read_private_regular_file(
+        idempotency_key_file,
         MAX_IDEMPOTENCY_FILE_BYTES,
         FileRole::CallerInput,
     )?;
-    let idempotency_key = parse_idempotency_file(&idempotency_bytes)?;
+    let idempotency_key = parse_idempotency_file(&idempotency_bytes)?.to_owned();
     let authority_root = data_root.join(AUTHORITY_SUBDIRECTORY);
     let protected_paths = [
-        cli.request_file.clone(),
-        cli.idempotency_key_file.clone(),
+        request_file.to_path_buf(),
+        idempotency_key_file.to_path_buf(),
         authority_root.join(PRODUCER_MANIFEST_FILE),
         authority_root.join(VERIFIER_KEY_FILE),
         authority_root.join(RECEIVER_POLICY_FILE),
         authority_root.join(PUBLIC_KEY_REGISTRY_FILE),
         authority_root.join(REPLAY_DATABASE_FILE),
     ];
-    let prepared_output = preflight_create_only_output(
-        &cli.signed_projection_output,
+    let output = preflight_create_only_output(
+        signed_projection_output,
         &protected_paths,
         std::slice::from_ref(&authority_root),
     )?;
+    Ok(PreparedExactProducerInvocation {
+        idempotency_key,
+        output,
+        request_json,
+    })
+}
+
+pub(crate) async fn issue_prepared_exact_producer(
+    invocation: PreparedExactProducerInvocation,
+    wallet_presentation_json: &[u8],
+    data_root: &Path,
+) -> Result<ProducerSuccessSummary, ProducerCliError> {
+    issue_prepared_exact_producer_with_clock(
+        invocation,
+        wallet_presentation_json,
+        data_root,
+        &mut crate::clock::failclosed_unix_seconds,
+    )
+    .await
+}
+
+async fn issue_prepared_exact_producer_with_clock<F>(
+    invocation: PreparedExactProducerInvocation,
+    wallet_presentation_json: &[u8],
+    data_root: &Path,
+    clock: &mut F,
+) -> Result<ProducerSuccessSummary, ProducerCliError>
+where
+    F: FnMut() -> u64,
+{
     let authority = load_authority(data_root).await?;
 
     let issuance_now = clock();
@@ -282,9 +379,9 @@ where
         &authority.registry,
         &authority.policy,
         DevgraphIssueCreateAuthorityInputV1 {
-            request_json: input.request.get().as_bytes(),
-            idempotency_key,
-            wallet_presentation_json: input.wallet_presentation.get().as_bytes(),
+            request_json: &invocation.request_json,
+            idempotency_key: &invocation.idempotency_key,
+            wallet_presentation_json,
             now: issuance_now,
         },
     )
@@ -299,9 +396,9 @@ where
         &authority.registry,
         &authority.policy,
         DevgraphIssueCreateAuthorityInputV1 {
-            request_json: input.request.get().as_bytes(),
-            idempotency_key,
-            wallet_presentation_json: input.wallet_presentation.get().as_bytes(),
+            request_json: &invocation.request_json,
+            idempotency_key: &invocation.idempotency_key,
+            wallet_presentation_json,
             now: output_now,
         },
     )
@@ -316,7 +413,7 @@ where
         return Err(ProducerCliError::Internal);
     }
     projection.push('\n');
-    write_private_atomic_create_new(&prepared_output, projection.as_bytes())?;
+    write_private_atomic_create_new(&invocation.output, projection.as_bytes())?;
 
     Ok(ProducerSuccessSummary { exact_retry })
 }
@@ -1162,6 +1259,39 @@ mod tests {
                 .to_string_lossy()
                 .ends_with(".tmp")
         }));
+    }
+
+    #[tokio::test]
+    async fn raw_wallet_invocation_preserves_exact_fixture_projection() {
+        let (temp, data_root) = configured_root();
+        let request_file = temp.path().join("raw-request.json");
+        let idempotency_file = temp.path().join("raw-idempotency.txt");
+        let output = temp.path().join("raw-signed-projection.json");
+        private_write(&request_file, &fixture("request.json"));
+        private_write(&idempotency_file, &fixture("idempotency-key.txt"));
+
+        let invocation = prepare_raw_exact_producer_invocation(
+            &request_file,
+            &idempotency_file,
+            &output,
+            &data_root,
+        )
+        .unwrap();
+        let mut clock = || NOW;
+        let summary = issue_prepared_exact_producer_with_clock(
+            invocation,
+            &fixture("wallet-presentation.json"),
+            &data_root,
+            &mut clock,
+        )
+        .await
+        .unwrap();
+        assert!(!summary.exact_retry);
+        assert_eq!(
+            fs::read(&output).unwrap(),
+            fixture("signed-projection.json")
+        );
+        assert_eq!(fs::metadata(&output).unwrap().mode() & 0o777, 0o600);
     }
 
     #[tokio::test]
