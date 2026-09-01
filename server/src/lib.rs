@@ -3,6 +3,7 @@ pub mod clock;
 pub mod config;
 pub mod devgraph_authority;
 pub mod devgraph_issue_create_cli;
+pub mod devgraph_issue_create_wallet_cli;
 pub mod dregg_authority;
 pub mod dregg_live_source;
 pub mod evidence;

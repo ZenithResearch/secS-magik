@@ -45,7 +45,7 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
         "ratified contract status",
         CONTRACT,
         &[
-            "Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer merged through PR #284; a fixed local producer adapter is implemented on the DG-E1 branch",
+            "Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer merged through PR #284; DG-E1 fixed producer adapter merged through PR #285; DG-E2 fixed one-shot Wallet adapter implemented on its branch",
             "P4-R completed by PR #271 merge",
             "green post-merge Rust CI run `33448400000`",
             "PR #280 merged this operator-ratified contract at `bfe1a453`",
@@ -61,7 +61,7 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
         &[
             "specs/devgraph-issue-create-v1.md",
             "plans/2026-08-31-devgraph-issue-create-v1-dag.md",
-            "P4-O-DG-R1 and DG-P merged; DG-E1 fixed adapter on branch",
+            "P4-O-DG-R1, DG-P, and DG-E1 merged; DG-E2 Wallet adapter on branch",
             "reference/devgraph-issue-create-v1-producer.md",
         ],
     );
@@ -535,13 +535,13 @@ fn dedicated_dag_stays_serialized_after_p4o_dg_r1_and_dg_p() {
         "stacked DAG",
         DAG,
         &[
-            "Status: P4-O-DG-R1 and DG-P merged; DG-E1 fixed local producer adapter implemented on its branch; full cross-repository DG-E evidence remains unproven here",
+            "Status: P4-O-DG-R1, DG-P, and DG-E1 merged; DG-E2 fixed one-shot Wallet adapter implemented on its branch; full cross-repository DG-E evidence remains unproven here",
             "P4-R -> P4-O-DG -> P4-O-DG-R1 -> DG-P -> DG-V -> DG-W -> DG-C -> DG-E",
             "P4-R | Complete via #270/#271",
             "P4-O-DG | Operator-ratified exact contract",
             "P4-O-DG-R1 | Complete via #282 / merged PR #283",
             "DG-P | Complete; merged through PR #284 at `7233a80`",
-            "DG-E | Partial on this branch: DG-E1 fixed producer adapter only",
+            "DG-E | Partial on this branch: DG-E1 merged; DG-E2 fixed Wallet adapter implemented",
             "DG-W | Owned by Wallet; external state is not promoted by this secS branch",
             "DG-C | Owned by Devgraph; external state is not promoted by this secS branch",
             "One node equals one issue and one PR",

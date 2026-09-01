@@ -36,6 +36,11 @@ path = "src/bin/secs-permctl.rs"
 name = "secs-devgraph-issue-create-v1"
 path = "src/bin/secs-devgraph-issue-create-v1.rs"
 
+[[bin]]
+name = "secs-devgraph-issue-create-v1-wallet"
+path = "src/bin/secs-devgraph-issue-create-v1-wallet.rs"
+
 [dev-dependencies]
 serde_yaml = "0.9"
 tempfile = "=3.27.0"
+tokio = { workspace = true, features = ["test-util"] }

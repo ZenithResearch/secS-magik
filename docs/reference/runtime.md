@@ -113,6 +113,25 @@ This is a local producer adapter, not a TCP/HTTP service, Devgraph Work
 mutation, `EventReceipt`, deployment proof, Wallet vault reader, or hybrid/PQ
 authorization path.
 
+### `secs-devgraph-issue-create-v1-wallet`
+
+This separate DG-E2 binary accepts the same three path flags, but its request
+file is one raw Issue JSON object. It binds only `127.0.0.1:9045`, prints
+`http://127.0.0.1:9045/`, and waits at most 300 seconds for the user to open the
+page in Wallet-enabled Chrome. Only that valid GET generates the memory-only
+session, nonce, and CSRF. The hardened page makes one direct, user-activated
+call to the exact Wallet provider method and returns the signed presentation
+through exact `/presentation`, or a stable text-free local cancellation through
+exact `/cancel`, within the 60-second authority window. Wrong tokens do not
+consume; valid-token malformed calls do; reloads, duplicates, and late calls
+are gone. The listener closes before the existing typed producer opens
+authority/replay state.
+
+See [the Wallet-adapter reference](devgraph-issue-create-v1-wallet-cli.md) for
+the exact GET/POST bindings and non-claims. The binary has no configurable
+listener, generic browser RPC, Devgraph HTTP client, Wallet custody, temporary
+presentation file, `.castaway` read, or hybrid/PQ v1 path.
+
 ## Runtime modes
 
 | Value | Plaintext | Dev bindings | Key/config posture |
