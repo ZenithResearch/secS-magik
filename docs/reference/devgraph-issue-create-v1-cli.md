@@ -76,8 +76,9 @@ key equality, status, validity, revocation, and exclusive expiry.
 
 ## Caller files and command
 
-All three paths name owner-private regular files or, for a new output, a file
-inside an effective-user-owned non-group/world-writable directory:
+The two input paths name owner-private regular files. The output path must not
+exist and must name a new file inside an effective-user-owned
+non-group/world-writable directory:
 
 ```text
 secs-devgraph-issue-create-v1 \
@@ -120,16 +121,48 @@ The idempotency file contains exactly one valid key followed by one LF. Raw
 request and Wallet JSON are preserved as raw nested values until DG-P's strict
 decoders apply their canonicalization and bounds.
 
+Before loading authority state or reserving replay, the adapter rejects an
+output that already exists, aliases either caller input or any fixed manifest,
+service-key, policy, registry, or replay file, or falls anywhere beneath the
+canonical authority subtree. The subtree exclusion also covers SQLite
+`-journal`, `-wal`, and `-shm` sidecars. The comparison covers the canonical
+parent plus entry name and existing-file device/inode identity, so direct
+equality, `..` spellings, symlinked ancestors, and hard links cannot turn
+projection output into trust, replay, or input destruction. Even an unrelated
+existing owner-private projection is preserved and rejected: output
+publication is create-only.
+
+The adapter resolves the output parent once, opens that canonical directory
+with `O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`, verifies the held descriptor is the
+same owner-controlled directory it resolved, and performs temporary creation,
+publication, cleanup, and directory sync only with descriptor-relative
+`openat`/`linkat`/`unlinkat` operations. Replacing the output parent pathname
+after preflight therefore cannot redirect publication into a different
+directory.
+
+The fail-closed wall clock is read only after all authority files and replay
+storage have loaded, immediately before DG-P issuance. It is read again before
+publication, and DG-P fully revalidates the same request, Wallet presentation,
+service-key registry, receiver policy, and projection at that current time. If
+that second validation crosses an exclusive expiry or otherwise fails, no
+projection is written. The first successful issuance may already have reserved
+its replay tuple; that reservation remains until its normal expiry/pruning and
+prevents the request from being executed afresh, but it is not a Devgraph Work
+mutation.
+
 On success, the output is the exact canonical
 `secs-devgraph-authority.v1` projection plus one LF. It is written to a new
-mode-`0600` temporary regular file in the output directory, synced, atomically
-renamed, and followed by a directory sync. An existing target must itself be a
-safe owner-private regular file. A denial or output failure never leaves a
-partial temporary projection; a retry after an output failure uses DG-P's
-exact-retry replay semantics.
+mode-`0600` temporary regular file in the output directory and synced, then an
+atomic create-only hard-link publication makes the complete inode visible only
+if the output entry is still absent. The temporary entry is removed and the
+directory is synced. A denial or output failure never overwrites an existing
+entry or leaves a partial projection. An exact DG-P retry therefore uses a new,
+absent output path.
 
 Standard output on success is bounded JSON containing only `ok`, the fixed
 operation, `exact_retry`, and `output_written`. Standard error on denial is
 bounded JSON containing only `ok` and a stable reason code. Neither surface
 prints paths, raw idempotency keys, requests, Wallet presentations/signatures,
-service keys, policies, registries, replay rows, or signed projections.
+service keys, policies, registries, replay rows, or signed projections. Invalid
+arguments produce only `{"error":"invalid_arguments","ok":false}` with exit
+status 2; Clap diagnostics never echo raw argument text.

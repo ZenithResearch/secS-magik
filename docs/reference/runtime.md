@@ -96,7 +96,18 @@ operation, audience, scope, policy, signer, key, database, route, handler, URL,
 or transport flags. Success and denial summaries are bounded JSON and never
 print the request, raw idempotency key, Wallet presentation/signature, service
 key, or signed projection. The projection is written to the requested output
-as canonical JSON plus one LF using an owner-private atomic replacement.
+as canonical JSON plus one LF using an owner-private atomic create-only
+publication. The path must be absent and cannot alias either caller input or
+fixed manifest/key/policy/registry/replay state through direct, normalized,
+symlinked-ancestor, or hard-link spellings. The entire canonical authority
+subtree is excluded, including SQLite journal/WAL/shared-memory sidecars.
+The validated canonical output directory is then held open and every output
+operation is descriptor-relative, so a pathname swap after preflight cannot
+redirect publication. The adapter reads its fail-closed clock immediately
+before DG-P after authority loading and performs a second current-time DG-P
+validation immediately before output. A newly crossed expiry produces no
+output; the already-created replay reservation can remain until normal expiry
+and pruning, without constituting a Devgraph Work mutation.
 
 This is a local producer adapter, not a TCP/HTTP service, Devgraph Work
 mutation, `EventReceipt`, deployment proof, Wallet vault reader, or hybrid/PQ

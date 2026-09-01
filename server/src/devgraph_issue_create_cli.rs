@@ -24,6 +24,7 @@ use std::ffi::{CStr, OsStr};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
@@ -210,16 +211,33 @@ struct LoadedAuthority {
     _replay_file_guard: File,
 }
 
-pub async fn run(cli: DevgraphIssueCreateCli) -> Result<ProducerSuccessSummary, ProducerCliError> {
-    let data_root = canonical_data_root()?;
-    run_with_data_root_and_now(cli, &data_root, crate::clock::failclosed_unix_seconds()).await
+struct PreparedOutput {
+    parent: File,
+    name: std::ffi::CString,
 }
 
+pub async fn run(cli: DevgraphIssueCreateCli) -> Result<ProducerSuccessSummary, ProducerCliError> {
+    let data_root = canonical_data_root()?;
+    run_with_data_root_and_clock(cli, &data_root, crate::clock::failclosed_unix_seconds).await
+}
+
+#[cfg(test)]
 async fn run_with_data_root_and_now(
     cli: DevgraphIssueCreateCli,
     data_root: &Path,
     now: u64,
 ) -> Result<ProducerSuccessSummary, ProducerCliError> {
+    run_with_data_root_and_clock(cli, data_root, || now).await
+}
+
+async fn run_with_data_root_and_clock<F>(
+    cli: DevgraphIssueCreateCli,
+    data_root: &Path,
+    mut clock: F,
+) -> Result<ProducerSuccessSummary, ProducerCliError>
+where
+    F: FnMut() -> u64,
+{
     let input_bytes = read_private_regular_file(
         &cli.request_file,
         MAX_INPUT_ENVELOPE_BYTES,
@@ -240,8 +258,24 @@ async fn run_with_data_root_and_now(
         FileRole::CallerInput,
     )?;
     let idempotency_key = parse_idempotency_file(&idempotency_bytes)?;
+    let authority_root = data_root.join(AUTHORITY_SUBDIRECTORY);
+    let protected_paths = [
+        cli.request_file.clone(),
+        cli.idempotency_key_file.clone(),
+        authority_root.join(PRODUCER_MANIFEST_FILE),
+        authority_root.join(VERIFIER_KEY_FILE),
+        authority_root.join(RECEIVER_POLICY_FILE),
+        authority_root.join(PUBLIC_KEY_REGISTRY_FILE),
+        authority_root.join(REPLAY_DATABASE_FILE),
+    ];
+    let prepared_output = preflight_create_only_output(
+        &cli.signed_projection_output,
+        &protected_paths,
+        std::slice::from_ref(&authority_root),
+    )?;
     let authority = load_authority(data_root).await?;
 
+    let issuance_now = clock();
     let outcome = issue_devgraph_issue_create_authority_v1(
         &authority.ledger,
         &authority.identity,
@@ -251,13 +285,30 @@ async fn run_with_data_root_and_now(
             request_json: input.request.get().as_bytes(),
             idempotency_key,
             wallet_presentation_json: input.wallet_presentation.get().as_bytes(),
-            now,
+            now: issuance_now,
         },
     )
     .await
     .map_err(map_authority_error)?;
 
-    let mut projection = outcome
+    let exact_retry = outcome.is_exact_retry();
+    let output_now = clock();
+    let output_outcome = issue_devgraph_issue_create_authority_v1(
+        &authority.ledger,
+        &authority.identity,
+        &authority.registry,
+        &authority.policy,
+        DevgraphIssueCreateAuthorityInputV1 {
+            request_json: input.request.get().as_bytes(),
+            idempotency_key,
+            wallet_presentation_json: input.wallet_presentation.get().as_bytes(),
+            now: output_now,
+        },
+    )
+    .await
+    .map_err(map_authority_error)?;
+
+    let mut projection = output_outcome
         .projection()
         .canonical_json()
         .map_err(map_authority_error)?;
@@ -265,11 +316,9 @@ async fn run_with_data_root_and_now(
         return Err(ProducerCliError::Internal);
     }
     projection.push('\n');
-    write_private_atomic(&cli.signed_projection_output, projection.as_bytes())?;
+    write_private_atomic_create_new(&prepared_output, projection.as_bytes())?;
 
-    Ok(ProducerSuccessSummary {
-        exact_retry: outcome.is_exact_retry(),
-    })
+    Ok(ProducerSuccessSummary { exact_retry })
 }
 
 async fn load_authority(data_root: &Path) -> Result<LoadedAuthority, ProducerCliError> {
@@ -567,72 +616,197 @@ fn validate_owned_directory(path: &Path, owner_private: bool) -> Result<(), ()> 
     Ok(())
 }
 
-fn write_private_atomic(path: &Path, bytes: &[u8]) -> Result<(), ProducerCliError> {
-    let parent = path
-        .parent()
+fn output_parent(path: &Path) -> &Path {
+    path.parent()
         .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    validate_owned_directory(parent, false).map_err(|_| ProducerCliError::UnsafeOutput)?;
+        .unwrap_or_else(|| Path::new("."))
+}
+
+fn canonical_parent_entry(path: &Path) -> Result<PathBuf, ProducerCliError> {
     let name = path
         .file_name()
         .filter(|name| !name.is_empty())
         .ok_or(ProducerCliError::UnsafeOutput)?;
-    if let Ok(existing) = OpenOptions::new()
+    let parent =
+        fs::canonicalize(output_parent(path)).map_err(|_| ProducerCliError::UnsafeOutput)?;
+    Ok(parent.join(name))
+}
+
+fn preflight_create_only_output(
+    path: &Path,
+    protected_paths: &[PathBuf],
+    protected_subtrees: &[PathBuf],
+) -> Result<PreparedOutput, ProducerCliError> {
+    let parent = output_parent(path);
+    let output_parent = fs::canonicalize(parent).map_err(|_| ProducerCliError::UnsafeOutput)?;
+    let name = path
+        .file_name()
+        .filter(|name| !name.is_empty() && name.as_bytes().len() <= 180)
+        .ok_or(ProducerCliError::UnsafeOutput)?;
+    let name =
+        std::ffi::CString::new(name.as_bytes()).map_err(|_| ProducerCliError::UnsafeOutput)?;
+    let output_entry = output_parent.join(OsStr::from_bytes(name.to_bytes()));
+
+    let parent_file = OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(path)
+        .custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY | libc::O_NOFOLLOW)
+        .open(&output_parent)
+        .map_err(|_| ProducerCliError::UnsafeOutput)?;
+    let parent_metadata = parent_file
+        .metadata()
+        .map_err(|_| ProducerCliError::UnsafeOutput)?;
+    let current_parent_metadata =
+        fs::metadata(&output_parent).map_err(|_| ProducerCliError::UnsafeOutput)?;
+    if !parent_metadata.file_type().is_dir()
+        || parent_metadata.uid() != effective_uid()
+        || parent_metadata.mode() & 0o022 != 0
+        || !same_file(&parent_metadata, &current_parent_metadata)
     {
-        let metadata = existing
-            .metadata()
-            .map_err(|_| ProducerCliError::UnsafeOutput)?;
-        if !metadata.file_type().is_file()
-            || metadata.uid() != effective_uid()
-            || metadata.mode() & 0o077 != 0
-        {
-            return Err(ProducerCliError::UnsafeOutput);
-        }
-    } else if fs::symlink_metadata(path).is_ok() {
         return Err(ProducerCliError::UnsafeOutput);
     }
 
-    let mut temp_path = None;
-    let mut temp_file = None;
-    for attempt in 0..32u32 {
-        let candidate = parent.join(format!(
-            ".{}.{}.{}.tmp",
-            name.to_string_lossy(),
-            std::process::id(),
-            attempt
-        ));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
-            .open(&candidate)
-        {
-            Ok(file) => {
-                temp_path = Some(candidate);
-                temp_file = Some(file);
-                break;
+    for protected_subtree in protected_subtrees {
+        if let Ok(protected_subtree) = fs::canonicalize(protected_subtree) {
+            if output_parent.starts_with(protected_subtree) {
+                return Err(ProducerCliError::UnsafeOutput);
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(_) => return Err(ProducerCliError::OutputFailed),
         }
     }
-    let temp_path = temp_path.ok_or(ProducerCliError::OutputFailed)?;
+
+    let output_metadata = metadata_at(&parent_file, &name)?;
+    for protected in protected_paths {
+        if let Ok(protected_entry) = canonical_parent_entry(protected) {
+            if output_entry == protected_entry {
+                return Err(ProducerCliError::UnsafeOutput);
+            }
+        }
+        if let (Some(output_metadata), Ok(protected_metadata)) =
+            (output_metadata.as_ref(), fs::metadata(protected))
+        {
+            if stat_matches_metadata(output_metadata, &protected_metadata) {
+                return Err(ProducerCliError::UnsafeOutput);
+            }
+        }
+    }
+
+    if output_metadata.is_some() {
+        return Err(ProducerCliError::UnsafeOutput);
+    }
+    Ok(PreparedOutput {
+        parent: parent_file,
+        name,
+    })
+}
+
+fn metadata_at(
+    parent: &File,
+    name: &std::ffi::CStr,
+) -> Result<Option<libc::stat>, ProducerCliError> {
+    let mut metadata = std::mem::MaybeUninit::<libc::stat>::uninit();
+    // SAFETY: the directory descriptor and NUL-terminated entry name are live,
+    // and `metadata` points to writable storage for one `stat` result.
+    let result = unsafe {
+        libc::fstatat(
+            parent.as_raw_fd(),
+            name.as_ptr(),
+            metadata.as_mut_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result == 0 {
+        // SAFETY: successful fstatat initialized `metadata`.
+        return Ok(Some(unsafe { metadata.assume_init() }));
+    }
+    let error = std::io::Error::last_os_error();
+    if error.kind() == std::io::ErrorKind::NotFound {
+        Ok(None)
+    } else {
+        Err(ProducerCliError::UnsafeOutput)
+    }
+}
+
+fn stat_matches_metadata(left: &libc::stat, right: &fs::Metadata) -> bool {
+    u64::try_from(left.st_dev) == Ok(right.dev()) && left.st_ino == right.ino()
+}
+
+fn unlinkat_entry(parent: &File, name: &std::ffi::CStr) -> std::io::Result<()> {
+    // SAFETY: the descriptor and NUL-terminated relative entry name are live.
+    if unsafe { libc::unlinkat(parent.as_raw_fd(), name.as_ptr(), 0) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+fn write_private_atomic_create_new(
+    output: &PreparedOutput,
+    bytes: &[u8],
+) -> Result<(), ProducerCliError> {
+    let name_digest = sha256_hex(output.name.to_bytes());
+
+    let mut temp_name = None;
+    let mut temp_file = None;
+    for attempt in 0..32u32 {
+        let candidate = std::ffi::CString::new(format!(
+            ".secs-dg-e1-{}-{}-{}.tmp",
+            std::process::id(),
+            attempt,
+            &name_digest[..16]
+        ))
+        .map_err(|_| ProducerCliError::OutputFailed)?;
+        // SAFETY: `output.parent` is a held validated directory descriptor and
+        // `candidate` is a NUL-terminated single entry name.
+        let descriptor = unsafe {
+            libc::openat(
+                output.parent.as_raw_fd(),
+                candidate.as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+                0o600,
+            )
+        };
+        if descriptor >= 0 {
+            // SAFETY: successful openat returned one owned descriptor.
+            temp_file = Some(unsafe { File::from_raw_fd(descriptor) });
+            temp_name = Some(candidate);
+            break;
+        }
+        let error = std::io::Error::last_os_error();
+        match error.kind() {
+            std::io::ErrorKind::AlreadyExists => continue,
+            _ => return Err(ProducerCliError::OutputFailed),
+        }
+    }
+    let temp_name = temp_name.ok_or(ProducerCliError::OutputFailed)?;
     let mut temp_file = temp_file.ok_or(ProducerCliError::OutputFailed)?;
     let result = (|| {
         temp_file.write_all(bytes)?;
         temp_file.sync_all()?;
-        fs::set_permissions(&temp_path, fs::Permissions::from_mode(0o600))?;
-        fs::rename(&temp_path, path)?;
-        File::open(parent)?.sync_all()?;
+        temp_file.set_permissions(fs::Permissions::from_mode(0o600))?;
+        // SAFETY: both names are relative to the same held directory and both
+        // C strings remain live. linkat is atomic and never replaces `name`.
+        if unsafe {
+            libc::linkat(
+                output.parent.as_raw_fd(),
+                temp_name.as_ptr(),
+                output.parent.as_raw_fd(),
+                output.name.as_ptr(),
+                0,
+            )
+        } != 0
+        {
+            return Err(std::io::Error::last_os_error());
+        }
+        unlinkat_entry(&output.parent, &temp_name)?;
+        output.parent.sync_all()?;
         Ok::<(), std::io::Error>(())
     })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temp_path);
-        return Err(ProducerCliError::OutputFailed);
+    if let Err(error) = result {
+        let _ = unlinkat_entry(&output.parent, &temp_name);
+        return Err(if error.kind() == std::io::ErrorKind::AlreadyExists {
+            ProducerCliError::UnsafeOutput
+        } else {
+            ProducerCliError::OutputFailed
+        });
     }
     Ok(())
 }
@@ -874,6 +1048,47 @@ mod tests {
         }
     }
 
+    fn protected_file_paths(cli: &DevgraphIssueCreateCli, data_root: &Path) -> Vec<PathBuf> {
+        let authority = data_root.join(AUTHORITY_SUBDIRECTORY);
+        vec![
+            cli.request_file.clone(),
+            cli.idempotency_key_file.clone(),
+            authority.join(PRODUCER_MANIFEST_FILE),
+            authority.join(VERIFIER_KEY_FILE),
+            authority.join(RECEIVER_POLICY_FILE),
+            authority.join(PUBLIC_KEY_REGISTRY_FILE),
+            authority.join(REPLAY_DATABASE_FILE),
+        ]
+    }
+
+    fn assert_no_adapter_temp_files(directory: &Path) {
+        assert!(!directory.read_dir().unwrap().any(|entry| {
+            let name = entry.unwrap().file_name();
+            name.to_string_lossy().ends_with(".tmp")
+        }));
+    }
+
+    async fn assert_output_preflight_rejects_without_mutation(
+        cli: DevgraphIssueCreateCli,
+        data_root: &Path,
+    ) {
+        let protected = protected_file_paths(&cli, data_root);
+        let before: Vec<_> = protected
+            .iter()
+            .map(|path| (path.clone(), fs::read(path).unwrap()))
+            .collect();
+
+        assert_eq!(
+            run_with_data_root_and_now(cli.clone(), data_root, NOW).await,
+            Err(ProducerCliError::UnsafeOutput)
+        );
+        for (path, bytes) in before {
+            assert_eq!(fs::read(&path).unwrap(), bytes, "{}", path.display());
+        }
+        assert_no_adapter_temp_files(output_parent(&cli.signed_projection_output));
+        assert_no_adapter_temp_files(&data_root.join(AUTHORITY_SUBDIRECTORY));
+    }
+
     #[test]
     fn cli_has_exactly_three_file_flags_and_no_generic_surface() {
         let mut command = DevgraphIssueCreateCli::command();
@@ -922,12 +1137,14 @@ mod tests {
             fs::metadata(&cli.signed_projection_output).unwrap().mode() & 0o777,
             0o600
         );
-        let retry = run_with_data_root_and_now(cli.clone(), &data_root, NOW)
+        let mut retry_cli = cli.clone();
+        retry_cli.signed_projection_output = temp.path().join("signed-projection-retry.json");
+        let retry = run_with_data_root_and_now(retry_cli.clone(), &data_root, NOW)
             .await
             .unwrap();
         assert!(retry.exact_retry);
         assert_eq!(
-            fs::read(&cli.signed_projection_output).unwrap(),
+            fs::read(&retry_cli.signed_projection_output).unwrap(),
             fixture("signed-projection.json")
         );
         assert!(!temp.path().read_dir().unwrap().any(|entry| {
@@ -937,6 +1154,147 @@ mod tests {
                 .to_string_lossy()
                 .ends_with(".tmp")
         }));
+    }
+
+    #[tokio::test]
+    async fn output_aliases_caller_inputs_reject_before_replay_or_file_mutation() {
+        let (temp, data_root) = configured_root();
+        let mut direct = caller_files(&temp);
+        direct.signed_projection_output = direct.request_file.clone();
+        assert_output_preflight_rejects_without_mutation(direct, &data_root).await;
+
+        let (temp, data_root) = configured_root();
+        let mut normalized = caller_files(&temp);
+        fs::create_dir(temp.path().join("normalization-component")).unwrap();
+        normalized.signed_projection_output = temp
+            .path()
+            .join("normalization-component")
+            .join("..")
+            .join("request-envelope.json");
+        assert_output_preflight_rejects_without_mutation(normalized, &data_root).await;
+
+        let (temp, data_root) = configured_root();
+        let mut symlinked_ancestor = caller_files(&temp);
+        fs::create_dir(temp.path().join("ancestor-component")).unwrap();
+        symlink(temp.path(), temp.path().join("linked-root")).unwrap();
+        symlinked_ancestor.signed_projection_output = temp
+            .path()
+            .join("linked-root")
+            .join("ancestor-component")
+            .join("..")
+            .join("request-envelope.json");
+        assert_output_preflight_rejects_without_mutation(symlinked_ancestor, &data_root).await;
+
+        let (temp, data_root) = configured_root();
+        let mut hardlink = caller_files(&temp);
+        let hardlink_output = temp.path().join("request-hardlink.json");
+        fs::hard_link(&hardlink.request_file, &hardlink_output).unwrap();
+        hardlink.signed_projection_output = hardlink_output;
+        assert_output_preflight_rejects_without_mutation(hardlink, &data_root).await;
+
+        let (temp, data_root) = configured_root();
+        let mut idempotency = caller_files(&temp);
+        idempotency.signed_projection_output = idempotency.idempotency_key_file.clone();
+        assert_output_preflight_rejects_without_mutation(idempotency, &data_root).await;
+    }
+
+    #[tokio::test]
+    async fn output_aliases_every_fixed_authority_file_reject_before_any_mutation() {
+        for role in [
+            PRODUCER_MANIFEST_FILE,
+            VERIFIER_KEY_FILE,
+            RECEIVER_POLICY_FILE,
+            PUBLIC_KEY_REGISTRY_FILE,
+            REPLAY_DATABASE_FILE,
+        ] {
+            let (temp, data_root) = configured_root();
+            let mut cli = caller_files(&temp);
+            cli.signed_projection_output = data_root.join(AUTHORITY_SUBDIRECTORY).join(role);
+            assert_output_preflight_rejects_without_mutation(cli, &data_root).await;
+        }
+
+        for fresh_name in [
+            "new-projection.json",
+            "replay.sqlite3-journal",
+            "replay.sqlite3-wal",
+            "replay.sqlite3-shm",
+        ] {
+            let (temp, data_root) = configured_root();
+            let mut cli = caller_files(&temp);
+            cli.signed_projection_output = data_root.join(AUTHORITY_SUBDIRECTORY).join(fresh_name);
+            assert_output_preflight_rejects_without_mutation(cli.clone(), &data_root).await;
+            assert!(!cli.signed_projection_output.exists(), "{fresh_name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn unrelated_existing_output_is_create_only_and_preserved_before_issuance() {
+        let (temp, data_root) = configured_root();
+        let cli = caller_files(&temp);
+        private_write(
+            &cli.signed_projection_output,
+            b"existing unrelated projection\n",
+        );
+        let before = fs::read(&cli.signed_projection_output).unwrap();
+        assert_output_preflight_rejects_without_mutation(cli.clone(), &data_root).await;
+        assert_eq!(fs::read(&cli.signed_projection_output).unwrap(), before);
+    }
+
+    #[test]
+    fn held_parent_directory_prevents_path_swap_during_atomic_publication() {
+        let temp = tempfile::tempdir().unwrap();
+        let original_parent = temp.path().join("outbox");
+        let moved_parent = temp.path().join("held-outbox");
+        fs::create_dir(&original_parent).unwrap();
+        fs::set_permissions(&original_parent, fs::Permissions::from_mode(0o700)).unwrap();
+        let output_path = original_parent.join("projection.json");
+        let prepared = preflight_create_only_output(&output_path, &[], &[]).unwrap();
+
+        fs::rename(&original_parent, &moved_parent).unwrap();
+        fs::create_dir(&original_parent).unwrap();
+        fs::set_permissions(&original_parent, fs::Permissions::from_mode(0o700)).unwrap();
+        write_private_atomic_create_new(&prepared, b"complete projection\n").unwrap();
+
+        assert!(!output_path.exists());
+        assert_eq!(
+            fs::read(moved_parent.join("projection.json")).unwrap(),
+            b"complete projection\n"
+        );
+        assert_no_adapter_temp_files(&moved_parent);
+    }
+
+    #[tokio::test]
+    async fn advancing_clock_rechecks_exclusive_expiry_before_output() {
+        let (temp, data_root) = configured_root();
+        let cli = caller_files(&temp);
+        let mut reads = [NOW, NOW + 60].into_iter();
+        assert_eq!(
+            run_with_data_root_and_clock(cli.clone(), &data_root, || reads.next().unwrap()).await,
+            Err(ProducerCliError::AuthorityDenied(
+                "devgraph_authority_expired"
+            ))
+        );
+        assert!(!cli.signed_projection_output.exists());
+        assert_no_adapter_temp_files(temp.path());
+
+        let replay_path = data_root
+            .join(AUTHORITY_SUBDIRECTORY)
+            .join(REPLAY_DATABASE_FILE);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(replay_path)
+                    .create_if_missing(false),
+            )
+            .await
+            .unwrap();
+        let reservation_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM devgraph_authority_replay_reservations")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(reservation_count, 1);
     }
 
     #[tokio::test]
@@ -1140,8 +1498,11 @@ mod tests {
             .unwrap(),
         );
 
+        let mut conflict_cli = cli.clone();
+        conflict_cli.signed_projection_output = temp.path().join("conflict-projection.json");
+
         assert_eq!(
-            run_with_data_root_and_now(cli.clone(), &data_root, NOW).await,
+            run_with_data_root_and_now(conflict_cli.clone(), &data_root, NOW).await,
             Err(ProducerCliError::AuthorityDenied(
                 "devgraph_replay_scope_conflict"
             ))
@@ -1150,6 +1511,7 @@ mod tests {
             fs::read(&cli.signed_projection_output).unwrap(),
             first_output
         );
+        assert!(!conflict_cli.signed_projection_output.exists());
         assert!(!temp.path().read_dir().unwrap().any(|entry| {
             entry
                 .unwrap()
