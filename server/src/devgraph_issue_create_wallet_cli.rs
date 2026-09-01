@@ -128,6 +128,11 @@ struct HttpResponse {
     body: Vec<u8>,
 }
 
+struct HttpReadFailure {
+    partial_request: Option<HttpRequest>,
+    response: HttpResponse,
+}
+
 enum HandleOutcome {
     Respond(HttpResponse),
     Submission(Vec<u8>),
@@ -271,7 +276,7 @@ pub async fn run(
     let pre_open_deadline = Instant::now() + Duration::from_secs(PRE_OPEN_SECONDS);
     let mut signed_deadline = None;
     loop {
-        let deadline = signed_deadline.unwrap_or(pre_open_deadline);
+        let deadline = active_phase_deadline(pre_open_deadline, signed_deadline);
         let accepted = timeout_at(deadline, listener.accept()).await;
         let (mut stream, _) = match accepted {
             Ok(Ok(pair)) => pair,
@@ -285,13 +290,34 @@ pub async fn run(
                 });
             }
         };
-        let request = match read_http_request(&mut stream).await {
+        let request = match read_http_request(&mut stream, deadline).await {
             Ok(request) => request,
-            Err(response) => {
-                let _ = write_http_response(&mut stream, &response).await;
-                continue;
+            Err(failure) => {
+                if Instant::now() >= deadline {
+                    ceremony.finish();
+                    return Err(phase_expiry_error(signed_deadline.is_some()));
+                }
+                match failure.partial_request {
+                    Some(request) => request,
+                    None => {
+                        if write_http_response_before(&mut stream, &failure.response, deadline)
+                            .await
+                            .is_err()
+                            && Instant::now() >= deadline
+                        {
+                            ceremony.finish();
+                            return Err(phase_expiry_error(signed_deadline.is_some()));
+                        }
+                        continue;
+                    }
+                }
             }
         };
+        let transition_instant = Instant::now();
+        if transition_instant >= deadline {
+            ceremony.finish();
+            return Err(phase_expiry_error(signed_deadline.is_some()));
+        }
         let was_awaiting_open = ceremony.state == CeremonyState::AwaitingOpen;
         match ceremony.handle(request, failclosed_unix_seconds()) {
             HandleOutcome::Respond(response) => {
@@ -299,13 +325,21 @@ pub async fn run(
                     && matches!(ceremony.state, CeremonyState::AwaitingWallet { .. })
                 {
                     signed_deadline =
-                        Some(Instant::now() + Duration::from_secs(SIGNED_WINDOW_SECONDS));
+                        Some(transition_instant + Duration::from_secs(SIGNED_WINDOW_SECONDS));
                 }
-                let _ = write_http_response(&mut stream, &response).await;
+                let write_deadline = active_phase_deadline(pre_open_deadline, signed_deadline);
+                if write_http_response_before(&mut stream, &response, write_deadline)
+                    .await
+                    .is_err()
+                    && Instant::now() >= write_deadline
+                {
+                    ceremony.finish();
+                    return Err(phase_expiry_error(signed_deadline.is_some()));
+                }
             }
             HandleOutcome::Consumed(response, error) => {
                 drop(listener);
-                let _ = write_http_response(&mut stream, &response).await;
+                let _ = write_http_response_before(&mut stream, &response, deadline).await;
                 return Err(error);
             }
             HandleOutcome::Submission(presentation) => {
@@ -326,10 +360,22 @@ pub async fn run(
                         b"{\"error\":\"authority_rejected\",\"ok\":false}\n".to_vec(),
                     ),
                 };
-                let _ = write_http_response(&mut stream, &response).await;
+                let _ = write_http_response_before(&mut stream, &response, deadline).await;
                 return result.map_err(WalletCeremonyError::Producer);
             }
         }
+    }
+}
+
+fn active_phase_deadline(pre_open_deadline: Instant, signed_deadline: Option<Instant>) -> Instant {
+    signed_deadline.unwrap_or(pre_open_deadline)
+}
+
+fn phase_expiry_error(signed_phase: bool) -> WalletCeremonyError {
+    if signed_phase {
+        WalletCeremonyError::SignedWindowExpired
+    } else {
+        WalletCeremonyError::PreOpenExpired
     }
 }
 
@@ -359,40 +405,52 @@ fn valid_wallet_post(request: &HttpRequest) -> bool {
         && request
             .headers
             .get("content-length")
-            .and_then(|value| value.parse::<usize>().ok())
+            .and_then(|value| parse_content_length(value))
             == Some(request.body.len())
         && !request.headers.contains_key("transfer-encoding")
 }
 
-async fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, HttpResponse> {
-    let deadline = Instant::now() + Duration::from_secs(CONNECTION_READ_SECONDS);
+async fn read_http_request(
+    stream: &mut TcpStream,
+    phase_deadline: Instant,
+) -> Result<HttpRequest, HttpReadFailure> {
+    let deadline = std::cmp::min(
+        phase_deadline,
+        Instant::now() + Duration::from_secs(CONNECTION_READ_SECONDS),
+    );
     let mut bytes = Vec::with_capacity(4096);
     let mut chunk = [0u8; 4096];
     let header_end = loop {
         if bytes.len() > MAX_HEADER_BYTES {
-            return Err(empty_response("431 Request Header Fields Too Large"));
+            return Err(read_failure(
+                empty_response("431 Request Header Fields Too Large"),
+                &bytes,
+            ));
         }
         if let Some(index) = find_bytes(&bytes, b"\r\n\r\n") {
             break index + 4;
         }
         let read = timeout_at(deadline, stream.read(&mut chunk))
             .await
-            .map_err(|_| empty_response("408 Request Timeout"))?
-            .map_err(|_| empty_response("400 Bad Request"))?;
+            .map_err(|_| read_failure(empty_response("408 Request Timeout"), &bytes))?
+            .map_err(|_| read_failure(empty_response("400 Bad Request"), &bytes))?;
         if read == 0 {
-            return Err(empty_response("400 Bad Request"));
+            return Err(read_failure(empty_response("400 Bad Request"), &bytes));
         }
         bytes.extend_from_slice(&chunk[..read]);
         if bytes.len() > MAX_REQUEST_BYTES {
-            return Err(empty_response("413 Content Too Large"));
+            return Err(read_failure(
+                empty_response("413 Content Too Large"),
+                &bytes,
+            ));
         }
     };
     let header_text = std::str::from_utf8(&bytes[..header_end - 4])
-        .map_err(|_| empty_response("400 Bad Request"))?;
+        .map_err(|_| read_failure(empty_response("400 Bad Request"), &bytes[..header_end - 4]))?;
     let mut lines = header_text.split("\r\n");
     let request_line = lines
         .next()
-        .ok_or_else(|| empty_response("400 Bad Request"))?;
+        .ok_or_else(|| read_failure(empty_response("400 Bad Request"), &bytes[..header_end - 4]))?;
     let mut request_parts = request_line.split(' ');
     let method = request_parts.next().unwrap_or_default().to_owned();
     let path = request_parts.next().unwrap_or_default().to_owned();
@@ -402,14 +460,17 @@ async fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, HttpRe
         || path.is_empty()
         || version != "HTTP/1.1"
     {
-        return Err(empty_response("400 Bad Request"));
+        return Err(read_failure(
+            empty_response("400 Bad Request"),
+            &bytes[..header_end - 4],
+        ));
     }
     let mut headers = BTreeMap::new();
     let mut syntactically_valid = true;
     for line in lines {
-        let (name, value) = line
-            .split_once(':')
-            .ok_or_else(|| empty_response("400 Bad Request"))?;
+        let (name, value) = line.split_once(':').ok_or_else(|| {
+            read_failure(empty_response("400 Bad Request"), &bytes[..header_end - 4])
+        })?;
         if name.is_empty()
             || !name
                 .bytes()
@@ -418,7 +479,10 @@ async fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, HttpRe
                 .bytes()
                 .any(|byte| byte.is_ascii_control() && byte != b'\t')
         {
-            return Err(empty_response("400 Bad Request"));
+            return Err(read_failure(
+                empty_response("400 Bad Request"),
+                &bytes[..header_end - 4],
+            ));
         }
         let name = name.to_ascii_lowercase();
         let value = value.trim_matches([' ', '\t']).to_owned();
@@ -439,8 +503,8 @@ async fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, HttpRe
         syntactically_valid: false,
     };
     let content_length = match headers.get("content-length") {
-        Some(value) => match value.parse::<usize>() {
-            Ok(length) if length <= DEVGRAPH_WALLET_PRESENTATION_MAX_JSON_BYTES_V1 => length,
+        Some(value) => match parse_content_length(value) {
+            Some(length) if length <= DEVGRAPH_WALLET_PRESENTATION_MAX_JSON_BYTES_V1 => length,
             // Once a complete header block exposes the valid one-shot CSRF,
             // malformed or oversized length is a consumed POST, not a retry.
             _ => return Ok(partial_request(Vec::new())),
@@ -449,7 +513,7 @@ async fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, HttpRe
     };
     let total = header_end
         .checked_add(content_length)
-        .ok_or_else(|| empty_response("413 Content Too Large"))?;
+        .ok_or_else(|| read_failure(empty_response("413 Content Too Large"), &bytes))?;
     if bytes.len() > total {
         return Ok(partial_request(bytes[header_end..].to_vec()));
     }
@@ -472,10 +536,72 @@ async fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, HttpRe
     })
 }
 
-async fn write_http_response(
-    stream: &mut TcpStream,
-    response: &HttpResponse,
-) -> std::io::Result<()> {
+fn parse_content_length(value: &str) -> Option<usize> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value.parse().ok()
+}
+
+fn read_failure(response: HttpResponse, bytes: &[u8]) -> HttpReadFailure {
+    HttpReadFailure {
+        partial_request: partial_exact_post_from_wire(bytes),
+        response,
+    }
+}
+
+fn partial_exact_post_from_wire(bytes: &[u8]) -> Option<HttpRequest> {
+    let request_line_end = find_bytes(bytes, b"\r\n")?;
+    let request_line = std::str::from_utf8(&bytes[..request_line_end]).ok()?;
+    let path = match request_line {
+        "POST /presentation HTTP/1.1" => "/presentation",
+        "POST /cancel HTTP/1.1" => "/cancel",
+        _ => return None,
+    };
+    let mut headers = BTreeMap::new();
+    let mut cursor = request_line_end + 2;
+    while cursor < bytes.len() {
+        let Some(relative_end) = find_bytes(&bytes[cursor..], b"\r\n") else {
+            break;
+        };
+        let line_end = cursor + relative_end;
+        if line_end == cursor {
+            break;
+        }
+        let line = std::str::from_utf8(&bytes[cursor..line_end]).ok()?;
+        let Some((name, value)) = line.split_once(':') else {
+            break;
+        };
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            || value
+                .bytes()
+                .any(|byte| byte.is_ascii_control() && byte != b'\t')
+        {
+            break;
+        }
+        let name = name.to_ascii_lowercase();
+        let value = value.trim_matches([' ', '\t']).to_owned();
+        if headers.insert(name, value).is_some() {
+            break;
+        }
+        cursor = line_end + 2;
+    }
+    Some(HttpRequest {
+        method: "POST".to_owned(),
+        path: path.to_owned(),
+        headers,
+        body: Vec::new(),
+        syntactically_valid: false,
+    })
+}
+
+async fn write_http_response<W>(stream: &mut W, response: &HttpResponse) -> std::io::Result<()>
+where
+    W: tokio::io::AsyncWrite + Unpin,
+{
     let mut head = format!(
         "HTTP/1.1 {}\r\nConnection: close\r\nContent-Length: {}\r\nContent-Type: {}\r\n",
         response.status,
@@ -492,6 +618,20 @@ async fn write_http_response(
     stream.write_all(head.as_bytes()).await?;
     stream.write_all(&response.body).await?;
     stream.shutdown().await
+}
+
+async fn write_http_response_before<W>(
+    stream: &mut W,
+    response: &HttpResponse,
+    deadline: Instant,
+) -> Result<(), ()>
+where
+    W: tokio::io::AsyncWrite + Unpin,
+{
+    match timeout_at(deadline, write_http_response(stream, response)).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(_)) | Err(_) => Err(()),
+    }
 }
 
 fn wallet_page_response(
@@ -597,6 +737,8 @@ mod tests {
     use clap::CommandFactory;
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
+    use tokio::io::duplex;
+    use tokio::time::advance;
 
     const NOW: u64 = 1_800_000_000;
     const REQUEST: &[u8] = br#"{"id":"issue-golden","kind":"Issue","title":"Golden Issue"}"#;
@@ -638,6 +780,20 @@ mod tests {
 
     fn csrf(ceremony: &WalletCeremony) -> String {
         ceremony.csrf.clone().expect("valid GET generated CSRF")
+    }
+
+    async fn tcp_pair() -> (TcpStream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (client, accepted) = tokio::join!(TcpStream::connect(address), listener.accept());
+        (accepted.unwrap().0, client.unwrap())
+    }
+
+    async fn raw_request(bytes: &[u8], deadline: Instant) -> Result<HttpRequest, HttpReadFailure> {
+        let (mut server, mut client) = tcp_pair().await;
+        client.write_all(bytes).await.unwrap();
+        client.shutdown().await.unwrap();
+        read_http_request(&mut server, deadline).await
     }
 
     fn decode_base64url(value: &str) -> Vec<u8> {
@@ -957,6 +1113,124 @@ mod tests {
             assert_eq!(response.status, "400 Bad Request", "{header}");
             assert_eq!(ceremony.state, CeremonyState::Finished, "{header}");
         }
+    }
+
+    #[test]
+    fn content_length_accepts_only_nonempty_ascii_digits() {
+        assert_eq!(parse_content_length("0"), Some(0));
+        assert_eq!(parse_content_length("02"), Some(2));
+        assert_eq!(parse_content_length("2"), Some(2));
+        for rejected in ["", "+2", "-2", " 2", "2 ", "２"] {
+            assert_eq!(parse_content_length(rejected), None, "{rejected:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn raw_malformed_header_after_exact_csrf_consumes_once() {
+        let mut ceremony = WalletCeremony::new(REQUEST, "issue-golden-create-0001");
+        assert!(matches!(
+            ceremony.handle(get("/"), NOW),
+            HandleOutcome::Respond(_)
+        ));
+        let csrf = csrf(&ceremony);
+        let wire = format!(
+            "POST /presentation HTTP/1.1\r\nHost: {WALLET_CEREMONY_BIND_V1}\r\nOrigin: {WALLET_CEREMONY_ORIGIN_V1}\r\nSec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\nSec-Fetch-Dest: empty\r\nContent-Type: application/json\r\nContent-Length: 2\r\nX-SecS-CSRF: {csrf}\r\nMalformed Header\r\n\r\n{{}}"
+        );
+        let failure =
+            match raw_request(wire.as_bytes(), Instant::now() + Duration::from_secs(10)).await {
+                Err(failure) => failure,
+                Ok(_) => panic!("malformed header must fail wire parsing"),
+            };
+        let partial = failure
+            .partial_request
+            .expect("exact path and prior CSRF must survive as a consumable partial request");
+        let response = match ceremony.handle(partial, NOW + 1) {
+            HandleOutcome::Consumed(response, WalletCeremonyError::CeremonyConsumed) => response,
+            _ => panic!("correct CSRF must consume after later header failure"),
+        };
+        assert_eq!(response.status, "400 Bad Request");
+        assert_eq!(ceremony.state, CeremonyState::Finished);
+    }
+
+    #[tokio::test]
+    async fn raw_signed_plus_content_length_is_rejected_and_consumes() {
+        let mut ceremony = WalletCeremony::new(REQUEST, "issue-golden-create-0001");
+        assert!(matches!(
+            ceremony.handle(get("/"), NOW),
+            HandleOutcome::Respond(_)
+        ));
+        let csrf = csrf(&ceremony);
+        let wire = format!(
+            "POST /presentation HTTP/1.1\r\nHost: {WALLET_CEREMONY_BIND_V1}\r\nOrigin: {WALLET_CEREMONY_ORIGIN_V1}\r\nSec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\nSec-Fetch-Dest: empty\r\nContent-Type: application/json\r\nContent-Length: +2\r\nX-SecS-CSRF: {csrf}\r\n\r\n{{}}"
+        );
+        let partial =
+            match raw_request(wire.as_bytes(), Instant::now() + Duration::from_secs(10)).await {
+                Ok(request) => request,
+                Err(_) => {
+                    panic!("invalid Content-Length must become a parsed malformed request")
+                }
+            };
+        let response = match ceremony.handle(partial, NOW + 1) {
+            HandleOutcome::Consumed(response, WalletCeremonyError::CeremonyConsumed) => response,
+            _ => panic!("correct CSRF with invalid Content-Length must consume"),
+        };
+        assert_eq!(response.status, "400 Bad Request");
+        assert_eq!(ceremony.state, CeremonyState::Finished);
+    }
+
+    async fn assert_slow_socket_read_stops_at_phase_deadline(
+        pre_open_deadline: Instant,
+        signed_deadline: Option<Instant>,
+    ) {
+        let (mut server, mut client) = tcp_pair().await;
+        client
+            .write_all(b"POST /presentation HTTP/1.1\r\n")
+            .await
+            .unwrap();
+        let deadline = active_phase_deadline(pre_open_deadline, signed_deadline);
+        let read = tokio::spawn(async move { read_http_request(&mut server, deadline).await });
+        tokio::task::yield_now().await;
+        advance(Duration::from_secs(1)).await;
+        let failure = match read.await.unwrap() {
+            Err(failure) => failure,
+            Ok(_) => panic!("slow socket must not extend its phase"),
+        };
+        assert_eq!(failure.response.status, "408 Request Timeout");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn pre_open_phase_deadline_bounds_an_accepted_slow_socket() {
+        let pre_open_deadline = Instant::now() + Duration::from_secs(1);
+        assert_slow_socket_read_stops_at_phase_deadline(pre_open_deadline, None).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn signed_phase_deadline_bounds_an_accepted_slow_socket() {
+        let pre_open_deadline = Instant::now() + Duration::from_secs(PRE_OPEN_SECONDS);
+        let signed_deadline = Instant::now() + Duration::from_secs(1);
+        assert_slow_socket_read_stops_at_phase_deadline(pre_open_deadline, Some(signed_deadline))
+            .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn signed_phase_deadline_bounds_slow_response_write() {
+        let (mut server, _client) = duplex(1);
+        let response = wallet_page_response(
+            REQUEST,
+            "issue-golden-create-0001",
+            "session",
+            "nonce",
+            "csrf",
+            NOW,
+            NOW + SIGNED_WINDOW_SECONDS,
+        );
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let write = tokio::spawn(async move {
+            write_http_response_before(&mut server, &response, deadline).await
+        });
+        tokio::task::yield_now().await;
+        advance(Duration::from_secs(1)).await;
+        assert!(write.await.unwrap().is_err());
     }
 
     #[test]

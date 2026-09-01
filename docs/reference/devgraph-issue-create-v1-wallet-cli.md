@@ -54,7 +54,7 @@ AwaitingWallet -- exact CSRF POST /cancel --> Finished(cancelled)
   session/nonce, and a server-issued validity interval no longer than 60
   seconds. Wallet's 65-second page transport grace is not authority validity.
 - The `/presentation` and `/cancel` POSTs must have the exact memory-only CSRF header, Host, Origin,
-  `Sec-Fetch-*`, `application/json` content type, bounded exact Content-Length,
+  `Sec-Fetch-*`, `application/json` content type, bounded exact ASCII-digit Content-Length,
   and no transfer encoding. A wrong CSRF returns 404 and does not consume. A
   matching CSRF consumes once even if another POST field is malformed. Cancel
   accepts only `{}` and reports the one local `wallet_ceremony_cancelled`
@@ -62,8 +62,9 @@ AwaitingWallet -- exact CSRF POST /cancel --> Finished(cancelled)
 - If Wallet is unavailable, rejects, or throws, the page sends the bounded
   `/cancel` request so the CLI finishes instead of waiting for expiry.
 - Reloads, duplicate valid-token calls, wrong-state calls, and exact/late expiry
-  return 410. The listener closes before any receiver authority file or replay
-  database is opened.
+  return 410. Every accepted-connection read, response write, and state
+  transition is bounded by the active monotonic phase deadline. The listener
+  closes before any receiver authority file or replay database is opened.
 
 After listener closure, the adapter passes the Wallet presentation bytes into
 the same crate-private typed DG-P invocation as DG-E1. It writes the same
