@@ -270,9 +270,10 @@ fn status_and_indexes_expose_only_the_superseded_chat_and_exact_operation_gate()
             "P3/C1–P3/C12 remain the exact governance sequence; No Commit 13 is authorized by #263",
             "Matrix owns conversation",
             "chat text and Matrix events are not executable authority",
-            "P4-R is in progress through Issue #270",
-            "P4-O is blocked until an operator ratifies one named exact operation before any implementation",
-            "No replacement operation, identifier, schema, endpoint, ABI, IPC, transport, socket, route, package, repository owner, or runtime implementation is ratified",
+            "P4-R completed through merged #270/#271",
+            "P4-O-DG then ratified exactly `devgraph.issue.create.v1` in merged PR #280",
+            "DG-P is the implemented producer-only #281 branch slice",
+            "No peer-chat runtime, generic Work API, route/transport, Wallet method, Devgraph mutation, or end-to-end result was revived or inferred",
         ],
     );
     contains_all(

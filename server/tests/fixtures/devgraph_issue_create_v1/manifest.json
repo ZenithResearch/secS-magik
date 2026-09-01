@@ -1,0 +1,33 @@
+{
+  "schema": "secs-devgraph-issue-create-fixture-bundle.v1",
+  "schema_version": 1,
+  "operation": "devgraph.issue.create.v1",
+  "expected_now": 1800000000,
+  "json_transport_contract": "Transport JSON is strict-decoded and recanonicalized. Canonical JSON fixtures are exact UTF-8 canonical preimage bytes followed by one LF; tests compare the full file without trimming. Unicode is preserved without normalization and array order is significant.",
+  "idempotency_key": {
+    "path": "idempotency-key.txt",
+    "encoding": "utf8-single-line-lf",
+    "non_secret": true
+  },
+  "receiver_policy": {
+    "path": "receiver-policy.json",
+    "binding_path": "receiver-policy-binding.json"
+  },
+  "secs_public_key_registry_path": "secs-public-key-registry.json",
+  "files": [
+    {"path":"canonical-request-nondefault.json","sha256":"09d6e54133cb1acb8e1258d92bd7ca6822ce1ae9741b2cbbfa0fbd0632052bc3"},
+    {"path":"canonical-request.json","sha256":"5f26bf492ccf43cdd8071ec61c074e9d1186c1f65fe213b63f9757a9a2ab5304"},
+    {"path":"canonicalization-boundaries.json","sha256":"68096db82d3e27ba8f28413f328176865b6b019f73ed4eec93cbd0111bd6804d"},
+    {"path":"correlation-digest.txt","sha256":"1a826f20daf66b51a949650148f7a3a76004e9dcab5d0d5b24125f1bc5027a3b"},
+    {"path":"idempotency-key.txt","sha256":"a87f1c2a1db5f4941e41e77cdb6d04989da7dcd52bab41acded33fe3815d371a"},
+    {"path":"receiver-policy-binding.json","sha256":"0c3fde0b7728fb5b262005f76835fa6ddb86cb4494338c7729840e7f1a2c3cde"},
+    {"path":"receiver-policy.json","sha256":"b991607bd171e123a251c64cff4f1bcd84f0589a24e570e777ef89492c8a6844"},
+    {"path":"request-nondefault-digest.txt","sha256":"e8b3ee3f27dbb8aaa92cf938b7c53d7eb9f366345c4ce6c9cfce956dd849586f"},
+    {"path":"request-nondefault.json","sha256":"b6be55735c22d556e0980bd5ff143e6487f0dbcccb4fe2ad3fba82980dc2f4b5"},
+    {"path":"request.json","sha256":"81ab8aff8d053b90303b57d9ba868168426829dd1fcaa510183c6bc4f03fc608"},
+    {"path":"secs-public-key-registry.json","sha256":"bb7bdf1e2ca58c2f1a744c6011825a4462812af635e7b84eb842d674caa6bbe8"},
+    {"path":"signed-projection.json","sha256":"88c21b1e7b9f4f73125ff014e1f38ea2f34656e05caf9647326e5cc20b83d921"},
+    {"path":"unsigned-projection.json","sha256":"409c5d3f9282b864f7e5877a45a6270dd3d3fb19e43d565bc32ec3b154b3f910"},
+    {"path":"wallet-presentation.json","sha256":"35333326f0aa8af0b227beda4298c2a537fb2f29176016f3b2bed5b262e0ab9c"}
+  ]
+}

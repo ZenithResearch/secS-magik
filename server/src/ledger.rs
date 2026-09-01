@@ -4,6 +4,7 @@
 //! export. It uses runtime SQL so the repo does not need to maintain SQLx
 //! offline metadata yet.
 
+use crate::devgraph_authority::DevgraphAuthorityReplayBindingV1;
 use crate::nullifier::{NullifierCommitment, NullifierDomainV1, NullifierReason};
 use crate::public_audit::{
     public_audit_entry_hash, public_audit_root_hash, sha256_hex, AuditPublisher, PublicAuditBundle,
@@ -21,6 +22,11 @@ use sqlx::SqlitePool;
 pub const OPERATOR_RECEIPT_EXPORT_SCHEMA_VERSION: u16 = 3;
 pub const LEDGER_REDACTION_POLICY: &str =
     "local_redacted_no_payload_or_private_evidence_by_default";
+
+fn checked_sqlite_integer(value: u64) -> Result<i64, sqlx::Error> {
+    i64::try_from(value)
+        .map_err(|_| sqlx::Error::Protocol("unsigned timestamp exceeds SQLite INTEGER".into()))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperatorReceiptInspection {
@@ -366,6 +372,13 @@ pub enum ReplayReservationOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DevgraphReplayReservationOutcome {
+    Reserved,
+    ExactDuplicate,
+    ScopeConflict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopedNullifierUseOutcome {
     Recorded,
     Duplicate,
@@ -447,6 +460,9 @@ impl Ledger {
         // anything — rows are removed on the next healthy-clock trigger.
         let now = crate::clock::failclosed_unix_seconds();
         let _ = self.prune_expired_replay_reservations(now).await;
+        let _ = self
+            .prune_expired_devgraph_authority_replay_reservations(now)
+            .await;
         Ok(())
     }
 
@@ -491,6 +507,106 @@ impl Ledger {
         } else {
             Ok(ReplayReservationOutcome::Reserved)
         }
+    }
+
+    /// Atomically reserves the exact operation-scoped replay key for the
+    /// portable `devgraph.issue.create.v1` producer. A duplicate is retryable
+    /// only when every persisted authority binding is byte-for-byte identical.
+    pub(crate) async fn reserve_devgraph_authority_replay(
+        &self,
+        binding: &DevgraphAuthorityReplayBindingV1,
+        reserved_at: u64,
+    ) -> Result<DevgraphReplayReservationOutcome, sqlx::Error> {
+        self.prune_expired_devgraph_authority_replay_reservations(reserved_at)
+            .await?;
+        let reserved_at = checked_sqlite_integer(reserved_at)?;
+        let expires_at = checked_sqlite_integer(binding.expires_at)?;
+        let issued_at = checked_sqlite_integer(binding.issued_at)?;
+        let receiver_policy_version = checked_sqlite_integer(binding.receiver_policy_version)?;
+        let result = sqlx::query(
+            "INSERT OR IGNORE INTO devgraph_authority_replay_reservations (
+                reserved_at,
+                expires_at,
+                replay_scope,
+                session_id,
+                operation,
+                nonce,
+                actor_id,
+                audience,
+                resource,
+                request_digest_sha256,
+                idempotency_key_digest_sha256,
+                receiver_policy_id,
+                receiver_policy_version,
+                receiver_policy_digest_sha256,
+                wallet_presentation_digest_sha256,
+                secs_context_id,
+                secs_verifier_key_id,
+                issued_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(reserved_at)
+        .bind(expires_at)
+        .bind(&binding.replay_scope)
+        .bind(binding.session_id.to_vec())
+        .bind(&binding.operation)
+        .bind(binding.nonce.to_vec())
+        .bind(&binding.actor_id)
+        .bind(&binding.audience)
+        .bind(&binding.resource)
+        .bind(&binding.request_digest_sha256)
+        .bind(&binding.idempotency_key_digest_sha256)
+        .bind(&binding.receiver_policy_id)
+        .bind(receiver_policy_version)
+        .bind(&binding.receiver_policy_digest_sha256)
+        .bind(&binding.wallet_presentation_digest_sha256)
+        .bind(&binding.secs_context_id)
+        .bind(&binding.secs_verifier_key_id)
+        .bind(issued_at)
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 1 {
+            return Ok(DevgraphReplayReservationOutcome::Reserved);
+        }
+
+        let row = sqlx::query(
+            "SELECT expires_at, replay_scope, actor_id, audience, resource,
+                    request_digest_sha256, idempotency_key_digest_sha256,
+                    receiver_policy_id, receiver_policy_version,
+                    receiver_policy_digest_sha256,
+                    wallet_presentation_digest_sha256, secs_context_id,
+                    secs_verifier_key_id, issued_at
+             FROM devgraph_authority_replay_reservations
+             WHERE session_id = ? AND operation = ? AND nonce = ?",
+        )
+        .bind(binding.session_id.to_vec())
+        .bind(&binding.operation)
+        .bind(binding.nonce.to_vec())
+        .fetch_one(&self.pool)
+        .await?;
+        let exact_duplicate = row.try_get::<i64, _>("expires_at")? == expires_at
+            && row.try_get::<String, _>("replay_scope")? == binding.replay_scope
+            && row.try_get::<String, _>("actor_id")? == binding.actor_id
+            && row.try_get::<String, _>("audience")? == binding.audience
+            && row.try_get::<String, _>("resource")? == binding.resource
+            && row.try_get::<String, _>("request_digest_sha256")? == binding.request_digest_sha256
+            && row.try_get::<String, _>("idempotency_key_digest_sha256")?
+                == binding.idempotency_key_digest_sha256
+            && row.try_get::<String, _>("receiver_policy_id")? == binding.receiver_policy_id
+            && row.try_get::<i64, _>("receiver_policy_version")? == receiver_policy_version
+            && row.try_get::<String, _>("receiver_policy_digest_sha256")?
+                == binding.receiver_policy_digest_sha256
+            && row.try_get::<String, _>("wallet_presentation_digest_sha256")?
+                == binding.wallet_presentation_digest_sha256
+            && row.try_get::<String, _>("secs_context_id")? == binding.secs_context_id
+            && row.try_get::<String, _>("secs_verifier_key_id")? == binding.secs_verifier_key_id
+            && row.try_get::<i64, _>("issued_at")? == issued_at;
+        Ok(if exact_duplicate {
+            DevgraphReplayReservationOutcome::ExactDuplicate
+        } else {
+            DevgraphReplayReservationOutcome::ScopeConflict
+        })
     }
 
     pub async fn record_scoped_nullifier_use(
@@ -567,6 +683,24 @@ impl Ledger {
             .bind(now as i64)
             .execute(&self.pool)
             .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Removes DG-P reservations at the contract's exact expiry boundary.
+    /// A clock failure remains a safe no-op and cannot weaken replay defense.
+    pub async fn prune_expired_devgraph_authority_replay_reservations(
+        &self,
+        now: u64,
+    ) -> Result<u64, sqlx::Error> {
+        if crate::clock::is_clock_read_failure(now) {
+            return Ok(0);
+        }
+        let now = checked_sqlite_integer(now)?;
+        let result =
+            sqlx::query("DELETE FROM devgraph_authority_replay_reservations WHERE expires_at <= ?")
+                .bind(now)
+                .execute(&self.pool)
+                .await?;
         Ok(result.rows_affected())
     }
 

@@ -36,7 +36,7 @@ The root README is the canonical front door and operating map. The implementatio
 | Evidence adapters | Mixed | Local fixtures, wallet proof-of-possession over a temporary challenge contract, trusted issuer fixtures, and bounded Dregg-shaped/verifier seams exist. Live federation discovery/finality is not established. |
 | Receipts and audit | Solid local/operator implementation | Signed receipt/event records, SQLite persistence, redacted inspection, versioned audit bundles/chains, local verification, and bounded external-anchor witnesses. Not blockchain immutability or public auditability. |
 | Execution output transport | Solid core/server transport | Bounded, receiver-signed, request-correlated `ExecutionResponse` exists. The shipped client CLI does not yet have trusted response mappings for arbitrary non-legacy operations. |
-| Devgraph exact operation | Contract-only P4-O-DG-R1 repair | `devgraph.issue.create.v1` is the operator-ratified first exact operation; its RFC 8785 safe-integer repair and vectors precede DG-P. No producer, consumer, Wallet, CLI, route, opcode, transport, or deployment is implemented by this contract. |
+| Devgraph exact-operation producer | Solid DG-P implementation on the #281 branch | `devgraph.issue.create.v1` preserves the merged P4-O-DG-R1 RFC 8785 safe-integer profile and vectors while implementing only the fixed secS producer/replay seam. Merge/post-merge evidence is pending; no Devgraph consumer/mutation, Wallet method, CLI, generic Work API, route, opcode, transport, deployment, or hybrid/PQ v1 authority exists. |
 | WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt exports and a no-network permission-policy panel. No browser wallet product or remote administration plane. |
 | `generate` / `chat` | Legacy examples only | Constants, client commands, and descriptors exist, but no inference backend, model routing, managed conversation store, or weave runtime is installed. |
 | Production deployment | Not evidenced | `production_verified` fails closed on missing operator config, but repository tests and fixture smoke are not proof of a deployed production service. |
@@ -90,7 +90,7 @@ The root `Cargo.toml` contains five members:
 |---|---|---|
 | [`libsec-core`](core/README.md) | `rlib`, `cdylib`, `staticlib` | `ZenithPacket`, ingress frames, caller-proof encoding, decision/execution responses, packet builder, tunnel primitives, signature/Merkle helpers, and optional wasm32 exports. It is verifier-free. |
 | [`client`](client/README.md) | Native binary | `generate`, `chat`, `hub`, and `identity` commands; caller-key lifecycle; packet signing; plaintext/static/session tunnel modes; bounded response decoding. |
-| [`server`](server/README.md) | Library + three binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, and gateway CLIs. |
+| [`server`](server/README.md) | Library + three binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, gateway CLIs, and the separate fixed DG-P `devgraph.issue.create.v1` authority producer. |
 | `secs-permissions` | Reusable library | Receiver-local permission records and fail-closed policy evaluation shared by the server, native policy CLI, and WASM panel. |
 | [`panel`](panel/README.md) | `cdylib`, `rlib` | Four wasm-bindgen functions plus a static HTML/JavaScript policy panel that stores policy JSON in the browser. |
 
@@ -332,6 +332,7 @@ cargo test -p libsec-core --all-features
 cargo test -p server --test runtime_config
 cargo test -p server --test gateway_layout
 cargo test -p server --test execution_output_transport
+cargo test -p server --test devgraph_authority_projection
 cargo test -p server --test public_audit_cli
 cargo test -p server --test docs_overclaim_status_ledger
 ```
@@ -367,6 +368,7 @@ secS-magik/
 | What is implemented, partial, planned, future, or out of scope? | [`docs/implementation-status.md`](docs/implementation-status.md). |
 | What changed in top-level posture recently? | [`docs/current-state.md`](docs/current-state.md). |
 | What architecture is targeted? | [`docs/specs/2026-06-01-secs-magik-objectives-spec.md`](docs/specs/2026-06-01-secs-magik-objectives-spec.md). |
+| What exactly does the Devgraph DG-P producer accept and emit? | [`docs/reference/devgraph-issue-create-v1-producer.md`](docs/reference/devgraph-issue-create-v1-producer.md). |
 | What is exploratory only? | [`docs/ideas/README.md`](docs/ideas/README.md). |
 | What would count as production deployment evidence? | [`docs/ops/production-deployment-proof.md`](docs/ops/production-deployment-proof.md). |
 
@@ -374,7 +376,7 @@ Specs and plans describe contracts or intended sequences; they do not override t
 
 ## Active architecture decisions
 
-- P4-R completed through [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) and PR #271: Matrix owns conversation while secS admits exact authority-bearing machine operations. The operator-ratified first operation is [`devgraph.issue.create.v1`](docs/specs/devgraph-issue-create-v1.md); [P4-O-DG-R1 / #282](https://github.com/ZenithResearch/secS-magik/issues/282) repairs only its RFC 8785 safe-integer domain before DG-P. Neither contract node implements runtime behavior.
+- [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) and merged PR #271 establish Matrix-owned conversation with secS restricted to exact authority-bearing machine operations. PR #280 ratifies exactly `devgraph.issue.create.v1`; #282/merged PR #283 repairs its RFC 8785 safe-integer profile and pins `canonicalization-boundaries.json`. DG-P on #281 preserves that repair while implementing only its producer/replay seam; DG-V/DG-W/DG-C/DG-E remain serialized and blocked.
 - [Issue #274](https://github.com/ZenithResearch/secS-magik/issues/274) records an optional weave middleware idea around inference handlers. It remains design-gated; no weave storage, conversation continuity, loom UI, or inference middleware exists in runtime code.
 
 ## Explicit non-claims

@@ -52,7 +52,8 @@ Use the root [README](../README.md) as the canonical project front door and this
 | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) | Current control surface | Ready-for-prod track checklist and completion checkpoints through the current implementation train. |
 | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E trusted issuer/root policy implementation spec; Track E is complete on `main` after PR #69. |
 | [issues/secs-magik-phases/track-i-production-membership-provision-e2e.md](issues/secs-magik-phases/track-i-production-membership-provision-e2e.md) | Local phase spec/status | Track I local production-shaped `membership.provision` E2E spec; complete on `main` after PR #76 / post-merge CI run 27071532041. |
-| [specs/devgraph-issue-create-v1.md](specs/devgraph-issue-create-v1.md) | P4-O-DG-R1 safe-integer repair; runtime unimplemented | Exact contract for `devgraph.issue.create.v1`; it pins RFC 8785 safe-integer and canonicalization-vector semantics but implements no runtime, Wallet, CLI, Devgraph, transport, or deployment surface. |
+| [specs/devgraph-issue-create-v1.md](specs/devgraph-issue-create-v1.md) | P4-O-DG-R1 merged; DG-P producer implemented on #281 | Exact contract for `devgraph.issue.create.v1`; secS preserves the RFC 8785 safe-integer/canonicalization vectors and implements only its fixed portable producer/replay seam, while Wallet, CLI, Devgraph consumer/mutation, transport, and deployment remain unimplemented. |
+| [reference/devgraph-issue-create-v1-producer.md](reference/devgraph-issue-create-v1-producer.md) | Current DG-P producer reference | Exact Wallet presentation, receiver policy, signing, replay, portable fixture, redaction, and no-route boundaries for the implemented secS producer. |
 
 ## Directory READMEs
 
@@ -75,7 +76,7 @@ The root repository also has child READMEs for [../core/](../core/README.md), [.
 | [issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md](issues/secs-magik-phases/track-e-trusted-issuer-root-policy.md) | Local phase spec/status | Track E E0–E12 commit-boundary tasks, phase acceptance criteria, implementation-test matrix, and local E1–E11 synchronization status. |
 | [plans/2026-06-01-implementation-progress-checklist.md](plans/2026-06-01-implementation-progress-checklist.md) | Historical/current progress ledger | Early issue train and CI alignment notes. |
 | [plans/2026-06-01-secs-magik-implementation-issue-slices.md](plans/2026-06-01-secs-magik-implementation-issue-slices.md) | Historical issue-slice import | Original 2026-06-01 issue-level sequence. Many early slices have since landed. |
-| [plans/2026-08-31-devgraph-issue-create-v1-dag.md](plans/2026-08-31-devgraph-issue-create-v1-dag.md) | P4-O-DG-R1 current; runtime unimplemented | Separate serialized contract-to-evidence sequence for the exact Devgraph Issue-create operation; P4-O-DG-R1 repairs the contract before DG-P. |
+| [plans/2026-08-31-devgraph-issue-create-v1-dag.md](plans/2026-08-31-devgraph-issue-create-v1-dag.md) | P4-O-DG-R1 merged; DG-P implemented on #281; downstream blocked | Separate serialized contract-to-evidence sequence for the exact Devgraph Issue-create operation; DG-V cannot begin until DG-P merge/green evidence. |
 
 Plans define intended sequence and acceptance criteria. They do not override [implementation-status.md](implementation-status.md).
 
@@ -85,7 +86,7 @@ Plans define intended sequence and acceptance criteria. They do not override [im
 |---|---|---|
 | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) | Current architecture spec | Corrected secS-magik architecture, target verifier pipeline, repository boundary, and non-goals. |
 | [specs/dregg-authority-rail.md](specs/dregg-authority-rail.md) | Current M15 spec/status surface | Dregg authority rail spec for `dregg_authority`; #137 rewrote #73 acceptance, M15.2–M15.8 now provide bounded static receiver-held policy-admission, resource-lock, attenuation, and local-operator disclosure seams, #162 evidence-ref/public-input ingress propagation has landed, and #206 is implemented at the no-live-network source-client boundary. These remain bounded seams, not live Dregg authority/finality/proof rails. |
-| [specs/devgraph-issue-create-v1.md](specs/devgraph-issue-create-v1.md) | P4-O-DG-R1 safe-integer repair; runtime unimplemented | Exact contract for one `Issue` create operation. It is Ed25519-only in v1, pins the interoperable RFC 8785 integer domain, treats `.castaway` only as a vault, and ratifies no generic Work API or runtime mechanism. |
+| [specs/devgraph-issue-create-v1.md](specs/devgraph-issue-create-v1.md) | P4-O-DG-R1 merged; DG-P producer implemented on #281 | Exact contract for one `Issue` create operation. The implemented producer preserves the interoperable RFC 8785 safe-integer vectors, is Ed25519-only in v1, treats `.castaway` only as a vault, and exposes no generic Work API, route, or runtime adapter. |
 
 ## Ideas
 

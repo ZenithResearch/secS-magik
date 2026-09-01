@@ -1,7 +1,7 @@
 # `devgraph.issue.create.v1` stacked contract DAG
 
 Date: 2026-08-31
-Status: P4-O-DG-R1 safe-integer contract repair current; every implementation node remains unimplemented
+Status: P4-O-DG-R1 merged; DG-P implemented on the #281 branch with merge/green-CI evidence pending; downstream nodes blocked
 Contract: [../specs/devgraph-issue-create-v1.md](../specs/devgraph-issue-create-v1.md)
 Predecessor: P4-R completed by Issue #270 / merged PR #271 / green post-merge Rust CI run `33448400000`
 
@@ -46,9 +46,9 @@ P4-R -> P4-O-DG -> P4-O-DG-R1 -> DG-P -> DG-V -> DG-W -> DG-C -> DG-E
 |---|---|---|---|
 | P4-R | Complete via #270/#271 | secS governance only: supersede peer chat and preserve exact-operation gate. | Merge `5dfeb950da1d6baf80d98e0843684625c9af6f4f` plus green post-merge Rust CI run `33448400000`. |
 | P4-O-DG | Operator-ratified exact contract | secS contract: pin exactly `devgraph.issue.create.v1` and no runtime mechanism. | This contract merged with its static contract checks green. |
-| P4-O-DG-R1 | Current contract repair via #282 | secS contract only: bound every RFC 8785-canonicalized integer to the interoperable IEEE-754 safe range and pin cross-language vectors without changing v1 fields or semantics. | Repair merged with static contract/vector checks and post-merge `main` CI green. |
-| DG-P | Blocked by P4-O-DG-R1; unimplemented | secS: implement only the portable signed authority projection and exact operation/receiver-policy verification. | Rebase #281 onto the merged repair, then provide producer vectors, strict decoder, signature, expiry/replay, redaction, and negative matrix. |
-| DG-V | Blocked by DG-P | Devgraph: verify the exact secS projection and hand off only to canonical Issue creation/outbox. | Consumer vectors, exact operation/resource/request/idempotency binding, zero-effect denials, receipt correlation. |
+| P4-O-DG-R1 | Complete via #282 / merged PR #283 | secS contract only: bound every RFC 8785-canonicalized integer to the interoperable IEEE-754 safe range and pin cross-language vectors without changing v1 fields or semantics. | Merge `43d8904` preserves the static contract and canonicalization vectors. |
+| DG-P | Implemented on the #281 branch; merge/green-CI evidence pending | secS: fixed portable signed authority producer plus exact request/Wallet/policy verification and dedicated replay persistence; no route or generic operation. | Byte-exact producer vectors, strict decoders, Ed25519 signatures, exact expiry/replay, durable reopen, redaction, and denial matrix are covered by focused Rust tests. |
+| DG-V | Blocked by DG-P merge and green CI | Devgraph: verify the exact secS projection and hand off only to canonical Issue creation/outbox. | Consumer vectors, exact operation/resource/request/idempotency binding, zero-effect denials, receipt correlation. |
 | DG-W | Blocked by DG-V | Wallet: add a user-confirmed exact v1 Ed25519 signing surface using the shared vector. | Chrome-owned approval, private-key non-disclosure, origin/operation disclosure, exact vector parity. |
 | DG-C | Blocked by DG-W | Devgraph CLI/client: construct one bounded call without exposing credentials or caller-selected receiver controls. | Idempotent retry and safe output/denial behavior. |
 | DG-E | Blocked by DG-C | Cross-repository evidence: prove one create, exact duplicate, denial matrix, receipt correlation, and no credential/log leakage. | Reproducible local evidence; all discovered repair nodes merged first. |
@@ -67,9 +67,10 @@ P4-R -> P4-O-DG -> P4-O-DG-R1 -> DG-P -> DG-V -> DG-W -> DG-C -> DG-E
 
 ## Current claim
 
-P4-R is complete and the exact P4-O-DG contract is operator-ratified.
-P4-O-DG-R1 is the current contract-only repair before DG-P and narrows the v1
-canonical JSON integer domain without changing its fields, operation, or
-non-ratifications. There is still no runtime projection, Devgraph verifier,
-Wallet method, CLI mutation, deployment, hybrid/PQ authorization, or
-end-to-end success evidence.
+P4-R and P4-O-DG are complete, and P4-O-DG-R1 merged through #282/PR #283.
+Its safe-integer repair and `canonicalization-boundaries.json` vectors remain
+the governing v1 canonicalization profile. DG-P is implemented on the #281
+branch as a producer-only secS seam with portable consumer fixtures and durable replay.
+DG-V remains blocked until DG-P merges and its post-merge gate is green. There
+is still no Devgraph verifier or Work mutation, Wallet method, CLI mutation,
+transport/deployment, hybrid/PQ authorization, or end-to-end success evidence.

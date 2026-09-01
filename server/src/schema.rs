@@ -70,6 +70,32 @@ pub const REPLAY_RESERVATIONS_TABLE: RuntimeTable = RuntimeTable {
     );",
 };
 
+pub const DEVGRAPH_AUTHORITY_REPLAY_RESERVATIONS_TABLE: RuntimeTable = RuntimeTable {
+    name: "devgraph_authority_replay_reservations",
+    ddl: "CREATE TABLE IF NOT EXISTS devgraph_authority_replay_reservations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reserved_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        replay_scope TEXT NOT NULL CHECK(replay_scope = 'session:operation:nonce'),
+        session_id BLOB NOT NULL,
+        operation TEXT NOT NULL,
+        nonce BLOB NOT NULL,
+        actor_id TEXT NOT NULL,
+        audience TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        request_digest_sha256 TEXT NOT NULL,
+        idempotency_key_digest_sha256 TEXT NOT NULL,
+        receiver_policy_id TEXT NOT NULL,
+        receiver_policy_version INTEGER NOT NULL,
+        receiver_policy_digest_sha256 TEXT NOT NULL,
+        wallet_presentation_digest_sha256 TEXT NOT NULL,
+        secs_context_id TEXT NOT NULL,
+        secs_verifier_key_id TEXT NOT NULL,
+        issued_at INTEGER NOT NULL,
+        UNIQUE(session_id, operation, nonce)
+    );",
+};
+
 pub const SCOPED_NULLIFIER_USES_TABLE: RuntimeTable = RuntimeTable {
     name: "scoped_nullifier_uses",
     ddl: "CREATE TABLE IF NOT EXISTS scoped_nullifier_uses (
@@ -121,6 +147,7 @@ pub const LEDGER_TABLES: &[RuntimeTable] = &[
     EVENTS_TABLE,
     RECEIPTS_TABLE,
     REPLAY_RESERVATIONS_TABLE,
+    DEVGRAPH_AUTHORITY_REPLAY_RESERVATIONS_TABLE,
     SCOPED_NULLIFIER_USES_TABLE,
     AUDIT_PUBLICATION_STATUS_TABLE,
 ];

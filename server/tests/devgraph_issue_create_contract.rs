@@ -9,6 +9,12 @@ const ROOT_README: &str = include_str!("../../README.md");
 const CHANGELOG: &str = include_str!("../../CHANGELOG.md");
 const CANONICALIZATION_BOUNDARIES: &str =
     include_str!("fixtures/devgraph_issue_create_v1/canonicalization-boundaries.json");
+const PRODUCER_REFERENCE: &str =
+    include_str!("../../docs/reference/devgraph-issue-create-v1-producer.md");
+const PRODUCER_SOURCE: &str = include_str!("../src/devgraph_authority.rs");
+const IDENTITY_SOURCE: &str = include_str!("../src/identity.rs");
+const SCHEMA_SOURCE: &str = include_str!("../src/schema.rs");
+const FIXTURE_MANIFEST: &str = include_str!("fixtures/devgraph_issue_create_v1/manifest.json");
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -39,12 +45,13 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
         "ratified contract status",
         CONTRACT,
         &[
-            "Status: operator-ratified P4-O-DG contract with P4-O-DG-R1 safe-integer repair; runtime unimplemented",
+            "Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer implemented on the #281 branch; consumers unimplemented",
             "P4-R completed by PR #271 merge",
             "green post-merge Rust CI run `33448400000`",
+            "PR #280 merged this operator-ratified contract at `bfe1a453`",
             "`devgraph.issue.create.v1`",
             "It creates exactly one canonical Devgraph `Issue`",
-            "DG-P is enabled only after this repair merges and its static contract checks are green",
+            "DG-P now implements only the secS producer",
             "It is not a generic Work API, HTTP, RPC, tool, prompt, route, or handler",
         ],
     );
@@ -54,7 +61,8 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
         &[
             "specs/devgraph-issue-create-v1.md",
             "plans/2026-08-31-devgraph-issue-create-v1-dag.md",
-            "P4-O-DG-R1 safe-integer repair; runtime unimplemented",
+            "P4-O-DG-R1 merged; DG-P producer implemented on #281",
+            "reference/devgraph-issue-create-v1-producer.md",
         ],
     );
     assert!(
@@ -77,7 +85,7 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
             "P4-O-DG-R1",
             "9007199254740991",
             "RFC 8785",
-            "runtime unimplemented",
+            "merge/post-merge",
             "DG-P",
         ],
     );
@@ -345,6 +353,71 @@ fn actor_idempotency_and_portable_projection_are_fully_bound() {
 }
 
 #[test]
+fn producer_hardening_and_v1_interoperability_erratum_are_pinned() {
+    contains_all(
+        "v1 compatibility erratum",
+        CONTRACT,
+        &[
+            "V1 canonical-integer compatibility erratum",
+            "`-9007199254740991..=9007199254740991`",
+            "`0..=9007199254740991`",
+            "raw request is at most 131,072 bytes before JSON parsing",
+            "raw Wallet presentation is at most 16,384 bytes",
+            "Raw receiver-policy JSON is at most 262,144 bytes",
+            "raw projection is at most 16,384 bytes",
+            "UTF-8 strings are not Unicode-normalized",
+            "array order remains significant",
+        ],
+    );
+    contains_all(
+        "producer hardening",
+        PRODUCER_REFERENCE,
+        &[
+            "Raw receiver-policy JSON is capped at 262,144 bytes",
+            "separately configured receiver-owned public-key registry",
+            "opaque typed `devgraph.issue.create.v1` projection preimage",
+            "there is no arbitrary-byte or suffix signing seam",
+            "database `CHECK`",
+            "selected and compared on retry",
+            "without trimming",
+        ],
+    );
+    for required in [
+        "DEVGRAPH_ISSUE_CREATE_MAX_REQUEST_JSON_BYTES_V1",
+        "DEVGRAPH_WALLET_PRESENTATION_MAX_JSON_BYTES_V1",
+        "DEVGRAPH_ISSUE_CREATE_POLICY_MAX_JSON_BYTES_V1",
+        "DEVGRAPH_AUTHORITY_PROJECTION_MAX_JSON_BYTES_V1",
+        "DEVGRAPH_JSON_SAFE_INTEGER_MAX_V1",
+        "DevgraphAuthoritySignaturePreimageV1",
+        ".verify_strict(",
+        "verifier_registry: &PublicVerifierKeyRegistry",
+    ] {
+        assert!(PRODUCER_SOURCE.contains(required), "missing {required}");
+    }
+    assert!(IDENTITY_SOURCE.contains("require_devgraph_authority_signer_v1"));
+    assert!(IDENTITY_SOURCE.contains("DevgraphAuthoritySignaturePreimageV1"));
+    assert!(!IDENTITY_SOURCE.contains(
+        "preimage.starts_with(crate::devgraph_authority::DEVGRAPH_AUTHORITY_SIGNATURE_DOMAIN_V1)"
+    ));
+    assert!(SCHEMA_SOURCE.contains("CHECK(replay_scope = 'session:operation:nonce')"));
+    contains_all(
+        "cross-language manifest",
+        FIXTURE_MANIFEST,
+        &[
+            "secs-devgraph-issue-create-fixture-bundle.v1",
+            "expected_now",
+            "idempotency-key.txt",
+            "receiver-policy.json",
+            "receiver-policy-binding.json",
+            "secs-public-key-registry.json",
+            "canonical-request-nondefault.json",
+            "canonicalization-boundaries.json",
+            "without normalization",
+        ],
+    );
+}
+
+#[test]
 fn freshness_expiry_and_replay_fail_closed_at_the_exact_boundary() {
     contains_all(
         "freshness contract",
@@ -396,7 +469,7 @@ fn contract_forbids_generic_routes_bypasses_and_castaway_authority() {
             "No reusable bearer token, OAuth flow, trusted-localhost exception",
             "direct Neo4j access",
             "`.castaway` grants no identity or authority",
-            "No runtime source, API route, CLI command, Wallet method",
+            "No API route, CLI command, Wallet method, manifest descriptor, handler, Devgraph consumer",
         ],
     );
     contains_all(
@@ -428,25 +501,54 @@ fn wallet_v1_is_ed25519_only_and_pq_requires_v2() {
 }
 
 #[test]
-fn dedicated_dag_stays_serialized_through_p4o_dg_r1_repair() {
+fn producer_reference_pins_consumable_vectors_and_no_route_boundary() {
+    contains_all(
+        "DG-P producer reference",
+        PRODUCER_REFERENCE,
+        &[
+            "Status: DG-P implemented in secS",
+            "devgraph.issue.create.wallet-presentation.v1",
+            "devgraph.issue.create.wallet-presentation.v1/signature\\0",
+            "secs-devgraph-issue-create-policy.v1",
+            "`(session_id, operation, nonce)`",
+            "request.json",
+            "canonical-request.json",
+            "manifest.json",
+            "canonicalization-boundaries.json",
+            "receiver-policy.json",
+            "secs-public-key-registry.json",
+            "idempotency-key.txt",
+            "Unicode/escaping/negative-priority",
+            "wallet-presentation.json",
+            "unsigned-projection.json",
+            "signed-projection.json",
+            "correlation-digest.txt",
+            "It is not an ingress route, gateway descriptor, opcode, handler",
+            "Hybrid Ed25519 + ML-DSA-65 authorization requires a separately ratified v2",
+        ],
+    );
+}
+
+#[test]
+fn dedicated_dag_stays_serialized_after_p4o_dg_r1_and_dg_p() {
     contains_all(
         "stacked DAG",
         DAG,
         &[
-            "Status: P4-O-DG-R1 safe-integer contract repair current; every implementation node remains unimplemented",
+            "Status: P4-O-DG-R1 merged; DG-P implemented on the #281 branch with merge/green-CI evidence pending; downstream nodes blocked",
             "P4-R -> P4-O-DG -> P4-O-DG-R1 -> DG-P -> DG-V -> DG-W -> DG-C -> DG-E",
             "P4-R | Complete via #270/#271",
             "P4-O-DG | Operator-ratified exact contract",
-            "P4-O-DG-R1 | Current contract repair via #282",
-            "DG-P | Blocked by P4-O-DG-R1; unimplemented",
-            "DG-V | Blocked by DG-P",
+            "P4-O-DG-R1 | Complete via #282 / merged PR #283",
+            "DG-P | Implemented on the #281 branch; merge/green-CI evidence pending",
+            "DG-V | Blocked by DG-P merge and green CI",
             "DG-W | Blocked by DG-V",
             "DG-C | Blocked by DG-W",
             "DG-E | Blocked by DG-C",
             "One node equals one issue and one PR",
             "Devgraph owns Work semantics and `EventReceipt`",
             "`.castaway` is a vault and is not a DAG authority node",
-            "There is still no runtime projection",
+            "There is still no Devgraph verifier or Work mutation",
         ],
     );
 

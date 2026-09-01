@@ -56,6 +56,7 @@ secS-magik/
 │       ├── lib.rs                   # server module exports and shared server entry points
 │       ├── config.rs                # typed runtime config/readiness inputs
 │       ├── identity.rs              # verifier identity, key IDs, local public-key registry seam
+│       ├── devgraph_authority.rs     # fixed devgraph.issue.create.v1 authority producer; no route/handler
 │       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
 │       ├── ingress.rs               # bounded prototype TCP ingress and verifier/payload handoff
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
@@ -91,6 +92,7 @@ secS-magik/
     ├── client-surfaces.md           # client-side/outgoing-call boundary
     ├── reference/
     │   ├── README.md
+    │   ├── devgraph-issue-create-v1-producer.md
     │   ├── runtime.md
     │   └── wasm-and-pages.md
     ├── pages/
@@ -131,17 +133,18 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 | `permissions/src/lib.rs` | Shared receiver-local permission records, JSON model, and fail-closed evaluator. | Gateway transport, browser state, or external authority. |
 | `panel/src/lib.rs` | No-network wasm-bindgen permission-model wrapper. | Remote gateway administration, file access, product wallet UX, or federation authority. |
 | `server/src/verifier.rs` | Typed verifier errors, prototype envelope check, signed context helpers. | Product policy, app login, settlement, arbitrary handler execution. |
+| `server/src/devgraph_authority.rs` | Fixed `devgraph.issue.create.v1` request/Wallet/policy verification and portable signed authority projection production. | Generic operations, routes, opcodes, handlers, Devgraph Work mutation/receipt ownership, Wallet custody, `.castaway` authority, or hybrid/PQ v1 claims. |
 | `server/src/ingress.rs` | Prototype TCP ingress and verifier/payload handoff. | Receiver-local manifest semantics or handler implementation details. |
 | `server/src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle receipt/event emission. | Packet decode or payload decryption policy; durable distributed broker semantics; arbitrary shell authority. |
 | `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
 | `server/src/manifest.rs` | Receiver-local operation descriptors, handler IDs, evidence requirements, and opcode governance. | Client-only packet construction; global product policy; final global opcode ratification. |
 | `server/src/evidence.rs` | `EvidenceAdapter` trait, `local_static` local-dev-test adapter, cryptographic `wallet_presentation` proof-of-possession over the temporary secS challenge contract, static receiver-held `TrustedIssuerEntry` registry policy, and signed `membership_credential` / `provisioning_credential` verification. | Mandatory external runtime dependencies, full Castalia Wallet wallet-core parity claims, live Castalia/Dregg registry discovery, Midnight/Cardano authority, public auditability, deployment proof, or treating wallet/local/caller-supplied roots as sufficient issuer/root authority. |
 | `server/src/receipt.rs` | In-memory signed receipt and event types: typed reject/verify/execute/forward receipts, decisions, authenticator kinds, stable event names, and Ed25519 receipt helpers. | Payload content logging and durable persistence by default. |
-| `server/src/ledger.rs` | Local SQLite event/receipt/replay storage and redacted operator inspection using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained; payload content persistence by default; public-chain anchoring. |
+| `server/src/ledger.rs` | Local SQLite event/receipt/replay storage, including the dedicated exact-operation Devgraph authority replay reservation, and redacted operator inspection using runtime SQL. | Compile-time SQLx macros unless offline cache is maintained; payload content persistence by default; public-chain anchoring; Devgraph Work idempotency or mutation. |
 | `server/src/runtime_mode.rs` | Explicit local/dev/production mode selection. | Silent plaintext fallback. |
 | `server/src/config.rs` | Typed gateway runtime config and readiness inputs. | Hidden production defaults or fixture-only smoke config masquerading as deployed production. |
-| `server/src/identity.rs` | Verifier identity loading, signer key IDs, receipt/context signing, and local public-key registry checks. | Live federation discovery or issuer/root authority beyond the separate static Track E trusted-issuer fixture policy. |
-| `server/src/schema.rs` | Central runtime SQLite schema definitions and lightweight local ledger migrations. | Public-chain anchoring or remote retention. |
+| `server/src/identity.rs` | Verifier identity loading, signer key IDs, receipt/context signing, local public-key registry checks, and the private fixed-domain DG-P Ed25519 signer/verifier seam. | Generic arbitrary-byte signing, live federation discovery, or issuer/root authority beyond the separate static Track E trusted-issuer fixture policy. |
+| `server/src/schema.rs` | Central runtime SQLite schema definitions and lightweight local ledger migrations, including the dedicated `(session_id, operation, nonce)` DG-P replay table. | Public-chain anchoring, remote retention, or Devgraph Work storage. |
 | `server/src/ontology.rs` | Shared prototype receiver/audience/reason constants. | Product authority or live trust registry semantics. |
 | `server/src/bin/secs-gateway.rs` | Canonical prototype gateway command. | Reusable gateway logic. |
 | `server/src/bin/secz.rs` | Compatibility wrapper for the historical command name. | Final verifier semantics or generic interface claims. |
