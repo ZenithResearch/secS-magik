@@ -1,6 +1,6 @@
 # secS-magik current state
 
-Last verified: 2026-08-27 against `main` after merged PRs [#277](https://github.com/ZenithResearch/secS-magik/pull/277) and [#275](https://github.com/ZenithResearch/secS-magik/pull/275), at [`c079336`](https://github.com/ZenithResearch/secS-magik/commit/c0793363ee75d96395b9d6fdcbd45039aaf7402c)
+Last verified: 2026-08-31 against `main` after merged [PR #280](https://github.com/ZenithResearch/secS-magik/pull/280), at [`bfe1a453`](https://github.com/ZenithResearch/secS-magik/commit/bfe1a453b097991fce0b57dfbe662c85d284ef82)
 
 This is the short orientation page for the repository. The detailed and authoritative status ledger remains [implementation-status.md](implementation-status.md). If this page and the ledger disagree, use the ledger and correct this page in the same change.
 
@@ -14,6 +14,7 @@ This is the short orientation page for the repository. The detailed and authorit
 | Execution | Receiver-local manifests bind verified operations to bounded handlers. | secS is not a generic shell, centralized orchestrator, or product-policy engine. |
 | Responses | P3 provides a separate receiver-signed, exact-request-correlated, bounded `ExecutionResponse`. | `DecisionResponse` is still not arbitrary handler output. |
 | Audit | Signed receipts/events persist to local SQLite; redacted bundle/chain verification and a bounded Gist publication witness exist. | This is not blockchain immutability, deployment proof, or unrestricted payload retention. |
+| Devgraph exact operation | P4-O-DG operator-ratified `devgraph.issue.create.v1`; P4-O-DG-R1 is the current safe-integer contract repair before DG-P. | Contract and canonicalization vectors only; no producer, verifier adapter, Wallet method, CLI, transport, route, opcode, handler, or deployment is implemented. |
 | Chat/generation | `OPCODE_GENERATE = 0x01` and `OPCODE_CHAT = 0x02` exist as legacy/core examples and manifest descriptors. | No generic inference backend, managed conversation store, or weave runtime is implemented on `main`. |
 | Documentation delivery | The root README is the canonical front door; the Pages workflow renders it with tracked docs, generated host/wasm32 Rust API docs, and the existing no-network permission panel. | Documentation hosting does not establish gateway deployment, public auditability, or remote policy administration. |
 
@@ -63,6 +64,9 @@ These are components of a production-shaped verifier path. They do not collectiv
 - A caller-selectable model, provider, prompt template, toolset, workspace, route, or receiver-local credential.
 - General orchestration or arbitrary shell authority.
 - Production deployment evidence for an operator-run gateway.
+- The `devgraph.issue.create.v1` secS producer, Devgraph verifier, Wallet signer,
+  bounded CLI caller, transport adapter, or end-to-end evidence; P4-O-DG and
+  P4-O-DG-R1 are contract-only.
 - Every reserved stronger verification tier, including the full future I16-I19 chain.
 - A trusted CLI response mapping for arbitrary non-legacy `hub` opcodes; the current shipped client refuses them before TCP dispatch.
 
@@ -70,9 +74,9 @@ These are components of a production-shaped verifier path. They do not collectiv
 
 ### Exact operations versus conversation
 
-Open [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) proposes superseding the retained peer-chat direction: Matrix would own conversation and secS would admit only exact authority-bearing machine operations. Its draft [PR #271](https://github.com/ZenithResearch/secS-magik/pull/271) was not merged into the `main` snapshot verified above.
+P4-R completed through [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) and merged PR #271: Matrix owns conversation and secS admits only exact authority-bearing machine operations. P4-O-DG then operator-ratified [`devgraph.issue.create.v1`](specs/devgraph-issue-create-v1.md) as the first named operation without selecting a runtime mechanism.
 
-Until that governance work lands or is replaced, do not describe either peer chat or its exact-operation successor as implemented runtime behavior.
+[P4-O-DG-R1 / Issue #282](https://github.com/ZenithResearch/secS-magik/issues/282) is the current contract-only repair. It bounds every RFC 8785-canonicalized integer to the interoperable IEEE-754 safe range and inserts a repair node before DG-P. Do not describe the operation, portable projection producer, Devgraph consumer, Wallet surface, CLI, transport, or deployment as implemented runtime behavior.
 
 ### Optional inference weaving
 
@@ -91,6 +95,7 @@ The implementation ledger remains the source for current I16-I19, wallet-core pa
 | What is implemented in detail? | [implementation-status.md](implementation-status.md) |
 | What is the repository boundary? | [repository-schema.md](repository-schema.md) |
 | What is the target architecture? | [specs/2026-06-01-secs-magik-objectives-spec.md](specs/2026-06-01-secs-magik-objectives-spec.md) |
+| What is the first ratified Devgraph operation and its current sequence? | [specs/devgraph-issue-create-v1.md](specs/devgraph-issue-create-v1.md) and [plans/2026-08-31-devgraph-issue-create-v1-dag.md](plans/2026-08-31-devgraph-issue-create-v1-dag.md) |
 | What remains on the readiness path? | [plans/2026-06-02-ready-for-prod-checklist.md](plans/2026-06-02-ready-for-prod-checklist.md) |
 | Which documents are exploratory? | [ideas/README.md](ideas/README.md) |
 | How do the binaries and environment variables behave? | [reference/runtime.md](reference/runtime.md) |
