@@ -467,6 +467,8 @@ async fn read_http_request(
     }
     let mut headers = BTreeMap::new();
     let mut syntactically_valid = true;
+    let mut csrf_seen = false;
+    let mut csrf_ambiguous = false;
     for line in lines {
         let (name, value) = line.split_once(':').ok_or_else(|| {
             read_failure(empty_response("400 Bad Request"), &bytes[..header_end - 4])
@@ -486,15 +488,25 @@ async fn read_http_request(
         }
         let name = name.to_ascii_lowercase();
         let value = value.trim_matches([' ', '\t']).to_owned();
+        if name == CSRF_HEADER {
+            if csrf_ambiguous {
+                syntactically_valid = false;
+                continue;
+            }
+            if csrf_seen {
+                csrf_ambiguous = true;
+                syntactically_valid = false;
+                headers.remove(CSRF_HEADER);
+                continue;
+            }
+            csrf_seen = true;
+        }
         match headers.entry(name) {
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(value);
             }
-            std::collections::btree_map::Entry::Occupied(entry) => {
+            std::collections::btree_map::Entry::Occupied(_) => {
                 syntactically_valid = false;
-                if entry.key() == CSRF_HEADER {
-                    entry.remove();
-                }
             }
         }
     }
@@ -562,16 +574,24 @@ fn partial_exact_post_from_wire(bytes: &[u8]) -> Option<HttpRequest> {
         _ => return None,
     };
     let mut headers = BTreeMap::new();
+    let mut csrf_seen = false;
     let mut cursor = request_line_end + 2;
     while cursor < bytes.len() {
         let Some(relative_end) = find_bytes(&bytes[cursor..], b"\r\n") else {
+            if raw_header_name_is_csrf(&bytes[cursor..]) {
+                headers.remove(CSRF_HEADER);
+            }
             break;
         };
         let line_end = cursor + relative_end;
         if line_end == cursor {
             break;
         }
-        let Ok(line) = std::str::from_utf8(&bytes[cursor..line_end]) else {
+        let raw_line = &bytes[cursor..line_end];
+        let Ok(line) = std::str::from_utf8(raw_line) else {
+            if raw_header_name_is_csrf(raw_line) {
+                headers.remove(CSRF_HEADER);
+            }
             break;
         };
         let Some((name, value)) = line.split_once(':') else {
@@ -589,10 +609,14 @@ fn partial_exact_post_from_wire(bytes: &[u8]) -> Option<HttpRequest> {
         }
         let name = name.to_ascii_lowercase();
         let value = value.trim_matches([' ', '\t']).to_owned();
-        if headers.contains_key(&name) {
-            if name == CSRF_HEADER {
+        if name == CSRF_HEADER {
+            if csrf_seen {
                 headers.remove(CSRF_HEADER);
+                break;
             }
+            csrf_seen = true;
+        }
+        if headers.contains_key(&name) {
             break;
         }
         headers.insert(name, value);
@@ -605,6 +629,12 @@ fn partial_exact_post_from_wire(bytes: &[u8]) -> Option<HttpRequest> {
         body: Vec::new(),
         syntactically_valid: false,
     })
+}
+
+fn raw_header_name_is_csrf(line: &[u8]) -> bool {
+    line.splitn(2, |byte| *byte == b':')
+        .next()
+        .is_some_and(|name| name.eq_ignore_ascii_case(CSRF_HEADER.as_bytes()))
 }
 
 async fn write_http_response<W>(stream: &mut W, response: &HttpResponse) -> std::io::Result<()>
@@ -1247,6 +1277,65 @@ mod tests {
         assert!(matches!(
             duplicate_ceremony.state,
             CeremonyState::AwaitingWallet { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn raw_three_csrf_headers_cannot_restore_unique_correct_csrf() {
+        let mut ceremony = WalletCeremony::new(REQUEST, "issue-golden-create-0001");
+        assert!(matches!(
+            ceremony.handle(get("/"), NOW),
+            HandleOutcome::Respond(_)
+        ));
+        let csrf = csrf(&ceremony);
+        let wire = format!(
+            "POST /presentation HTTP/1.1\r\nHost: {WALLET_CEREMONY_BIND_V1}\r\nOrigin: {WALLET_CEREMONY_ORIGIN_V1}\r\nSec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\nSec-Fetch-Dest: empty\r\nContent-Type: application/json\r\nContent-Length: 2\r\nX-SecS-CSRF: wrong-first\r\nX-SecS-CSRF: wrong-second\r\nX-SecS-CSRF: {csrf}\r\n\r\n{{}}"
+        );
+        let request =
+            match raw_request(wire.as_bytes(), Instant::now() + Duration::from_secs(10)).await {
+                Ok(request) => request,
+                Err(_) => panic!("duplicate headers must become a malformed request"),
+            };
+        let rejected = match ceremony.handle(request, NOW + 1) {
+            HandleOutcome::Respond(response) => response,
+            _ => panic!("ambiguous CSRF cardinality must not consume"),
+        };
+        assert_eq!(rejected.status, "404 Not Found");
+        assert!(matches!(
+            ceremony.handle(post("/presentation", &csrf, b"{}"), NOW + 1),
+            HandleOutcome::Submission(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn raw_correct_csrf_then_same_name_non_utf8_value_is_non_consuming() {
+        let mut ceremony = WalletCeremony::new(REQUEST, "issue-golden-create-0001");
+        assert!(matches!(
+            ceremony.handle(get("/"), NOW),
+            HandleOutcome::Respond(_)
+        ));
+        let csrf = csrf(&ceremony);
+        let mut wire = format!(
+            "POST /presentation HTTP/1.1\r\nHost: {WALLET_CEREMONY_BIND_V1}\r\nOrigin: {WALLET_CEREMONY_ORIGIN_V1}\r\nSec-Fetch-Site: same-origin\r\nSec-Fetch-Mode: cors\r\nSec-Fetch-Dest: empty\r\nContent-Type: application/json\r\nContent-Length: 2\r\nX-SecS-CSRF: {csrf}\r\nX-SecS-CSRF: "
+        )
+        .into_bytes();
+        wire.extend_from_slice(&[0xff, b'\r', b'\n', b'\r', b'\n', b'{', b'}']);
+        let failure = match raw_request(&wire, Instant::now() + Duration::from_secs(10)).await {
+            Err(failure) => failure,
+            Ok(_) => panic!("same-name non-UTF-8 value must fail wire parsing"),
+        };
+        assert_eq!(failure.response.status, "400 Bad Request");
+        let partial = failure
+            .partial_request
+            .expect("exact POST remains available with ambiguous CSRF removed");
+        let rejected = match ceremony.handle(*partial, NOW + 1) {
+            HandleOutcome::Respond(response) => response,
+            _ => panic!("same-name malformed CSRF must not consume"),
+        };
+        assert_eq!(rejected.status, "404 Not Found");
+        assert!(matches!(
+            ceremony.handle(post("/presentation", &csrf, b"{}"), NOW + 1),
+            HandleOutcome::Submission(_)
         ));
     }
 
