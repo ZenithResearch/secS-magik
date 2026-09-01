@@ -1,7 +1,7 @@
 # `devgraph.issue.create.v1` exact-operation contract
 
 Date: 2026-08-31
-Status: operator-ratified P4-O-DG contract with P4-O-DG-R1 safe-integer repair; runtime unimplemented
+Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer implemented on the #281 branch; consumers unimplemented
 Depends on: P4-R completed by PR #271 merge `5dfeb950da1d6baf80d98e0843684625c9af6f4f` and green post-merge Rust CI run `33448400000`
 Repair: P4-O-DG-R1 / Issue #282, before DG-P
 
@@ -12,12 +12,19 @@ This document pins one exact authority-bearing operation:
 It is not a generic Work API, HTTP, RPC, tool, prompt, route, or handler
 multiplexer.
 
-P4-R's merge and post-merge `main` gate are complete. Operator ratification of
-this document satisfies only P4-O-DG. P4-O-DG-R1 narrows the JSON integer
-domain before any runtime implementation; DG-P is enabled only after this
-repair merges and its static contract checks are green. Neither node assigns an
-opcode, selects an ABI, transport, socket, route, endpoint, package, or
-deployment, or modifies secS, Wallet, or Devgraph runtime behavior.
+P4-R's merge and post-merge `main` gate are complete, and PR #280 merged this
+operator-ratified contract at `bfe1a453`. PR #283 then merged the
+P4-O-DG-R1 safe-integer repair at `43d8904`, preserving its canonicalization
+vectors before any producer or consumer shipped. DG-P now implements only the secS
+producer described here: strict Issue request/Wallet presentation/policy
+verification, one portable signed projection, and durable exact-operation
+replay state. It does not assign an opcode, select an ABI, transport, socket,
+route, endpoint, package, or deployment, and it does not implement a Wallet
+method, Devgraph consumer/mutation, CLI, or end-to-end operation.
+
+The exact producer presentation, policy, replay, and fixture formats are
+registered in
+[the DG-P reference](../reference/devgraph-issue-create-v1-producer.md).
 
 ## Ownership and authority boundaries
 
@@ -75,7 +82,9 @@ materialized:
 
 Rules:
 
-1. Unknown or duplicate JSON object fields reject.
+1. The raw request is at most 131,072 bytes before JSON parsing. Oversized
+   whitespace and oversized strings reject before decoder allocation. Unknown
+   or duplicate JSON object fields reject.
 2. `kind` is present in the signed semantic request and is exactly `Issue`,
    even when a later transport represents kind outside its body.
 3. `id` follows the canonical grammar above.
@@ -194,11 +203,27 @@ expires-at values that secS accepts. secS records a digest of that verified
 presentation in the portable projection; the raw Wallet signature and private
 material do not cross into Devgraph receipts.
 
+The raw Wallet presentation is at most 16,384 bytes before JSON parsing.
+Base64url values are length-checked before decoding: public keys are exactly 43
+encoded characters, sessions 22, nonces 16, and Ed25519 signatures 86. secS
+uses strict Ed25519 verification, including rejection of weak/small-order
+encodings.
+
 This is compatible with the Ed25519 half of Wallet's one-root Dregg hybrid
 identity. It is not hybrid or post-quantum authorization: it does not bind or
 verify ML-DSA-65 public material or a second signature. Requiring both Ed25519
 and ML-DSA-65 is a new `devgraph.issue.create.v2` contract and cannot be inferred
 from, appended to, or relabeled as v1.
+
+## Receiver-held policy input
+
+The fixed receiver policy uses schema
+`secs-devgraph-issue-create-policy.v1`. Raw receiver-policy JSON is at most
+262,144 bytes before parsing. It binds the exact audience and operation, a safe
+nonzero policy ID/version, and at most 256 bounded deny-wins rules. Every policy
+version and rule timestamp is a non-negative integer no greater than
+`9007199254740991`. The policy is receiver-owned; callers cannot supply or
+widen it.
 
 ## Portable secS authority projection
 
@@ -251,6 +276,7 @@ secs_authority_projection_digest_sha256 = lowercase_hex(
 )
 ```
 
+The raw projection is at most 16,384 bytes before JSON parsing.
 All projection integer fields are non-negative JSON integers within
 `0..=9007199254740991`, subject to the narrower field rules above. Values
 outside that range reject before canonicalization or signature verification.
@@ -263,6 +289,17 @@ is compared byte-for-byte. Neither Wallet nor another caller chooses it. The
 receiver policy ID, version, and digest identify the exact receiver-owned
 policy decision used by secS. Devgraph trusts only configured production
 authority keys; a key included only inside the projection is not a trust root.
+
+### V1 canonical-integer compatibility erratum
+
+The pre-runtime DG-P implementation narrows the earlier prose that described
+`priority` as arbitrary `i64` and projection numbers as arbitrary `u64`.
+RFC 8785 interoperates through the IEEE-754 exact-integer range, so every
+canonicalized integer in v1 is restricted to the bounds above. This is a
+fail-closed compatibility erratum made before any DG-V consumer, route, or Work
+mutation shipped; it does not widen the ratified operation. UTF-8 strings are
+not Unicode-normalized, JSON escaping is canonicalized, and array order remains
+significant. The cross-language fixtures pin both bounds and these semantics.
 
 ## Freshness, expiry, and replay
 
@@ -370,9 +407,10 @@ headers, or storage details.
 - `.castaway` grants no identity or authority and cannot sign this operation.
 - No ML-DSA-65, hybrid/PQ authorization, Dregg finality, public auditability,
   cloud deployment, or production-readiness claim is made.
-- No runtime source, API route, CLI command, Wallet method, key registry,
-  manifest descriptor, handler, receipt schema, or deployment is implemented
-  by this contract-only slice.
+- DG-P implements a fixed producer module, narrow production Ed25519
+  signer/verifier seam, and dedicated replay ledger only. No API route, CLI
+  command, Wallet method, manifest descriptor, handler, Devgraph consumer,
+  receipt schema, transport, or deployment is implemented by DG-P.
 
 Stop and return to contract review if implementation needs a generic operation,
 accepts caller-selected receiver controls, treats secS verification as Work

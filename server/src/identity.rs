@@ -1,7 +1,7 @@
 use crate::receipt::{AuthenticatorKind, Receipt};
 use crate::runtime_mode::RuntimeMode;
 use crate::verifier::{SignedVerifiedCallContext, VerificationError, VerifiedCallContext};
-use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -233,6 +233,61 @@ impl PublicVerifierKeyRegistry {
         signed.verify_ed25519_with_key(&key.public_key, expected_audience, now)
     }
 
+    /// Verifies only the fixed portable `devgraph.issue.create.v1` authority
+    /// projection preimage. This is deliberately not a generic byte signer or
+    /// operation router.
+    pub(crate) fn verify_devgraph_authority_v1_signature(
+        &self,
+        signer_key_id: &str,
+        preimage: &crate::devgraph_authority::DevgraphAuthoritySignaturePreimageV1,
+        signature: &[u8; 64],
+        now: u64,
+    ) -> Result<(), VerificationError> {
+        let key = self
+            .get(signer_key_id)
+            .ok_or(VerificationError::UnknownVerifierKey)?;
+        if self.duplicate_key_ids.contains(signer_key_id) {
+            return Err(VerificationError::UnknownVerifierKey);
+        }
+        key.ensure_active_at(now)?;
+        if key.not_after.is_some_and(|not_after| now >= not_after) {
+            return Err(VerificationError::ExpiredVerifierKey);
+        }
+        if !key.production_authority || key.algorithm != "ed25519" {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
+        key.public_key
+            .verify_strict(preimage.as_bytes(), &Signature::from_bytes(signature))
+            .map_err(|_| VerificationError::InvalidSignature)
+    }
+
+    /// Requires the configured producer key itself to be a unique, active,
+    /// production authority before DG-P signs or reserves replay state.
+    pub(crate) fn require_devgraph_authority_signer_v1(
+        &self,
+        signer_key_id: &str,
+        signer_public_key: &VerifyingKey,
+        now: u64,
+    ) -> Result<(), VerificationError> {
+        let key = self
+            .get(signer_key_id)
+            .ok_or(VerificationError::UnknownVerifierKey)?;
+        if self.duplicate_key_ids.contains(signer_key_id) {
+            return Err(VerificationError::UnknownVerifierKey);
+        }
+        key.ensure_active_at(now)?;
+        if key.not_after.is_some_and(|not_after| now >= not_after) {
+            return Err(VerificationError::ExpiredVerifierKey);
+        }
+        if !key.production_authority
+            || key.algorithm != "ed25519"
+            || key.public_key != *signer_public_key
+        {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
+        Ok(())
+    }
+
     pub fn verify_receipt_at(&self, receipt: &Receipt, now: u64) -> Result<(), VerificationError> {
         let key = self
             .get(&receipt.signer_key_id)
@@ -323,6 +378,19 @@ impl NodeVerifierIdentity {
             &self.secret_key_bytes(),
             self.authenticator_kind,
         )
+    }
+
+    /// Signs only the fixed domain-separated portable
+    /// `devgraph.issue.create.v1` projection. Callers cannot select an
+    /// arbitrary operation, route, opcode, or preimage domain.
+    pub(crate) fn sign_devgraph_authority_v1(
+        &self,
+        preimage: &crate::devgraph_authority::DevgraphAuthoritySignaturePreimageV1,
+    ) -> Result<[u8; 64], VerificationError> {
+        if self.authenticator_kind != AuthenticatorKind::Ed25519NodeAndVerifier {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
+        Ok(self.signing_key.sign(preimage.as_bytes()).to_bytes())
     }
 
     pub fn sign_execution_response(

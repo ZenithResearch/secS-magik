@@ -1,5 +1,8 @@
 use server::ontology::{DEFAULT_RECEIVER_AUDIENCE, PROTOTYPE_LOCAL_SUBJECT};
-use server::schema::{LEDGER_TABLES, REPLAY_RESERVATIONS_TABLE, SCOPED_NULLIFIER_USES_TABLE};
+use server::schema::{
+    DEVGRAPH_AUTHORITY_REPLAY_RESERVATIONS_TABLE, LEDGER_TABLES, REPLAY_RESERVATIONS_TABLE,
+    SCOPED_NULLIFIER_USES_TABLE,
+};
 use sqlx::sqlite::SqlitePoolOptions;
 
 #[tokio::test]
@@ -7,6 +10,10 @@ async fn ledger_schema_ontology_names_all_runtime_tables() {
     assert_eq!(DEFAULT_RECEIVER_AUDIENCE, "secS://receiver-a");
     assert_eq!(PROTOTYPE_LOCAL_SUBJECT, "prototype.local-dev.subject");
     assert_eq!(REPLAY_RESERVATIONS_TABLE.name, "replay_reservations");
+    assert_eq!(
+        DEVGRAPH_AUTHORITY_REPLAY_RESERVATIONS_TABLE.name,
+        "devgraph_authority_replay_reservations"
+    );
 
     let names: Vec<&str> = LEDGER_TABLES.iter().map(|table| table.name).collect();
     assert_eq!(
@@ -15,10 +22,33 @@ async fn ledger_schema_ontology_names_all_runtime_tables() {
             "events",
             "receipts",
             "replay_reservations",
+            "devgraph_authority_replay_reservations",
             "scoped_nullifier_uses",
             "audit_publication_status"
         ]
     );
+}
+
+#[test]
+fn ledger_schema_ontology_contains_exact_devgraph_replay_boundary() {
+    let replay = DEVGRAPH_AUTHORITY_REPLAY_RESERVATIONS_TABLE;
+    assert!(replay.ddl.contains("UNIQUE(session_id, operation, nonce)"));
+    assert!(replay
+        .ddl
+        .contains("CHECK(replay_scope = 'session:operation:nonce')"));
+    assert!(replay.ddl.contains("request_digest_sha256 TEXT NOT NULL"));
+    assert!(replay
+        .ddl
+        .contains("idempotency_key_digest_sha256 TEXT NOT NULL"));
+    assert!(replay
+        .ddl
+        .contains("receiver_policy_digest_sha256 TEXT NOT NULL"));
+    assert!(replay
+        .ddl
+        .contains("wallet_presentation_digest_sha256 TEXT NOT NULL"));
+    assert!(replay.ddl.contains("secs_verifier_key_id TEXT NOT NULL"));
+    assert!(!replay.ddl.contains("opcode"));
+    assert!(!replay.ddl.contains("route"));
 }
 
 #[tokio::test]
@@ -120,6 +150,7 @@ async fn ledger_schema_ontology_names_audit_publication_status_table() {
             "events",
             "receipts",
             "replay_reservations",
+            "devgraph_authority_replay_reservations",
             "scoped_nullifier_uses",
             "audit_publication_status"
         ]

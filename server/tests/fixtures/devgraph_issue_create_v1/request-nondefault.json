@@ -1,0 +1,9 @@
+{
+  "title": "Café ☕",
+  "priority": -7,
+  "kind": "Issue",
+  "id": "issue-unicode",
+  "external_link_ids": ["external-2", "external-1"],
+  "description": "Line 1\nSnowman ☃ and quote \".",
+  "artifact_ids": ["artifact-z", "artifact-a"]
+}

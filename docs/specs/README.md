@@ -13,7 +13,7 @@ Specs define the intended/current architecture. They are not, by themselves, imp
 | [dregg-live-source-client-contract.md](dregg-live-source-client-contract.md) | Live Castalia Dregg source/client contract for #206: request/response, authentication, freshness/status, timeout/retry/cache, fail-closed readiness, and non-overclaim boundaries before runtime implementation. |
 | [evidence-adapter-readiness-disclosure.md](evidence-adapter-readiness-disclosure.md) | Shared readiness/config/disclosure gate for future production-facing evidence adapters: #71, #74, #75, and #206. |
 | [secs-hermes-peer-chat-contract.md](secs-hermes-peer-chat-contract.md) | Superseded peer-chat delivery contract and preserved historical filename. Use it for the Matrix conversation/secS exact-operation boundary, explicit supersession of `agent.chat.v1` and its chat delivery surfaces, preserved P1/P3 authority and bounded-response invariants, and the P4-R non-ratification gate. There is no replacement operation or delivery mechanism ratified. |
-| [devgraph-issue-create-v1.md](devgraph-issue-create-v1.md) | Operator-ratified `devgraph.issue.create.v1` contract with the P4-O-DG-R1 RFC 8785 safe-integer repair and canonicalization vectors; runtime remains unimplemented. |
+| [devgraph-issue-create-v1.md](devgraph-issue-create-v1.md) | Operator-ratified `devgraph.issue.create.v1` contract with merged P4-O-DG-R1 RFC 8785 safe-integer repair and canonicalization vectors; DG-P is implemented on #281 while every consumer/runtime adapter remains blocked. |
 
 ## How to read specs
 

@@ -184,11 +184,14 @@ Saved packets and caller key files are sensitive local artifacts and must not be
 | `receipts` | Signed verify/execute/reject records and bounded projections. |
 | `events` | Emitted lifecycle events linked to contexts/receipts. |
 | `replay_reservations` | Receiver-local `(session, opcode, nonce, scope)` replay claims. |
+| `devgraph_authority_replay_reservations` | DG-P-only `(session_id, operation, nonce)` claims plus safe authority bindings for exact retry/conflict comparison. |
 | `scoped_nullifier_uses` | Receiver-local scoped nullifier commitments. |
 | `audit_publication_status` | Idempotent publication-attempt/result state. |
 | `node_telemetry` | Legacy prototype telemetry. |
 
-This schema is local operator state. It is not a distributed ledger or public chain.
+This schema is local operator state. The DG-P table is secS authority replay
+state, not Devgraph Work storage or idempotency. None of these tables is a
+distributed ledger or public chain.
 
 ## Audit formats and commands
 
