@@ -1,0 +1,144 @@
+{
+  "schema": "secs-devgraph-issue-create-canonicalization-boundaries-v1",
+  "operation": "devgraph.issue.create.v1",
+  "request_digest_domain_separator": "devgraph.issue.create.request.v1\u0000",
+  "minimum_safe_integer": -9007199254740991,
+  "maximum_safe_integer": 9007199254740991,
+  "request_accept": [
+    {
+      "name": "priority-min-control-array-order",
+      "materialized_request": {
+        "artifact_ids": ["artifact-z", "artifact-a"],
+        "description": "nul:\u0000 backspace:\b tab:\t newline:\n formfeed:\f carriage:\r quote:\" slash:/ backslash:\\",
+        "external_link_ids": ["external-2", "external-1"],
+        "id": "issue-priority-min",
+        "kind": "Issue",
+        "priority": -9007199254740991,
+        "title": "Minimum safe priority"
+      },
+      "canonical_json_utf8": "{\"artifact_ids\":[\"artifact-z\",\"artifact-a\"],\"description\":\"nul:\\u0000 backspace:\\b tab:\\t newline:\\n formfeed:\\f carriage:\\r quote:\\\" slash:/ backslash:\\\\\",\"external_link_ids\":[\"external-2\",\"external-1\"],\"id\":\"issue-priority-min\",\"kind\":\"Issue\",\"priority\":-9007199254740991,\"title\":\"Minimum safe priority\"}",
+      "request_digest_sha256": "3258961e254c7d27d0bbd61602211765fea9bac3d23a9e25d3f06b275d0e1d82"
+    },
+    {
+      "name": "priority-max",
+      "materialized_request": {
+        "artifact_ids": [],
+        "description": "",
+        "external_link_ids": [],
+        "id": "issue-priority-max",
+        "kind": "Issue",
+        "priority": 9007199254740991,
+        "title": "Maximum safe priority"
+      },
+      "canonical_json_utf8": "{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"issue-priority-max\",\"kind\":\"Issue\",\"priority\":9007199254740991,\"title\":\"Maximum safe priority\"}",
+      "request_digest_sha256": "4c5f75208090d684267c3f7dcc10c8e8b7fe2fa02d6630415bb75bdd96c9c132"
+    },
+    {
+      "name": "unicode-nfc",
+      "title_code_points": ["U+00E9"],
+      "materialized_request": {
+        "artifact_ids": [],
+        "description": "same visible text; distinct code points",
+        "external_link_ids": [],
+        "id": "issue-unicode",
+        "kind": "Issue",
+        "priority": 0,
+        "title": "é"
+      },
+      "canonical_json_utf8": "{\"artifact_ids\":[],\"description\":\"same visible text; distinct code points\",\"external_link_ids\":[],\"id\":\"issue-unicode\",\"kind\":\"Issue\",\"priority\":0,\"title\":\"é\"}",
+      "request_digest_sha256": "f161940d01e3b559b017f100ac003c302c0b7fd8d9283f01146b0b12e1cb7804"
+    },
+    {
+      "name": "unicode-nfd",
+      "title_code_points": ["U+0065", "U+0301"],
+      "materialized_request": {
+        "artifact_ids": [],
+        "description": "same visible text; distinct code points",
+        "external_link_ids": [],
+        "id": "issue-unicode",
+        "kind": "Issue",
+        "priority": 0,
+        "title": "é"
+      },
+      "canonical_json_utf8": "{\"artifact_ids\":[],\"description\":\"same visible text; distinct code points\",\"external_link_ids\":[],\"id\":\"issue-unicode\",\"kind\":\"Issue\",\"priority\":0,\"title\":\"é\"}",
+      "request_digest_sha256": "793b169db5cdef809d22a575df6301dd5208fe26d9b58044f4774e9df79ffc97"
+    },
+    {
+      "name": "array-order-z-a",
+      "materialized_request": {
+        "artifact_ids": ["artifact-z", "artifact-a"],
+        "description": "array order is semantic",
+        "external_link_ids": ["external-2", "external-1"],
+        "id": "issue-array-order",
+        "kind": "Issue",
+        "priority": 0,
+        "title": "Array order"
+      },
+      "canonical_json_utf8": "{\"artifact_ids\":[\"artifact-z\",\"artifact-a\"],\"description\":\"array order is semantic\",\"external_link_ids\":[\"external-2\",\"external-1\"],\"id\":\"issue-array-order\",\"kind\":\"Issue\",\"priority\":0,\"title\":\"Array order\"}",
+      "request_digest_sha256": "eaf18df823870e955950e8a4f9db4713bdcf74ee59c9f474ec288d3f15acee07"
+    },
+    {
+      "name": "array-order-a-z",
+      "materialized_request": {
+        "artifact_ids": ["artifact-a", "artifact-z"],
+        "description": "array order is semantic",
+        "external_link_ids": ["external-1", "external-2"],
+        "id": "issue-array-order",
+        "kind": "Issue",
+        "priority": 0,
+        "title": "Array order"
+      },
+      "canonical_json_utf8": "{\"artifact_ids\":[\"artifact-a\",\"artifact-z\"],\"description\":\"array order is semantic\",\"external_link_ids\":[\"external-1\",\"external-2\"],\"id\":\"issue-array-order\",\"kind\":\"Issue\",\"priority\":0,\"title\":\"Array order\"}",
+      "request_digest_sha256": "ec0f9f6d167b312f46fc595b7de80fbf49c0a34ab527469974a702654ca28900"
+    }
+  ],
+  "request_reject": [
+    {
+      "name": "priority-one-below-minimum",
+      "priority": -9007199254740992,
+      "reason": "priority_out_of_safe_integer_range"
+    },
+    {
+      "name": "priority-one-above-maximum",
+      "priority": 9007199254740992,
+      "reason": "priority_out_of_safe_integer_range"
+    }
+  ],
+  "canonical_nonnegative_integer_accept": [
+    {
+      "surface": "wallet_presentation",
+      "integers": {"issued_at": 9007199254740990, "expires_at": 9007199254740991},
+      "expect": "accept_when_all_narrower_field_rules_pass"
+    },
+    {
+      "surface": "receiver_policy",
+      "integers": {"receiver_policy_version": 9007199254740991},
+      "expect": "accept_when_all_narrower_field_rules_pass"
+    },
+    {
+      "surface": "authority_projection",
+      "integers": {"schema_version": 1, "issued_at": 9007199254740990, "expires_at": 9007199254740991, "receiver_policy_version": 9007199254740991},
+      "expect": "accept_when_all_narrower_field_rules_pass"
+    }
+  ],
+  "canonical_nonnegative_integer_reject": [
+    {
+      "surface": "wallet_presentation",
+      "field": "expires_at",
+      "value": 9007199254740992,
+      "reason": "canonical_integer_out_of_safe_range"
+    },
+    {
+      "surface": "receiver_policy",
+      "field": "receiver_policy_version",
+      "value": 9007199254740992,
+      "reason": "canonical_integer_out_of_safe_range"
+    },
+    {
+      "surface": "authority_projection",
+      "field": "issued_at",
+      "value": 9007199254740992,
+      "reason": "canonical_integer_out_of_safe_range"
+    }
+  ]
+}

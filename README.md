@@ -36,6 +36,7 @@ The root README is the canonical front door and operating map. The implementatio
 | Evidence adapters | Mixed | Local fixtures, wallet proof-of-possession over a temporary challenge contract, trusted issuer fixtures, and bounded Dregg-shaped/verifier seams exist. Live federation discovery/finality is not established. |
 | Receipts and audit | Solid local/operator implementation | Signed receipt/event records, SQLite persistence, redacted inspection, versioned audit bundles/chains, local verification, and bounded external-anchor witnesses. Not blockchain immutability or public auditability. |
 | Execution output transport | Solid core/server transport | Bounded, receiver-signed, request-correlated `ExecutionResponse` exists. The shipped client CLI does not yet have trusted response mappings for arbitrary non-legacy operations. |
+| Devgraph exact operation | Contract-only P4-O-DG-R1 repair | `devgraph.issue.create.v1` is the operator-ratified first exact operation; its RFC 8785 safe-integer repair and vectors precede DG-P. No producer, consumer, Wallet, CLI, route, opcode, transport, or deployment is implemented by this contract. |
 | WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt exports and a no-network permission-policy panel. No browser wallet product or remote administration plane. |
 | `generate` / `chat` | Legacy examples only | Constants, client commands, and descriptors exist, but no inference backend, model routing, managed conversation store, or weave runtime is installed. |
 | Production deployment | Not evidenced | `production_verified` fails closed on missing operator config, but repository tests and fixture smoke are not proof of a deployed production service. |
@@ -373,7 +374,7 @@ Specs and plans describe contracts or intended sequences; they do not override t
 
 ## Active architecture decisions
 
-- [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) proposes Matrix-owned conversation with secS restricted to exact authority-bearing machine operations. That decision is not implemented on `main` merely because a contract or draft exists.
+- P4-R completed through [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) and PR #271: Matrix owns conversation while secS admits exact authority-bearing machine operations. The operator-ratified first operation is [`devgraph.issue.create.v1`](docs/specs/devgraph-issue-create-v1.md); [P4-O-DG-R1 / #282](https://github.com/ZenithResearch/secS-magik/issues/282) repairs only its RFC 8785 safe-integer domain before DG-P. Neither contract node implements runtime behavior.
 - [Issue #274](https://github.com/ZenithResearch/secS-magik/issues/274) records an optional weave middleware idea around inference handlers. It remains design-gated; no weave storage, conversation continuity, loom UI, or inference middleware exists in runtime code.
 
 ## Explicit non-claims

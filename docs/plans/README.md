@@ -10,6 +10,7 @@ Plans are not implementation status. Use [../implementation-status.md](../implem
 |---|---|---|
 | [2026-06-02-ready-for-prod-checklist.md](2026-06-02-ready-for-prod-checklist.md) | Current control surface | Ready-for-prod track checklist, completion checkpoints, remaining D/E/I authority path, and forbidden-claim boundaries. |
 | [2026-07-18-secs-hermes-peer-chat-dag.md](2026-07-18-secs-hermes-peer-chat-dag.md) | Current exact-operation control surface; P4-R in progress, descendants blocked | Active sequence `P4-R -> P4-O -> P4-H -> P4-S -> P5-C -> P6-E -> P7`, with former peer-chat P4/P5/P6 nodes superseded. Preserves one-node/one-issue/one-PR boundaries, operator ratification before implementation, repair-node insertion, post-merge gates, and exact P3/C1–P3/C12 history. |
+| [2026-08-31-devgraph-issue-create-v1-dag.md](2026-08-31-devgraph-issue-create-v1-dag.md) | P4-O-DG-R1 contract repair current; runtime unimplemented | Dedicated sequence `P4-R -> P4-O-DG -> P4-O-DG-R1 -> DG-P -> DG-V -> DG-W -> DG-C -> DG-E`; DG-P and every downstream implementation node remain blocked. |
 | [2026-06-01-implementation-progress-checklist.md](2026-06-01-implementation-progress-checklist.md) | Historical/current progress ledger | Early issue-train progress and CI alignment notes. |
 | [2026-06-01-secs-magik-implementation-issue-slices.md](2026-06-01-secs-magik-implementation-issue-slices.md) | Historical issue-slice import | Original issue-level sequence and acceptance criteria from the 2026-06-01 baseline. Many early slices have since landed. |
 

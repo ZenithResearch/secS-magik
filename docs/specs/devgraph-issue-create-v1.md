@@ -1,8 +1,9 @@
 # `devgraph.issue.create.v1` exact-operation contract
 
 Date: 2026-08-31
-Status: operator-ratified P4-O-DG contract; runtime unimplemented
+Status: operator-ratified P4-O-DG contract with P4-O-DG-R1 safe-integer repair; runtime unimplemented
 Depends on: P4-R completed by PR #271 merge `5dfeb950da1d6baf80d98e0843684625c9af6f4f` and green post-merge Rust CI run `33448400000`
+Repair: P4-O-DG-R1 / Issue #282, before DG-P
 
 ## Decision boundary
 
@@ -12,9 +13,11 @@ It is not a generic Work API, HTTP, RPC, tool, prompt, route, or handler
 multiplexer.
 
 P4-R's merge and post-merge `main` gate are complete. Operator ratification of
-this document satisfies only P4-O-DG and enables DG-P after this contract lands.
-It does not assign an opcode, select an ABI, transport, socket, route, endpoint,
-package, or deployment, or modify secS, Wallet, or Devgraph runtime behavior.
+this document satisfies only P4-O-DG. P4-O-DG-R1 narrows the JSON integer
+domain before any runtime implementation; DG-P is enabled only after this
+repair merges and its static contract checks are green. Neither node assigns an
+opcode, selects an ABI, transport, socket, route, endpoint, package, or
+deployment, or modifies secS, Wallet, or Devgraph runtime behavior.
 
 ## Ownership and authority boundaries
 
@@ -78,8 +81,10 @@ Rules:
 3. `id` follows the canonical grammar above.
 4. `title` is a non-empty JSON string.
 5. `description` is a JSON string and defaults to the empty string.
-6. `priority` is a signed 64-bit JSON integer and defaults to zero. Floats,
-   exponent notation, booleans, and quoted integers reject.
+6. `priority` is a JSON integer in the inclusive range
+   `-9007199254740991..=9007199254740991` and defaults to zero. Floats,
+   exponent notation, booleans, quoted integers, and values outside that range
+   reject before canonicalization.
 7. `artifact_ids` and `external_link_ids` are ordered arrays of identifiers
    using the same canonical grammar and default to empty arrays. Array order is
    significant for the digest.
@@ -99,6 +104,59 @@ request_digest_sha256 = lowercase_hex(
 
 The digest is exactly 64 lowercase hexadecimal characters. It binds the
 complete semantic request, including `kind`, and not raw transport bytes.
+
+## RFC 8785 safe-integer and string profile
+
+P4-O-DG-R1 defines the numeric interoperability profile for every RFC 8785
+canonical JSON value governed by this v1 contract:
+
+```text
+MAX_SAFE_INTEGER = 9007199254740991  // 2^53 - 1
+MIN_SAFE_INTEGER = -9007199254740991 // -(2^53 - 1)
+```
+
+- `priority` is within `MIN_SAFE_INTEGER..=MAX_SAFE_INTEGER`.
+- Every other canonicalized integer is non-negative and within
+  `0..=MAX_SAFE_INTEGER`. This applies to integers in the materialized request,
+  Wallet proof or presentation, receiver-policy input or decision, unsigned
+  authority projection, and full signed authority projection.
+- Narrower field rules remain in force: `schema_version` is exactly `1`,
+  `receiver_policy_version` identifies the exact receiver-owned decision,
+  `issued_at < expires_at`, and the validity window is at most 60 seconds.
+- A decoder may use a wider native integer internally, but it must reject an
+  out-of-range number before canonicalization, digesting, signing, policy use,
+  replay reservation, forwarding, mutation, or receipt creation. Numeric
+  strings, booleans, floats, and exponent notation do not become integers.
+
+RFC 8785 delegates JSON number serialization to ECMAScript's number
+serialization model, whose interoperable number domain is IEEE-754 binary64.
+Beyond `2^53 - 1`, adjacent integers are not all exactly representable, so
+Rust, JavaScript, and Python producers or consumers could otherwise round or
+emit divergent canonical bytes for the same intended value. This repair
+narrows an unimplemented contract; it changes no stored or deployed format.
+Any future wider integer domain requires a separately versioned representation
+rather than reinterpretation of v1.
+
+The repair preserves numeric JSON field types, every field name, schema and
+version identifier, domain separator, digest construction, operation/resource
+semantic, and Ed25519-only v1 boundary. It adds neither a runtime nor a
+hybrid/PQ claim.
+
+RFC 8785 does not normalize JSON strings. Decoded Unicode code points are
+preserved, required control characters use their canonical JSON escapes, and
+object-property sorting does not reorder arrays. Therefore precomposed and
+decomposed Unicode spellings remain byte-distinct, and the order of
+`artifact_ids` and `external_link_ids` remains digest-significant.
+
+The committed vectors at
+`server/tests/fixtures/devgraph_issue_create_v1/canonicalization-boundaries.json`
+pin the accepted lower and upper priority bounds, one-step-outside denials, the
+maximum non-negative canonical integer, control escaping, Unicode
+no-normalization, array order, exact canonical UTF-8 JSON, and request digests.
+The fixture file is a manifest, not a signing preimage. For each accepted
+request vector, implementations decode `materialized_request`, independently
+apply RFC 8785, compare the resulting bytes with `canonical_json_utf8`, and
+hash only the contract's domain separator plus those canonical request bytes.
 
 ## Idempotency binding
 
@@ -193,10 +251,12 @@ secs_authority_projection_digest_sha256 = lowercase_hex(
 )
 ```
 
-All integer fields are non-negative JSON integers within unsigned 64-bit
-range. All digests are 32-byte SHA-256 values encoded as 64 lowercase
-hexadecimal characters. `session_id`, `nonce`, and the verifier signature use
-unpadded RFC 4648 base64url and decode to exactly 16, 12, and 64 bytes.
+All projection integer fields are non-negative JSON integers within
+`0..=9007199254740991`, subject to the narrower field rules above. Values
+outside that range reject before canonicalization or signature verification.
+All digests are 32-byte SHA-256 values encoded as 64 lowercase hexadecimal
+characters. `session_id`, `nonce`, and the verifier signature use unpadded RFC
+4648 base64url and decode to exactly 16, 12, and 64 bytes.
 
 The audience is the exact non-empty receiver-configured Devgraph audience and
 is compared byte-for-byte. Neither Wallet nor another caller chooses it. The
@@ -282,6 +342,7 @@ Every case below rejects before Devgraph mutation and successful receipt:
   policy, replay scope, request digest, idempotency digest, session, or nonce;
 - future issued-at, zero/inverted/overlong validity, `now >= expires_at`, or
   clock failure;
+- any canonicalized integer outside its P4-O-DG-R1 safe-integer domain;
 - missing Wallet possession proof or actor not authorized by receiver policy;
 - malformed/oversized create request, unknown fields, invalid identifier,
   empty title, invalid priority, or invalid reference identifiers;
