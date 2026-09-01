@@ -1459,6 +1459,7 @@ dependencies = [
  "bincode",
  "clap",
  "ed25519-dalek",
+ "libc",
  "libsec-core",
  "rand",
  "secs-permissions",

@@ -45,7 +45,7 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
         "ratified contract status",
         CONTRACT,
         &[
-            "Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer implemented on the #281 branch; consumers unimplemented",
+            "Status: P4-O-DG and P4-O-DG-R1 merged; DG-P producer merged through PR #284; a fixed local producer adapter is implemented on the DG-E1 branch",
             "P4-R completed by PR #271 merge",
             "green post-merge Rust CI run `33448400000`",
             "PR #280 merged this operator-ratified contract at `bfe1a453`",
@@ -61,7 +61,7 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
         &[
             "specs/devgraph-issue-create-v1.md",
             "plans/2026-08-31-devgraph-issue-create-v1-dag.md",
-            "P4-O-DG-R1 merged; DG-P producer implemented on #281",
+            "P4-O-DG-R1 and DG-P merged; DG-E1 fixed adapter on branch",
             "reference/devgraph-issue-create-v1-producer.md",
         ],
     );
@@ -85,7 +85,7 @@ fn ratified_contract_is_exact_and_p4r_evidence_is_pinned() {
             "P4-O-DG-R1",
             "9007199254740991",
             "RFC 8785",
-            "merge/post-merge",
+            "merged through PR #284",
             "DG-P",
         ],
     );
@@ -506,7 +506,7 @@ fn producer_reference_pins_consumable_vectors_and_no_route_boundary() {
         "DG-P producer reference",
         PRODUCER_REFERENCE,
         &[
-            "Status: DG-P implemented in secS",
+            "Status: DG-P merged in secS through PR #284 at `7233a80`",
             "devgraph.issue.create.wallet-presentation.v1",
             "devgraph.issue.create.wallet-presentation.v1/signature\\0",
             "secs-devgraph-issue-create-policy.v1",
@@ -535,20 +535,19 @@ fn dedicated_dag_stays_serialized_after_p4o_dg_r1_and_dg_p() {
         "stacked DAG",
         DAG,
         &[
-            "Status: P4-O-DG-R1 merged; DG-P implemented on the #281 branch with merge/green-CI evidence pending; downstream nodes blocked",
+            "Status: P4-O-DG-R1 and DG-P merged; DG-E1 fixed local producer adapter implemented on its branch; full cross-repository DG-E evidence remains unproven here",
             "P4-R -> P4-O-DG -> P4-O-DG-R1 -> DG-P -> DG-V -> DG-W -> DG-C -> DG-E",
             "P4-R | Complete via #270/#271",
             "P4-O-DG | Operator-ratified exact contract",
             "P4-O-DG-R1 | Complete via #282 / merged PR #283",
-            "DG-P | Implemented on the #281 branch; merge/green-CI evidence pending",
-            "DG-V | Blocked by DG-P merge and green CI",
-            "DG-W | Blocked by DG-V",
-            "DG-C | Blocked by DG-W",
-            "DG-E | Blocked by DG-C",
+            "DG-P | Complete; merged through PR #284 at `7233a80`",
+            "DG-E | Partial on this branch: DG-E1 fixed producer adapter only",
+            "DG-W | Owned by Wallet; external state is not promoted by this secS branch",
+            "DG-C | Owned by Devgraph; external state is not promoted by this secS branch",
             "One node equals one issue and one PR",
             "Devgraph owns Work semantics and `EventReceipt`",
             "`.castaway` is a vault and is not a DAG authority node",
-            "There is still no Devgraph verifier or Work mutation",
+            "This secS repository still does not claim Devgraph Work mutation",
         ],
     );
 

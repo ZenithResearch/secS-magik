@@ -36,7 +36,7 @@ The root README is the canonical front door and operating map. The implementatio
 | Evidence adapters | Mixed | Local fixtures, wallet proof-of-possession over a temporary challenge contract, trusted issuer fixtures, and bounded Dregg-shaped/verifier seams exist. Live federation discovery/finality is not established. |
 | Receipts and audit | Solid local/operator implementation | Signed receipt/event records, SQLite persistence, redacted inspection, versioned audit bundles/chains, local verification, and bounded external-anchor witnesses. Not blockchain immutability or public auditability. |
 | Execution output transport | Solid core/server transport | Bounded, receiver-signed, request-correlated `ExecutionResponse` exists. The shipped client CLI does not yet have trusted response mappings for arbitrary non-legacy operations. |
-| Devgraph exact-operation producer | Solid DG-P implementation on the #281 branch | `devgraph.issue.create.v1` preserves the merged P4-O-DG-R1 RFC 8785 safe-integer profile and vectors while implementing only the fixed secS producer/replay seam. Merge/post-merge evidence is pending; no Devgraph consumer/mutation, Wallet method, CLI, generic Work API, route, opcode, transport, deployment, or hybrid/PQ v1 authority exists. |
+| Devgraph exact-operation producer | Solid DG-P library; bounded DG-E1 local adapter on this branch | `devgraph.issue.create.v1` preserves the P4-O-DG-R1 RFC 8785 profile. DG-P merged through PR #284 at `7233a80`; DG-E1 adds one fixed, file-bounded local invocation with no route, opcode, generic operation selector, caller-selected receiver authority, Devgraph mutation, deployment, or hybrid/PQ v1 claim. |
 | WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt exports and a no-network permission-policy panel. No browser wallet product or remote administration plane. |
 | `generate` / `chat` | Legacy examples only | Constants, client commands, and descriptors exist, but no inference backend, model routing, managed conversation store, or weave runtime is installed. |
 | Production deployment | Not evidenced | `production_verified` fails closed on missing operator config, but repository tests and fixture smoke are not proof of a deployed production service. |
@@ -90,7 +90,7 @@ The root `Cargo.toml` contains five members:
 |---|---|---|
 | [`libsec-core`](core/README.md) | `rlib`, `cdylib`, `staticlib` | `ZenithPacket`, ingress frames, caller-proof encoding, decision/execution responses, packet builder, tunnel primitives, signature/Merkle helpers, and optional wasm32 exports. It is verifier-free. |
 | [`client`](client/README.md) | Native binary | `generate`, `chat`, `hub`, and `identity` commands; caller-key lifecycle; packet signing; plaintext/static/session tunnel modes; bounded response decoding. |
-| [`server`](server/README.md) | Library + three binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, gateway CLIs, and the separate fixed DG-P `devgraph.issue.create.v1` authority producer. |
+| [`server`](server/README.md) | Library + four binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, the fixed DG-P `devgraph.issue.create.v1` authority producer, and its separate bounded file adapter. |
 | `secs-permissions` | Reusable library | Receiver-local permission records and fail-closed policy evaluation shared by the server, native policy CLI, and WASM panel. |
 | [`panel`](panel/README.md) | `cdylib`, `rlib` | Four wasm-bindgen functions plus a static HTML/JavaScript policy panel that stores policy JSON in the browser. |
 
@@ -102,6 +102,7 @@ The root `Cargo.toml` contains five members:
 | `secs-gateway` | `server` | Canonical configurable TCP gateway wrapper. Default mode is fail-closed `production_verified`; local use must explicitly select a dev mode. |
 | `secz` | `server` | Historical compatibility name for a local gateway plus `audit verify` and `audit anchor verify` commands. |
 | `secs-permctl` | `server` | Authors, revokes, lists, and evaluates receiver-local permission-policy JSON. |
+| `secs-devgraph-issue-create-v1` | `server` | Invokes only the fixed DG-P producer from owner-private files and fixed receiver authority state; it emits one signed projection file, not a Devgraph mutation. |
 
 ### A client limitation worth knowing
 
@@ -369,6 +370,7 @@ secS-magik/
 | What changed in top-level posture recently? | [`docs/current-state.md`](docs/current-state.md). |
 | What architecture is targeted? | [`docs/specs/2026-06-01-secs-magik-objectives-spec.md`](docs/specs/2026-06-01-secs-magik-objectives-spec.md). |
 | What exactly does the Devgraph DG-P producer accept and emit? | [`docs/reference/devgraph-issue-create-v1-producer.md`](docs/reference/devgraph-issue-create-v1-producer.md). |
+| How is the fixed local Devgraph producer adapter configured and invoked? | [`docs/reference/devgraph-issue-create-v1-cli.md`](docs/reference/devgraph-issue-create-v1-cli.md). |
 | What is exploratory only? | [`docs/ideas/README.md`](docs/ideas/README.md). |
 | What would count as production deployment evidence? | [`docs/ops/production-deployment-proof.md`](docs/ops/production-deployment-proof.md). |
 
@@ -376,7 +378,7 @@ Specs and plans describe contracts or intended sequences; they do not override t
 
 ## Active architecture decisions
 
-- [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) and merged PR #271 establish Matrix-owned conversation with secS restricted to exact authority-bearing machine operations. PR #280 ratifies exactly `devgraph.issue.create.v1`; #282/merged PR #283 repairs its RFC 8785 safe-integer profile and pins `canonicalization-boundaries.json`. DG-P on #281 preserves that repair while implementing only its producer/replay seam; DG-V/DG-W/DG-C/DG-E remain serialized and blocked.
+- [Issue #270](https://github.com/ZenithResearch/secS-magik/issues/270) and merged PR #271 establish Matrix-owned conversation with secS restricted to exact authority-bearing machine operations. PR #280 ratifies exactly `devgraph.issue.create.v1`; #282/merged PR #283 repairs its RFC 8785 safe-integer profile and pins `canonicalization-boundaries.json`; DG-P merged through PR #284 at `7233a80`. The bounded DG-E1 adapter on this branch invokes that producer locally but is not Devgraph Work success or end-to-end evidence.
 - [Issue #274](https://github.com/ZenithResearch/secS-magik/issues/274) records an optional weave middleware idea around inference handlers. It remains design-gated; no weave storage, conversation continuity, loom UI, or inference middleware exists in runtime code.
 
 ## Explicit non-claims

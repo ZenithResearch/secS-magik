@@ -57,6 +57,7 @@ secS-magik/
 │       ├── config.rs                # typed runtime config/readiness inputs
 │       ├── identity.rs              # verifier identity, key IDs, local public-key registry seam
 │       ├── devgraph_authority.rs     # fixed devgraph.issue.create.v1 authority producer; no route/handler
+│       ├── devgraph_issue_create_cli.rs # fixed owner-private file adapter; no generic authority selectors
 │       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
 │       ├── ingress.rs               # bounded prototype TCP ingress and verifier/payload handoff
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
@@ -72,6 +73,7 @@ secS-magik/
 │       └── bin/
 │           ├── secs-gateway.rs      # canonical prototype gateway wrapper
 │           ├── secs-permctl.rs      # receiver-local permission policy CLI
+│           ├── secs-devgraph-issue-create-v1.rs # thin fixed DG-E1 adapter wrapper
 │           └── secz.rs              # historical compatibility and audit wrapper
 ├── permissions/
 │   ├── Cargo.toml
@@ -134,6 +136,7 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 | `panel/src/lib.rs` | No-network wasm-bindgen permission-model wrapper. | Remote gateway administration, file access, product wallet UX, or federation authority. |
 | `server/src/verifier.rs` | Typed verifier errors, prototype envelope check, signed context helpers. | Product policy, app login, settlement, arbitrary handler execution. |
 | `server/src/devgraph_authority.rs` | Fixed `devgraph.issue.create.v1` request/Wallet/policy verification and portable signed authority projection production. | Generic operations, routes, opcodes, handlers, Devgraph Work mutation/receipt ownership, Wallet custody, `.castaway` authority, or hybrid/PQ v1 claims. |
+| `server/src/devgraph_issue_create_cli.rs` | Fixed DG-E1 owner-private input/config loading, exact DG-P invocation, replay SQLite opening, bounded summaries, and atomic signed-projection output. | Caller-selected receiver controls, generic operations/routes/handlers/transports, service-key generation, Wallet custody, Devgraph mutation, or E2E success claims. |
 | `server/src/ingress.rs` | Prototype TCP ingress and verifier/payload handoff. | Receiver-local manifest semantics or handler implementation details. |
 | `server/src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle receipt/event emission. | Packet decode or payload decryption policy; durable distributed broker semantics; arbitrary shell authority. |
 | `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
@@ -148,6 +151,7 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 | `server/src/ontology.rs` | Shared prototype receiver/audience/reason constants. | Product authority or live trust registry semantics. |
 | `server/src/bin/secs-gateway.rs` | Canonical prototype gateway command. | Reusable gateway logic. |
 | `server/src/bin/secz.rs` | Compatibility wrapper for the historical command name. | Final verifier semantics or generic interface claims. |
+| `server/src/bin/secs-devgraph-issue-create-v1.rs` | Thin wrapper for the fixed three-file DG-E1 adapter. | Reusable producer logic, generic CLI selection, or Devgraph Work mutation. |
 
 ## Opcode range schema
 

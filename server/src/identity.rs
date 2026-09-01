@@ -443,6 +443,27 @@ pub fn load_node_verifier_identity(
     })
 }
 
+/// Constructs the production identity for the fixed Devgraph authority adapter
+/// from key bytes that the adapter already loaded through its no-follow,
+/// owner-private file boundary. This does not expose a generic signing method;
+/// the resulting identity can sign the Devgraph projection only through the
+/// private typed-domain method above.
+pub(crate) fn load_devgraph_authority_identity_v1(
+    raw: &[u8],
+    signer_key_id: &str,
+) -> Result<NodeVerifierIdentity, IdentityConfigError> {
+    let raw = std::str::from_utf8(raw).map_err(|_| IdentityConfigError::MalformedVerifierKey)?;
+    let secret_key = parse_hex_secret_key(raw)?;
+    let signing_key = SigningKey::from_bytes(&secret_key);
+    let public_key = VerifyingKey::from(&signing_key);
+    Ok(NodeVerifierIdentity {
+        signer_key_id: safe_configured_key_id(signer_key_id)?,
+        signing_key,
+        public_key,
+        authenticator_kind: AuthenticatorKind::Ed25519NodeAndVerifier,
+    })
+}
+
 pub fn explicit_test_fixture_identity(
     signer_key_id: impl Into<String>,
     secret_key: [u8; 32],
