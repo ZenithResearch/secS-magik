@@ -9,7 +9,7 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 bincode = "1"
-ed25519-dalek = { version = "2.1", default-features = false }
+ed25519-dalek = { version = "3.0", default-features = false }
 x25519-dalek = { version = "2.0", default-features = false, features = ["static_secrets"] }
 hkdf = "0.13"
 sha2 = { version = "0.11", default-features = false }
