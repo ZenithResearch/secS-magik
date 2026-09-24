@@ -1,0 +1,81 @@
+[
+  {
+    "raw": "{\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"create\", \"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": null, \"payload\": {\"id\": \"gallery\", \"title\": \"Gallery\", \"description\": \"Art: café 👋\"}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"gallery\",\"kind\":\"Arena\",\"operation\":\"create\",\"payload\":{\"description\":\"Art: café 👋\",\"id\":\"gallery\",\"title\":\"Gallery\"},\"schema\":\"devgraph.arena-request.v1\"}",
+    "operation": "devgraph.arena.create.v1",
+    "resources": [
+      "Arena/gallery"
+    ],
+    "digest": "e6cd044f24c2362ff91e490e965b6eeab1f10f596c9f2ae57aab72ded9d594b2"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"patch\", \"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": 1, \"payload\": {\"description\": \"Gallery work\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\",\"operation\":\"patch\",\"payload\":{\"description\":\"Gallery work\"},\"schema\":\"devgraph.arena-request.v1\"}",
+    "operation": "devgraph.arena.patch.v1",
+    "resources": [
+      "Arena/gallery"
+    ],
+    "digest": "4a7b4d12c1be8b850141ba76d12f7936f20952fc81ed20118b94b7d61e5d8feb"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"archive\", \"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.arena-request.v1\"}",
+    "operation": "devgraph.arena.archive.v1",
+    "resources": [
+      "Arena/gallery"
+    ],
+    "digest": "e04c8202a3b272041904e35517d7ea1b87709a777fe3bbd8045729b0a4369503"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"member.set\", \"kind\": \"Initiative\", \"id\": \"roadmap\", \"expected_version\": 1, \"payload\": {\"previous_arena\": null, \"arena\": {\"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": 1}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"roadmap\",\"kind\":\"Initiative\",\"operation\":\"member.set\",\"payload\":{\"arena\":{\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\"},\"previous_arena\":null},\"schema\":\"devgraph.arena-request.v1\"}",
+    "operation": "devgraph.arena.member.set.v1",
+    "resources": [
+      "Arena/gallery",
+      "Initiative/roadmap"
+    ],
+    "digest": "a35f43e3cc57683829a449899f499b2f43c343606dd995373db25922631f34d8"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"member.set\", \"kind\": \"Task\", \"id\": \"review\", \"expected_version\": 1, \"payload\": {\"previous_arena\": null, \"arena\": {\"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": 1}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"member.set\",\"payload\":{\"arena\":{\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\"},\"previous_arena\":null},\"schema\":\"devgraph.arena-request.v1\"}",
+    "operation": "devgraph.arena.member.set.v1",
+    "resources": [
+      "Arena/gallery",
+      "Task/review"
+    ],
+    "digest": "c9fe917d4a089b5b42efb353cf3c6ae7d95d27ac28ec176c7db744d827d80ae8"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"member.set\", \"kind\": \"Task\", \"id\": \"review\", \"expected_version\": 2, \"payload\": {\"previous_arena\": {\"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": 2}, \"arena\": {\"kind\": \"Arena\", \"id\": \"research\", \"expected_version\": 1}}}",
+    "canonical": "{\"expected_version\":2,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"member.set\",\"payload\":{\"arena\":{\"expected_version\":1,\"id\":\"research\",\"kind\":\"Arena\"},\"previous_arena\":{\"expected_version\":2,\"id\":\"gallery\",\"kind\":\"Arena\"}},\"schema\":\"devgraph.arena-request.v1\"}",
+    "operation": "devgraph.arena.member.set.v1",
+    "resources": [
+      "Arena/gallery",
+      "Arena/research",
+      "Task/review"
+    ],
+    "digest": "2804e108880b8e324fb08d6eb0a76ccab25bdfb62d703a7a697d2c56b7e02a00"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"member.set\", \"kind\": \"Task\", \"id\": \"review\", \"expected_version\": 2, \"payload\": {\"previous_arena\": {\"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": 2}, \"arena\": null}}",
+    "canonical": "{\"expected_version\":2,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"member.set\",\"payload\":{\"arena\":null,\"previous_arena\":{\"expected_version\":2,\"id\":\"gallery\",\"kind\":\"Arena\"}},\"schema\":\"devgraph.arena-request.v1\"}",
+    "operation": "devgraph.arena.member.set.v1",
+    "resources": [
+      "Arena/gallery",
+      "Task/review"
+    ],
+    "digest": "a54c773d3924592b569ce5b72179aa18af8fdc45b4a763d35fb1ef8c03c53e2b"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"parent.set\", \"kind\": \"Task\", \"id\": \"review\", \"expected_version\": 2, \"payload\": {\"previous_parent\": null, \"parent\": {\"kind\": \"Issue\", \"id\": \"issue\", \"expected_version\": 1}, \"previous_arena\": {\"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": 2}}}",
+    "canonical": "{\"expected_version\":2,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":1,\"id\":\"issue\",\"kind\":\"Issue\"},\"previous_arena\":{\"expected_version\":2,\"id\":\"gallery\",\"kind\":\"Arena\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}",
+    "operation": "devgraph.work.parent.set.v1",
+    "resources": [
+      "Arena/gallery",
+      "Issue/issue",
+      "Task/review"
+    ],
+    "digest": "3a4f5693a7f523d15135354a7803610c5aa4b211628e60556dd6be58114223ee"
+  }
+]

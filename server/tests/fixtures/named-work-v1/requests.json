@@ -1,0 +1,161 @@
+[
+  {
+    "name": "create-Proposal",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"create\",\"kind\":\"Proposal\",\"id\":\"i-1\",\"expected_version\":null,\"payload\":{\"id\":\"i-1\",\"title\":\"Example é 🔒\",\"priority\":-9007199254740991}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Proposal\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "2533c0a9b397a9a2bd49914589a58d0e7e950f571ae71c64c04878af380ae7c5",
+    "resources": [
+      "Proposal/i-1"
+    ],
+    "operation": "devgraph.work.create.v1"
+  },
+  {
+    "name": "create-Initiative",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"create\",\"kind\":\"Initiative\",\"id\":\"i-1\",\"expected_version\":null,\"payload\":{\"id\":\"i-1\",\"title\":\"Example é 🔒\",\"priority\":-9007199254740991}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Initiative\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "1aa16a037ece80e7d5b112bc00f04dd390e9309caeab525375e2aa6f8112b116",
+    "resources": [
+      "Initiative/i-1"
+    ],
+    "operation": "devgraph.work.create.v1"
+  },
+  {
+    "name": "create-Project",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"create\",\"kind\":\"Project\",\"id\":\"i-1\",\"expected_version\":null,\"payload\":{\"id\":\"i-1\",\"title\":\"Example é 🔒\",\"priority\":-9007199254740991}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Project\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "920f74d16a57a2659aab675404eaa1e0fef8c5315f0bf438a3a4f8c7067f2133",
+    "resources": [
+      "Project/i-1"
+    ],
+    "operation": "devgraph.work.create.v1"
+  },
+  {
+    "name": "create-Issue",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"create\",\"kind\":\"Issue\",\"id\":\"i-1\",\"expected_version\":null,\"payload\":{\"id\":\"i-1\",\"title\":\"Example é 🔒\",\"priority\":-9007199254740991}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "38aaf7596097e540d00aed8a7bc717d3a6507800cd8df1227c7a9b5d9e89e676",
+    "resources": [
+      "Issue/i-1"
+    ],
+    "operation": "devgraph.work.create.v1"
+  },
+  {
+    "name": "create-Task",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"create\",\"kind\":\"Task\",\"id\":\"i-1\",\"expected_version\":null,\"payload\":{\"id\":\"i-1\",\"title\":\"Example é 🔒\",\"priority\":-9007199254740991}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "16f0eff1ff510419e99530a03540943be121619bcbe0dfccedb4511d95442cc9",
+    "resources": [
+      "Task/i-1"
+    ],
+    "operation": "devgraph.work.create.v1"
+  },
+  {
+    "name": "patch",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"patch\",\"kind\":\"Issue\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"description\":\"\",\"artifact_ids\":[]}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"patch\",\"payload\":{\"artifact_ids\":[],\"description\":\"\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "80c8b4fca1ddce49d1df105485e134dcf621c9db9e8f1ee5bbe4680abc4fdfe5",
+    "resources": [
+      "Issue/i-1"
+    ],
+    "operation": "devgraph.work.patch.v1"
+  },
+  {
+    "name": "status",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"status\",\"kind\":\"Issue\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"status\":\"review\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"status\",\"payload\":{\"status\":\"review\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "06488668f23e84d1ba3261020888b8b2a688173e071c56d613388959fc534d49",
+    "resources": [
+      "Issue/i-1"
+    ],
+    "operation": "devgraph.work.status.v1"
+  },
+  {
+    "name": "archive",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"archive\",\"kind\":\"Issue\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "36500f748bf8ccef0c1eea8be5f565c742c7190b8099e4059741f510ee7aa4a1",
+    "resources": [
+      "Issue/i-1"
+    ],
+    "operation": "devgraph.work.archive.v1"
+  },
+  {
+    "name": "accept",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"accept\",\"kind\":\"Proposal\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"decision_id\":\"d-1\",\"decision_title\":\"Accept\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Proposal\",\"operation\":\"accept\",\"payload\":{\"decision_id\":\"d-1\",\"decision_title\":\"Accept\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "454f667ca368ae1127c68302cdd4354eeab3f716df8dcd2d35cac726cd1fce96",
+    "resources": [
+      "Decision/d-1",
+      "Proposal/i-1"
+    ],
+    "operation": "devgraph.work.accept.v1"
+  },
+  {
+    "name": "convert",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"convert\",\"kind\":\"Proposal\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"issue_id\":\"i-new\",\"decision_id\":\"d-1\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Proposal\",\"operation\":\"convert\",\"payload\":{\"decision_id\":\"d-1\",\"issue_id\":\"i-new\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "1bf86440855ae743f014ddfcc7a18aa53442769665f99f1c3f8c3f968504b959",
+    "resources": [
+      "Decision/d-1",
+      "Issue/i-new",
+      "Proposal/i-1"
+    ],
+    "operation": "devgraph.work.convert.v1"
+  },
+  {
+    "name": "reparent",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"parent.set\",\"kind\":\"Issue\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"previous_parent\":{\"kind\":\"Project\",\"id\":\"old\",\"expected_version\":2},\"parent\":{\"kind\":\"Project\",\"id\":\"new\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"new\",\"kind\":\"Project\"},\"previous_parent\":{\"expected_version\":2,\"id\":\"old\",\"kind\":\"Project\"}},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "6fc0d223dca8939ddbb4ba5db605c364d7fa8f31c11ba752702630bbfd1ebb74",
+    "resources": [
+      "Issue/i-1",
+      "Project/new",
+      "Project/old"
+    ],
+    "operation": "devgraph.work.parent.set.v1"
+  },
+  {
+    "name": "dependency.add",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"dependency.add\",\"kind\":\"Task\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"target\":{\"kind\":\"Task\",\"id\":\"t-2\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"dependency.add\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "80716d4ae96ebfa3dc39ebdd97cdbbc9af08ba30c380f0aca8944717bd647433",
+    "resources": [
+      "Task/i-1",
+      "Task/t-2"
+    ],
+    "operation": "devgraph.work.dependency.add.v1"
+  },
+  {
+    "name": "dependency.remove",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"dependency.remove\",\"kind\":\"Task\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"target\":{\"kind\":\"Task\",\"id\":\"t-2\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"dependency.remove\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "f046ce975f5d964df3cc7912f7e9c04732277ba93f7a866784e10217c705cddb",
+    "resources": [
+      "Task/i-1",
+      "Task/t-2"
+    ],
+    "operation": "devgraph.work.dependency.remove.v1"
+  },
+  {
+    "name": "blocker.add",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"blocker.add\",\"kind\":\"Task\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"target\":{\"kind\":\"Task\",\"id\":\"t-2\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"blocker.add\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "b01aaa699eb9b7d58fbe1a53e3bdd17d8e01527b95e0f61f2bb713a6be82a78f",
+    "resources": [
+      "Task/i-1",
+      "Task/t-2"
+    ],
+    "operation": "devgraph.work.blocker.add.v1"
+  },
+  {
+    "name": "blocker.remove",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"blocker.remove\",\"kind\":\"Task\",\"id\":\"i-1\",\"expected_version\":1,\"payload\":{\"target\":{\"kind\":\"Task\",\"id\":\"t-2\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"blocker.remove\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "6f63039041841073f7a03c180a059c5bab0cc7a2c05830e334ca50360a7ae051",
+    "resources": [
+      "Task/i-1",
+      "Task/t-2"
+    ],
+    "operation": "devgraph.work.blocker.remove.v1"
+  }
+]

@@ -36,6 +36,7 @@ Use the root [README](../README.md) as the canonical project front door and this
 | How do the current binaries and configuration behave? | [reference/runtime.md](reference/runtime.md) |
 | What WASM/API/Pages artifacts are published? | [reference/wasm-and-pages.md](reference/wasm-and-pages.md) |
 | What is the first ratified Devgraph exact-operation contract? | [specs/devgraph-issue-create-v1.md](specs/devgraph-issue-create-v1.md) |
+| How does named Devgraph Work/Arena v1 projection authority work? | [devgraph-named-work-v1.md](devgraph-named-work-v1.md) |
 | What is public-language draft material? | [announcement-thread.md](announcement-thread.md) |
 
 ## Current source-of-truth docs
@@ -56,6 +57,7 @@ Use the root [README](../README.md) as the canonical project front door and this
 | [reference/devgraph-issue-create-v1-producer.md](reference/devgraph-issue-create-v1-producer.md) | Current DG-P producer reference | Exact Wallet presentation, receiver policy, signing, replay, portable fixture, redaction, and no-route boundaries for the implemented secS producer. |
 | [reference/devgraph-issue-create-v1-cli.md](reference/devgraph-issue-create-v1-cli.md) | Current DG-E1 reference | Fixed data root, strict manifest, three-file command, atomic projection output, and non-generic boundaries. |
 | [reference/devgraph-issue-create-v1-wallet-cli.md](reference/devgraph-issue-create-v1-wallet-cli.md) | Current DG-E2 branch reference | Fixed-origin one-shot Wallet ceremony, strict HTTP/CSRF state machine, listener-before-authority ordering, and non-claims. |
+| [devgraph-named-work-v1.md](devgraph-named-work-v1.md) | Current named Work/Arena v1 reference | Closed Work/Arena request parsing, policy, projection, replay, local authority admin, and setup boundaries for `secs-devgraph-work-v1`. |
 
 ## Directory READMEs
 

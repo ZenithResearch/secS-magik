@@ -393,6 +393,19 @@ impl NodeVerifierIdentity {
         Ok(self.signing_key.sign(preimage.as_bytes()).to_bytes())
     }
 
+    /// Signs only the fixed domain-separated named Devgraph Work/Arena v1
+    /// projection. Callers cannot select an arbitrary operation, route, opcode,
+    /// or preimage domain.
+    pub(crate) fn sign_work_authority_v1(
+        &self,
+        preimage: &crate::devgraph_work_authority::WorkSignaturePreimage,
+    ) -> Result<[u8; 64], VerificationError> {
+        if self.authenticator_kind != AuthenticatorKind::Ed25519NodeAndVerifier {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
+        Ok(self.signing_key.sign(preimage.as_bytes()).to_bytes())
+    }
+
     pub fn sign_execution_response(
         &self,
         mut response: libsec_core::execution_response::ExecutionResponse,

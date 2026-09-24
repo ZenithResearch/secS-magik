@@ -19,6 +19,7 @@ serial_test = "3.5"
 rand.workspace = true
 x25519-dalek = { version = "2.0", default-features = false, features = ["static_secrets"] }
 libc = "0.2"
+zeroize = "1"
 
 [[bin]]
 name = "secs-gateway"
@@ -39,6 +40,10 @@ path = "src/bin/secs-devgraph-issue-create-v1.rs"
 [[bin]]
 name = "secs-devgraph-issue-create-v1-wallet"
 path = "src/bin/secs-devgraph-issue-create-v1-wallet.rs"
+
+[[bin]]
+name = "secs-devgraph-work-v1"
+path = "src/bin/secs-devgraph-work-v1.rs"
 
 [dev-dependencies]
 serde_yaml = "0.9"
