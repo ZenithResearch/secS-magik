@@ -107,6 +107,13 @@ Keep module ownership explicit:
 - `panel/src/lib.rs` — no-network wasm-bindgen wrapper over the permission model.
 - `server/src/verifier.rs` — typed verifier errors, prototype envelope checks, and signed context helpers.
 - `server/src/identity.rs` — Ed25519 key loading, signer key IDs, signature verification helpers, and local public-key registry checks.
+- `server/src/devgraph_authority.rs` — fixed `devgraph.issue.create.v1` projection producer.
+- `server/src/devgraph_issue_create_cli.rs` — owner-private three-file Issue-create adapter.
+- `server/src/devgraph_issue_create_wallet_cli.rs` — fixed one-shot local Wallet ceremony for Issue-create.
+- `server/src/devgraph_work_request.rs` — closed named Work/Arena v1 request parser and canonicalizer.
+- `server/src/devgraph_work_authority.rs` — named Work/Arena v1 Wallet/policy/projection authority.
+- `server/src/devgraph_work_cli.rs` — owner-private three-file named Work/Arena projection adapter.
+- `server/src/devgraph_work_admin.rs` — owner-local Work v1 authority provisioning/status/snapshot lifecycle.
 - `server/src/config.rs` — runtime config and readiness inputs.
 - `server/src/manifest.rs` — receiver-local `OperationDescriptor` and opcode range governance.
 - `server/src/evidence.rs` — `EvidenceAdapter` trait, `local_static`, and cryptographic `wallet_presentation` proof-of-possession over the temporary secS challenge contract.
@@ -140,6 +147,13 @@ For docs-only changes:
 git diff --check -- README.md AGENTS.md docs/
 ```
 
+For Devgraph named Work v1 changes:
+
+```bash
+cargo test -p server --test devgraph_work_authority
+cargo build -p server --bin secs-devgraph-work-v1
+```
+
 For documentation delivery changes, also assemble the complete Pages source:
 
 ```bash
@@ -155,6 +169,31 @@ Use runtime SQL for telemetry/ledger tables unless the repo also commits and mai
 Do not commit real tunnel keys, local telemetry databases, production packet captures, machine-specific secrets, bearer tokens, wallet secrets, or private operator config.
 
 Tests may generate ephemeral keys. Docs must distinguish ephemeral test keys from operator identity keys.
+
+### Devgraph named Work v1 setup
+
+For a fresh agent/operator setup from this repository, build the binary rather
+than relying on local artifacts:
+
+```bash
+cargo build -p server --release --bin secs-devgraph-work-v1
+install -m 0755 target/release/secs-devgraph-work-v1 \
+  "$HOME/Library/Application Support/Zenith/secS/bin/secs-devgraph-work-v1"
+```
+
+Then provision only from an owner-private policy file:
+
+```bash
+"$HOME/Library/Application Support/Zenith/secS/bin/secs-devgraph-work-v1" \
+  admin provision --policy-file /absolute/private/devgraph-work-policy.json
+"$HOME/Library/Application Support/Zenith/secS/bin/secs-devgraph-work-v1" \
+  admin status
+```
+
+Do not commit or print the generated verifier key, replay database, private
+policy file, Wallet signing material, Devgraph data-root secrets, or local
+authority snapshots. Devgraph receiver activation is separate and must pin the
+matching public policy/key bundle after secS provisioning.
 
 ### Signed contexts and receipts
 

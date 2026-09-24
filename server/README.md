@@ -11,6 +11,7 @@ Status: production-shaped local hardening is implemented for the current prototy
 | `Cargo.toml` | Server crate metadata and binary declarations. |
 | `src/bin/secs-gateway.rs` | Canonical current configurable gateway wrapper. |
 | `src/bin/secz.rs` | Historical command compatibility wrapper; not canonical verifier ownership. |
+| `src/bin/secs-devgraph-work-v1.rs` | Fixed named Devgraph Work/Arena v1 projection producer wrapper plus explicit owner-local admin subcommands. |
 | `src/bin/secs-devgraph-issue-create-v1.rs` | Thin wrapper for the fixed three-file DG-E1 producer adapter. |
 | `src/bin/secs-devgraph-issue-create-v1-wallet.rs` | Thin wrapper for the fixed three-file DG-E2 one-shot Wallet adapter. |
 | `src/devgraph_authority.rs` | Exact `devgraph.issue.create.v1` request/Wallet/policy verification, projection signing, and replay semantics. |
@@ -147,6 +148,7 @@ This is a static fixture registry path only: no live Dregg consensus or Castalia
 ```bash
 cargo test -p server
 cargo build -p server --bin secs-gateway
+cargo build -p server --bin secs-devgraph-work-v1
 cargo test --workspace
 cargo build --workspace
 ```
@@ -158,6 +160,7 @@ cargo test -p server --test gateway_layout
 cargo test -p server --test ledger
 cargo test -p server --test receipt
 cargo test -p server --test runtime_config
+cargo test -p server --test devgraph_work_authority
 cargo test -p server wallet_presentation -- --nocapture
 cargo test -p server wallet_challenge_contract -- --nocapture
 cargo test -p server production_federated -- --nocapture

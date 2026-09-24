@@ -1196,7 +1196,7 @@ pub fn encode_base64url(bytes: &[u8]) -> String {
     output
 }
 
-fn decode_base64url_exact<const N: usize>(value: &str) -> Result<[u8; N], ()> {
+pub(crate) fn decode_base64url_exact<const N: usize>(value: &str) -> Result<[u8; N], ()> {
     let encoded_len = N.div_ceil(3) * 4 - ((3 - (N % 3)) % 3);
     if value.len() != encoded_len || value.contains('=') {
         return Err(());

@@ -524,7 +524,9 @@ fn validate_manifest_shape(manifest: &ProducerManifestV1) -> Result<(), Producer
     Ok(())
 }
 
-fn parse_public_key_registry(bytes: &[u8]) -> Result<PublicVerifierKeyRegistry, ProducerCliError> {
+pub(crate) fn parse_public_key_registry(
+    bytes: &[u8],
+) -> Result<PublicVerifierKeyRegistry, ProducerCliError> {
     let file: PublicKeyRegistryFileV1 =
         serde_json::from_slice(bytes).map_err(|_| ProducerCliError::InvalidPublicKeyRegistry)?;
     if file.schema != "secs-public-verifier-key-registry.v1"
@@ -581,7 +583,7 @@ fn parse_public_key_registry(bytes: &[u8]) -> Result<PublicVerifierKeyRegistry, 
     Ok(PublicVerifierKeyRegistry::from_keys(keys))
 }
 
-fn parse_idempotency_file(bytes: &[u8]) -> Result<&str, ProducerCliError> {
+pub(crate) fn parse_idempotency_file(bytes: &[u8]) -> Result<&str, ProducerCliError> {
     if !bytes.ends_with(b"\n")
         || bytes[..bytes.len().saturating_sub(1)]
             .iter()
@@ -700,7 +702,7 @@ fn read_private_regular_file(
     Ok(bytes)
 }
 
-fn validate_owned_directory(path: &Path, owner_private: bool) -> Result<(), ()> {
+pub(crate) fn validate_owned_directory(path: &Path, owner_private: bool) -> Result<(), ()> {
     let metadata = fs::symlink_metadata(path).map_err(|_| ())?;
     if !metadata.file_type().is_dir()
         || metadata.file_type().is_symlink()

@@ -1,0 +1,78 @@
+[
+  {
+    "name": "wrong-kind",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Task\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":\"Gallery\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "bool-version",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":true,\"payload\":{\"id\":\"gallery\",\"title\":\"Gallery\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "float-version",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":1.0,\"payload\":{\"id\":\"gallery\",\"title\":\"Gallery\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "unknown-operation",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"delete\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":\"Gallery\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "unsafe-id",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"../gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":\"Gallery\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "title-null",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":null,\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "title-empty",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":\"\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "title-bound",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "description-null",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":\"Gallery\",\"description\":null}}"
+  },
+  {
+    "name": "extra-field",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"gallery\",\"title\":\"Gallery\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\",\"status\":\"accepted\"}}"
+  },
+  {
+    "name": "id-mismatch",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"create\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":null,\"payload\":{\"id\":\"elsewhere\",\"title\":\"Gallery\",\"description\":\"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  },
+  {
+    "name": "patch-11",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"patch\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":1,\"payload\":{}}"
+  },
+  {
+    "name": "archive-12",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"archive\",\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":1,\"payload\":{\"title\":\"x\"}}"
+  },
+  {
+    "name": "member.set-13",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"member.set\",\"kind\":\"Project\",\"id\":\"gallery\",\"expected_version\":1,\"payload\":{\"previous_arena\":null,\"arena\":{\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":1}}}"
+  },
+  {
+    "name": "member.set-14",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"member.set\",\"kind\":\"Task\",\"id\":\"gallery\",\"expected_version\":1,\"payload\":{\"previous_arena\":null,\"arena\":null}}"
+  },
+  {
+    "name": "member.set-15",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"member.set\",\"kind\":\"Task\",\"id\":\"gallery\",\"expected_version\":1,\"payload\":{\"arena\":{\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":1}}}"
+  },
+  {
+    "name": "member.set-16",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"member.set\",\"kind\":\"Task\",\"id\":\"gallery\",\"expected_version\":1,\"payload\":{\"previous_arena\":null,\"arena\":{\"kind\":\"Task\",\"id\":\"gallery\",\"expected_version\":1}}}"
+  },
+  {
+    "name": "member.set-17",
+    "raw": "{\"schema\":\"devgraph.arena-request.v1\",\"operation\":\"member.set\",\"kind\":\"Task\",\"id\":\"gallery\",\"expected_version\":1,\"payload\":{\"previous_arena\":null,\"arena\":{\"kind\":\"Arena\",\"id\":\"gallery\",\"expected_version\":0}}}"
+  },
+  {
+    "name": "duplicate-schema",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"schema\": \"devgraph.arena-request.v1\", \"operation\": \"create\", \"kind\": \"Arena\", \"id\": \"gallery\", \"expected_version\": null, \"payload\": {\"id\": \"gallery\", \"title\": \"Gallery\", \"description\": \"Art: caf\u00e9 \ud83d\udc4b\"}}"
+  }
+]

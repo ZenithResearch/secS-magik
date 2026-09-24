@@ -59,6 +59,10 @@ secS-magik/
 │       ├── devgraph_authority.rs     # fixed devgraph.issue.create.v1 authority producer; no route/handler
 │       ├── devgraph_issue_create_cli.rs # fixed owner-private file adapter; no generic authority selectors
 │       ├── devgraph_issue_create_wallet_cli.rs # fixed one-shot Wallet adapter; no generic browser RPC
+│       ├── devgraph_work_request.rs   # closed named Work/Arena request parser and canonicalizer
+│       ├── devgraph_work_authority.rs # fixed named Work/Arena projection authority producer; no mutation
+│       ├── devgraph_work_cli.rs       # fixed owner-private Work/Arena projection adapter
+│       ├── devgraph_work_admin.rs     # owner-local Work authority lifecycle, status, and snapshots
 │       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
 │       ├── ingress.rs               # bounded prototype TCP ingress and verifier/payload handoff
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
@@ -76,6 +80,7 @@ secS-magik/
 │           ├── secs-permctl.rs      # receiver-local permission policy CLI
 │           ├── secs-devgraph-issue-create-v1.rs # thin fixed DG-E1 adapter wrapper
 │           ├── secs-devgraph-issue-create-v1-wallet.rs # thin fixed DG-E2 Wallet wrapper
+│           ├── secs-devgraph-work-v1.rs # thin fixed named Work/Arena projection wrapper
 │           └── secz.rs              # historical compatibility and audit wrapper
 ├── permissions/
 │   ├── Cargo.toml
@@ -91,6 +96,7 @@ secS-magik/
 └── docs/
     ├── README.md                    # docs index
     ├── current-state.md             # concise orientation derived from the status ledger
+    ├── devgraph-named-work-v1.md    # named Work/Arena v1 producer and setup boundary
     ├── implementation-status.md     # current status ledger
     ├── repository-schema.md         # this file
     ├── client-surfaces.md           # client-side/outgoing-call boundary
@@ -142,6 +148,10 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 | `server/src/devgraph_authority.rs` | Fixed `devgraph.issue.create.v1` request/Wallet/policy verification and portable signed authority projection production. | Generic operations, routes, opcodes, handlers, Devgraph Work mutation/receipt ownership, Wallet custody, `.castaway` authority, or hybrid/PQ v1 claims. |
 | `server/src/devgraph_issue_create_cli.rs` | Fixed DG-E1 owner-private input/config loading, exact DG-P invocation, replay SQLite opening, bounded summaries, and atomic signed-projection output. | Caller-selected receiver controls, generic operations/routes/handlers/transports, service-key generation, Wallet custody, Devgraph mutation, or E2E success claims. |
 | `server/src/devgraph_issue_create_wallet_cli.rs` | Fixed DG-E2 `127.0.0.1:9045` one-shot Wallet page/CSRF state machine and direct exact-provider call before typed DG-E1 producer invocation. | Configurable listener/browser, generic RPC, cookies/storage, Wallet custody, `.castaway` reads, temporary presentation files, Devgraph calls/mutations/receipts, deployment, or hybrid/PQ claims. |
+| `server/src/devgraph_work_request.rs` | Closed `devgraph.work-request.v1` and `devgraph.arena-request.v1` parser/canonicalizer with safe-integer, duplicate-key, operation, resource, and digest-domain boundaries. | Wallet custody, policy decisions, Devgraph graph reads/writes, HTTP receiver behavior, or generic operation schemas. |
+| `server/src/devgraph_work_authority.rs` | Fixed named Work/Arena v1 Wallet presentation verification, deny-wins receiver-policy evaluation, resource inventory, replay binding, and portable signed projection production. | Packet routes, opcodes, handlers, Devgraph Work mutation/receipt ownership, receiver activation, or deployment proof. |
+| `server/src/devgraph_work_cli.rs` | Fixed owner-private request/idempotency/projection file adapter for `secs-devgraph-work-v1`. | Caller-selected authority roots, generic transports, service-key generation, Wallet custody, or Devgraph mutation. |
+| `server/src/devgraph_work_admin.rs` | Owner-local named Work authority provisioning, renewal/rotation, status, and snapshot verification under the canonical secS authority directory. | Actor-key custody, Devgraph receiver activation, policy authorship, graph mutation, or secret publication. |
 | `server/src/ingress.rs` | Prototype TCP ingress and verifier/payload handoff. | Receiver-local manifest semantics or handler implementation details. |
 | `server/src/gateway.rs` | Configurable router, legacy telemetry, receiver-local bounded handler routing, and handler lifecycle receipt/event emission. | Packet decode or payload decryption policy; durable distributed broker semantics; arbitrary shell authority. |
 | `server/src/payload.rs` | Tunnel key parsing and runtime-mode payload decryption. | Opcode routing, manifest semantics, or receipt persistence. |
@@ -158,6 +168,7 @@ These fixtures model static receiver-held trust only. They are not live Castalia
 | `server/src/bin/secz.rs` | Compatibility wrapper for the historical command name. | Final verifier semantics or generic interface claims. |
 | `server/src/bin/secs-devgraph-issue-create-v1.rs` | Thin wrapper for the fixed three-file DG-E1 adapter. | Reusable producer logic, generic CLI selection, or Devgraph Work mutation. |
 | `server/src/bin/secs-devgraph-issue-create-v1-wallet.rs` | Thin wrapper for the fixed three-file DG-E2 Wallet adapter. | Reusable ceremony/producer logic, configurable browser/listener controls, or Devgraph Work mutation. |
+| `server/src/bin/secs-devgraph-work-v1.rs` | Thin wrapper for the fixed three-file named Work/Arena adapter plus explicit `admin` subcommands. | Reusable authority logic, caller-selected roots, or Devgraph Work mutation. |
 
 ## Opcode range schema
 
