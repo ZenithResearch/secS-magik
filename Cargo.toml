@@ -1,8 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["core", "client", "server", "permissions", "panel"]
+members = ["core", "client", "server", "permissions", "panel", "crates/secs-devgraph-work-contract", "crates/secs-native-private-files"]
 
 [workspace.dependencies]
+devgraph-work-protocol = { git = "https://github.com/ZenithResearch/devgraph.git", rev = "59a0141cefb22f3a5084a13d12c44e1e22f36ab1" }
+castalia-wallet-devgraph-presentation = { git = "https://github.com/bananawalnut/castalia-wallet.git", rev = "52ee41ad03af8f256601c1c21c33e55d876a5380" }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 bincode = "1"

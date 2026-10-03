@@ -228,7 +228,10 @@ secS-magik/
 └── Cargo.toml             # workspace definition
 ```
 
-Current workspace members are `core`, `client`, `server`, `permissions`, and `panel`.
+Current workspace members are `core`, `client`, `server`, `permissions`, `panel`,
+`crates/secs-devgraph-work-contract`, and `crates/secs-native-private-files`.
+The portable contract has no signing, registry or replay authority; see
+`docs/portable-work-reconciliation.md` for source-access and qualification gates.
 
 Untracked local directories such as `hub/`, `ops/`, or `docs/reviews/` are not part of the Cargo workspace unless explicitly added and documented.
 

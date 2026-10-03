@@ -8,7 +8,7 @@ This is the short orientation page for the repository. The detailed and authorit
 
 | Area | Current state | Boundary |
 |---|---|---|
-| Repository | Active Rust prototype with `core`, `client`, `server`, `permissions`, and `panel` workspace members. | Not deployment or production-readiness evidence. |
+| Repository | Active Rust prototype with five runtime/panel members and two portable/native reuse members on this candidate. | Not deployment or production-readiness evidence. |
 | Packet contract | `ZenithPacket` v0 and `opcode: u8` are preserved; bounded ingress and versioned payload envelopes exist. | A packet is a transport envelope, not authority by itself. |
 | Verification | Receiver-held caller identity, descriptor, audience, freshness, replay, permission, evidence, and signed-context checks exist across tested paths. | Several external/federated/proof rails remain bounded, fixture-backed, design-gated, or future. |
 | Devgraph exact-operation authority | P4-O-DG-R1, DG-P, and DG-E1 are merged. The current DG-E2 branch adds one fixed-origin, owner-private three-file Wallet ceremony around exactly the existing Ed25519 producer. | Local projection production only: no ingress/manifest route, generic browser RPC, Devgraph mutation/receipt, Wallet custody, deployment, or hybrid/PQ v1 authority. |
@@ -104,3 +104,10 @@ The implementation ledger remains the source for current I16-I19, wallet-core pa
 ## Maintenance rule
 
 Update this page when a change alters the top-level request path, production/status posture, active architecture decisions, or the location of authoritative documentation. Always update [implementation-status.md](implementation-status.md) first or in the same change.
+
+## Portable contract candidate
+
+This branch extracts reusable Work/Arena proof validation and owner-private file
+modules while retaining native secS signing, trust and replay authority. It is a
+draft candidate with [source-access and installed-acceptance gates](portable-work-reconciliation.md);
+it does not change the deployment posture recorded above.
