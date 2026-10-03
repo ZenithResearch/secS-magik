@@ -62,3 +62,15 @@ vectors. Four admin/file unit tests pass; the existing real Wallet workflow test
 stays explicitly ignored pending isolated qualification. Portable strict Clippy,
 WASM compilation and the native `secs-devgraph-work-v1` build pass. These are scoped
 checks for the named Work change; full workspace and hosted CI remain separate.
+
+
+## Kanban follow-up candidate
+
+Adds workflow.assign, workflow.review and workflow.transition plus the existing
+ReviewPacket, Handoff and ExternalLink resource vocabulary to closed policy
+admission. Each resource derived from a request still needs an exact or prefix
+grant; none is provisioned by this change. The public request and Wallet pins in
+Cargo.toml are immutable candidates. Legacy Work/Arena signatures and ZenithPacket
+v0 remain unchanged. Native/portable tests use disposable fixtures. Installed
+Chrome/native/secS/receiver acceptance and existing source-access gates remain
+separate; this does not claim that they passed.

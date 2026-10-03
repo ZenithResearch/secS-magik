@@ -255,7 +255,7 @@ dependencies = [
 [[package]]
 name = "castalia-wallet-devgraph-presentation"
 version = "0.1.0"
-source = "git+https://github.com/bananawalnut/castalia-wallet.git?rev=52ee41ad03af8f256601c1c21c33e55d876a5380#52ee41ad03af8f256601c1c21c33e55d876a5380"
+source = "git+https://github.com/bananawalnut/castalia-wallet.git?rev=d6f2b5579bce88058b1887a07a348453a522105e#d6f2b5579bce88058b1887a07a348453a522105e"
 dependencies = [
  "base64",
  "devgraph-work-protocol",
@@ -518,7 +518,7 @@ dependencies = [
 [[package]]
 name = "devgraph-work-protocol"
 version = "0.1.0"
-source = "git+https://github.com/ZenithResearch/devgraph.git?rev=59a0141cefb22f3a5084a13d12c44e1e22f36ab1#59a0141cefb22f3a5084a13d12c44e1e22f36ab1"
+source = "git+https://github.com/ZenithResearch/devgraph.git?rev=1003cc3c7ab55ab34d66fbff8832a3ac18aa8ae2#1003cc3c7ab55ab34d66fbff8832a3ac18aa8ae2"
 dependencies = [
  "serde",
  "serde_json",

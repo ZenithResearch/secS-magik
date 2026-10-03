@@ -52,6 +52,9 @@ fn named_operation(s: &str) -> bool {
                     | "dependency.remove"
                     | "blocker.add"
                     | "blocker.remove"
+                    | "workflow.assign"
+                    | "workflow.review"
+                    | "workflow.transition"
             )
         })
 }
@@ -104,7 +107,11 @@ impl WorkPolicy {
                 .strip_prefix("pubkey:sha256:")
                 .ok_or("invalid_work_policy")?;
             let (label, id) = rule.resource.split_once('/').ok_or("invalid_work_policy")?;
-            let resource_ok = (kind(label) || matches!(label, "Decision" | "Arena"))
+            let resource_ok = (kind(label)
+                || matches!(
+                    label,
+                    "Decision" | "Arena" | "ReviewPacket" | "Handoff" | "ExternalLink"
+                ))
                 && match rule.resource_match.as_str() {
                     "exact" => identifier(id),
                     "prefix" => {
