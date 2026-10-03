@@ -152,7 +152,7 @@ async fn run_at(cli: WorkCli, data_root: &Path, clock: impl Fn() -> u64) -> Resu
         &registry,
         &policy,
         WorkAuthorityInput {
-            request_json: &request.canonical,
+            request_json: request.canonical(),
             wallet_presentation_json: &presentation,
             idempotency_key: idempotency,
             now: clock(),
@@ -225,7 +225,7 @@ mod tests {
             let input_path = root.join(format!("input-{index}.json"));
             if let Some(binary) = &wallet_binary {
                 let request_path = root.join("request.json");
-                write(&request_path, &request.canonical);
+                write(&request_path, request.canonical());
                 let output = std::process::Command::new(binary)
                     .env_clear()
                     .env("DEVGRAPH_SIGNING_KEY_FILE", &wallet_key)
@@ -257,13 +257,13 @@ mod tests {
                 policy_id: format!("named-file-test-{index}"),
                 policy_version: 1,
                 rules: request
-                    .resources
+                    .resources()
                     .iter()
                     .map(|resource| WorkRule {
                         actor_id: crate::devgraph_authority::actor_id_for_public_key(
                             public.as_bytes(),
                         ),
-                        operation: request.operation.clone(),
+                        operation: request.operation().to_owned(),
                         resource: resource.clone(),
                         resource_match: "exact".into(),
                         effect: "allow".into(),

@@ -15,6 +15,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Changed
+
+- Extract the portable Work/Arena verification and owner-private file modules from `18a6d3a`, retaining main's Arena policy and request bindings while pinning the public protocol and Wallet presentation revisions — native clients can reuse the exact contract without importing the secS runtime.
+- Pin Rust 1.96.0 and locked resolution in Rust CI — qualification must use the reviewed dependency graph; public CI still requires access to the private Wallet source and remains externally blocked.
+
+### Changed
 - P4-O-DG-R1 / #282: constrained `priority` and every other RFC 8785-canonicalized integer in `devgraph.issue.create.v1` to the interoperable IEEE-754 safe-integer domain, with boundary, Unicode/control-escape, no-normalization, and array-order vectors — this prevents cross-language request/projection digest divergence before DG-P while changing no runtime, operation, schema field, Ed25519-only v1, generic Work API, `.castaway`, or hybrid/PQ boundary.
 - #276: replaced fixed-width client and server hex chunking with the Rust 1.98-recommended fixed-array iterator — this restores latest-stable strict Clippy compatibility without changing parsing, key, receipt, Packet v0, opcode, or protocol behavior.
 - P4-O-DG: operator-ratified the `devgraph.issue.create.v1` exact-operation contract after P4-R merged and its post-merge Rust CI passed, including the portable signed authority projection, receipt-correlation boundary, and serialized cross-repository DAG — this enables only the next DG-P implementation slice while preserving every runtime, generic Work API, `.castaway` authority, and hybrid/PQ non-claim.

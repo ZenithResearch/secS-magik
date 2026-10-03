@@ -274,3 +274,12 @@ secz audit anchor verify <bundle.json> <anchor.json>
 `secz audit anchor verify <bundle.json> <anchor.json>` first verifies the local public audit bundle, then compares the external anchor record against the bundle version, chain algorithm version, chain scope, root hash, and receipt count. The GitHub Gist adapter records publication status through `Ledger::publish_public_audit_bundle(...)` using target kind `github-gist` and persists only `target_ref_digest_hex` in local status rows.
 
 The GitHub Gist target is a public publication witness, not blockchain immutability, Cardano/Midnight settlement finality, censorship-proof storage, or production deployment proof. The adapter and runbook must not publish raw payloads, private evidence, local SQLite rows, or private signing material.
+
+## Portable reconciliation modules
+
+- `crates/secs-devgraph-work-contract/`: public policy, presentation and projection
+  verification with supplied trust; native signing and replay remain in `server`.
+- `crates/secs-native-private-files/`: owner-private descriptor-relative I/O.
+
+These are workspace members. Their [source-access qualification](portable-work-reconciliation.md)
+is separate from the existing runtime evidence.

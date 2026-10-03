@@ -4,7 +4,7 @@ use server::devgraph_authority::{
     actor_id_for_public_key, encode_base64url, idempotency_key_digest_sha256,
 };
 use server::devgraph_work_authority::{
-    digest, issue_work_authority, WorkAuthorityInput, WorkPolicy, WorkRule,
+    issue_work_authority, WorkAuthorityInput, WorkPolicy, WorkRule,
 };
 use server::devgraph_work_request::WorkRequest;
 use server::identity::{
@@ -18,7 +18,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 const NOW: u64 = 1_800_000_000;
 const KEY: &str = "named-work-native-test-0001";
 fn bytes(value: &Value) -> Vec<u8> {
-    serde_json::to_vec(value).unwrap()
+    devgraph_work_protocol::canonical_json(value).unwrap()
 }
 fn wallet(request: &WorkRequest, key: &str, session: u8) -> Value {
     let signer = SigningKey::from_bytes(&[37; 32]);
@@ -26,8 +26,8 @@ fn wallet(request: &WorkRequest, key: &str, session: u8) -> Value {
         "actor_signature_suite":"Ed25519", "audience":"devgraph://receiver-local",
         "expires_at": NOW+60, "issued_at": NOW, "idempotency_key_digest_sha256":idempotency_key_digest_sha256(key).unwrap(),
         "nonce":encode_base64url(&[session;12]), "session_id":encode_base64url(&[session;16]),
-        "operation":request.operation, "resources":request.resources,
-        "request_digest_sha256":digest(request.request_domain(), &request.canonical),
+        "operation":request.operation(), "resources":request.resources(),
+        "request_digest_sha256":request.request_digest(),
         "schema":"devgraph.work.wallet-presentation.v1", "schema_version":1});
     let mut preimage = b"devgraph.work.wallet-presentation.v1/signature\0".to_vec();
     preimage.extend(bytes(&value));
@@ -42,7 +42,7 @@ fn policy(request: &WorkRequest) -> WorkPolicy {
         schema: "secs-devgraph-work-policy.v1".into(),
         schema_version: 1,
         rules: request
-            .resources
+            .resources()
             .iter()
             .map(|resource| WorkRule {
                 actor_id: actor_id_for_public_key(
@@ -52,7 +52,7 @@ fn policy(request: &WorkRequest) -> WorkPolicy {
                 status: "active".into(),
                 not_before: NOW - 10,
                 not_after: NOW + 600,
-                operation: request.operation.clone(),
+                operation: request.operation().to_owned(),
                 resource: resource.clone(),
                 resource_match: "exact".into(),
             })
@@ -147,6 +147,14 @@ async fn all_shared_operations_signed_retried_and_verified() {
             "projection":serde_json::from_slice::<Value>(&first.unwrap()).unwrap(), "policy":policy,
             "public_key":encode_base64url(identity.public_key().as_bytes()), "key":KEY, "now":NOW}));
     }
+    let historical: Vec<Value> =
+        serde_json::from_slice(include_bytes!("fixtures/named-work-v1/signed-vectors.json"))
+            .unwrap();
+    assert_eq!(
+        &fixtures[..historical.len()],
+        historical.as_slice(),
+        "portable extraction must preserve every historical Work signed byte"
+    );
     // Explicit test-only export contains public proofs and policies, never private keys.
     if let Ok(path) = std::env::var("DEVGRAPH_TEST_VECTOR_OUTPUT") {
         std::fs::write(path, serde_json::to_vec_pretty(&fixtures).unwrap()).unwrap();
@@ -161,7 +169,7 @@ async fn every_affected_resource_requires_current_permission() {
         let raw = vector["raw"].as_str().unwrap().as_bytes();
         let request = WorkRequest::parse(raw).unwrap();
         let presentation = bytes(&wallet(&request, KEY, 1));
-        for index in 0..request.resources.len() {
+        for index in 0..request.resources().len() {
             for state in [
                 "missing",
                 "revoked",
@@ -181,7 +189,7 @@ async fn every_affected_resource_requires_current_permission() {
                     "deny" => rule.effect = "deny".into(),
                     "wrong-actor" => rule.actor_id = format!("pubkey:sha256:{}", "e".repeat(64)),
                     "wrong-operation" => {
-                        rule.operation = if request.operation.ends_with("create.v1") {
+                        rule.operation = if request.operation().ends_with("create.v1") {
                             "devgraph.work.patch.v1"
                         } else {
                             "devgraph.work.create.v1"

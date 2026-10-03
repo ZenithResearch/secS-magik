@@ -1,0 +1,17 @@
+[package]
+name = "secs-devgraph-work-contract"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[features]
+preserve-order-test = ["serde_json/preserve_order"]
+
+[dependencies]
+devgraph-work-protocol.workspace = true
+castalia-wallet-devgraph-presentation.workspace = true
+serde.workspace = true
+serde_json = "1"
+ed25519-dalek.workspace = true

@@ -12,7 +12,7 @@ This repository is an active, production-shaped **local prototype**. It contains
 | Destination | Purpose |
 |---|---|
 | [Documentation site](https://zenithresearch.github.io/secS-magik/) | This README rendered as the project home, plus the tracked Markdown corpus. |
-| [Rust API documentation](https://zenithresearch.github.io/secS-magik/api/) | Generated host-target API docs for the five workspace crates. |
+| [Rust API documentation](https://zenithresearch.github.io/secS-magik/api/) | Generated host-target API docs for the workspace crates. |
 | [WASM API documentation](https://zenithresearch.github.io/secS-magik/wasm-api/) | Generated wasm32 API docs for `libsec-core` and the permission panel. |
 | [Browser permission panel](https://zenithresearch.github.io/secS-magik/panel/) | Existing no-network receiver-local policy authoring/evaluation UI. |
 | [Current state](docs/current-state.md) | Short, date-stamped orientation derived from the implementation ledger. |
@@ -26,7 +26,7 @@ The root README is the canonical front door and operating map. The implementatio
 
 | Surface | Current status | Exact boundary |
 |---|---|---|
-| Workspace | Solid / implemented | Five members: `libsec-core`, `client`, `server`, `secs-permissions`, and `panel`. |
+| Workspace | Solid / implemented | Seven members: the five runtime/panel packages plus portable `secs-devgraph-work-contract` and native `secs-native-private-files`. |
 | Packet compatibility | Solid / implemented | `ZenithPacket` v0 retains a `u8` opcode and its original bincode field order. The final `mac` field is reserved and unauthenticated. |
 | Ingress | Solid local hardening; prototype transport | Bounded TCP reads, legacy Packet v0 plus versioned ingress envelopes, explicit payload modes, typed rejects, and concurrency limits. No TLS listener or deployed-service proof. |
 | Caller and receiver identity | Solid local implementation | Ed25519 caller proofs, receiver signing identities, key identifiers, owner-private key-file checks, and receiver-held registries. Registry distribution/rotation remains operator-owned. |
@@ -84,7 +84,7 @@ Important ordering guarantees are covered by integration tests: verification fai
 
 ## Workspace inventory
 
-The root `Cargo.toml` contains five members:
+The root `Cargo.toml` contains seven members:
 
 | Package | Kind | What is actually present |
 |---|---|---|
@@ -93,6 +93,11 @@ The root `Cargo.toml` contains five members:
 | [`server`](server/README.md) | Library + six binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, the fixed DG-P `devgraph.issue.create.v1` authority producer, bounded file/Wallet adapters, and the separate named Work v1 projection producer. |
 | `secs-permissions` | Reusable library | Receiver-local permission records and fail-closed policy evaluation shared by the server, native policy CLI, and WASM panel. |
 | [`panel`](panel/README.md) | `cdylib`, `rlib` | Four wasm-bindgen functions plus a static HTML/JavaScript policy panel that stores policy JSON in the browser. |
+
+| `secs-devgraph-work-contract` | Portable library | Work/Arena policy and public proof validation; no native authority or replay state. |
+| `secs-native-private-files` | Native library | Descriptor-relative owner-private file operations reused by the native SDK. |
+
+See the [portable reconciliation source-access gates](docs/portable-work-reconciliation.md) before attempting public builds.
 
 ### Shipped binaries
 

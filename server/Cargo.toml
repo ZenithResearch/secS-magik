@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+secs-native-private-files = { path = "../crates/secs-native-private-files" }
+secs-devgraph-work-contract = { path = "../crates/secs-devgraph-work-contract" }
+devgraph-work-protocol.workspace = true
+castalia-wallet-devgraph-presentation.workspace = true
 tokio = { workspace = true }
 libsec-core = { path = "../core" }
 secs-permissions = { path = "../permissions" }

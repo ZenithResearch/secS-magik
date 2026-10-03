@@ -195,3 +195,11 @@ Avoid these phrases unless code proves them:
 ## I07 authority-mode labels
 
 I07 authority-mode labels are implemented on the live verified-router path for descriptors that set receiver-held `required_authority_mode`: `local_fixture`, `signed_source`, `solo_verified_receipt`, `federation_checkpoint`, `light_client_verified`, and `recursive_proof_carrying_state`. Verified adapter output supplies only the observed `authority_mode`; the verifier separately binds the descriptor-selected required mode into the signed context, and `ConfigurableRouter::route_verified` compares the observed mode against the active descriptor before replay/nullifier use-state, verify/success receipts, handler lookup, or handler dispatch. A weaker mode rejects with `authority_mode_downgrade`, executes no registered handler, and records only a reject receipt with redacted observed/required labels. signed_source in this slice is a label/fixture policy tier only; live signed-source transport remains gated by I16. federation_checkpoint in this slice does not claim durable rollback/equivocation-resistant finality; durable federated checkpoint/root state remains gated by I17. light_client_verified and recursive_proof_carrying_state are reserved fail-closed labels until their verifier issues land in I18 and I19. Node/listing/downstream federation topology such as delegated-under-node metadata is not federation-checkpoint evidence and does not authorize operations by itself. Castalia WirePresentation/revocation witnesses remain I05/I15, and this gate does not unblock downstream secS work.
+
+## Portable Work/Arena reconciliation candidate
+
+The `secs-devgraph-work-contract` and `secs-native-private-files` extraction is a
+review candidate from `18a6d3a`, reconciled with main's Arena bindings. Native
+policy/signing/replay ownership and admin authorization are retained. Public CI
+source access to the pinned private Wallet dependency and real installed native
+acceptance remain blocked. See [provenance and qualification gates](portable-work-reconciliation.md).

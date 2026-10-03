@@ -1,0 +1,14 @@
+[package]
+name = "secs-native-private-files"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+rand.workspace = true
+libc = "0.2"
+zeroize = "1"
+
+[dev-dependencies]
+tempfile = "=3.27.0"
