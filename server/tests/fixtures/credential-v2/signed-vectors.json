@@ -1,0 +1,2890 @@
+{
+  "issuer_public_key": "4508a07aa941707f3eb2db94c8897a80b2c1197476b6de213ac273df7d86c4ff",
+  "provenance": "Synthetic public test seeds: wallet byte37, authority byte43. No production authority.",
+  "schema": "secs-devgraph-credential-fixtures.v2",
+  "vectors": [
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.create.v1",
+            "resource": "Proposal/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "0824ac382bef84f068e0235eb763ff80928a80b886033b4106e587c5c3ee67f7",
+        "disclosure_digest_sha256": "5e8595d0604de42184c6dc8084766affdcf06170d88334cc5c33993ee3b2df7f",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "65656565656565656565656565656565",
+        "request_digest_sha256": "1dfb882f8ae28f207ebfba5c5c839bb0ab9427c0b08471fee0004826db0b7bf5",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "0e6b7c4073e2ac496db335fdffdae35a382a801b350fc2badf2b18db6051f46615d8a3df9d0f222783db895951f5bdc7e1228a408704839e76da822e247d5305"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "5e8595d0604de42184c6dc8084766affdcf06170d88334cc5c33993ee3b2df7f",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "01010101010101010101010101010101",
+            "policy_digest_sha256": "a934580d2bd26c913fde838d1c85e47f2baa9e9202062c72f246b2f7c8a05e2b",
+            "request_digest_sha256": "1dfb882f8ae28f207ebfba5c5c839bb0ab9427c0b08471fee0004826db0b7bf5",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "fce474c69956ca03f56fd7322bcd4a5025644776849c4a4de733f679da862a5c319d1f6798e4a2a26b0b666403216268c75296277db6f1d6672e41afbb3c110b"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.create.v1",
+            "Resources: Proposal/i-1",
+            "Expected version: new",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Proposal\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjpudWxsLCJpZCI6ImktMSIsImtpbmQiOiJQcm9wb3NhbCIsIm9wZXJhdGlvbiI6ImNyZWF0ZSIsInBheWxvYWQiOnsiYXJ0aWZhY3RfaWRzIjpbXSwiZGVzY3JpcHRpb24iOiIiLCJleHRlcm5hbF9saW5rX2lkcyI6W10sImlkIjoiaS0xIiwicHJpb3JpdHkiOi05MDA3MTk5MjU0NzQwOTkxLCJ0aXRsZSI6IkV4YW1wbGUgw6kg8J+UkiJ9LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "0824ac382bef84f068e0235eb763ff80928a80b886033b4106e587c5c3ee67f7",
+        "credential_presentation_digest_sha256": "39da5a5a46bea25aeb5c607704a5e12b1c3a39fb83495342878c6735f7f17b47",
+        "credential_request_digest_sha256": "1dfb882f8ae28f207ebfba5c5c839bb0ab9427c0b08471fee0004826db0b7bf5",
+        "disclosure_digest_sha256": "5e8595d0604de42184c6dc8084766affdcf06170d88334cc5c33993ee3b2df7f",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "65656565656565656565656565656565",
+        "operation": "devgraph.work.create.v1",
+        "receiver_policy_digest_sha256": "a934580d2bd26c913fde838d1c85e47f2baa9e9202062c72f246b2f7c8a05e2b",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "2533c0a9b397a9a2bd49914589a58d0e7e950f571ae71c64c04878af380ae7c5",
+        "resources": [
+          "Proposal/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:2aa99c9196c15aa7819a2d94ffe754d3eecf3f946328d1fa286b1908d6b4bc37",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "0z8-tdqu1cbCyA4Xnu2GXZtY_V99bU4UqpzM-fRLvyvm-LIYJ58auLdUyIx8M74QdO4O-sCDbYLuHTg2XDarCQ",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "01010101010101010101010101010101"
+      },
+      "request": {
+        "expected_version": null,
+        "id": "i-1",
+        "kind": "Proposal",
+        "operation": "create",
+        "payload": {
+          "artifact_ids": [],
+          "description": "",
+          "external_link_ids": [],
+          "id": "i-1",
+          "priority": -9007199254740991,
+          "title": "Example é 🔒"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.create.v1",
+            "resource": "Initiative/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "fdac3b89a9d97c2e6b1370ddcae76d3dc49d8ce9fb6f0a2c581ad4f913e0f0d9",
+        "disclosure_digest_sha256": "f620d1c93dbe5729878b3f0cf3001ba0493685239646f06262937bb3fe825a54",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "66666666666666666666666666666666",
+        "request_digest_sha256": "a1d7c416e45a3bc97498c62d3bb97cc424f56159017000f7b520a78d79ccdd53",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "90346b81863322a236825bb4f506d86fdd2f9d44a38dd8c7e3a975ab7235f54951db48688360df9ae88a5a8abce29f332148e07a315c870f2fe9682eb5ee3d0f"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "f620d1c93dbe5729878b3f0cf3001ba0493685239646f06262937bb3fe825a54",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "02020202020202020202020202020202",
+            "policy_digest_sha256": "4a15e98ba3b2e76262311e83ded2b9ecf56cbf599cf224f28724f12c51b3e3dd",
+            "request_digest_sha256": "a1d7c416e45a3bc97498c62d3bb97cc424f56159017000f7b520a78d79ccdd53",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "939bd9a209bf7fd748991ee10a9be172c6b4278904dfe050399f36e5e594bbd1d6d2b751e47b84733969c64d522046ec219edc7844d9c8b1cd6f0e4a74a1600c"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.create.v1",
+            "Resources: Initiative/i-1",
+            "Expected version: new",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Initiative\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjpudWxsLCJpZCI6ImktMSIsImtpbmQiOiJJbml0aWF0aXZlIiwib3BlcmF0aW9uIjoiY3JlYXRlIiwicGF5bG9hZCI6eyJhcnRpZmFjdF9pZHMiOltdLCJkZXNjcmlwdGlvbiI6IiIsImV4dGVybmFsX2xpbmtfaWRzIjpbXSwiaWQiOiJpLTEiLCJwcmlvcml0eSI6LTkwMDcxOTkyNTQ3NDA5OTEsInRpdGxlIjoiRXhhbXBsZSDDqSDwn5SSIn0sInNjaGVtYSI6ImRldmdyYXBoLndvcmstcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "fdac3b89a9d97c2e6b1370ddcae76d3dc49d8ce9fb6f0a2c581ad4f913e0f0d9",
+        "credential_presentation_digest_sha256": "42f749314e79acc5115a070573de20d4f929cecefbdf16d11f3910d2d63dca46",
+        "credential_request_digest_sha256": "a1d7c416e45a3bc97498c62d3bb97cc424f56159017000f7b520a78d79ccdd53",
+        "disclosure_digest_sha256": "f620d1c93dbe5729878b3f0cf3001ba0493685239646f06262937bb3fe825a54",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "66666666666666666666666666666666",
+        "operation": "devgraph.work.create.v1",
+        "receiver_policy_digest_sha256": "4a15e98ba3b2e76262311e83ded2b9ecf56cbf599cf224f28724f12c51b3e3dd",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "1aa16a037ece80e7d5b112bc00f04dd390e9309caeab525375e2aa6f8112b116",
+        "resources": [
+          "Initiative/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:c61a55234a504fcf0a38ffa47834542ed70c6c6aa538f3acf6824af7f6c5d28f",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "cUIIXlkuZiccUjoadIb9FTSnKvt8Jyjt3eLo8ZV_fNVDTj32GrhylFhAabsttLIyVwaIXzmmO8aHy7PKvDldBg",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "02020202020202020202020202020202"
+      },
+      "request": {
+        "expected_version": null,
+        "id": "i-1",
+        "kind": "Initiative",
+        "operation": "create",
+        "payload": {
+          "artifact_ids": [],
+          "description": "",
+          "external_link_ids": [],
+          "id": "i-1",
+          "priority": -9007199254740991,
+          "title": "Example é 🔒"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.create.v1",
+            "resource": "Project/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "04e50104e1b0e010dda122403ea42bb57845a154e02e766611aff97608dcc9fc",
+        "disclosure_digest_sha256": "a46af19e43b23296beaf14d474af98f1175ac599c84d00761233cf43c710b94e",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "67676767676767676767676767676767",
+        "request_digest_sha256": "6c0179047ebe7e3dd2c1214b16fb46c9f924d69968cedcd0991c840730a5c2c6",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "8b6d52a93c30fc929fda8089a4ceb58f595e116a366ec0ab36bc226e54f7ee66f96b2bcad300374d63108adfba10d0d5fa7a53c1bc5b9fdea120fc458324600f"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "a46af19e43b23296beaf14d474af98f1175ac599c84d00761233cf43c710b94e",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "03030303030303030303030303030303",
+            "policy_digest_sha256": "31bfdccd3fc34ab8fb556804e4da3179bd2ac0e137e37331ab1a35e2af65d054",
+            "request_digest_sha256": "6c0179047ebe7e3dd2c1214b16fb46c9f924d69968cedcd0991c840730a5c2c6",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "9414e5571b01ce24caa7bb065e770d6f5e0d9760fcc05615cb454f0236df70ccd4230ac6602d5cc84968b27141bfd63d76a9714dd5ecfcbfa8dc2dde4d2daf0f"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.create.v1",
+            "Resources: Project/i-1",
+            "Expected version: new",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Project\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjpudWxsLCJpZCI6ImktMSIsImtpbmQiOiJQcm9qZWN0Iiwib3BlcmF0aW9uIjoiY3JlYXRlIiwicGF5bG9hZCI6eyJhcnRpZmFjdF9pZHMiOltdLCJkZXNjcmlwdGlvbiI6IiIsImV4dGVybmFsX2xpbmtfaWRzIjpbXSwiaWQiOiJpLTEiLCJwcmlvcml0eSI6LTkwMDcxOTkyNTQ3NDA5OTEsInRpdGxlIjoiRXhhbXBsZSDDqSDwn5SSIn0sInNjaGVtYSI6ImRldmdyYXBoLndvcmstcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "04e50104e1b0e010dda122403ea42bb57845a154e02e766611aff97608dcc9fc",
+        "credential_presentation_digest_sha256": "f47854a7e3211b3fdb0997d97e5e656ad66f6393787c1aae2ee8e2975ab9fee4",
+        "credential_request_digest_sha256": "6c0179047ebe7e3dd2c1214b16fb46c9f924d69968cedcd0991c840730a5c2c6",
+        "disclosure_digest_sha256": "a46af19e43b23296beaf14d474af98f1175ac599c84d00761233cf43c710b94e",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "67676767676767676767676767676767",
+        "operation": "devgraph.work.create.v1",
+        "receiver_policy_digest_sha256": "31bfdccd3fc34ab8fb556804e4da3179bd2ac0e137e37331ab1a35e2af65d054",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "920f74d16a57a2659aab675404eaa1e0fef8c5315f0bf438a3a4f8c7067f2133",
+        "resources": [
+          "Project/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:fad1248c7f0dc95ac197e64c9f3d5feab39c4ad12b856ae27a9209e929ab4a86",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "NS0W_9PQmeGg3heWpzsSQYFFNmkrt9bRdem42qaSdf6LKjOJhkDkJh5wzr9aXFhMCOdNYD-kpgMUpLdvgdbaAA",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "03030303030303030303030303030303"
+      },
+      "request": {
+        "expected_version": null,
+        "id": "i-1",
+        "kind": "Project",
+        "operation": "create",
+        "payload": {
+          "artifact_ids": [],
+          "description": "",
+          "external_link_ids": [],
+          "id": "i-1",
+          "priority": -9007199254740991,
+          "title": "Example é 🔒"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.create.v1",
+            "resource": "Issue/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "501db03ef4808ca8e53a4952fb4fa65687e48889d43d7e9cb66850f26a4039f5",
+        "disclosure_digest_sha256": "adcb84731f7ab3f49bab6c9adb0350b63f492e45e28105ee098070461aba34a3",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "68686868686868686868686868686868",
+        "request_digest_sha256": "25067a470f3626e86174c08094731ec9e345c1c02aeb1b327c049cdfdfb3f018",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "e6a40e556673c8e73add24650e7e2ec537fe1eb554c758b197f3a87ae5918e2c07e8fc217bbe1889a3032a40dcf47ddcf64afa1a435e0474ad54c1477502f50f"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "adcb84731f7ab3f49bab6c9adb0350b63f492e45e28105ee098070461aba34a3",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "04040404040404040404040404040404",
+            "policy_digest_sha256": "7fce9fe7f60f371246f4c936f64e7e4f38eef1b54850b607ca0c6620adbda9d3",
+            "request_digest_sha256": "25067a470f3626e86174c08094731ec9e345c1c02aeb1b327c049cdfdfb3f018",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "cb9c5b637b80dc3d08964b854e365b2eac67560bd2720e19cc12e8cf836159479fe4f50c2beb466627b46c67d808ccc8f4ebc4cca38c2012832ad60f5ae99502"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.create.v1",
+            "Resources: Issue/i-1",
+            "Expected version: new",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjpudWxsLCJpZCI6ImktMSIsImtpbmQiOiJJc3N1ZSIsIm9wZXJhdGlvbiI6ImNyZWF0ZSIsInBheWxvYWQiOnsiYXJ0aWZhY3RfaWRzIjpbXSwiZGVzY3JpcHRpb24iOiIiLCJleHRlcm5hbF9saW5rX2lkcyI6W10sImlkIjoiaS0xIiwicHJpb3JpdHkiOi05MDA3MTk5MjU0NzQwOTkxLCJ0aXRsZSI6IkV4YW1wbGUgw6kg8J+UkiJ9LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "501db03ef4808ca8e53a4952fb4fa65687e48889d43d7e9cb66850f26a4039f5",
+        "credential_presentation_digest_sha256": "ad4b66649ee5ee7210e684a79ca063766f86fc71b6b4e720b53d6fc3e6f8cb58",
+        "credential_request_digest_sha256": "25067a470f3626e86174c08094731ec9e345c1c02aeb1b327c049cdfdfb3f018",
+        "disclosure_digest_sha256": "adcb84731f7ab3f49bab6c9adb0350b63f492e45e28105ee098070461aba34a3",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "68686868686868686868686868686868",
+        "operation": "devgraph.work.create.v1",
+        "receiver_policy_digest_sha256": "7fce9fe7f60f371246f4c936f64e7e4f38eef1b54850b607ca0c6620adbda9d3",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "38aaf7596097e540d00aed8a7bc717d3a6507800cd8df1227c7a9b5d9e89e676",
+        "resources": [
+          "Issue/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:0b3787e160a4c5ea024952cde8de08dcdee100253f837e0c449190e01e946b7a",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "IC61q2N4jVmuIo56Qkmk3N1IMTG6iURfLQcIC609bTKilb4kz5GCbBp5eHQaVz8K_OQNoonm3uC3oRWF7B-xCw",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "04040404040404040404040404040404"
+      },
+      "request": {
+        "expected_version": null,
+        "id": "i-1",
+        "kind": "Issue",
+        "operation": "create",
+        "payload": {
+          "artifact_ids": [],
+          "description": "",
+          "external_link_ids": [],
+          "id": "i-1",
+          "priority": -9007199254740991,
+          "title": "Example é 🔒"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.create.v1",
+            "resource": "Task/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "53eb15b8e793ec59de09752bafca7a16fecbb52594385815a7f503ec768aa01c",
+        "disclosure_digest_sha256": "f6e55fa9d667de70214ec90c9b9f551ec48ffa024ff1b4580e8557b33d637187",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "69696969696969696969696969696969",
+        "request_digest_sha256": "1e9e3301f997e37b2705c5ce6594b740e7bd96b486a2f2c669c35c7e6b21d9cb",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "1637c80860b7bfee2669eb04a6ef994c74a9610aaca03c933be1b962cb18b5e28a2edc78109384f4f903d4e8dd30c72fdf8f1cc3e764b11773952e19d53a780a"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "f6e55fa9d667de70214ec90c9b9f551ec48ffa024ff1b4580e8557b33d637187",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "05050505050505050505050505050505",
+            "policy_digest_sha256": "87d400a3005d8e78f299ee00ffa9dcff93500229a48456cd773570ba57115a38",
+            "request_digest_sha256": "1e9e3301f997e37b2705c5ce6594b740e7bd96b486a2f2c669c35c7e6b21d9cb",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "4140574ad0a9cf5908eb7a0afc76fcab1f3a672257072b65bbeaa482df86dedc501bcb2ab6e416a0574cb2b80bcab58948b67a2d8d8f26690cdd6f262d7f3708"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.create.v1",
+            "Resources: Task/i-1",
+            "Expected version: new",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":null,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"i-1\",\"priority\":-9007199254740991,\"title\":\"Example é 🔒\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjpudWxsLCJpZCI6ImktMSIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoiY3JlYXRlIiwicGF5bG9hZCI6eyJhcnRpZmFjdF9pZHMiOltdLCJkZXNjcmlwdGlvbiI6IiIsImV4dGVybmFsX2xpbmtfaWRzIjpbXSwiaWQiOiJpLTEiLCJwcmlvcml0eSI6LTkwMDcxOTkyNTQ3NDA5OTEsInRpdGxlIjoiRXhhbXBsZSDDqSDwn5SSIn0sInNjaGVtYSI6ImRldmdyYXBoLndvcmstcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "53eb15b8e793ec59de09752bafca7a16fecbb52594385815a7f503ec768aa01c",
+        "credential_presentation_digest_sha256": "c9654d16cc6bd6c9e6f196b118bdc88eed188056d5d0702c0c56fd8e5bc0b52f",
+        "credential_request_digest_sha256": "1e9e3301f997e37b2705c5ce6594b740e7bd96b486a2f2c669c35c7e6b21d9cb",
+        "disclosure_digest_sha256": "f6e55fa9d667de70214ec90c9b9f551ec48ffa024ff1b4580e8557b33d637187",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "69696969696969696969696969696969",
+        "operation": "devgraph.work.create.v1",
+        "receiver_policy_digest_sha256": "87d400a3005d8e78f299ee00ffa9dcff93500229a48456cd773570ba57115a38",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "16f0eff1ff510419e99530a03540943be121619bcbe0dfccedb4511d95442cc9",
+        "resources": [
+          "Task/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:18f947af4fc858f227770082cc270c3f5ffebf4e4ff3a7d9032f0c12575e87f1",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "EXlu9REzgOdIK_vGxUbDpKB3-vty6RUyPeYSsnGgMF2l7-OGT6xdLbdcoj4_BstLlnlOfKWHSi0Scx7v7bJVAg",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "05050505050505050505050505050505"
+      },
+      "request": {
+        "expected_version": null,
+        "id": "i-1",
+        "kind": "Task",
+        "operation": "create",
+        "payload": {
+          "artifact_ids": [],
+          "description": "",
+          "external_link_ids": [],
+          "id": "i-1",
+          "priority": -9007199254740991,
+          "title": "Example é 🔒"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.patch.v1",
+            "resource": "Issue/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "7c37c351bd263096635ce6cb7a7018c447e328a7a47f14530cfe103f79815d99",
+        "disclosure_digest_sha256": "0b4c5165dc6a1dcf9aecd4f7964b7c08aeda0307e1534ff92352aa31ae25b81e",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a",
+        "request_digest_sha256": "c0eed8d528ea5f43632e736f01264160f9142eb2916187a765eecefc3db74102",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "815eb0f9600152d211270ae846b1ed7a0f8e7032be04233324d754de93d81daf2f3a547642b103922b0a8d0b2e70d681c40044cb2da77143dc3442aa61fbec03"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "0b4c5165dc6a1dcf9aecd4f7964b7c08aeda0307e1534ff92352aa31ae25b81e",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "06060606060606060606060606060606",
+            "policy_digest_sha256": "d0826ffaac7fa584aaaa3610bfb268052b8a45bfbbd6d78b26b4a3e66864fbf8",
+            "request_digest_sha256": "c0eed8d528ea5f43632e736f01264160f9142eb2916187a765eecefc3db74102",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "c9fc9c40829a74ce9c80fc0cf4cf153f87d7831623e015e78c28f44ed08ef0508034031c250fc2774ffa5450d55e4da9776af5177ddb7ccd481ba1e94fc1f80f"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.patch.v1",
+            "Resources: Issue/i-1",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"patch\",\"payload\":{\"artifact_ids\":[],\"description\":\"\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJJc3N1ZSIsIm9wZXJhdGlvbiI6InBhdGNoIiwicGF5bG9hZCI6eyJhcnRpZmFjdF9pZHMiOltdLCJkZXNjcmlwdGlvbiI6IiJ9LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "7c37c351bd263096635ce6cb7a7018c447e328a7a47f14530cfe103f79815d99",
+        "credential_presentation_digest_sha256": "86bb2ab3058116aef6c6e147d18d37168d569afe734dfad8ad1f06469b3aec21",
+        "credential_request_digest_sha256": "c0eed8d528ea5f43632e736f01264160f9142eb2916187a765eecefc3db74102",
+        "disclosure_digest_sha256": "0b4c5165dc6a1dcf9aecd4f7964b7c08aeda0307e1534ff92352aa31ae25b81e",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a",
+        "operation": "devgraph.work.patch.v1",
+        "receiver_policy_digest_sha256": "d0826ffaac7fa584aaaa3610bfb268052b8a45bfbbd6d78b26b4a3e66864fbf8",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "80c8b4fca1ddce49d1df105485e134dcf621c9db9e8f1ee5bbe4680abc4fdfe5",
+        "resources": [
+          "Issue/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:2d0b7a8d3f3c9b869bbe69020ba12de7c54feda8fc16afcfd8fbd96e8cb7f5f6",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "-o6CpP91P1Z7r2jw2SaBELu-g-fxfaxsQ4JjrWLZNWK9CcaNApSZNATaZkE_80qK_-_t3NDLqIABOXu1Z8TcAQ",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "06060606060606060606060606060606"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Issue",
+        "operation": "patch",
+        "payload": {
+          "artifact_ids": [],
+          "description": ""
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.status.v1",
+            "resource": "Issue/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "221dc4ada56b76be1f859b8266b055a506afed5f414bb9ec4d115705dc58509b",
+        "disclosure_digest_sha256": "623ebceffc7149e9a304872bc4471ddcd089b9092021c7a6479d2bb6ef33984f",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b",
+        "request_digest_sha256": "f47d27942854b08ba19910c27f2a6d6cca0988c427b00b4de5eed12b6e2d0cb7",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "9362ae7c01d929441bb654428d2e57f75f957347d8cfa7f1eb293a59c70264eb59070c0b26eba5699f1c12b1b1d7ef5ac57900d60ffe945fe0cb80efe28b130b"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "623ebceffc7149e9a304872bc4471ddcd089b9092021c7a6479d2bb6ef33984f",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "07070707070707070707070707070707",
+            "policy_digest_sha256": "31801524a6ac002815ac20681fa3a1153c60c9ebd417fd40e7bdf3566e66b426",
+            "request_digest_sha256": "f47d27942854b08ba19910c27f2a6d6cca0988c427b00b4de5eed12b6e2d0cb7",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "5dfddf52b2b28a73d252fbe4bfd1eb47d1e6696a79950ca9ee6167ca647cacf9b4e8a1eec25c6450c8ff17bfea1c5d83e4b8551b0119beaf7d2bcfa7861f7207"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.status.v1",
+            "Resources: Issue/i-1",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"status\",\"payload\":{\"status\":\"review\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJJc3N1ZSIsIm9wZXJhdGlvbiI6InN0YXR1cyIsInBheWxvYWQiOnsic3RhdHVzIjoicmV2aWV3In0sInNjaGVtYSI6ImRldmdyYXBoLndvcmstcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "221dc4ada56b76be1f859b8266b055a506afed5f414bb9ec4d115705dc58509b",
+        "credential_presentation_digest_sha256": "8605f569725ad65193fc68f550084f53bc4486bcda44acef064aab64d1b96779",
+        "credential_request_digest_sha256": "f47d27942854b08ba19910c27f2a6d6cca0988c427b00b4de5eed12b6e2d0cb7",
+        "disclosure_digest_sha256": "623ebceffc7149e9a304872bc4471ddcd089b9092021c7a6479d2bb6ef33984f",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b",
+        "operation": "devgraph.work.status.v1",
+        "receiver_policy_digest_sha256": "31801524a6ac002815ac20681fa3a1153c60c9ebd417fd40e7bdf3566e66b426",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "06488668f23e84d1ba3261020888b8b2a688173e071c56d613388959fc534d49",
+        "resources": [
+          "Issue/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:f9c77907dcb1bef195810c78a9ed481bd5962ce7ce3ca83fa055cb3dc3817605",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "ocZ-zou1RMdFXhdMETdW9dgwTXNs5NLVM2b-Napd5K-jqKJ2k_2lHwEdlsKY2Kyg4_m63NtEmMNO4rm5BO7oCw",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "07070707070707070707070707070707"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Issue",
+        "operation": "status",
+        "payload": {
+          "status": "review"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.archive.v1",
+            "resource": "Issue/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "d1de8cad8806af43aaff4b4463d974a2bedd159123e405469c67a16402fd844b",
+        "disclosure_digest_sha256": "28f6dae6bd16d37320acd4e700a075c2b527a827a60d946bcd37461de8ae1251",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c",
+        "request_digest_sha256": "eb42d705643be92ad4e1886d4bcf5d07c64c2575974cba551a7c27888617f5f0",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "6c0d905cd773293e7e052d2a42b2512294e92f2145bd6bcb2910aa50f698d0b0e26bcf8557301ab0e928f0d732a5ad02947edd74ce6ca4bd06f687d35bbc3200"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "28f6dae6bd16d37320acd4e700a075c2b527a827a60d946bcd37461de8ae1251",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "08080808080808080808080808080808",
+            "policy_digest_sha256": "955c46451d94bbb9733504fded13752c3b1f4f7cca9920ac57f284fecc4662f4",
+            "request_digest_sha256": "eb42d705643be92ad4e1886d4bcf5d07c64c2575974cba551a7c27888617f5f0",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "96ba771904eddf82457eb08749f419cde0036aa1489bf26b453498b5f6c22969a379abab0e19c7e2460aefbe8928998eb4f7e5876e07382086c19bdfad8f8600"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.archive.v1",
+            "Resources: Issue/i-1",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJJc3N1ZSIsIm9wZXJhdGlvbiI6ImFyY2hpdmUiLCJwYXlsb2FkIjp7fSwic2NoZW1hIjoiZGV2Z3JhcGgud29yay1yZXF1ZXN0LnYxIn0sInNjaGVtYSI6ImRldmdyYXBoLmNyZWRlbnRpYWwtcmVxdWVzdC52MiJ9",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "d1de8cad8806af43aaff4b4463d974a2bedd159123e405469c67a16402fd844b",
+        "credential_presentation_digest_sha256": "21fe4d6f18c87afa321bd9936cf3e59ed91c11cee033281c13785dc1026c8ab3",
+        "credential_request_digest_sha256": "eb42d705643be92ad4e1886d4bcf5d07c64c2575974cba551a7c27888617f5f0",
+        "disclosure_digest_sha256": "28f6dae6bd16d37320acd4e700a075c2b527a827a60d946bcd37461de8ae1251",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c",
+        "operation": "devgraph.work.archive.v1",
+        "receiver_policy_digest_sha256": "955c46451d94bbb9733504fded13752c3b1f4f7cca9920ac57f284fecc4662f4",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "36500f748bf8ccef0c1eea8be5f565c742c7190b8099e4059741f510ee7aa4a1",
+        "resources": [
+          "Issue/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:184ee2a8bacbed89c6e42c3f19fa689925cde4a00c025d7fb36b3680c0c3bdea",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "OIJyHitHX8X-QjcDJDSiTuU2wzzmo10XdIenpc4guONfuCQy-6rIUQTA2wwfY1kRZbWc-2mqT2vRiALIbCzhAQ",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "08080808080808080808080808080808"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Issue",
+        "operation": "archive",
+        "payload": {},
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.accept.v1",
+            "resource": "Decision/d-1",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.accept.v1",
+            "resource": "Proposal/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "cfdca1fc5f5e50eed35ccc75ef23d893166384afe8aac50f387b4c7d6690694d",
+        "disclosure_digest_sha256": "8025a0d7427ac410f251e5db46c6ff409d307b6b8317c02ae34a03280165e5be",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d",
+        "request_digest_sha256": "d6f99631707648b04df119e06658f389de7d510125bb1976007b59d75a7c6785",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "f2bb5e3ce49f1d4704d77257a2dbbf4a6df8a2194355c4cb119225d4b2c0b21b28012e1404f98e11f97e202b9dad11663be53bf8ade69fc8107d85a82de3bd06"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "8025a0d7427ac410f251e5db46c6ff409d307b6b8317c02ae34a03280165e5be",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "09090909090909090909090909090909",
+            "policy_digest_sha256": "bb0c45e8106a67754290d75f1d38dc2d4af8904c79259bbb454a7310c81b25b8",
+            "request_digest_sha256": "d6f99631707648b04df119e06658f389de7d510125bb1976007b59d75a7c6785",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "b6fff5806b2daec2aef1e7b8412402e32a7a524a6ca4d626a251d1f7723c5c1da5d8e36f5148c99405f93a436c2de854218e2e9a80b619071b647bab98e7d004"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.accept.v1",
+            "Resources: Decision/d-1, Proposal/i-1",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Proposal\",\"operation\":\"accept\",\"payload\":{\"decision_id\":\"d-1\",\"decision_title\":\"Accept\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJQcm9wb3NhbCIsIm9wZXJhdGlvbiI6ImFjY2VwdCIsInBheWxvYWQiOnsiZGVjaXNpb25faWQiOiJkLTEiLCJkZWNpc2lvbl90aXRsZSI6IkFjY2VwdCJ9LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "cfdca1fc5f5e50eed35ccc75ef23d893166384afe8aac50f387b4c7d6690694d",
+        "credential_presentation_digest_sha256": "2da36ea61d288a8cc130543eba4c6977916994747aadfe14b0dc3c26e489b2ee",
+        "credential_request_digest_sha256": "d6f99631707648b04df119e06658f389de7d510125bb1976007b59d75a7c6785",
+        "disclosure_digest_sha256": "8025a0d7427ac410f251e5db46c6ff409d307b6b8317c02ae34a03280165e5be",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d",
+        "operation": "devgraph.work.accept.v1",
+        "receiver_policy_digest_sha256": "bb0c45e8106a67754290d75f1d38dc2d4af8904c79259bbb454a7310c81b25b8",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "454f667ca368ae1127c68302cdd4354eeab3f716df8dcd2d35cac726cd1fce96",
+        "resources": [
+          "Decision/d-1",
+          "Proposal/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:e10d8d2f276cbf65fa899fccc8bf2d99fb2499c1a41b14786f3ac42a8ee9088b",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "VNL4luZs9ifGKnarETJ0sjVsDrivhJGR4YN9pm4uDOkxdv-sSiAb2XC_b6V9DhLE4CuBjPBWjWYxXNR1msXCBA",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "09090909090909090909090909090909"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Proposal",
+        "operation": "accept",
+        "payload": {
+          "decision_id": "d-1",
+          "decision_title": "Accept"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.convert.v1",
+            "resource": "Decision/d-1",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.convert.v1",
+            "resource": "Issue/i-new",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.convert.v1",
+            "resource": "Proposal/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "40654a04d1dc2919fd6aea0dc8909cf1e9f6fa9a438cd6b5fcb6214bc4227273",
+        "disclosure_digest_sha256": "5cb475282382feb9265634e2294ac6cf3b2462b9e05875c488ff174283c45820",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e",
+        "request_digest_sha256": "40cc4f4fb4053188ea5bedf7eb02c2c440ce2fc1132eae902bf394a34fead614",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "638cdfa267a10b8c489e35d918ed42ddeff5a921949cc51177ce8e460942e2031436358e0c67f76d5082f65f966c4d1a5d978440f7e76cb5fec14cdbe60f7809"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "5cb475282382feb9265634e2294ac6cf3b2462b9e05875c488ff174283c45820",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+            "policy_digest_sha256": "5d77611a0540404262e1c0f5d681a7f862df7280917d898ea792e63d32fae3d3",
+            "request_digest_sha256": "40cc4f4fb4053188ea5bedf7eb02c2c440ce2fc1132eae902bf394a34fead614",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "1ebe4103a392cffdf422f8936f414fdd4c57f0053785504abed03765b8f27a7d05d17c9ed2772d3d4ded44ce21a6e71cc22d231ec2f2804750a6cfc28c75480c"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.convert.v1",
+            "Resources: Decision/d-1, Issue/i-new, Proposal/i-1",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Proposal\",\"operation\":\"convert\",\"payload\":{\"decision_id\":\"d-1\",\"issue_id\":\"i-new\"},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJQcm9wb3NhbCIsIm9wZXJhdGlvbiI6ImNvbnZlcnQiLCJwYXlsb2FkIjp7ImRlY2lzaW9uX2lkIjoiZC0xIiwiaXNzdWVfaWQiOiJpLW5ldyJ9LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "40654a04d1dc2919fd6aea0dc8909cf1e9f6fa9a438cd6b5fcb6214bc4227273",
+        "credential_presentation_digest_sha256": "9013b54b852812904ec08c7baec83c4e88e5354ed632d522fd97044011a59395",
+        "credential_request_digest_sha256": "40cc4f4fb4053188ea5bedf7eb02c2c440ce2fc1132eae902bf394a34fead614",
+        "disclosure_digest_sha256": "5cb475282382feb9265634e2294ac6cf3b2462b9e05875c488ff174283c45820",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e",
+        "operation": "devgraph.work.convert.v1",
+        "receiver_policy_digest_sha256": "5d77611a0540404262e1c0f5d681a7f862df7280917d898ea792e63d32fae3d3",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "1bf86440855ae743f014ddfcc7a18aa53442769665f99f1c3f8c3f968504b959",
+        "resources": [
+          "Decision/d-1",
+          "Issue/i-new",
+          "Proposal/i-1"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:be342cfc7e0e636204a17c8b681d576b65c3f2fe02bb2b24defbbdd48929f36e",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "iVaEq3XbB3S_XsPpOUrPNCulhFa5O7S_Whiwi5r2uame1hKyvUCM7gN8G7_Y6Gc7dfB97bG9nw0_9XsA8RaRBw",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Proposal",
+        "operation": "convert",
+        "payload": {
+          "decision_id": "d-1",
+          "issue_id": "i-new"
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.parent.set.v1",
+            "resource": "Issue/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.parent.set.v1",
+            "resource": "Project/new",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.parent.set.v1",
+            "resource": "Project/old",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "2750169d172252d788e9aad8e698818faca1af3e22edaa63b6e48fb743c4396b",
+        "disclosure_digest_sha256": "42dd383ba3c06309cd28f9f1f0754dd587d8305b56a57bea2360760108ca33ad",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f",
+        "request_digest_sha256": "c8c881a9a32192ef4c40659c8dafb82d049ea2cf54aaf8efbfc01ddeefa8a546",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "e63356ae8f3819c8378cfab3b8f7eeddfd3bb8a2123e17debc0e8429e71c76770526a906d5809d7108edac0e851490beff6fcd3d9a2be2c33a6260161c30e205"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "42dd383ba3c06309cd28f9f1f0754dd587d8305b56a57bea2360760108ca33ad",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+            "policy_digest_sha256": "f62004cddda6cb865f1d18cd8a97554d5494da7c90b205126fb34ebb4f5b9404",
+            "request_digest_sha256": "c8c881a9a32192ef4c40659c8dafb82d049ea2cf54aaf8efbfc01ddeefa8a546",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "c725fbef2ecb6a7bfa5d3324a2776db152b2e1d221c268d4559295b926928f3e15b2a5dfb47c3a6bcd0df3d980f749ed28cd9ac9aa43fd2bfe4818ee695dab0a"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.parent.set.v1",
+            "Resources: Issue/i-1, Project/new, Project/old",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Issue\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"new\",\"kind\":\"Project\"},\"previous_parent\":{\"expected_version\":2,\"id\":\"old\",\"kind\":\"Project\"}},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJJc3N1ZSIsIm9wZXJhdGlvbiI6InBhcmVudC5zZXQiLCJwYXlsb2FkIjp7InBhcmVudCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6Im5ldyIsImtpbmQiOiJQcm9qZWN0In0sInByZXZpb3VzX3BhcmVudCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6Im9sZCIsImtpbmQiOiJQcm9qZWN0In19LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "2750169d172252d788e9aad8e698818faca1af3e22edaa63b6e48fb743c4396b",
+        "credential_presentation_digest_sha256": "61b3da1496142643669b547bbbcc68dcb7c282ce5c303d511f89a7210d0b3798",
+        "credential_request_digest_sha256": "c8c881a9a32192ef4c40659c8dafb82d049ea2cf54aaf8efbfc01ddeefa8a546",
+        "disclosure_digest_sha256": "42dd383ba3c06309cd28f9f1f0754dd587d8305b56a57bea2360760108ca33ad",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f",
+        "operation": "devgraph.work.parent.set.v1",
+        "receiver_policy_digest_sha256": "f62004cddda6cb865f1d18cd8a97554d5494da7c90b205126fb34ebb4f5b9404",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "6fc0d223dca8939ddbb4ba5db605c364d7fa8f31c11ba752702630bbfd1ebb74",
+        "resources": [
+          "Issue/i-1",
+          "Project/new",
+          "Project/old"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:89569ef0287dc394fe29aab4c84fdac5a18fec73fc40fcb414cb3db13412c2e3",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "T_fTswq2tRCzeaZHqmraQfeG5U_0FLkgSk4_T9Z_fTC3HQcVOHm0uyk2mGwG2F1ak05QbFe2UN-WGCfv4Gr5CA",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Issue",
+        "operation": "parent.set",
+        "payload": {
+          "parent": {
+            "expected_version": 2,
+            "id": "new",
+            "kind": "Project"
+          },
+          "previous_parent": {
+            "expected_version": 2,
+            "id": "old",
+            "kind": "Project"
+          }
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.dependency.add.v1",
+            "resource": "Task/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.dependency.add.v1",
+            "resource": "Task/t-2",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "1a0beb3f64db539ebe5e14c5c05cd363f43f6e97c8d8004f488882c84a576aec",
+        "disclosure_digest_sha256": "6d81e93805e4438189e05cd66821ffd133b87d02ae1ba69e2ba505cfa13968ab",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "70707070707070707070707070707070",
+        "request_digest_sha256": "7c01e41249bcfc0b83f70dd5db3c88a015b8793c48ae3fc0dd3215ea519a6583",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "4c015e920691cd25e23b650ac60afb322b4f58963b07ee616fed011dde2f922aa72ea33bfa4defb7abb35d4240cac1962e0fc2358c580794a3b1b3256d6a2803"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "6d81e93805e4438189e05cd66821ffd133b87d02ae1ba69e2ba505cfa13968ab",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+            "policy_digest_sha256": "7ac855181b1377b0946fac36c09ec8eca55f8cdfa761bddb776acedcbe3440a0",
+            "request_digest_sha256": "7c01e41249bcfc0b83f70dd5db3c88a015b8793c48ae3fc0dd3215ea519a6583",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "ce8c3c99f159c35aff61ed70c7902fb7a3f332a2fc7bdcbbe996b3bf8035729d2b3238e0899b6f3e7e22f9c46077892397cfadcd82473449debafa387167dd09"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.dependency.add.v1",
+            "Resources: Task/i-1, Task/t-2",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"dependency.add\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoiZGVwZW5kZW5jeS5hZGQiLCJwYXlsb2FkIjp7InRhcmdldCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6InQtMiIsImtpbmQiOiJUYXNrIn19LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "1a0beb3f64db539ebe5e14c5c05cd363f43f6e97c8d8004f488882c84a576aec",
+        "credential_presentation_digest_sha256": "e1a41dc026ecf6b7d5558d26d7a8a61365ac9837537cb79c47dfd70d2d5d9b54",
+        "credential_request_digest_sha256": "7c01e41249bcfc0b83f70dd5db3c88a015b8793c48ae3fc0dd3215ea519a6583",
+        "disclosure_digest_sha256": "6d81e93805e4438189e05cd66821ffd133b87d02ae1ba69e2ba505cfa13968ab",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "70707070707070707070707070707070",
+        "operation": "devgraph.work.dependency.add.v1",
+        "receiver_policy_digest_sha256": "7ac855181b1377b0946fac36c09ec8eca55f8cdfa761bddb776acedcbe3440a0",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "80716d4ae96ebfa3dc39ebdd97cdbbc9af08ba30c380f0aca8944717bd647433",
+        "resources": [
+          "Task/i-1",
+          "Task/t-2"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:e5cc722704dd6e15cb25d1f9ae6b4f4aa12850cedc4afeda94b51751a4215ab1",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "F0v0aDNQvBGxelAhCQmcIJ1l6dRSbbKCfPEb20BPrTeBmMGB6b7MOaz9MOoa4mn2aV5eYWfmmGW565npn_rXCA",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Task",
+        "operation": "dependency.add",
+        "payload": {
+          "target": {
+            "expected_version": 2,
+            "id": "t-2",
+            "kind": "Task"
+          }
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.dependency.remove.v1",
+            "resource": "Task/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.dependency.remove.v1",
+            "resource": "Task/t-2",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "7ecaff9a178d4ae0a60ba86b271b9e7f70dc0ffdfc6ad49353f57e3e2d6e3aae",
+        "disclosure_digest_sha256": "efc93b0e298aac23c535a616e696259f3f69ed121002a5f47dd766c20c0ce4cb",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "71717171717171717171717171717171",
+        "request_digest_sha256": "f994ea75bfc172cb036e8a48ad43e17aaef030442749240528443d570e9d0286",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "c93d113942a7b9bd983ca235fc7202916c5ee28c378248d07bb102fb72d7dc451f417351841e1a8004926edc20f4feaea3daf881b4cdb6f4fecf57ee88861909"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "efc93b0e298aac23c535a616e696259f3f69ed121002a5f47dd766c20c0ce4cb",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+            "policy_digest_sha256": "fefaf2f001a9233f580a864a97fe8407026caed086e4279ee6cce53e0fb8867b",
+            "request_digest_sha256": "f994ea75bfc172cb036e8a48ad43e17aaef030442749240528443d570e9d0286",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "28df791bd919406dee76b6ffca6b82d913456aeb91cae37b0e4d41fb3b81d34d662551bc05c91773831eb0996f865ab327ae574468ef7909055e2dfeef2a0b0d"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.dependency.remove.v1",
+            "Resources: Task/i-1, Task/t-2",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"dependency.remove\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoiZGVwZW5kZW5jeS5yZW1vdmUiLCJwYXlsb2FkIjp7InRhcmdldCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6InQtMiIsImtpbmQiOiJUYXNrIn19LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "7ecaff9a178d4ae0a60ba86b271b9e7f70dc0ffdfc6ad49353f57e3e2d6e3aae",
+        "credential_presentation_digest_sha256": "29a1d99e5603a069fd81ebe4f2921d01e42e04192385319096621aff5b7a255d",
+        "credential_request_digest_sha256": "f994ea75bfc172cb036e8a48ad43e17aaef030442749240528443d570e9d0286",
+        "disclosure_digest_sha256": "efc93b0e298aac23c535a616e696259f3f69ed121002a5f47dd766c20c0ce4cb",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "71717171717171717171717171717171",
+        "operation": "devgraph.work.dependency.remove.v1",
+        "receiver_policy_digest_sha256": "fefaf2f001a9233f580a864a97fe8407026caed086e4279ee6cce53e0fb8867b",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "f046ce975f5d964df3cc7912f7e9c04732277ba93f7a866784e10217c705cddb",
+        "resources": [
+          "Task/i-1",
+          "Task/t-2"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:fbfef9ce32abdfc9113fb79f69dd05eaad5316ca847f79ae110f2a9fba0926c8",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "4m-Wcd_AzpU3Quiej64LcQwerupkqgrZZya1bLadXJlg_nNmi70pwXBNuUE93Y0PPhCA-UdX0ft0eZIl7HwuBg",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Task",
+        "operation": "dependency.remove",
+        "payload": {
+          "target": {
+            "expected_version": 2,
+            "id": "t-2",
+            "kind": "Task"
+          }
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.blocker.add.v1",
+            "resource": "Task/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.blocker.add.v1",
+            "resource": "Task/t-2",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "6891c556eeccaf8f2e75e87332233e925490bd0284353111bbf5f919389d476c",
+        "disclosure_digest_sha256": "e8c7d827d83ea91472786368b572dea150c623b1825dc2f65abb78cfebe72933",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "72727272727272727272727272727272",
+        "request_digest_sha256": "c4523940f0989c04f627a033b5a6056484879b062cb26800b29d26eb8e4a7ecf",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "b4f29fe99901d83d14a62a97fdb69b2f72b28d34b18391096881724109f3944735a53b2da4052d4c32dfdf4a9838077547e9e7dbec5794859c3a88c16e46400d"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "e8c7d827d83ea91472786368b572dea150c623b1825dc2f65abb78cfebe72933",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
+            "policy_digest_sha256": "00b2525aafadc82c24577f61f2aabb1249a99a1d81a545037513269061eed3b4",
+            "request_digest_sha256": "c4523940f0989c04f627a033b5a6056484879b062cb26800b29d26eb8e4a7ecf",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "dbb35b2308435b9fa2b58f633a00aa76c0475f2ce5ae2edb4593800e83fd98dfb788e9c724e5f9464ec6af256f9e09e0e2c1f7fc5476287eb813e5259c0f6e0f"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.blocker.add.v1",
+            "Resources: Task/i-1, Task/t-2",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"blocker.add\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoiYmxvY2tlci5hZGQiLCJwYXlsb2FkIjp7InRhcmdldCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6InQtMiIsImtpbmQiOiJUYXNrIn19LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "6891c556eeccaf8f2e75e87332233e925490bd0284353111bbf5f919389d476c",
+        "credential_presentation_digest_sha256": "2ac56804e94cd6b6f105cbf6e72f58cc70501c4b6cbbc5dbf8500a80598a9ba7",
+        "credential_request_digest_sha256": "c4523940f0989c04f627a033b5a6056484879b062cb26800b29d26eb8e4a7ecf",
+        "disclosure_digest_sha256": "e8c7d827d83ea91472786368b572dea150c623b1825dc2f65abb78cfebe72933",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "72727272727272727272727272727272",
+        "operation": "devgraph.work.blocker.add.v1",
+        "receiver_policy_digest_sha256": "00b2525aafadc82c24577f61f2aabb1249a99a1d81a545037513269061eed3b4",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "b01aaa699eb9b7d58fbe1a53e3bdd17d8e01527b95e0f61f2bb713a6be82a78f",
+        "resources": [
+          "Task/i-1",
+          "Task/t-2"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:e95a089881227d345a7159eb8bed6b5722380fbbe708fb7f02b74924e8e58741",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "wquFsVqK8sEE62gyhlCtLovJ9mkmleZiKUOFrMPJoMxy4sv4y3Mjyy4-EkWDRYDguxUuEIp2QNGPaNA6ASXcCA",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Task",
+        "operation": "blocker.add",
+        "payload": {
+          "target": {
+            "expected_version": 2,
+            "id": "t-2",
+            "kind": "Task"
+          }
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.blocker.remove.v1",
+            "resource": "Task/i-1",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.blocker.remove.v1",
+            "resource": "Task/t-2",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "a14ce5039189bef4e1502908d5f0956eca047c9b6e274f03fc609f44c55ef77f",
+        "disclosure_digest_sha256": "3218ed8c5520fbe37574da198c47b9851657d72227a43bf2c271c55d1c38b1ce",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "73737373737373737373737373737373",
+        "request_digest_sha256": "817571e96087a94580034a076cac353288adadead035036751efae33c2908ce9",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "8258229e67ac06b71d110811ed8dcdd953d8642fcf251f6a0c984f528740d17054b3cbf269a7abd69c42bda52f3b31bb6d76717bef290243d9cf8617b314aa03"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "3218ed8c5520fbe37574da198c47b9851657d72227a43bf2c271c55d1c38b1ce",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+            "policy_digest_sha256": "e36e8eea950f869fb97c1da688aedb2cd675aaba047ebdc65bfe0278264c915f",
+            "request_digest_sha256": "817571e96087a94580034a076cac353288adadead035036751efae33c2908ce9",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "561b2f340038ea0672b3fdfa4120d996258ebef2e304f9530ef358bea442bb415c4836346b7274cc3012e8847d20909c3549866fa953e82a810e8c2038f0250c"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.blocker.remove.v1",
+            "Resources: Task/i-1, Task/t-2",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"i-1\",\"kind\":\"Task\",\"operation\":\"blocker.remove\",\"payload\":{\"target\":{\"expected_version\":2,\"id\":\"t-2\",\"kind\":\"Task\"}},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImktMSIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoiYmxvY2tlci5yZW1vdmUiLCJwYXlsb2FkIjp7InRhcmdldCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6InQtMiIsImtpbmQiOiJUYXNrIn19LCJzY2hlbWEiOiJkZXZncmFwaC53b3JrLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "a14ce5039189bef4e1502908d5f0956eca047c9b6e274f03fc609f44c55ef77f",
+        "credential_presentation_digest_sha256": "604a451a560d64caf2a442237bb84e1af8405f5f5eacc91f7c439937a40f025b",
+        "credential_request_digest_sha256": "817571e96087a94580034a076cac353288adadead035036751efae33c2908ce9",
+        "disclosure_digest_sha256": "3218ed8c5520fbe37574da198c47b9851657d72227a43bf2c271c55d1c38b1ce",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "73737373737373737373737373737373",
+        "operation": "devgraph.work.blocker.remove.v1",
+        "receiver_policy_digest_sha256": "e36e8eea950f869fb97c1da688aedb2cd675aaba047ebdc65bfe0278264c915f",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "6f63039041841073f7a03c180a059c5bab0cc7a2c05830e334ca50360a7ae051",
+        "resources": [
+          "Task/i-1",
+          "Task/t-2"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:3ba213b0bc2612c753eee2c145a80e75bcbab2db0b9a74211df8bfc7034dcefa",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "9-IlSLsek0fxxpJv1uBBlpQcy_M4WytGMdEmDut3ucOqYKJZEHDatcVXSOUo9B6uAkkanOhbDNEg9DOMrJ5uAQ",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "i-1",
+        "kind": "Task",
+        "operation": "blocker.remove",
+        "payload": {
+          "target": {
+            "expected_version": 2,
+            "id": "t-2",
+            "kind": "Task"
+          }
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.create.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "d4c44b2b9cfddca87ec555989b30a8cd30d80252731fd17e92075d1c3241e387",
+        "disclosure_digest_sha256": "5eb6aa160531915513eb368c6e7c246574ab8d9090510d4ad10f04102317ed63",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "74747474747474747474747474747474",
+        "request_digest_sha256": "dec6957325d251104213d0c5ea1e0d54e114e320dbd4fc972c5ccf36c3edd6f7",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "c28b892e8cb5ebc8d926cdc18170a48a11ae3626c5f79455e9b44350c3fe11f2cc3f315418285abf6119fa78fa49ff959e05d6b0aea23d7bb8e51d54f97f4e02"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "5eb6aa160531915513eb368c6e7c246574ab8d9090510d4ad10f04102317ed63",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "10101010101010101010101010101010",
+            "policy_digest_sha256": "13bfb0c06aa60fc63b58ffd514087f9a55292d475b7ba6464ee598c4dca5f3f1",
+            "request_digest_sha256": "dec6957325d251104213d0c5ea1e0d54e114e320dbd4fc972c5ccf36c3edd6f7",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "d2ff31fb4053a63e6102529f6b006febba05401be2da543852da4169231bef1d304de7bec716afeccd7793e6d4fa29e08a74ba4e3b5a5fdd54cec4b8d92c9f0f"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.arena.create.v1",
+            "Resources: Arena/gallery",
+            "Expected version: new",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":null,\"id\":\"gallery\",\"kind\":\"Arena\",\"operation\":\"create\",\"payload\":{\"description\":\"Art: café 👋\",\"id\":\"gallery\",\"title\":\"Gallery\"},\"schema\":\"devgraph.arena-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjpudWxsLCJpZCI6ImdhbGxlcnkiLCJraW5kIjoiQXJlbmEiLCJvcGVyYXRpb24iOiJjcmVhdGUiLCJwYXlsb2FkIjp7ImRlc2NyaXB0aW9uIjoiQXJ0OiBjYWbDqSDwn5GLIiwiaWQiOiJnYWxsZXJ5IiwidGl0bGUiOiJHYWxsZXJ5In0sInNjaGVtYSI6ImRldmdyYXBoLmFyZW5hLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "d4c44b2b9cfddca87ec555989b30a8cd30d80252731fd17e92075d1c3241e387",
+        "credential_presentation_digest_sha256": "a3d9a4e3bd8973776649ed9357739089225b80781012f5d4b95b4a8fc42c0768",
+        "credential_request_digest_sha256": "dec6957325d251104213d0c5ea1e0d54e114e320dbd4fc972c5ccf36c3edd6f7",
+        "disclosure_digest_sha256": "5eb6aa160531915513eb368c6e7c246574ab8d9090510d4ad10f04102317ed63",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "74747474747474747474747474747474",
+        "operation": "devgraph.arena.create.v1",
+        "receiver_policy_digest_sha256": "13bfb0c06aa60fc63b58ffd514087f9a55292d475b7ba6464ee598c4dca5f3f1",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "e6cd044f24c2362ff91e490e965b6eeab1f10f596c9f2ae57aab72ded9d594b2",
+        "resources": [
+          "Arena/gallery"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:d3436af008c29bd8301c23aae7ae04c572e88ea8e994b4b8be51836734aa132c",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "LvqZuML9zDIhBguIHUEk7zsfig_zU9GhlqtVaryzm8RBo_1Xu-bVg1KzERVBQFkDePHq9MRVtNJIRNHRZ4BnDQ",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "10101010101010101010101010101010"
+      },
+      "request": {
+        "expected_version": null,
+        "id": "gallery",
+        "kind": "Arena",
+        "operation": "create",
+        "payload": {
+          "description": "Art: café 👋",
+          "id": "gallery",
+          "title": "Gallery"
+        },
+        "schema": "devgraph.arena-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.patch.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "3761bb7d74a8c59067a36e84c9cf6eccb668e5ba552b03bf1e1b6f255ace66af",
+        "disclosure_digest_sha256": "ded7825c69497874e7c393c050730a787157d50dcc78c69349900dcc5f988599",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "75757575757575757575757575757575",
+        "request_digest_sha256": "5587f37778be28269e5088d9d933c96fc016a91a5bf00749591fe06d044f86e3",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "ea3d91d7de33d37cebe40ab13f940aa89dff66194c45d6a9b2460def2996dba2d7d75f36116602c9f07e14a73132204838006786b30ad5b9c514c9d6d02fae01"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "ded7825c69497874e7c393c050730a787157d50dcc78c69349900dcc5f988599",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "11111111111111111111111111111111",
+            "policy_digest_sha256": "7406b8eed93728afad8fbb8a7b30f1f08b5e240c6cf40526975707cb4e8034f0",
+            "request_digest_sha256": "5587f37778be28269e5088d9d933c96fc016a91a5bf00749591fe06d044f86e3",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "ef9755cca3f4d8b579580e13e2b35f36273e33d19619f01ff614a6bbfc887d3bc7c2423d990f349f14cccf26c796d77dc3b7b334d8630887c40881b8119b8c00"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.arena.patch.v1",
+            "Resources: Arena/gallery",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\",\"operation\":\"patch\",\"payload\":{\"description\":\"Gallery work\"},\"schema\":\"devgraph.arena-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImdhbGxlcnkiLCJraW5kIjoiQXJlbmEiLCJvcGVyYXRpb24iOiJwYXRjaCIsInBheWxvYWQiOnsiZGVzY3JpcHRpb24iOiJHYWxsZXJ5IHdvcmsifSwic2NoZW1hIjoiZGV2Z3JhcGguYXJlbmEtcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "3761bb7d74a8c59067a36e84c9cf6eccb668e5ba552b03bf1e1b6f255ace66af",
+        "credential_presentation_digest_sha256": "7177a60aef1cc3d1d286fb59ea2887edbc82b165af83612fdd464773edcbfb5d",
+        "credential_request_digest_sha256": "5587f37778be28269e5088d9d933c96fc016a91a5bf00749591fe06d044f86e3",
+        "disclosure_digest_sha256": "ded7825c69497874e7c393c050730a787157d50dcc78c69349900dcc5f988599",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "75757575757575757575757575757575",
+        "operation": "devgraph.arena.patch.v1",
+        "receiver_policy_digest_sha256": "7406b8eed93728afad8fbb8a7b30f1f08b5e240c6cf40526975707cb4e8034f0",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "4a7b4d12c1be8b850141ba76d12f7936f20952fc81ed20118b94b7d61e5d8feb",
+        "resources": [
+          "Arena/gallery"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:31ece3484129295075c6422a9ceca36567c5c88e4d29b0662c169bccfb4fcdcc",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "vVwSM_ONxtVSyuyLz7hcfJx1eRrBCeiFK2bSw3VscEv2Up2U1on380lerbj1drQ5tnXDXTwNPUBrHqDaMPUzAg",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "11111111111111111111111111111111"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "gallery",
+        "kind": "Arena",
+        "operation": "patch",
+        "payload": {
+          "description": "Gallery work"
+        },
+        "schema": "devgraph.arena-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.archive.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "efc9f72293de003bbd6a94c8f85330f97972e5763c4030ec000b25f580f3f1ec",
+        "disclosure_digest_sha256": "1e62e613ec321ab4d25c4d8f4396890c85578737827ba82cb0eab1d3ca881dc1",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "76767676767676767676767676767676",
+        "request_digest_sha256": "f2079935561a5d06a53596e059b1ba0e11b1f2a8f8ed16a10fde06b229bf03b7",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "be609c74a9bff69e4f1e0a8dc731ec44e778fc2e1e3f426abe5c6888c524a8b21139df0750c29890d5f5137ce8b67eb7eb766a2e8b7cfdeeba41bca08cc25a08"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "1e62e613ec321ab4d25c4d8f4396890c85578737827ba82cb0eab1d3ca881dc1",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "12121212121212121212121212121212",
+            "policy_digest_sha256": "9bbbad5ea6bafe77e302dca743facdad2e7f0362479cb5863936120648982071",
+            "request_digest_sha256": "f2079935561a5d06a53596e059b1ba0e11b1f2a8f8ed16a10fde06b229bf03b7",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "c80e8ff62e97527aa605a6743bf7eca9782e81b85d8fc0fc9d7449418eb3d4bc01ea1002f09b9426ee1688b96a3b9767a7a81534f518aa093da76b053d962901"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.arena.archive.v1",
+            "Resources: Arena/gallery",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.arena-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6ImdhbGxlcnkiLCJraW5kIjoiQXJlbmEiLCJvcGVyYXRpb24iOiJhcmNoaXZlIiwicGF5bG9hZCI6e30sInNjaGVtYSI6ImRldmdyYXBoLmFyZW5hLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "efc9f72293de003bbd6a94c8f85330f97972e5763c4030ec000b25f580f3f1ec",
+        "credential_presentation_digest_sha256": "5af1c91f46bbb689ae59afcfe0be7097b6d3ec9f2f04d009b435145e5d2b2a7c",
+        "credential_request_digest_sha256": "f2079935561a5d06a53596e059b1ba0e11b1f2a8f8ed16a10fde06b229bf03b7",
+        "disclosure_digest_sha256": "1e62e613ec321ab4d25c4d8f4396890c85578737827ba82cb0eab1d3ca881dc1",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "76767676767676767676767676767676",
+        "operation": "devgraph.arena.archive.v1",
+        "receiver_policy_digest_sha256": "9bbbad5ea6bafe77e302dca743facdad2e7f0362479cb5863936120648982071",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "e04c8202a3b272041904e35517d7ea1b87709a777fe3bbd8045729b0a4369503",
+        "resources": [
+          "Arena/gallery"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:6083fa14773cdc7b8fb8c85bfd3afa7c6116b0de56ddb201713314930cedc356",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "WLw2fAZx9pyh8SRMvxXcOZwUrvZyZFtmlxtW4xWl0TYDVdRzG6aMiL9cODfTLGGxVY7CpSiLKSPPA4ThEnxVBw",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "12121212121212121212121212121212"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "gallery",
+        "kind": "Arena",
+        "operation": "archive",
+        "payload": {},
+        "schema": "devgraph.arena-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Initiative/roadmap",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "6f168504c351657ba6e6f48d766fbf3ac712d94557b89457cc94db4712a0d62c",
+        "disclosure_digest_sha256": "16029d6ea60fc0c295216622dbf5d59606d0032e54c6f53c498ddb126bf793b0",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "77777777777777777777777777777777",
+        "request_digest_sha256": "1b8d1a3e0886535a80b00c778f86c89b75efa7f4467be4ed7356f3dabe2ffbe7",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "5b36bde625f3c012e1fb65948cc760c2f4581dfbe78005f32ce3078075688466cedf6dee70ae37f6210b4b0088f16693e01007b7012626fbc88060122f1abe04"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "16029d6ea60fc0c295216622dbf5d59606d0032e54c6f53c498ddb126bf793b0",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "13131313131313131313131313131313",
+            "policy_digest_sha256": "bdb792148b413d483e75f90460cc5b2cbc24d537aa639f91b9fff701231ffac4",
+            "request_digest_sha256": "1b8d1a3e0886535a80b00c778f86c89b75efa7f4467be4ed7356f3dabe2ffbe7",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "d6c00cfedb23ad27a6b8acdc11dd0aabbfd9a2d571c5b0176d39885ed13e8c9a3815da67a045c3bf50fced64dbca91b5cf2ea3c2a7700b8577cb420939595b08"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.arena.member.set.v1",
+            "Resources: Arena/gallery, Initiative/roadmap",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"roadmap\",\"kind\":\"Initiative\",\"operation\":\"member.set\",\"payload\":{\"arena\":{\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\"},\"previous_arena\":null},\"schema\":\"devgraph.arena-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6InJvYWRtYXAiLCJraW5kIjoiSW5pdGlhdGl2ZSIsIm9wZXJhdGlvbiI6Im1lbWJlci5zZXQiLCJwYXlsb2FkIjp7ImFyZW5hIjp7ImV4cGVjdGVkX3ZlcnNpb24iOjEsImlkIjoiZ2FsbGVyeSIsImtpbmQiOiJBcmVuYSJ9LCJwcmV2aW91c19hcmVuYSI6bnVsbH0sInNjaGVtYSI6ImRldmdyYXBoLmFyZW5hLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "6f168504c351657ba6e6f48d766fbf3ac712d94557b89457cc94db4712a0d62c",
+        "credential_presentation_digest_sha256": "1f297343a335d00f8130fbb0d86f26d42c24dc0ab9224c8b59f3e21d99f86c85",
+        "credential_request_digest_sha256": "1b8d1a3e0886535a80b00c778f86c89b75efa7f4467be4ed7356f3dabe2ffbe7",
+        "disclosure_digest_sha256": "16029d6ea60fc0c295216622dbf5d59606d0032e54c6f53c498ddb126bf793b0",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "77777777777777777777777777777777",
+        "operation": "devgraph.arena.member.set.v1",
+        "receiver_policy_digest_sha256": "bdb792148b413d483e75f90460cc5b2cbc24d537aa639f91b9fff701231ffac4",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "a35f43e3cc57683829a449899f499b2f43c343606dd995373db25922631f34d8",
+        "resources": [
+          "Arena/gallery",
+          "Initiative/roadmap"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:63d93b59c52d5af69ce74cc19cd47a7b9f91a299689fb2baebed088d6dcb0a61",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "fOVOpXsBuULM83rWzeEBNKT3QRaGS5qgMjMqn2QiP_UQZzSe80nwWrOKqYXpZg7c_zNJyrtFTxKcx0OtXyUcCw",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "13131313131313131313131313131313"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "roadmap",
+        "kind": "Initiative",
+        "operation": "member.set",
+        "payload": {
+          "arena": {
+            "expected_version": 1,
+            "id": "gallery",
+            "kind": "Arena"
+          },
+          "previous_arena": null
+        },
+        "schema": "devgraph.arena-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Task/review",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "9dcdc3d38504007399d9d8adb391e97bfd82d91a51c3f6aa16834f242abf5224",
+        "disclosure_digest_sha256": "3312b22fce72cdf2a4733a65ee533c36b8bb713f8252ac8a2e2a61a3b9b1dfc1",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "78787878787878787878787878787878",
+        "request_digest_sha256": "0ffef69fbb3529e942515ea024531b5c6e26d2145ab5c689676171a343d47622",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "e05eb49572d8c1d49bcba96c9624563a672a8bd79169c2bb8409068cbda9c8a2e64555e59feca77739ba9f74882e284cd6f7b1a813975e64be6eae6dba3a520d"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "3312b22fce72cdf2a4733a65ee533c36b8bb713f8252ac8a2e2a61a3b9b1dfc1",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "14141414141414141414141414141414",
+            "policy_digest_sha256": "4c7d566da67e8ebc41fa9600e46bc7d78459d3f7e3d4a049351448ccf909c94b",
+            "request_digest_sha256": "0ffef69fbb3529e942515ea024531b5c6e26d2145ab5c689676171a343d47622",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "0c2edebcb1686eab5799816c9198feb028e3273f8f47471df753fc2bc62fe110291e6e51cb47d52c370b3075f67170709db77ac2ccbedc24731fd1724d80e704"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.arena.member.set.v1",
+            "Resources: Arena/gallery, Task/review",
+            "Expected version: 1",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":1,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"member.set\",\"payload\":{\"arena\":{\"expected_version\":1,\"id\":\"gallery\",\"kind\":\"Arena\"},\"previous_arena\":null},\"schema\":\"devgraph.arena-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoxLCJpZCI6InJldmlldyIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoibWVtYmVyLnNldCIsInBheWxvYWQiOnsiYXJlbmEiOnsiZXhwZWN0ZWRfdmVyc2lvbiI6MSwiaWQiOiJnYWxsZXJ5Iiwia2luZCI6IkFyZW5hIn0sInByZXZpb3VzX2FyZW5hIjpudWxsfSwic2NoZW1hIjoiZGV2Z3JhcGguYXJlbmEtcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "9dcdc3d38504007399d9d8adb391e97bfd82d91a51c3f6aa16834f242abf5224",
+        "credential_presentation_digest_sha256": "6b820b24227cf91302e2d2b7445dd020756c70340a5214af102348e5f31fb2a3",
+        "credential_request_digest_sha256": "0ffef69fbb3529e942515ea024531b5c6e26d2145ab5c689676171a343d47622",
+        "disclosure_digest_sha256": "3312b22fce72cdf2a4733a65ee533c36b8bb713f8252ac8a2e2a61a3b9b1dfc1",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "78787878787878787878787878787878",
+        "operation": "devgraph.arena.member.set.v1",
+        "receiver_policy_digest_sha256": "4c7d566da67e8ebc41fa9600e46bc7d78459d3f7e3d4a049351448ccf909c94b",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "c9fe917d4a089b5b42efb353cf3c6ae7d95d27ac28ec176c7db744d827d80ae8",
+        "resources": [
+          "Arena/gallery",
+          "Task/review"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:ace73c178216d510ff06ad2e8033a327468e185cbb6cb36fcc179a5621717c6e",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "fd_aY3O59RzsCKyJISt2MpdsOXJEI4BdNOljDkFerCy_X6u9i1bO4mgzW1KQOxO5m5IA2Fce3H-lNRiXeInYCw",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "14141414141414141414141414141414"
+      },
+      "request": {
+        "expected_version": 1,
+        "id": "review",
+        "kind": "Task",
+        "operation": "member.set",
+        "payload": {
+          "arena": {
+            "expected_version": 1,
+            "id": "gallery",
+            "kind": "Arena"
+          },
+          "previous_arena": null
+        },
+        "schema": "devgraph.arena-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Arena/research",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Task/review",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "7a677eefc437a319a0c4627ca52e091de244daf017ffdf5d55a68b18938c9735",
+        "disclosure_digest_sha256": "38fe742e8536f9edc0ba5b8d44fe5d363e3684a7ad3050aab6d8f3c94f4cf1ed",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "79797979797979797979797979797979",
+        "request_digest_sha256": "9b79650f78fd3cc164d715c2d6425140601173d77c01d74ad3fa1de63310cbc4",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "0aa3eafe5285d0799e5ac9d3ca35a28e2add6347a358a7eddeb3f21a478508d5402af38ace3df67558a81adc6e0accabaa998c4cf7a96c5c60e8d61abc116109"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "38fe742e8536f9edc0ba5b8d44fe5d363e3684a7ad3050aab6d8f3c94f4cf1ed",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "15151515151515151515151515151515",
+            "policy_digest_sha256": "b33cb4f141509e9fd79acd9258bf6e6f6e82b37a19b3ba191f6e3e541c7a6095",
+            "request_digest_sha256": "9b79650f78fd3cc164d715c2d6425140601173d77c01d74ad3fa1de63310cbc4",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "1b75b8d9c64ff39b635d40a80c6b8f7281cd5a51e10c1585ae04acab5e03d13c02b11fbb1be3c95e8a4fbd5a49c074d66884573b1939052a5b86c60bbd566103"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.arena.member.set.v1",
+            "Resources: Arena/gallery, Arena/research, Task/review",
+            "Expected version: 2",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":2,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"member.set\",\"payload\":{\"arena\":{\"expected_version\":1,\"id\":\"research\",\"kind\":\"Arena\"},\"previous_arena\":{\"expected_version\":2,\"id\":\"gallery\",\"kind\":\"Arena\"}},\"schema\":\"devgraph.arena-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6InJldmlldyIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoibWVtYmVyLnNldCIsInBheWxvYWQiOnsiYXJlbmEiOnsiZXhwZWN0ZWRfdmVyc2lvbiI6MSwiaWQiOiJyZXNlYXJjaCIsImtpbmQiOiJBcmVuYSJ9LCJwcmV2aW91c19hcmVuYSI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6ImdhbGxlcnkiLCJraW5kIjoiQXJlbmEifX0sInNjaGVtYSI6ImRldmdyYXBoLmFyZW5hLXJlcXVlc3QudjEifSwic2NoZW1hIjoiZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyIn0=",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "7a677eefc437a319a0c4627ca52e091de244daf017ffdf5d55a68b18938c9735",
+        "credential_presentation_digest_sha256": "2bf3eb25addb3fc378577ac3d1eece686679f3c88f806fcd6cc1777ce0e1a5d5",
+        "credential_request_digest_sha256": "9b79650f78fd3cc164d715c2d6425140601173d77c01d74ad3fa1de63310cbc4",
+        "disclosure_digest_sha256": "38fe742e8536f9edc0ba5b8d44fe5d363e3684a7ad3050aab6d8f3c94f4cf1ed",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "79797979797979797979797979797979",
+        "operation": "devgraph.arena.member.set.v1",
+        "receiver_policy_digest_sha256": "b33cb4f141509e9fd79acd9258bf6e6f6e82b37a19b3ba191f6e3e541c7a6095",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "2804e108880b8e324fb08d6eb0a76ccab25bdfb62d703a7a697d2c56b7e02a00",
+        "resources": [
+          "Arena/gallery",
+          "Arena/research",
+          "Task/review"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:8c316909cbfc128393b0f21f6aed06ef6a3c33951d62b1823994436e1370e389",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "5PAR7dyIYfoaH5e-fgydJtUlDtTayWy024O00Xhdhy-ZiUa7FkUiQudSMhLbcsoaYwymD40tyIrdQqHB4NsoDA",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "15151515151515151515151515151515"
+      },
+      "request": {
+        "expected_version": 2,
+        "id": "review",
+        "kind": "Task",
+        "operation": "member.set",
+        "payload": {
+          "arena": {
+            "expected_version": 1,
+            "id": "research",
+            "kind": "Arena"
+          },
+          "previous_arena": {
+            "expected_version": 2,
+            "id": "gallery",
+            "kind": "Arena"
+          }
+        },
+        "schema": "devgraph.arena-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.arena.member.set.v1",
+            "resource": "Task/review",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "b416899f4b534715a52bbc0c78ceee5df7777db674d82114b2b1c66866905758",
+        "disclosure_digest_sha256": "935a1fd1bf67b29f6fe1b7862890675fe51dca978eca9b276414061e7f1cf7e3",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a",
+        "request_digest_sha256": "9712f08362f097d643d2d8221786fbe585388f80e4fadbba905d6e9a09d0c5df",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "e27af1018915377d70d5e16a805608e3201b41e9923d49e646ce25905eab99ba39f37bc33a63f151c2bc93467c76ba26399a9d8c1478d5c001841d3e0511f205"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "935a1fd1bf67b29f6fe1b7862890675fe51dca978eca9b276414061e7f1cf7e3",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "16161616161616161616161616161616",
+            "policy_digest_sha256": "4c7d566da67e8ebc41fa9600e46bc7d78459d3f7e3d4a049351448ccf909c94b",
+            "request_digest_sha256": "9712f08362f097d643d2d8221786fbe585388f80e4fadbba905d6e9a09d0c5df",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "ebcbaa9b742fd31de1626775d128989abda96dc7910ad79984946bc836e23ed5d3697699fe99f7792ae381589012efaf8c9c6bef56c265fb92924c6df7442906"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.arena.member.set.v1",
+            "Resources: Arena/gallery, Task/review",
+            "Expected version: 2",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":2,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"member.set\",\"payload\":{\"arena\":null,\"previous_arena\":{\"expected_version\":2,\"id\":\"gallery\",\"kind\":\"Arena\"}},\"schema\":\"devgraph.arena-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6InJldmlldyIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoibWVtYmVyLnNldCIsInBheWxvYWQiOnsiYXJlbmEiOm51bGwsInByZXZpb3VzX2FyZW5hIjp7ImV4cGVjdGVkX3ZlcnNpb24iOjIsImlkIjoiZ2FsbGVyeSIsImtpbmQiOiJBcmVuYSJ9fSwic2NoZW1hIjoiZGV2Z3JhcGguYXJlbmEtcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "b416899f4b534715a52bbc0c78ceee5df7777db674d82114b2b1c66866905758",
+        "credential_presentation_digest_sha256": "4fecc9076e46c2139db5767eb11f953fd2c2c1af6d539f94da8a7f019de7a22a",
+        "credential_request_digest_sha256": "9712f08362f097d643d2d8221786fbe585388f80e4fadbba905d6e9a09d0c5df",
+        "disclosure_digest_sha256": "935a1fd1bf67b29f6fe1b7862890675fe51dca978eca9b276414061e7f1cf7e3",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a",
+        "operation": "devgraph.arena.member.set.v1",
+        "receiver_policy_digest_sha256": "4c7d566da67e8ebc41fa9600e46bc7d78459d3f7e3d4a049351448ccf909c94b",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "a54c773d3924592b569ce5b72179aa18af8fdc45b4a763d35fb1ef8c03c53e2b",
+        "resources": [
+          "Arena/gallery",
+          "Task/review"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:d89b2292f6b8faabb3b45fab7df3f85c722fb431d89c90e2777c287e267f9ce3",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "ZQ4RI09fbe2VCLBtDuxPAzuplGRcPfX-EbbMDo6JMHiRiFMfE4tlqNm484EJbH2lrBJl1FgvRkQTjwKZBrS1DQ",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "16161616161616161616161616161616"
+      },
+      "request": {
+        "expected_version": 2,
+        "id": "review",
+        "kind": "Task",
+        "operation": "member.set",
+        "payload": {
+          "arena": null,
+          "previous_arena": {
+            "expected_version": 2,
+            "id": "gallery",
+            "kind": "Arena"
+          }
+        },
+        "schema": "devgraph.arena-request.v1"
+      }
+    },
+    {
+      "idempotency_key": "named-work-native-test-0001",
+      "now": 1800000001,
+      "policy": {
+        "audience": "devgraph://receiver-local",
+        "policy_id": "credential-v2-fixture",
+        "policy_version": 1,
+        "rules": [
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.parent.set.v1",
+            "resource": "Arena/gallery",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.parent.set.v1",
+            "resource": "Issue/issue",
+            "resource_match": "exact",
+            "status": "active"
+          },
+          {
+            "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+            "effect": "allow",
+            "not_after": 1800000600,
+            "not_before": 1799999990,
+            "operation": "devgraph.work.parent.set.v1",
+            "resource": "Task/review",
+            "resource_match": "exact",
+            "status": "active"
+          }
+        ],
+        "schema": "secs-devgraph-work-policy.v1",
+        "schema_version": 1
+      },
+      "presentation": {
+        "audience": "devgraph://receiver-local",
+        "caller": {
+          "id": "devgraph-review",
+          "kind": "terminal"
+        },
+        "credential_digest_sha256": "f85e4b71d81a1432614ba4ac03bbf37a193e999ff7bdfaf26270e3ca487b7a0f",
+        "disclosure_digest_sha256": "c253aa0dd3177f484ae9ceea8af6643ded6e2f0a17f545a3f3792757108f363c",
+        "expires_at": 1800000061,
+        "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+        "issued_at": 1800000001,
+        "issuer": "secs://devgraph-work",
+        "key_id": "named-test-secs",
+        "nonce": "7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+        "request_digest_sha256": "6865cffadfb717344d109bbedc986997f619b253918a6f41d90a1adf8f947454",
+        "schema": "castalia.credential-presentation.v2",
+        "signature": "21092ce867319ca101c7fe02acf438646ad76391147809d51be9eae3e400175ef08e65b82778893ad52c5a6ff8f4c0a91b5642660bfeb39b8493f2f6a29f5b00"
+      },
+      "presentation_request": {
+        "credential": {
+          "claims": {
+            "audience": "devgraph://receiver-local",
+            "caller": {
+              "id": "devgraph-review",
+              "kind": "terminal"
+            },
+            "disclosure_digest_sha256": "c253aa0dd3177f484ae9ceea8af6643ded6e2f0a17f545a3f3792757108f363c",
+            "expires_at": 1800000120,
+            "holder_public_key": "bed7d2ab668da3efad613998f06f7abf7875f3a6b7677a9f3ce947d77d7760a6",
+            "issued_at": 1800000000,
+            "issuer": "secs://devgraph-work",
+            "key_id": "named-test-secs",
+            "nonce": "17171717171717171717171717171717",
+            "policy_digest_sha256": "6c93a24a5ea7b1c86b2e1f3a75ed892aaa62e2461a8eff28912a776b98df8d50",
+            "request_digest_sha256": "6865cffadfb717344d109bbedc986997f619b253918a6f41d90a1adf8f947454",
+            "schema": "castalia.request-credential.v1"
+          },
+          "signature": "d4ec036510929ba25df293b3ca3f4f3fe1ae9bea9a88a40f2a08bfdafea65f122fd07aba4710186da41f8e54010e64504ab19a1ce97d12ebb3c9ad6a1b7dd90a"
+        },
+        "disclosure": {
+          "statements": [
+            "Operation: devgraph.work.parent.set.v1",
+            "Resources: Arena/gallery, Issue/issue, Task/review",
+            "Expected version: 2",
+            "Idempotency digest: 4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+            "Request part 1: {\"expected_version\":2,\"id\":\"review\",\"kind\":\"Task\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":1,\"id\":\"issue\",\"kind\":\"Issue\"},\"previous_arena\":{\"expected_version\":2,\"id\":\"gallery\",\"kind\":\"Arena\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}"
+          ],
+          "title": "Devgraph request"
+        },
+        "request_bytes_base64": "ZGV2Z3JhcGguY3JlZGVudGlhbC1yZXF1ZXN0LnYyAHsiaWRlbXBvdGVuY3lfa2V5X2RpZ2VzdF9zaGEyNTYiOiI0NzI2Zjc0N2Y5NWIwMjM3YWVhZDM2OGVlYzYxNWY3NjU4YzYzYWM3NjkzOWZiMWYwMGJlZTNlOTM4MzZlMjRhIiwicmVxdWVzdCI6eyJleHBlY3RlZF92ZXJzaW9uIjoyLCJpZCI6InJldmlldyIsImtpbmQiOiJUYXNrIiwib3BlcmF0aW9uIjoicGFyZW50LnNldCIsInBheWxvYWQiOnsicGFyZW50Ijp7ImV4cGVjdGVkX3ZlcnNpb24iOjEsImlkIjoiaXNzdWUiLCJraW5kIjoiSXNzdWUifSwicHJldmlvdXNfYXJlbmEiOnsiZXhwZWN0ZWRfdmVyc2lvbiI6MiwiaWQiOiJnYWxsZXJ5Iiwia2luZCI6IkFyZW5hIn0sInByZXZpb3VzX3BhcmVudCI6bnVsbH0sInNjaGVtYSI6ImRldmdyYXBoLndvcmstcmVxdWVzdC52MSJ9LCJzY2hlbWEiOiJkZXZncmFwaC5jcmVkZW50aWFsLXJlcXVlc3QudjIifQ==",
+        "schema": "castalia.credential-presentation-request.v2"
+      },
+      "projection": {
+        "actor_id": "pubkey:sha256:3537588d1ff1707dfaea197d415e1951679c0d10bff8d572148a39e09d08c425",
+        "actor_signature_suite": "Ed25519",
+        "audience": "devgraph://receiver-local",
+        "credential_digest_sha256": "f85e4b71d81a1432614ba4ac03bbf37a193e999ff7bdfaf26270e3ca487b7a0f",
+        "credential_presentation_digest_sha256": "9be7091f1b25a3c7da81ce8d60bab45065a9a408b212b7ff7f5edda9fb0310ac",
+        "credential_request_digest_sha256": "6865cffadfb717344d109bbedc986997f619b253918a6f41d90a1adf8f947454",
+        "disclosure_digest_sha256": "c253aa0dd3177f484ae9ceea8af6643ded6e2f0a17f545a3f3792757108f363c",
+        "expires_at": 1800000061,
+        "idempotency_key_digest_sha256": "4726f747f95b0237aead368eec615f7658c63ac76939fb1f00bee3e93836e24a",
+        "issued_at": 1800000001,
+        "nonce": "7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+        "operation": "devgraph.work.parent.set.v1",
+        "receiver_policy_digest_sha256": "6c93a24a5ea7b1c86b2e1f3a75ed892aaa62e2461a8eff28912a776b98df8d50",
+        "receiver_policy_id": "credential-v2-fixture",
+        "receiver_policy_version": 1,
+        "replay_scope": "credential:operation:nonce",
+        "request_digest_sha256": "3a4f5693a7f523d15135354a7803610c5aa4b211628e60556dd6be58114223ee",
+        "resources": [
+          "Arena/gallery",
+          "Issue/issue",
+          "Task/review"
+        ],
+        "schema": "secs-devgraph-work-authority.v2",
+        "schema_version": 2,
+        "secs_context_id": "ctx:sha256:8200002033aad53b8a94197dc6b89a997d2df9684109e52b94c8791f5bdf21a3",
+        "secs_verifier_key_id": "named-test-secs",
+        "secs_verifier_signature": "f0qlNIsqZvf4RvPF_Uf65FvOvewJ8pjWWoDpUcC5L1CXGEFKFqF9gxMEECxZjAPY9n6azpXSiz2WfbbGULPmDQ",
+        "secs_verifier_signature_suite": "Ed25519",
+        "session_id": "17171717171717171717171717171717"
+      },
+      "request": {
+        "expected_version": 2,
+        "id": "review",
+        "kind": "Task",
+        "operation": "parent.set",
+        "payload": {
+          "parent": {
+            "expected_version": 1,
+            "id": "issue",
+            "kind": "Issue"
+          },
+          "previous_arena": {
+            "expected_version": 2,
+            "id": "gallery",
+            "kind": "Arena"
+          },
+          "previous_parent": null
+        },
+        "schema": "devgraph.work-request.v1"
+      }
+    }
+  ]
+}

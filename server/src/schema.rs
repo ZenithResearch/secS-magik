@@ -96,6 +96,19 @@ pub const DEVGRAPH_AUTHORITY_REPLAY_RESERVATIONS_TABLE: RuntimeTable = RuntimeTa
     );",
 };
 
+/// Initialized only when the separately enabled v2 authority is used.
+pub const DEVGRAPH_AUTHORITY_V2_REPLAY_TABLE: RuntimeTable = RuntimeTable {
+    name: "devgraph_authority_v2_replay",
+    ddl: "CREATE TABLE IF NOT EXISTS devgraph_authority_v2_replay (
+        session_id TEXT NOT NULL CHECK(length(session_id) = 32),
+        operation TEXT NOT NULL,
+        nonce TEXT NOT NULL CHECK(length(nonce) = 32),
+        expires_at INTEGER NOT NULL,
+        projection BLOB NOT NULL,
+        PRIMARY KEY(session_id, operation, nonce)
+    );",
+};
+
 pub const SCOPED_NULLIFIER_USES_TABLE: RuntimeTable = RuntimeTable {
     name: "scoped_nullifier_uses",
     ddl: "CREATE TABLE IF NOT EXISTS scoped_nullifier_uses (

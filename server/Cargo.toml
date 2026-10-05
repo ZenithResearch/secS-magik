@@ -20,6 +20,7 @@ rand.workspace = true
 x25519-dalek = { version = "2.0", default-features = false, features = ["static_secrets"] }
 libc = "0.2"
 zeroize = "1"
+url = "=2.5.8"
 
 [[bin]]
 name = "secs-gateway"
@@ -44,6 +45,14 @@ path = "src/bin/secs-devgraph-issue-create-v1-wallet.rs"
 [[bin]]
 name = "secs-devgraph-work-v1"
 path = "src/bin/secs-devgraph-work-v1.rs"
+
+[[bin]]
+name = "secs-devgraph-work-v2"
+path = "src/bin/secs-devgraph-work-v2.rs"
+
+[features]
+# Conformance only: signed bytes must not depend on transitive serde_json features.
+hostile-json-features = ["serde_json/preserve_order", "serde_json/arbitrary_precision"]
 
 [dev-dependencies]
 serde_yaml = "0.9"

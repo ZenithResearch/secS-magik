@@ -1,6 +1,7 @@
 pub mod caller;
 pub mod clock;
 pub mod config;
+pub mod credential_presentation;
 pub mod devgraph_authority;
 pub mod devgraph_issue_create_cli;
 pub mod devgraph_issue_create_wallet_cli;
@@ -8,6 +9,8 @@ pub mod devgraph_work_admin;
 pub mod devgraph_work_authority;
 pub mod devgraph_work_cli;
 pub mod devgraph_work_request;
+pub mod devgraph_work_v2;
+pub mod devgraph_work_v2_cli;
 pub mod dregg_authority;
 pub mod dregg_live_source;
 pub mod evidence;
