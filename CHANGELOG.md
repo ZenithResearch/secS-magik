@@ -14,6 +14,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- Admit exact Work v2 Todo progress, restoration and rejection operations with separate grants — historical v1 permissions and signature domains remain intact.
+
+### Added
+
+- Admit signed Devgraph workflow operations and exact review/evidence resource grants through the shared contract, so Kanban moves cannot omit approval-record authority.
+
+
 ### Changed
 
 - Extract the portable Work/Arena verification and owner-private file modules from `18a6d3a`, retaining main's Arena policy and request bindings while pinning the public protocol and Wallet presentation revisions — native clients can reuse the exact contract without importing the secS runtime.

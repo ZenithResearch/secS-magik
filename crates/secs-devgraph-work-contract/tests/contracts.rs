@@ -271,3 +271,55 @@ fn arena_keeps_distinct_digest_and_every_current_and_previous_resource_grant() {
         assert!(verify_presentation(&request, &forged, key, now).is_err());
     }
 }
+
+#[test]
+fn workflow_attestations_need_every_declared_evidence_resource() {
+    use castalia_wallet_devgraph_presentation::{actor_id, complete, prepare};
+    use ed25519_dalek::{Signer, SigningKey};
+    use secs_devgraph_work_contract::{WorkRule, POLICY_SCHEMA};
+    let vectors: Vec<Value> = serde_json::from_str(include_str!("workflow-requests.json")).unwrap();
+    let signer = SigningKey::from_bytes(&[37; 32]);
+    let actor = actor_id(signer.verifying_key().as_bytes());
+    let now = 1_800_000_000;
+    let key = "workflow-portable-fixture-0001";
+    for v in vectors {
+        let request = WorkRequest::parse(v["raw"].as_str().unwrap().as_bytes()).unwrap();
+        let prepared = prepare(
+            &request,
+            key,
+            signer.verifying_key().as_bytes(),
+            now,
+            &[1; 16],
+            &[2; 12],
+        )
+        .unwrap();
+        let signature = signer.sign(prepared.signature_transcript()).to_bytes();
+        let presentation = complete(prepared, &signature).unwrap();
+        assert!(verify_presentation(&request, &presentation, key, now).is_ok());
+        let mut policy = WorkPolicy {
+            audience: "devgraph://receiver-local".into(),
+            policy_id: "workflow-fixture".into(),
+            policy_version: 1,
+            schema: POLICY_SCHEMA.into(),
+            schema_version: 1,
+            rules: request
+                .resources()
+                .iter()
+                .map(|resource| WorkRule {
+                    actor_id: actor.clone(),
+                    effect: "allow".into(),
+                    not_after: now + 600,
+                    not_before: now - 1,
+                    operation: request.operation().into(),
+                    resource: resource.clone(),
+                    resource_match: "exact".into(),
+                    status: "active".into(),
+                })
+                .collect(),
+        };
+        assert!(WorkPolicy::parse(&bytes(&policy)).is_ok());
+        assert!(policy.authorize_until(&actor, &request, now).is_ok());
+        policy.rules.pop();
+        assert!(policy.authorize_until(&actor, &request, now).is_err());
+    }
+}

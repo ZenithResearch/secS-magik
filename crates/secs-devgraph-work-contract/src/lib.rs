@@ -36,24 +36,35 @@ fn named_operation(s: &str) -> bool {
     {
         return matches!(operation, "create" | "patch" | "archive" | "member.set");
     }
-    s.strip_prefix("devgraph.work.")
-        .and_then(|s| s.strip_suffix(".v1"))
-        .is_some_and(|s| {
-            matches!(
-                s,
-                "create"
-                    | "patch"
-                    | "status"
-                    | "archive"
-                    | "accept"
-                    | "convert"
-                    | "parent.set"
-                    | "dependency.add"
-                    | "dependency.remove"
-                    | "blocker.add"
-                    | "blocker.remove"
-            )
-        })
+    let Some(rest) = s.strip_prefix("devgraph.work.") else {
+        return false;
+    };
+    let v2 = rest.ends_with(".v2");
+    let Some(op) = rest.strip_suffix(if v2 { ".v2" } else { ".v1" }) else {
+        return false;
+    };
+    if v2 && matches!(op, "progress.set" | "restore" | "proposal.reject") {
+        return true;
+    }
+    if op == "status" {
+        return !v2;
+    }
+    matches!(
+        op,
+        "create"
+            | "patch"
+            | "archive"
+            | "accept"
+            | "convert"
+            | "parent.set"
+            | "dependency.add"
+            | "dependency.remove"
+            | "blocker.add"
+            | "blocker.remove"
+            | "workflow.assign"
+            | "workflow.review"
+            | "workflow.transition"
+    )
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -104,7 +115,11 @@ impl WorkPolicy {
                 .strip_prefix("pubkey:sha256:")
                 .ok_or("invalid_work_policy")?;
             let (label, id) = rule.resource.split_once('/').ok_or("invalid_work_policy")?;
-            let resource_ok = (kind(label) || matches!(label, "Decision" | "Arena"))
+            let resource_ok = (kind(label)
+                || matches!(
+                    label,
+                    "Todo" | "Decision" | "Arena" | "ReviewPacket" | "Handoff" | "ExternalLink"
+                ))
                 && match rule.resource_match.as_str() {
                     "exact" => identifier(id),
                     "prefix" => {
@@ -349,4 +364,17 @@ pub fn verify_projection(
         .verify_strict(&transcript, &Signature::from_bytes(&signature))
         .map_err(|_| "invalid_secs_signature")?;
     Ok(VerifiedProjection(projection))
+}
+
+#[cfg(test)]
+mod progress_operation_tests {
+    #[test]
+    fn domains_remain_distinct() {
+        for op in ["progress.set", "restore", "proposal.reject"] {
+            assert!(super::named_operation(&format!("devgraph.work.{op}.v2")));
+            assert!(!super::named_operation(&format!("devgraph.work.{op}.v1")));
+        }
+        assert!(!super::named_operation("devgraph.work.status.v2"));
+        assert!(super::named_operation("devgraph.work.status.v1"));
+    }
 }
