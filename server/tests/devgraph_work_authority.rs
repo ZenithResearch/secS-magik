@@ -18,7 +18,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 const NOW: u64 = 1_800_000_000;
 const KEY: &str = "named-work-native-test-0001";
 fn bytes(value: &Value) -> Vec<u8> {
-    serde_json::to_vec(value).unwrap()
+    server::credential_presentation::canonical(value).unwrap()
 }
 fn wallet(request: &WorkRequest, key: &str, session: u8) -> Value {
     let signer = SigningKey::from_bytes(&[37; 32]);

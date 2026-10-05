@@ -54,6 +54,11 @@ impl<'de> Deserialize<'de> for StrictValue {
             ) -> std::result::Result<Self::Value, A::Error> {
                 let mut fields = Map::new();
                 while let Some((key, StrictValue(value))) = a.next_entry::<String, StrictValue>()? {
+                    // arbitrary_precision encodes floats/wide numbers through this
+                    // private map visitor. Never admit it as an ordinary object.
+                    if key == "$serde_json::private::Number" {
+                        return Err(de::Error::custom("unsupported number representation"));
+                    }
                     if fields.insert(key, value).is_some() {
                         return Err(de::Error::custom("duplicate key"));
                     }
@@ -294,7 +299,8 @@ impl WorkRequest {
             _ => return Err("invalid_work_request"),
         }
         value["payload"] = payload;
-        let canonical = serde_json::to_vec(&value).map_err(|_| "invalid_work_request")?;
+        let canonical = crate::credential_presentation::canonical(&value)
+            .map_err(|_| "invalid_work_request")?;
         if canonical.len() > 65_536 {
             return Err("request_too_large");
         }
@@ -335,6 +341,9 @@ mod tests {
             r#"{"payload":{"a":1,"a":2}}"#,
             r#"{"a":1.0}"#,
             r#"{"a":9007199254740992}"#,
+            r#"{"a":1e0}"#,
+            r#"{"a":-9007199254740992}"#,
+            r#"{"a":{"$serde_json::private::Number":"1.0"}}"#,
         ] {
             assert!(strict_json(raw.as_bytes(), 131_072).is_err());
         }
@@ -453,7 +462,8 @@ impl WorkRequest {
             _ => return Err("invalid_arena_request"),
         }
         value["payload"] = payload;
-        let canonical = serde_json::to_vec(&value).map_err(|_| "invalid_arena_request")?;
+        let canonical = crate::credential_presentation::canonical(&value)
+            .map_err(|_| "invalid_arena_request")?;
         if canonical.len() > 65_536 {
             return Err("request_too_large");
         }
