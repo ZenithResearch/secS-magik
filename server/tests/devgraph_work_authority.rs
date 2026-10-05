@@ -89,6 +89,10 @@ fn vectors() -> Vec<Value> {
         serde_json::from_slice::<Vec<Value>>(include_bytes!("fixtures/arena-v1/requests.json"))
             .unwrap(),
     );
+    all.extend(
+        serde_json::from_slice::<Vec<Value>>(include_bytes!("fixtures/progress-v2/requests.json"))
+            .unwrap(),
+    );
     all
 }
 

@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Admit exact Work v2 Todo progress, restoration and rejection operations with separate grants — historical v1 permissions and signature domains remain intact.
+
+### Added
+
 - Admit signed Devgraph workflow operations and exact review/evidence resource grants through the shared contract, so Kanban moves cannot omit approval-record authority.
 
 
