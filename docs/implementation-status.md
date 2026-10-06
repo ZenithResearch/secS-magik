@@ -23,6 +23,12 @@ Status is **partial / review candidate** until coordinated Wallet/Devgraph,
 loaded-Chrome and installed-runtime qualification. No live config or service is
 changed, and no Dregg capability is enabled.
 
+The candidate also admits canonical Todo v2 and workflow requests with exact,
+explicit operation/resource grants. Historical signing vectors remain unchanged.
+The disposable macOS VM release gate is **blocked pending a VM**; source checks
+are not installed qualification. Legacy adapters remain until replacement clients
+pass that gate, followed by qualification of the final removal artifacts.
+
 ## Current solid / implemented surface
 
 | Surface | Location | Status | What is solid |

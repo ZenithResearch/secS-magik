@@ -1,0 +1,22 @@
+[
+  {
+    "name": "v1-new-op",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"progress.set\", \"expected_version\": 1, \"payload\": {\"progress\": \"not_started\", \"reason\": \"Owner attestation \\u2713\", \"record_id\": \"record-not-started\"}}"
+  },
+  {
+    "name": "old-status",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"status\", \"expected_version\": 1, \"payload\": {\"status\": \"draft\"}}"
+  },
+  {
+    "name": "fourth-state",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"progress.set\", \"expected_version\": 1, \"payload\": {\"progress\": \"unknown\", \"reason\": \"x\", \"record_id\": \"r\"}}"
+  },
+  {
+    "name": "blank-reason",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"progress.set\", \"expected_version\": 1, \"payload\": {\"progress\": \"done\", \"reason\": \" \", \"record_id\": \"r\"}}"
+  },
+  {
+    "name": "base-workflow",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"workflow.assign\", \"expected_version\": 1, \"payload\": {\"workflow_id\": \"execution.v1\", \"reason\": \"assign\"}}"
+  }
+]

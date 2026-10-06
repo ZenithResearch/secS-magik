@@ -20,10 +20,21 @@ The preflight credential does not reserve a mutation or replay entry. Its maximu
 lifetime is 120 seconds, shortened by grants or approaching deny rules. The holder
 presentation has a fresh nonce after consent and lasts at most 60 seconds, never
 past the credential. Unknown callers, schemas, signatures and changed policy
-bindings fail closed. No Dregg token or capability support is claimed. The unmerged `workflow.*`
-operation additions are outside this boundary migration and return
-`unsupported_workflow_operation` before credential issuance. The supported set
-remains the eleven existing Work operations and four Arena operations.
+bindings fail closed. No Dregg token or capability support is claimed.
+
+The typed request adapter now admits the three `workflow.*` operations in Work v1,
+and canonical Work v2 operations including `progress.set`, independent `restore`,
+and `proposal.reject`. All six Todo types are covered; base Todo deliberately has
+no subtype workflow. `status` remains v1-only, and v1 never acquires v2 progress
+semantics. Unsupported kind/operation pairs fail before credential issuance.
+Decision, ReviewPacket, Handoff and ExternalLink references participate in the
+complete resource inventory. Parentage matches the canonical public contract.
+
+This adds parser support, not grants. Existing grants and renewal scopes remain
+unchanged: an exact v1 operation never authorizes its v2 name. Adding workflow or
+progress authority requires an explicit reviewed policy selection. Devgraph still
+owns stage legality, completion evidence, proposal disposition, versions and atomic
+mutation/receipt checks; secS cannot infer those from a signature.
 
 ## Generic contract and application bindings
 
@@ -42,8 +53,8 @@ integers; duplicate keys, unknown fields and malformed encodings are rejected.
 The opaque request bytes are `devgraph.credential-request.v2\0` followed by
 canonical JSON with exactly `schema`, `request` and
 `idempotency_key_digest_sha256`. `request` is the existing typed canonical
-Work/Arena value. The projection retains the original domain-specific v1 request
-digest separately from this wrapper's digest. The legacy idempotency hash is
+Work/Arena value. The projection retains its request-schema-specific digest
+(v1 or v2) separately from this wrapper's digest. The legacy idempotency hash is
 preserved.
 
 The deterministic disclosure title is `Devgraph request`. The first four
@@ -124,7 +135,11 @@ Synthetic fixed-key fixtures cover every existing Work/Arena request, exact
 signature reproduction, policy changes, caller denial, expiry, altered bindings,
 and duplicate/conflicting replay. The fixture seeds are public test inputs,
 never deployment identities. `server/tests/fixtures/credential-v2/` records the
-cross-language bundle and provenance.
+cross-language bundle and provenance. The original 23 vectors are unchanged;
+`progress-signed-vectors.json` adds 48 workflow/Todo vectors consumed independently
+by Devgraph's Python receiver and Rust native SDK. Request corpora come from public
+Devgraph commit `3454db330ec4a1b42352367652b2a0ceb5a066c4`; the parser is independently
+implemented here, with no public Devgraph source dependency.
 
 Run locked workspace tests/build, the focused v1/v2 tests and documentation
 assembly before review. A passing source test does not establish loaded-Chrome

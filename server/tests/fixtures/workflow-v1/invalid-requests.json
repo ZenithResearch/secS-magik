@@ -1,0 +1,66 @@
+[
+  {
+    "name": "url:file:///secret",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"file:///secret\"}]}}"
+  },
+  {
+    "name": "url:https://user@example.test",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://user@example.test\"}]}}"
+  },
+  {
+    "name": "url:https://@example.test",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://@example.test\"}]}}"
+  },
+  {
+    "name": "url:https://example.test:99999",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://example.test:99999\"}]}}"
+  },
+  {
+    "name": "url:https://example.test:000001",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://example.test:000001\"}]}}"
+  },
+  {
+    "name": "url:https://bad host/path",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://bad host/path\"}]}}"
+  },
+  {
+    "name": "url:https://[invalid]/",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://[invalid]/\"}]}}"
+  },
+  {
+    "name": "url:https://é.test/",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://\\u00e9.test/\"}]}}"
+  },
+  {
+    "name": "url:https://example.test\\@other/",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"link\", \"phase\": \"commit\", \"verdict\": \"approved\", \"summary\": \"Test\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"title\": \"Evidence\", \"url\": \"https://example.test\\\\@other/\"}]}}"
+  },
+  {
+    "name": "phase",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"review-requirements\", \"phase\": \"owner\", \"verdict\": \"approved\", \"summary\": \"Attestation, not automatic external verification\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"proof\", \"title\": \"Reviewed evidence\", \"url\": \"https://example.test/check/123\"}], \"requirements\": [{\"id\": \"criterion\", \"title\": \"Criterion\", \"outcome\": \"met\", \"evidence_ids\": [\"proof\"]}, {\"id\": \"not-in-scope\", \"title\": \"Excluded\", \"outcome\": \"excluded\", \"reason\": \"Agreed scope\"}]}}"
+  },
+  {
+    "name": "verdict",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"review-requirements\", \"phase\": \"requirements\", \"verdict\": \"approved!\", \"summary\": \"Attestation, not automatic external verification\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"proof\", \"title\": \"Reviewed evidence\", \"url\": \"https://example.test/check/123\"}], \"requirements\": [{\"id\": \"criterion\", \"title\": \"Criterion\", \"outcome\": \"met\", \"evidence_ids\": [\"proof\"]}, {\"id\": \"not-in-scope\", \"title\": \"Excluded\", \"outcome\": \"excluded\", \"reason\": \"Agreed scope\"}]}}"
+  },
+  {
+    "name": "summary",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"review-requirements\", \"phase\": \"requirements\", \"verdict\": \"approved\", \"summary\": \"\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"proof\", \"title\": \"Reviewed evidence\", \"url\": \"https://example.test/check/123\"}], \"requirements\": [{\"id\": \"criterion\", \"title\": \"Criterion\", \"outcome\": \"met\", \"evidence_ids\": [\"proof\"]}, {\"id\": \"not-in-scope\", \"title\": \"Excluded\", \"outcome\": \"excluded\", \"reason\": \"Agreed scope\"}]}}"
+  },
+  {
+    "name": "record_id",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"BAD\", \"phase\": \"requirements\", \"verdict\": \"approved\", \"summary\": \"Attestation, not automatic external verification\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"proof\", \"title\": \"Reviewed evidence\", \"url\": \"https://example.test/check/123\"}], \"requirements\": [{\"id\": \"criterion\", \"title\": \"Criterion\", \"outcome\": \"met\", \"evidence_ids\": [\"proof\"]}, {\"id\": \"not-in-scope\", \"title\": \"Excluded\", \"outcome\": \"excluded\", \"reason\": \"Agreed scope\"}]}}"
+  },
+  {
+    "name": "unexpected",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"review-requirements\", \"phase\": \"requirements\", \"verdict\": \"approved\", \"summary\": \"Attestation, not automatic external verification\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"proof\", \"title\": \"Reviewed evidence\", \"url\": \"https://example.test/check/123\"}], \"requirements\": [{\"id\": \"criterion\", \"title\": \"Criterion\", \"outcome\": \"met\", \"evidence_ids\": [\"proof\"]}, {\"id\": \"not-in-scope\", \"title\": \"Excluded\", \"outcome\": \"excluded\", \"reason\": \"Agreed scope\"}], \"unexpected\": true}}"
+  },
+  {
+    "name": "layers",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"review-requirements\", \"phase\": \"requirements\", \"verdict\": \"approved\", \"summary\": \"Attestation, not automatic external verification\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"proof\", \"title\": \"Reviewed evidence\", \"url\": \"https://example.test/check/123\"}], \"requirements\": [{\"id\": \"criterion\", \"title\": \"Criterion\", \"outcome\": \"met\", \"evidence_ids\": [\"proof\"]}, {\"id\": \"not-in-scope\", \"title\": \"Excluded\", \"outcome\": \"excluded\", \"reason\": \"Agreed scope\"}], \"layers\": [{\"layer\": \"design\", \"verdict\": \"not_applicable\"}]}}"
+  },
+  {
+    "name": "requirements",
+    "raw": "{\"schema\": \"devgraph.work-request.v1\", \"operation\": \"workflow.review\", \"kind\": \"Task\", \"id\": \"example\", \"expected_version\": 7, \"payload\": {\"record_id\": \"review-requirements\", \"phase\": \"requirements\", \"verdict\": \"approved\", \"summary\": \"Attestation, not automatic external verification\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"proof\", \"title\": \"Reviewed evidence\", \"url\": \"https://example.test/check/123\"}], \"requirements\": [{\"id\": \"x\", \"title\": \"X\", \"outcome\": \"met\"}]}}"
+  }
+]
