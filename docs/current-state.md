@@ -12,6 +12,12 @@ request. It remains opt-in, with explicit caller configuration and separate v2
 replay/projection contracts. V1 and installed services remain unchanged. Source
 validation does not establish browser or installed-runtime qualification.
 
+The candidate also admits canonical Todo v2 and workflow requests with exact,
+explicit operation/resource grants. Historical signing vectors remain unchanged.
+The disposable macOS VM release gate is **blocked pending a VM**; source checks
+are not installed qualification. Legacy adapters remain until replacement clients
+pass that gate, followed by qualification of the final removal artifacts.
+
 ## At a glance
 
 | Area | Current state | Boundary |

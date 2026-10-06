@@ -151,13 +151,24 @@ impl WorkRequest {
         if text(&value, "schema")? == "devgraph.arena-request.v1" {
             return Self::parse_arena(value);
         }
-        if text(&value, "schema")? != "devgraph.work-request.v1" {
+        let v2 = text(&value, "schema")? == "devgraph.work-request.v2";
+        if !v2 && text(&value, "schema")? != "devgraph.work-request.v1" {
             return Err("invalid_work_request");
         }
         let op = text(&value, "operation")?.to_string();
         let label = text(&value, "kind")?.to_string();
         let id = text(&value, "id")?.to_string();
-        if !kind(&label) || !identifier(&id) {
+        if !(kind(&label) || v2 && label == "Todo") || !identifier(&id) {
+            return Err("invalid_work_request");
+        }
+        if (v2 && op == "status")
+            || (!v2 && matches!(op.as_str(), "progress.set" | "restore" | "proposal.reject"))
+            || (label == "Todo"
+                && !matches!(
+                    op.as_str(),
+                    "create" | "patch" | "archive" | "restore" | "progress.set"
+                ))
+        {
             return Err("invalid_work_request");
         }
         if op == "create" {
@@ -228,7 +239,22 @@ impl WorkRequest {
                     return Err("invalid_work_request");
                 }
             }
-            "archive" => exact(&payload, &[])?,
+            "archive" | "restore" => exact(&payload, &[])?,
+            "workflow.assign" | "workflow.review" | "workflow.transition" | "progress.set" => {
+                payload = crate::devgraph_work_progress::normalize(&op, &payload, &mut resources)?;
+            }
+            "proposal.reject" => {
+                exact(&payload, &["decision_id", "reason"])?;
+                let reason = text(&payload, "reason")?;
+                if label != "Proposal"
+                    || !identifier(text(&payload, "decision_id")?)
+                    || reason.trim().is_empty()
+                    || reason.chars().count() > 8192
+                {
+                    return Err("invalid_work_request");
+                }
+                resources.insert(format!("Decision/{}", text(&payload, "decision_id")?));
+            }
             "accept" | "convert" => {
                 if label != "Proposal" {
                     return Err("invalid_work_request");
@@ -265,9 +291,9 @@ impl WorkRequest {
                     exact(&payload, &["previous_parent", "parent"])?;
                 }
                 let expected_kind = match label.as_str() {
-                    "Project" => "Initiative",
-                    "Issue" => "Project",
-                    "Task" => "Issue",
+                    "Project" => &["Initiative"][..],
+                    "Issue" => &["Initiative", "Project"][..],
+                    "Task" => &["Initiative", "Project", "Issue"][..],
                     _ => return Err("invalid_work_request"),
                 };
                 if payload["previous_parent"].is_null() && payload["parent"].is_null() {
@@ -277,7 +303,7 @@ impl WorkRequest {
                     let parent = &payload[key];
                     if !parent.is_null() {
                         let resource = reference(parent)?;
-                        if text(parent, "kind")? != expected_kind {
+                        if !expected_kind.contains(&text(parent, "kind")?) {
                             return Err("invalid_work_request");
                         }
                         resources.insert(resource);
@@ -307,7 +333,7 @@ impl WorkRequest {
         Ok(Self {
             value,
             canonical,
-            operation: format!("devgraph.work.{op}.v1"),
+            operation: format!("devgraph.work.{op}.v{}", if v2 { 2 } else { 1 }),
             resources: resources.into_iter().collect(),
         })
     }
@@ -385,6 +411,8 @@ impl WorkRequest {
     pub fn request_domain(&self) -> &'static [u8] {
         if self.value["schema"] == "devgraph.arena-request.v1" {
             b"devgraph.arena-request.v1\0"
+        } else if self.value["schema"] == "devgraph.work-request.v2" {
+            b"devgraph.work-request.v2\0"
         } else {
             b"devgraph.work-request.v1\0"
         }

@@ -471,7 +471,7 @@ fn optional_independent_wallet_fixture_matches_generic_signature_bytes() {
 }
 
 #[test]
-fn workflow_additions_are_explicitly_unsupported_before_issuance() {
+fn malformed_workflow_request_is_denied_before_issuance() {
     let vector = &vectors()[0];
     let request = WorkRequest::parse(vector["raw"].as_str().unwrap().as_bytes()).unwrap();
     let policy = policy(&request);
@@ -493,5 +493,100 @@ fn workflow_additions_are_explicitly_unsupported_before_issuance() {
             now: NOW,
         },
     );
-    assert_eq!(result.unwrap_err(), "unsupported_workflow_operation");
+    assert_eq!(result.unwrap_err(), "invalid_work_request");
+}
+
+fn progress_vectors() -> Vec<Value> {
+    let mut values: Vec<Value> =
+        serde_json::from_slice(include_bytes!("fixtures/workflow-v1/requests.json")).unwrap();
+    values.extend(
+        serde_json::from_slice::<Vec<Value>>(include_bytes!("fixtures/progress-v2/requests.json"))
+            .unwrap(),
+    );
+    values
+}
+#[tokio::test]
+async fn workflow_and_todo_contracts_require_exact_new_grants() {
+    let mut shared = Vec::new();
+    for (index, vector) in progress_vectors().iter().enumerate() {
+        let request = WorkRequest::parse(vector["raw"].as_str().unwrap().as_bytes()).unwrap();
+        assert_eq!(
+            request.canonical,
+            vector["canonical"].as_str().unwrap().as_bytes()
+        );
+        assert_eq!(request.operation, vector["operation"]);
+        assert_eq!(json!(request.resources), vector["resources"]);
+        let policy = policy(&request);
+        let attached = credential(&request, &policy, index as u8 + 1);
+        let presentation = sign(&attached.credential, index as u8 + 1);
+        let store = ledger().await;
+        let result = authorize(
+            &store,
+            &request,
+            &policy,
+            &attached,
+            &presentation,
+            KEY,
+            NOW + 1,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["operation"], request.operation);
+        assert_eq!(
+            result["request_digest_sha256"],
+            server::devgraph_work_authority::digest(request.request_domain(), &request.canonical)
+        );
+        shared.push(json!({"request":request.value,"idempotency_key":KEY,"now":NOW+1,"policy":policy,"presentation_request":attached,"presentation":presentation,"projection":result}));
+        if request.operation.ends_with(".v2") {
+            let mut prior = policy.clone();
+            for rule in &mut prior.rules {
+                rule.operation = rule.operation.replace(".v2", ".v1");
+            }
+            let identity = identity();
+            let registry = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
+            assert!(issue_credential(
+                &identity,
+                &registry,
+                &prior,
+                &config(),
+                CredentialInput {
+                    request_json: &request.canonical,
+                    idempotency_key: KEY,
+                    holder_public_key: &hex(SigningKey::from_bytes(&[37; 32])
+                        .verifying_key()
+                        .as_bytes()),
+                    caller: &caller(),
+                    nonce: [1; 16],
+                    now: NOW,
+                }
+            )
+            .is_err());
+        }
+    }
+    let out = json!({"schema":"secs-devgraph-credential-fixtures.v2","provenance":"Synthetic public test seeds: wallet byte37, authority byte43. Workflow and Todo extension; historical vectors unchanged.","issuer_public_key":hex(SigningKey::from_bytes(&[43;32]).verifying_key().as_bytes()),"vectors":shared});
+    if let Some(path) = std::env::var_os("SECS_TEST_PROGRESS_FIXTURE_OUTPUT") {
+        std::fs::write(path, serde_json::to_vec_pretty(&out).unwrap()).unwrap();
+    } else {
+        let checked_in: Value = serde_json::from_slice(include_bytes!(
+            "fixtures/credential-v2/progress-signed-vectors.json"
+        ))
+        .unwrap();
+        assert_eq!(checked_in, out);
+    }
+}
+#[test]
+fn rejected_workflow_and_todo_contract_vectors_remain_rejected() {
+    for raw in [
+        include_bytes!("fixtures/workflow-v1/invalid-requests.json").as_slice(),
+        include_bytes!("fixtures/progress-v2/invalid-requests.json").as_slice(),
+    ] {
+        let values: Vec<Value> = serde_json::from_slice(raw).unwrap();
+        for vector in values {
+            assert!(
+                WorkRequest::parse(vector["raw"].as_str().unwrap().as_bytes()).is_err(),
+                "{}",
+                vector["name"]
+            );
+        }
+    }
 }
