@@ -1,5 +1,8 @@
 # secS-magik current state
 
+Native read authority source candidate: [shared read authority v1](read-authority-v1.md).
+Matched source tests are separate from installed iPhone/receiver qualification.
+
 Last verified: 2026-09-01 against `main` after merged DG-E1 PR #285 at `212b6e537bcdf4c1c6847ec1d24820d9ca27cdea`; this branch adds only the fixed DG-E2 one-shot Wallet adapter
 
 This is the short orientation page for the repository. The detailed and authoritative status ledger remains [implementation-status.md](implementation-status.md). If this page and the ledger disagree, use the ledger and correct this page in the same change.

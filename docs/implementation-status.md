@@ -1,5 +1,8 @@
 # secS-magik implementation status
 
+Native read authority source candidate: [shared read authority v1](read-authority-v1.md).
+Matched source tests are separate from installed iPhone/receiver qualification.
+
 This document is the status ledger for this repository. It separates what is implemented today from what is partially implemented, planned next, or only future/vision. Keep this file current whenever code or docs change.
 
 ## Status labels

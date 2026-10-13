@@ -14,6 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- Add a pinned shared read-authority issuer/verifier tool — verify short-lived holder-bound reads without changing existing mutation or packet contracts.
+
 ### Changed
 - Extended generic Devgraph credential authority with independently validated workflow and canonical Todo requests plus 48 cross-language signed vectors — this allows the application-neutral Wallet path to authorize exact new operations without expanding existing grants or changing historical bytes.
 
