@@ -4,7 +4,11 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "codex/credential-presentation-v2" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,6 +16,27 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  standalone_read_authority:
+    # This is a separate workspace; the root tests do not cover it.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: tools/read-authority
+    - name: Verify retained Wallet source hashes
+      run: python3 tools/read-authority/check_source.py
+    - name: Test standalone native read adapter and contract
+      working-directory: tools/read-authority
+      run: |
+        cargo fmt --all -- --check
+        cargo clippy --locked --all-targets -- -D warnings
+        cargo test --locked
+        cargo test --locked --manifest-path vendor/castalia-wallet-presentation/Cargo.toml
+        cargo build --locked
+
   supply_chain_audit:
     runs-on: ubuntu-latest
 

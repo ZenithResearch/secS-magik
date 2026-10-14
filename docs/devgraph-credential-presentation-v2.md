@@ -5,6 +5,14 @@ file adapter, not an installed service or production qualification. The existing
 Work/Arena v1 request canonical bytes, v1 projection decoder, v1 replay records,
 Packet v0 and operation policy remain intact.
 
+CI runs for both `main` and the stacked `codex/credential-presentation-v2`
+base; trusted branches can also be checked through manual dispatch. The separate
+`standalone_read_authority` job checks retained source hashes, native process
+issuance/verification and denial cases, the vendored read contract, formatting,
+Clippy and build. These checks do not load private Wallet source or installed
+authority. Devgraph's matched companion lane separately compares the retained
+bytes with the exact Wallet commit and requires its independent signing fixture.
+
 ## Ownership and consent
 
 Devgraph constructs Work/Arena requests, disclosures and execution transport.

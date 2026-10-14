@@ -16,6 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added stacked-branch/manual CI and process-level standalone read-authority tests — root workspace checks previously missed the read binary and stacked Todo PR; disposable fixtures now cover issuance, holder/call binding, policy change, expiry, revocation and unsafe inputs.
 - Add a pinned shared read-authority issuer/verifier tool — verify short-lived holder-bound reads without changing existing mutation or packet contracts.
 
 ### Changed
