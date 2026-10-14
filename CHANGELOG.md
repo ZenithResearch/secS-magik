@@ -14,6 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- Scoped the Rust 1.99 duplicate `must_use` lint allowance to the async-trait-generated handler method — restores latest-stable CI without weakening workspace warning checks or changing handler behavior.
+
 ### Added
 
 - Added stacked-branch/manual CI and process-level standalone read-authority tests — root workspace checks previously missed the read binary and stacked Todo PR; disposable fixtures now cover issuance, holder/call binding, policy change, expiry, revocation and unsafe inputs.
