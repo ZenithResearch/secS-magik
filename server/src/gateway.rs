@@ -158,6 +158,9 @@ impl Default for ExecutionLimits {
 
 #[async_trait]
 pub trait MachineProgram: Send + Sync {
+    // async_trait adds #[must_use] to the generated Future; Rust 1.99 flags
+    // that generated annotation even though this source adds no attribute.
+    #[allow(clippy::double_must_use)]
     async fn execute(
         &self,
         context: &VerifiedCallContext,

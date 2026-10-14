@@ -14,6 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- Scoped the Rust 1.99 duplicate `must_use` lint allowance to the async-trait-generated handler method — restores latest-stable CI without weakening workspace warning checks or changing handler behavior.
+
 ### Changed
 - P4-O-DG-R1 / #282: constrained `priority` and every other RFC 8785-canonicalized integer in `devgraph.issue.create.v1` to the interoperable IEEE-754 safe-integer domain, with boundary, Unicode/control-escape, no-normalization, and array-order vectors — this prevents cross-language request/projection digest divergence before DG-P while changing no runtime, operation, schema field, Ed25519-only v1, generic Work API, `.castaway`, or hybrid/PQ boundary.
 - #276: replaced fixed-width client and server hex chunking with the Rust 1.98-recommended fixed-array iterator — this restores latest-stable strict Clippy compatibility without changing parsing, key, receipt, Packet v0, opcode, or protocol behavior.
