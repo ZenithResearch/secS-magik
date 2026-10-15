@@ -3,11 +3,12 @@
   "base_revision": "ff8de6ddc04ac2fb6b39408274276bc4ce984d42",
   "status": "commit-pinned source snapshot",
   "files": {
-    "Cargo.toml": "3997c0f8c0f264950c8381f5a548dcf4a5d23a6160fbf622d84710fd849d13df",
+    "Cargo.toml": "713292c825c20f51ea4eaa6d4f7db7d91e13c518d768ff9ea8fba5c6a3d03105",
     "LICENSE": "20f4d915bd7924e095ee0c532941c5362828c4049371e0efa5b8ab597c9fa2c2",
     "src/lib.rs": "c26151496f1e068704c72c11d44fae15f257d1ef7434f8e71acdf11837bae1eb",
     "src/read_authority.rs": "9badea3aa5cb7b3c5a6e5951018f317fe70f7fad887e013305e6adea73f063b5",
-    "tests/read_authority.rs": "bdd19a77b72c4e8f135f9b6d439faeaa11f4081d9678665dd64f2f784807ada4"
+    "tests/read_authority.rs": "bdd19a77b72c4e8f135f9b6d439faeaa11f4081d9678665dd64f2f784807ada4",
+    "tests/origin_security.rs": "27fedac1429e5bae14b947b42bceedcb313c2afd4d7474652dbdbcb2e4a3f15d"
   },
-  "revision": "f65401704acf60dcd461527f495afaa6def0bfb3"
+  "revision": "6c9c2e5819547ed6a2170c129ca6dc1d6c501516"
 }

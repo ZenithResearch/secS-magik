@@ -49,10 +49,10 @@ jobs:
     - name: Install cargo-audit
       uses: taiki-e/install-action@v2
       with:
-        tool: cargo-audit
+        tool: cargo-audit@0.22.1
 
     - name: Audit dependency advisories
-      run: cargo audit
+      run: python3 scripts/audit-rust-locks.py
 
   wasm_ffi_check:
     runs-on: ubuntu-latest

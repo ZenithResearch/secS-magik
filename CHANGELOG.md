@@ -16,6 +16,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+- Pin the retained Wallet presentation contract to 6c9c2e5 with patched URL/IDNA parsing and adversarial hostname tests — remove RUSTSEC-2024-0421 while preserving signed vectors.
+- Audit every tracked Cargo lockfile in CI, including standalone read authority — root-workspace audits cannot cover separately built tools.
+
+### Fixed
+
 - Scoped the Rust 1.99 duplicate `must_use` lint allowance to the async-trait-generated handler method — restores latest-stable CI without weakening workspace warning checks or changing handler behavior.
 
 ### Added
