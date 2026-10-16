@@ -20,9 +20,7 @@ pub fn digest(domain: &[u8], bytes: &[u8]) -> String {
     hash.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 fn json<T: Serialize>(value: &T) -> Result<Vec<u8>> {
-    // Value uses sorted map keys; every admitted object has closed ASCII keys.
-    serde_json::to_vec(&serde_json::to_value(value).map_err(|_| "encoding_failed")?)
-        .map_err(|_| "encoding_failed")
+    crate::credential_presentation::canonical(value)
 }
 fn safe_label(s: &str, max: usize) -> bool {
     !s.is_empty()
@@ -139,9 +137,18 @@ impl WorkPolicy {
         Ok(digest(b"secs-devgraph-work-policy.v1\0", &json(self)?))
     }
     fn authorize_until(&self, actor: &str, request: &WorkRequest, now: u64) -> Result<u64> {
+        self.authorize_until_bounded(actor, request, now, 60)
+    }
+    pub(crate) fn authorize_until_bounded(
+        &self,
+        actor: &str,
+        request: &WorkRequest,
+        now: u64,
+        lifetime: u64,
+    ) -> Result<u64> {
         self.validate()?;
         let mut expires = now
-            .checked_add(60)
+            .checked_add(lifetime)
             .filter(|v| *v <= MAX_SAFE)
             .ok_or("invalid_clock")?;
         for resource in &request.resources {

@@ -407,3 +407,10 @@ See [SECURITY.md](SECURITY.md). Never commit operator private keys, tunnel secre
 ## License
 
 See [LICENSE](LICENSE).
+
+## Generic Wallet credential review candidate
+
+The [credential-bound Devgraph v2 adapter](docs/devgraph-credential-presentation-v2.md)
+provides an opt-in issuer preflight and projection path for generic Wallet
+approval. It preserves v1 and requires explicit owner-private caller pins;
+review fixtures are not installed-service or browser acceptance.

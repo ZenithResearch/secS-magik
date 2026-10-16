@@ -4,6 +4,14 @@ Last verified: 2026-09-01 against `main` after merged DG-E1 PR #285 at `212b6e53
 
 This is the short orientation page for the repository. The detailed and authoritative status ledger remains [implementation-status.md](implementation-status.md). If this page and the ledger disagree, use the ledger and correct this page in the same change.
 
+## Credential presentation review candidate (2026-10-05)
+
+The additive [Devgraph credential-presentation v2](devgraph-credential-presentation-v2.md)
+source candidate moves semantic approval into an issuer-attested generic Wallet
+request. It remains opt-in, with explicit caller configuration and separate v2
+replay/projection contracts. V1 and installed services remain unchanged. Source
+validation does not establish browser or installed-runtime qualification.
+
 ## At a glance
 
 | Area | Current state | Boundary |

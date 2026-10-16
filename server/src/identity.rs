@@ -406,6 +406,26 @@ impl NodeVerifierIdentity {
         Ok(self.signing_key.sign(preimage.as_bytes()).to_bytes())
     }
 
+    pub(crate) fn sign_request_credential(
+        &self,
+        preimage: &crate::devgraph_work_v2::CredentialSignaturePreimage,
+    ) -> Result<[u8; 64], VerificationError> {
+        if self.authenticator_kind != AuthenticatorKind::Ed25519NodeAndVerifier {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
+        Ok(self.signing_key.sign(preimage.as_bytes()).to_bytes())
+    }
+
+    pub(crate) fn sign_work_authority_v2(
+        &self,
+        preimage: &crate::devgraph_work_v2::ProjectionSignaturePreimage,
+    ) -> Result<[u8; 64], VerificationError> {
+        if self.authenticator_kind != AuthenticatorKind::Ed25519NodeAndVerifier {
+            return Err(VerificationError::UntrustedVerifierKey);
+        }
+        Ok(self.signing_key.sign(preimage.as_bytes()).to_bytes())
+    }
+
     pub fn sign_execution_response(
         &self,
         mut response: libsec_core::execution_response::ExecutionResponse,

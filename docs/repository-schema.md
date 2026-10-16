@@ -63,6 +63,9 @@ secS-magik/
 │       ├── devgraph_work_authority.rs # fixed named Work/Arena projection authority producer; no mutation
 │       ├── devgraph_work_cli.rs       # fixed owner-private Work/Arena projection adapter
 │       ├── devgraph_work_admin.rs     # owner-local Work authority lifecycle, status, and snapshots
+│       ├── credential_presentation.rs # generic closed credential/presentation verification
+│       ├── devgraph_work_v2.rs        # opt-in Work/Arena credential binding and isolated v2 replay
+│       ├── devgraph_work_v2_cli.rs    # owner-private preflight/authorize adapter; no live activation
 │       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
 │       ├── ingress.rs               # bounded prototype TCP ingress and verifier/payload handoff
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing

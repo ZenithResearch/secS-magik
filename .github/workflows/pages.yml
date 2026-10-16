@@ -72,7 +72,7 @@ jobs:
         run: ./scripts/build-pages.sh .pages/source
 
       - name: Configure GitHub Pages
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Render Markdown with Jekyll
@@ -91,13 +91,13 @@ jobs:
           test -s .pages/site/panel/pkg/panel_bg.wasm
 
       - name: Upload GitHub Pages artifact
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./.pages/site
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
     permissions:
       contents: read

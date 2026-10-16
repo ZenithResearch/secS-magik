@@ -12,6 +12,17 @@ This document is the status ledger for this repository. It separates what is imp
 | Future / optional rail | Directional or later-stage work. Do not block the first implementation pass on it unless explicitly promoted. |
 | Out of scope | This repository should not own it. Reference only as a boundary. |
 
+## Credential-bound authority review candidate
+
+`server/src/{credential_presentation,devgraph_work_v2,devgraph_work_v2_cli}.rs`
+implements the explicitly configured v2 source path: existing Work policy
+preflight, attached request credential, generic holder presentation verification,
+current policy recheck and isolated durable replay. See
+[the v2 contract and operator boundary](devgraph-credential-presentation-v2.md).
+Status is **partial / review candidate** until coordinated Wallet/Devgraph,
+loaded-Chrome and installed-runtime qualification. No live config or service is
+changed, and no Dregg capability is enabled.
+
 ## Current solid / implemented surface
 
 | Surface | Location | Status | What is solid |
