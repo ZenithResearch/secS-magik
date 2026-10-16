@@ -60,14 +60,6 @@ impl CredentialConfig {
     }
 }
 fn parse_request(raw: &[u8]) -> Result<WorkRequest> {
-    let value = strict_json(raw, 65_536)?;
-    if value["schema"] == "devgraph.work-request.v1"
-        && value["operation"]
-            .as_str()
-            .is_some_and(|op| op.starts_with("workflow."))
-    {
-        return Err("unsupported_workflow_operation");
-    }
     WorkRequest::parse(raw)
 }
 

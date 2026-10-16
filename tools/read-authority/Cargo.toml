@@ -1,0 +1,16 @@
+[package]
+name = "secs-read-authority-v1"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Standalone to preserve the existing server's exact URL/crypto dependency pins.
+[workspace]
+
+[dependencies]
+castalia-wallet-presentation = { path = "vendor/castalia-wallet-presentation" }
+ed25519-dalek = "2.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+zeroize = "1"
+libc = "0.2"

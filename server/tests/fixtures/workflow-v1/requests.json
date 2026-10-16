@@ -1,0 +1,263 @@
+[
+  {
+    "name": "vibe-ceo.v1",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.assign\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"workflow_id\":\"vibe-ceo.v1\",\"reason\":\"Explicitly classify legacy work\"}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.assign\",\"payload\":{\"reason\":\"Explicitly classify legacy work\",\"stage\":\"backlog\",\"workflow_id\":\"vibe-ceo.v1\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "e87a4efceece3fe14f5b4d6c551209d82cf9c0f9c5ede0d2577c66b0a37dca2c",
+    "operation": "devgraph.work.workflow.assign.v1",
+    "resources": [
+      "Task/example"
+    ]
+  },
+  {
+    "name": "execution.v1",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.assign\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"workflow_id\":\"execution.v1\",\"reason\":\"Explicitly classify legacy work\"}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.assign\",\"payload\":{\"reason\":\"Explicitly classify legacy work\",\"stage\":\"backlog\",\"workflow_id\":\"execution.v1\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "5d7a5de2654ac65e5ea18967c645df22213902735270dbb1a29038c51c336f3e",
+    "operation": "devgraph.work.workflow.assign.v1",
+    "resources": [
+      "Task/example"
+    ]
+  },
+  {
+    "name": "move-default",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.transition\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"stage\":\"intake\"}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.transition\",\"payload\":{\"reason\":\"\",\"stage\":\"intake\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "c6284c290186d5342af1ee0dfed6dc9107f498042c31e76a31c18a77da06711c",
+    "operation": "devgraph.work.workflow.transition.v1",
+    "resources": [
+      "Task/example"
+    ]
+  },
+  {
+    "name": "wait",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.transition\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"stage\":\"blocked_waiting_input\",\"reason\":\"Need CEO decision\"}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.transition\",\"payload\":{\"reason\":\"Need CEO decision\",\"stage\":\"blocked_waiting_input\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "74303df048bc84bff63336740cd730b07e3b7591e1fc3adc80473f483fba7e1f",
+    "operation": "devgraph.work.workflow.transition.v1",
+    "resources": [
+      "Task/example"
+    ]
+  },
+  {
+    "name": "requirements",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-requirements\",\"phase\":\"requirements\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"requirements\":[{\"id\":\"criterion\",\"title\":\"Criterion\",\"outcome\":\"met\",\"evidence_ids\":[\"proof\"]},{\"id\":\"not-in-scope\",\"title\":\"Excluded\",\"outcome\":\"excluded\",\"reason\":\"Agreed scope\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"requirements\",\"record_id\":\"review-requirements\",\"requirements\":[{\"evidence_ids\":[\"proof\"],\"id\":\"criterion\",\"outcome\":\"met\",\"reason\":\"\",\"subject\":\"\",\"title\":\"Criterion\"},{\"evidence_ids\":[],\"id\":\"not-in-scope\",\"outcome\":\"excluded\",\"reason\":\"Agreed scope\",\"subject\":\"\",\"title\":\"Excluded\"}],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "4ac89b3f54c08d067d8f19145e594473ebefbafa831a1f89c78d39268c7108a6",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/proof",
+      "ReviewPacket/review-requirements",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "baseline",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-baseline\",\"phase\":\"baseline\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"baseline\",\"record_id\":\"review-baseline\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "643790ccd4d6d75f3fb25d35d15974bd966821194da02c078be8a2b38a8df05c",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/proof",
+      "ReviewPacket/review-baseline",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "developer_plan",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-developer-plan\",\"phase\":\"developer_plan\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"developer_plan\",\"record_id\":\"review-developer-plan\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "a5575e3cf0ee2591f667796fed91c44c606990fd24b7ccdf7a5fd43652ac853f",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "Decision/review-developer-plan",
+      "ExternalLink/proof",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "ceo_plan",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-ceo-plan\",\"phase\":\"ceo_plan\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"ceo_plan\",\"record_id\":\"review-ceo-plan\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "b4edd492fb7c0ef57ea183323137635b1b02b7cabd79535f516a8f99e66966b9",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "Decision/review-ceo-plan",
+      "ExternalLink/proof",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "commit",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-commit\",\"phase\":\"commit\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"commit\",\"record_id\":\"review-commit\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "de9205ef7f20363151955b42066cbd168f5428537dcbc5abf19d88e185c361d9",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/proof",
+      "ReviewPacket/review-commit",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "ceo_delivery",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-ceo-delivery\",\"phase\":\"ceo_delivery\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"ceo_delivery\",\"record_id\":\"review-ceo-delivery\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "58cbca45ecef0888586fd63edc48c31dc1fb10185511933f0d956c22302a0dfd",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "Decision/review-ceo-delivery",
+      "ExternalLink/proof",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "technical",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-technical\",\"phase\":\"technical\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[{\"layer\":\"product\",\"verdict\":\"approved\"},{\"layer\":\"architecture\",\"verdict\":\"approved\"},{\"layer\":\"implementation\",\"verdict\":\"approved\"},{\"layer\":\"e2e\",\"verdict\":\"approved\"},{\"layer\":\"design\",\"verdict\":\"approved\"},{\"layer\":\"ux\",\"verdict\":\"approved\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[{\"layer\":\"product\",\"reason\":\"\",\"verdict\":\"approved\"},{\"layer\":\"architecture\",\"reason\":\"\",\"verdict\":\"approved\"},{\"layer\":\"implementation\",\"reason\":\"\",\"verdict\":\"approved\"},{\"layer\":\"e2e\",\"reason\":\"\",\"verdict\":\"approved\"},{\"layer\":\"design\",\"reason\":\"\",\"verdict\":\"approved\"},{\"layer\":\"ux\",\"reason\":\"\",\"verdict\":\"approved\"}],\"phase\":\"technical\",\"record_id\":\"review-technical\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "989aa50b2f5202439d7f2c3c34af795230fe9665d4ac4d6e7b47f46034df28cf",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/proof",
+      "ReviewPacket/review-technical",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "handoff",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-handoff\",\"phase\":\"handoff\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"handoff\",\"record_id\":\"review-handoff\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "0a55250c83d1a6edce552b9ce48cb02748a87f9d0e0a93307c06174ec934f688",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/proof",
+      "Handoff/review-handoff",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "resolution",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"review-resolution\",\"phase\":\"resolution\",\"verdict\":\"approved\",\"summary\":\"Attestation, not automatic external verification\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"proof\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"proof\",\"kind\":\"ExternalLink\",\"title\":\"Reviewed evidence\",\"url\":\"https://example.test/check/123\"}],\"layers\":[],\"phase\":\"resolution\",\"record_id\":\"review-resolution\",\"requirements\":[],\"summary\":\"Attestation, not automatic external verification\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "80ee0574dfd113507e98ebda14340682d0ed6af03d7f6832e0dc1efbf098644a",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "Decision/review-resolution",
+      "ExternalLink/proof",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "existing-evidence",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"existing\",\"phase\":\"requirements\",\"verdict\":\"approved\",\"summary\":\"Explicit references\",\"evidence\":[{\"kind\":\"Artifact\",\"id\":\"spec\"}],\"requirements\":[{\"id\":\"criterion\",\"title\":\"Required\",\"outcome\":\"met\",\"evidence_ids\":[\"spec\"]}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"spec\",\"kind\":\"Artifact\",\"title\":\"\",\"url\":\"\"}],\"layers\":[],\"phase\":\"requirements\",\"record_id\":\"existing\",\"requirements\":[{\"evidence_ids\":[\"spec\"],\"id\":\"criterion\",\"outcome\":\"met\",\"reason\":\"\",\"subject\":\"\",\"title\":\"Required\"}],\"summary\":\"Explicit references\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "68a8bdcff8c0ea9875c130aa5d804d1e2299cb8e0522c731d07ce7f9eff35a81",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ReviewPacket/existing",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "Project-Initiative",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"parent.set\",\"kind\":\"Project\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"previous_parent\":null,\"parent\":{\"kind\":\"Initiative\",\"id\":\"parent\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Project\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"parent\",\"kind\":\"Initiative\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "556e9bd1addd6693d55f1679d6411d17a4b1a9913706a6447637442a10b088c8",
+    "operation": "devgraph.work.parent.set.v1",
+    "resources": [
+      "Initiative/parent",
+      "Project/example"
+    ]
+  },
+  {
+    "name": "Issue-Initiative",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"parent.set\",\"kind\":\"Issue\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"previous_parent\":null,\"parent\":{\"kind\":\"Initiative\",\"id\":\"parent\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Issue\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"parent\",\"kind\":\"Initiative\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "a25d3e9899072bfcacaefcaef71ab3d10e06fd75056ae8d56904da77a79f7c3e",
+    "operation": "devgraph.work.parent.set.v1",
+    "resources": [
+      "Initiative/parent",
+      "Issue/example"
+    ]
+  },
+  {
+    "name": "Issue-Project",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"parent.set\",\"kind\":\"Issue\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"previous_parent\":null,\"parent\":{\"kind\":\"Project\",\"id\":\"parent\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Issue\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"parent\",\"kind\":\"Project\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "b7440f0cd9c6c814d2eb936858d85670c69756e2ca6bec06bea9dc65ee62443a",
+    "operation": "devgraph.work.parent.set.v1",
+    "resources": [
+      "Issue/example",
+      "Project/parent"
+    ]
+  },
+  {
+    "name": "Task-Initiative",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"parent.set\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"previous_parent\":null,\"parent\":{\"kind\":\"Initiative\",\"id\":\"parent\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"parent\",\"kind\":\"Initiative\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "2e4cfbab16496dc602f3a51e74378780dcff88719344af90334e427360e48d4d",
+    "operation": "devgraph.work.parent.set.v1",
+    "resources": [
+      "Initiative/parent",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "Task-Project",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"parent.set\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"previous_parent\":null,\"parent\":{\"kind\":\"Project\",\"id\":\"parent\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"parent\",\"kind\":\"Project\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "2e9f91ce49ca3b5ca1ef3daeba791e228c780ba893382a7e98f578bce5a5a470",
+    "operation": "devgraph.work.parent.set.v1",
+    "resources": [
+      "Project/parent",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "Task-Issue",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"parent.set\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"previous_parent\":null,\"parent\":{\"kind\":\"Issue\",\"id\":\"parent\",\"expected_version\":2}}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"parent.set\",\"payload\":{\"parent\":{\"expected_version\":2,\"id\":\"parent\",\"kind\":\"Issue\"},\"previous_parent\":null},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "961d973df74737d2e02426151b12b29f90ca97db859a51787aecbe4ebfc3da41",
+    "operation": "devgraph.work.parent.set.v1",
+    "resources": [
+      "Issue/parent",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "https://[::1]:8080/a",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"link\",\"phase\":\"commit\",\"verdict\":\"approved\",\"summary\":\"Test\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"evidence\",\"title\":\"Evidence\",\"url\":\"https://[::1]:8080/a\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"evidence\",\"kind\":\"ExternalLink\",\"title\":\"Evidence\",\"url\":\"https://[::1]:8080/a\"}],\"layers\":[],\"phase\":\"commit\",\"record_id\":\"link\",\"requirements\":[],\"summary\":\"Test\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "63e2efa2cf6b729528c4dab9c0689d80b74a2d82b48fb68aac7a90e185efe3e0",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/evidence",
+      "ReviewPacket/link",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "https://localhost/é",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"link\",\"phase\":\"commit\",\"verdict\":\"approved\",\"summary\":\"Test\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"evidence\",\"title\":\"Evidence\",\"url\":\"https://localhost/é\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"evidence\",\"kind\":\"ExternalLink\",\"title\":\"Evidence\",\"url\":\"https://localhost/é\"}],\"layers\":[],\"phase\":\"commit\",\"record_id\":\"link\",\"requirements\":[],\"summary\":\"Test\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "74e2502e4430ae820f0b6857af1eee5f95444c303403d484d05c31725b841815",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/evidence",
+      "ReviewPacket/link",
+      "Task/example"
+    ]
+  },
+  {
+    "name": "http://example.test:0/path",
+    "raw": "{\"schema\":\"devgraph.work-request.v1\",\"operation\":\"workflow.review\",\"kind\":\"Task\",\"id\":\"example\",\"expected_version\":7,\"payload\":{\"record_id\":\"link\",\"phase\":\"commit\",\"verdict\":\"approved\",\"summary\":\"Test\",\"evidence\":[{\"kind\":\"ExternalLink\",\"id\":\"evidence\",\"title\":\"Evidence\",\"url\":\"http://example.test:0/path\"}]}}",
+    "canonical": "{\"expected_version\":7,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.review\",\"payload\":{\"evidence\":[{\"id\":\"evidence\",\"kind\":\"ExternalLink\",\"title\":\"Evidence\",\"url\":\"http://example.test:0/path\"}],\"layers\":[],\"phase\":\"commit\",\"record_id\":\"link\",\"requirements\":[],\"summary\":\"Test\",\"verdict\":\"approved\"},\"schema\":\"devgraph.work-request.v1\"}",
+    "digest": "9f57050155a7a2095f9813b55c6c242721d2d729c6d9d2f2b882597478a1b35a",
+    "operation": "devgraph.work.workflow.review.v1",
+    "resources": [
+      "ExternalLink/evidence",
+      "ReviewPacket/link",
+      "Task/example"
+    ]
+  }
+]

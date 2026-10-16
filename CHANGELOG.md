@@ -16,7 +16,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+- Pin the retained Wallet presentation contract to 6c9c2e5 with patched URL/IDNA parsing and adversarial hostname tests — remove RUSTSEC-2024-0421 while preserving signed vectors.
+- Audit every tracked Cargo lockfile in CI, including standalone read authority — root-workspace audits cannot cover separately built tools.
+
+### Fixed
+
 - Scoped the Rust 1.99 duplicate `must_use` lint allowance to the async-trait-generated handler method — restores latest-stable CI without weakening workspace warning checks or changing handler behavior.
+
+### Added
+
+- Added stacked-branch/manual CI and process-level standalone read-authority tests — root workspace checks previously missed the read binary and stacked Todo PR; disposable fixtures now cover issuance, holder/call binding, policy change, expiry, revocation and unsafe inputs.
+- Add a pinned shared read-authority issuer/verifier tool — verify short-lived holder-bound reads without changing existing mutation or packet contracts.
+
+### Changed
+- Composed the updated generic-authority foundation into the Todo/read candidate — both stacked PRs can pass latest-stable CI independently while retaining their source ancestry and unchanged contracts.
+- Extended generic Devgraph credential authority with independently validated workflow and canonical Todo requests plus 48 cross-language signed vectors — this allows the application-neutral Wallet path to authorize exact new operations without expanding existing grants or changing historical bytes.
+
 
 ### Changed
 - P4-O-DG-R1 / #282: constrained `priority` and every other RFC 8785-canonicalized integer in `devgraph.issue.create.v1` to the interoperable IEEE-754 safe-integer domain, with boundary, Unicode/control-escape, no-normalization, and array-order vectors — this prevents cross-language request/projection digest divergence before DG-P while changing no runtime, operation, schema field, Ed25519-only v1, generic Work API, `.castaway`, or hybrid/PQ boundary.

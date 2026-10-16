@@ -1,5 +1,8 @@
 # secS-magik current state
 
+Native read authority source candidate: [shared read authority v1](read-authority-v1.md).
+Matched source tests are separate from installed iPhone/receiver qualification.
+
 Last verified: 2026-09-01 against `main` after merged DG-E1 PR #285 at `212b6e537bcdf4c1c6847ec1d24820d9ca27cdea`; this branch adds only the fixed DG-E2 one-shot Wallet adapter
 
 This is the short orientation page for the repository. The detailed and authoritative status ledger remains [implementation-status.md](implementation-status.md). If this page and the ledger disagree, use the ledger and correct this page in the same change.
@@ -11,6 +14,12 @@ source candidate moves semantic approval into an issuer-attested generic Wallet
 request. It remains opt-in, with explicit caller configuration and separate v2
 replay/projection contracts. V1 and installed services remain unchanged. Source
 validation does not establish browser or installed-runtime qualification.
+
+The candidate also admits canonical Todo v2 and workflow requests with exact,
+explicit operation/resource grants. Historical signing vectors remain unchanged.
+The disposable macOS VM release gate is **blocked pending a VM**; source checks
+are not installed qualification. Legacy adapters remain until replacement clients
+pass that gate, followed by qualification of the final removal artifacts.
 
 ## At a glance
 

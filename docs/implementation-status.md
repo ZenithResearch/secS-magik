@@ -1,5 +1,8 @@
 # secS-magik implementation status
 
+Native read authority source candidate: [shared read authority v1](read-authority-v1.md).
+Matched source tests are separate from installed iPhone/receiver qualification.
+
 This document is the status ledger for this repository. It separates what is implemented today from what is partially implemented, planned next, or only future/vision. Keep this file current whenever code or docs change.
 
 ## Status labels
@@ -22,6 +25,12 @@ current policy recheck and isolated durable replay. See
 Status is **partial / review candidate** until coordinated Wallet/Devgraph,
 loaded-Chrome and installed-runtime qualification. No live config or service is
 changed, and no Dregg capability is enabled.
+
+The candidate also admits canonical Todo v2 and workflow requests with exact,
+explicit operation/resource grants. Historical signing vectors remain unchanged.
+The disposable macOS VM release gate is **blocked pending a VM**; source checks
+are not installed qualification. Legacy adapters remain until replacement clients
+pass that gate, followed by qualification of the final removal artifacts.
 
 ## Current solid / implemented surface
 

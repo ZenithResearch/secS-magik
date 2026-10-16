@@ -41,8 +41,18 @@ fn named_operation(s: &str) -> bool {
         return matches!(operation, "create" | "patch" | "archive" | "member.set");
     }
     s.strip_prefix("devgraph.work.")
-        .and_then(|s| s.strip_suffix(".v1"))
-        .is_some_and(|s| {
+        .and_then(|s| {
+            s.strip_suffix(".v1")
+                .map(|op| (op, 1))
+                .or_else(|| s.strip_suffix(".v2").map(|op| (op, 2)))
+        })
+        .is_some_and(|(s, version)| {
+            if version == 2 && s == "status" {
+                return false;
+            }
+            if matches!(s, "progress.set" | "restore" | "proposal.reject") {
+                return version == 2;
+            }
             matches!(
                 s,
                 "create"
@@ -56,6 +66,9 @@ fn named_operation(s: &str) -> bool {
                     | "dependency.remove"
                     | "blocker.add"
                     | "blocker.remove"
+                    | "workflow.assign"
+                    | "workflow.review"
+                    | "workflow.transition"
             )
         })
 }
@@ -108,7 +121,11 @@ impl WorkPolicy {
                 .strip_prefix("pubkey:sha256:")
                 .ok_or("invalid_work_policy")?;
             let (label, id) = rule.resource.split_once('/').ok_or("invalid_work_policy")?;
-            let resource_ok = (kind(label) || matches!(label, "Decision" | "Arena"))
+            let resource_ok = (kind(label)
+                || matches!(
+                    label,
+                    "Todo" | "Decision" | "Arena" | "ReviewPacket" | "Handoff" | "ExternalLink"
+                ))
                 && match rule.resource_match.as_str() {
                     "exact" => identifier(id),
                     "prefix" => {

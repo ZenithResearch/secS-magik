@@ -1,0 +1,258 @@
+[
+  {
+    "name": "create-Todo",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"create\", \"expected_version\": null, \"payload\": {\"id\": \"example\", \"title\": \"New work\"}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"example\",\"kind\":\"Todo\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"example\",\"priority\":0,\"title\":\"New work\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "eab7fdc99dcb21029fbe87d3c66be9e5bbaffbbf6500bdf23f48efa96930fd67",
+    "operation": "devgraph.work.create.v2",
+    "resources": [
+      "Todo/example"
+    ]
+  },
+  {
+    "name": "archive-Todo",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"archive\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Todo\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "ba5ccdab13ba606ba2da69a3f4766afb966f02c9a6ea28505cd5d0790a1917f5",
+    "operation": "devgraph.work.archive.v2",
+    "resources": [
+      "Todo/example"
+    ]
+  },
+  {
+    "name": "restore-Todo",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"restore\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Todo\",\"operation\":\"restore\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "2b7820aa34419422947571470b7e048a83ac239c601504998e32d19ba693fad6",
+    "operation": "devgraph.work.restore.v2",
+    "resources": [
+      "Todo/example"
+    ]
+  },
+  {
+    "name": "create-Proposal",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Proposal\", \"id\": \"example\", \"operation\": \"create\", \"expected_version\": null, \"payload\": {\"id\": \"example\", \"title\": \"New work\"}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"example\",\"kind\":\"Proposal\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"example\",\"priority\":0,\"title\":\"New work\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "25df25285c964dcbed65e5d96c94588b9e6a8d64398f3b64bf5a71038da171dc",
+    "operation": "devgraph.work.create.v2",
+    "resources": [
+      "Proposal/example"
+    ]
+  },
+  {
+    "name": "archive-Proposal",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Proposal\", \"id\": \"example\", \"operation\": \"archive\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Proposal\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "85169f67d120f77c49259c1eb906af4c9f1ca0b42583b8e2a23984ba49a8c07c",
+    "operation": "devgraph.work.archive.v2",
+    "resources": [
+      "Proposal/example"
+    ]
+  },
+  {
+    "name": "restore-Proposal",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Proposal\", \"id\": \"example\", \"operation\": \"restore\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Proposal\",\"operation\":\"restore\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "a5d7f9a8611b257f91f204c3db5addef1a69d88fde932069b559f26f5e576208",
+    "operation": "devgraph.work.restore.v2",
+    "resources": [
+      "Proposal/example"
+    ]
+  },
+  {
+    "name": "create-Initiative",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Initiative\", \"id\": \"example\", \"operation\": \"create\", \"expected_version\": null, \"payload\": {\"id\": \"example\", \"title\": \"New work\"}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"example\",\"kind\":\"Initiative\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"example\",\"priority\":0,\"title\":\"New work\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "00e1f1fab683362c6528e7c7bbc2b889272b44d20261d05615d04b7f57055e81",
+    "operation": "devgraph.work.create.v2",
+    "resources": [
+      "Initiative/example"
+    ]
+  },
+  {
+    "name": "archive-Initiative",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Initiative\", \"id\": \"example\", \"operation\": \"archive\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Initiative\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "8ca1e15e0775ca96818874bc8021ca78c98b889aefea732b7811b5d890641f17",
+    "operation": "devgraph.work.archive.v2",
+    "resources": [
+      "Initiative/example"
+    ]
+  },
+  {
+    "name": "restore-Initiative",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Initiative\", \"id\": \"example\", \"operation\": \"restore\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Initiative\",\"operation\":\"restore\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "262fbfc244cbee122030e2a1515ed0268bbbaa8f83fa6c8d1e4460f3c9669e26",
+    "operation": "devgraph.work.restore.v2",
+    "resources": [
+      "Initiative/example"
+    ]
+  },
+  {
+    "name": "create-Project",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Project\", \"id\": \"example\", \"operation\": \"create\", \"expected_version\": null, \"payload\": {\"id\": \"example\", \"title\": \"New work\"}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"example\",\"kind\":\"Project\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"example\",\"priority\":0,\"title\":\"New work\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "e997d40e8723303d3e6f892ecbedc3905b5f674dc781126b9e77089e1810d70a",
+    "operation": "devgraph.work.create.v2",
+    "resources": [
+      "Project/example"
+    ]
+  },
+  {
+    "name": "archive-Project",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Project\", \"id\": \"example\", \"operation\": \"archive\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Project\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "5a38f3cefffc13273a3806da3dd3ab7bdfc5e500486c1ee100a412edf23aa484",
+    "operation": "devgraph.work.archive.v2",
+    "resources": [
+      "Project/example"
+    ]
+  },
+  {
+    "name": "restore-Project",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Project\", \"id\": \"example\", \"operation\": \"restore\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Project\",\"operation\":\"restore\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "a5590507f86bbef3813753bebae0beb79fb6e95a532b5d795238a2d8d3a7c583",
+    "operation": "devgraph.work.restore.v2",
+    "resources": [
+      "Project/example"
+    ]
+  },
+  {
+    "name": "create-Issue",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Issue\", \"id\": \"example\", \"operation\": \"create\", \"expected_version\": null, \"payload\": {\"id\": \"example\", \"title\": \"New work\"}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"example\",\"kind\":\"Issue\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"example\",\"priority\":0,\"title\":\"New work\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "c7baecbad70d1b6fdb4b4be97906b907ebcf0aca6fefb33986a12d50453079dd",
+    "operation": "devgraph.work.create.v2",
+    "resources": [
+      "Issue/example"
+    ]
+  },
+  {
+    "name": "archive-Issue",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Issue\", \"id\": \"example\", \"operation\": \"archive\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Issue\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "ad3d1d0fc1aef523a2304a17cbc18b5c10d54a162d66daf95938ac83658e6517",
+    "operation": "devgraph.work.archive.v2",
+    "resources": [
+      "Issue/example"
+    ]
+  },
+  {
+    "name": "restore-Issue",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Issue\", \"id\": \"example\", \"operation\": \"restore\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Issue\",\"operation\":\"restore\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "c33ac6bd39bbc99444943b39cd531c0978a9973f294e06943e36b295dd2e2019",
+    "operation": "devgraph.work.restore.v2",
+    "resources": [
+      "Issue/example"
+    ]
+  },
+  {
+    "name": "create-Task",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Task\", \"id\": \"example\", \"operation\": \"create\", \"expected_version\": null, \"payload\": {\"id\": \"example\", \"title\": \"New work\"}}",
+    "canonical": "{\"expected_version\":null,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"create\",\"payload\":{\"artifact_ids\":[],\"description\":\"\",\"external_link_ids\":[],\"id\":\"example\",\"priority\":0,\"title\":\"New work\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "007136e5425b089c2f451f90601d2c325c272fe5a975325f481db974f056ea1f",
+    "operation": "devgraph.work.create.v2",
+    "resources": [
+      "Task/example"
+    ]
+  },
+  {
+    "name": "archive-Task",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Task\", \"id\": \"example\", \"operation\": \"archive\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"archive\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "255d357d24c31f0b03dc3718cabf32effc4cfb9318b2d2884c4f052c3410d35b",
+    "operation": "devgraph.work.archive.v2",
+    "resources": [
+      "Task/example"
+    ]
+  },
+  {
+    "name": "restore-Task",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Task\", \"id\": \"example\", \"operation\": \"restore\", \"expected_version\": 1, \"payload\": {}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"restore\",\"payload\":{},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "0f64bc637e63576823f5709463ccaed3e2145f004d63a8dcc247f45a592b36c1",
+    "operation": "devgraph.work.restore.v2",
+    "resources": [
+      "Task/example"
+    ]
+  },
+  {
+    "name": "progress-not_started",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"progress.set\", \"expected_version\": 1, \"payload\": {\"progress\": \"not_started\", \"reason\": \"Owner attestation ✓\", \"record_id\": \"record-not-started\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Todo\",\"operation\":\"progress.set\",\"payload\":{\"evidence\":[],\"progress\":\"not_started\",\"reason\":\"Owner attestation ✓\",\"record_id\":\"record-not-started\",\"requirements\":[]},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "9ac1e11d97ddfaba34ea7824c6b79f7f0659bfd235b16910b30f7e011ef8f0b1",
+    "operation": "devgraph.work.progress.set.v2",
+    "resources": [
+      "ReviewPacket/record-not-started",
+      "Todo/example"
+    ]
+  },
+  {
+    "name": "progress-in_progress",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"progress.set\", \"expected_version\": 1, \"payload\": {\"progress\": \"in_progress\", \"reason\": \"Owner attestation ✓\", \"record_id\": \"record-in-progress\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Todo\",\"operation\":\"progress.set\",\"payload\":{\"evidence\":[],\"progress\":\"in_progress\",\"reason\":\"Owner attestation ✓\",\"record_id\":\"record-in-progress\",\"requirements\":[]},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "720894bcc2ff019a3cd904ed08982214e492effeefa1acf5fc3b8fa6fbd8dbf5",
+    "operation": "devgraph.work.progress.set.v2",
+    "resources": [
+      "ReviewPacket/record-in-progress",
+      "Todo/example"
+    ]
+  },
+  {
+    "name": "progress-done",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"progress.set\", \"expected_version\": 1, \"payload\": {\"progress\": \"done\", \"reason\": \"Owner attestation ✓\", \"record_id\": \"record-done\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Todo\",\"operation\":\"progress.set\",\"payload\":{\"evidence\":[],\"progress\":\"done\",\"reason\":\"Owner attestation ✓\",\"record_id\":\"record-done\",\"requirements\":[]},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "77344471965201986fad07db43ee86a0592a0f2034e830f5c84edc73b80548d8",
+    "operation": "devgraph.work.progress.set.v2",
+    "resources": [
+      "ReviewPacket/record-done",
+      "Todo/example"
+    ]
+  },
+  {
+    "name": "progress-with-evidence",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Todo\", \"id\": \"example\", \"operation\": \"progress.set\", \"expected_version\": 1, \"payload\": {\"progress\": \"done\", \"reason\": \"Delivered\", \"record_id\": \"complete\", \"evidence\": [{\"kind\": \"ExternalLink\", \"id\": \"evidence\", \"url\": \"https://example.test/delivery\", \"title\": \"Delivery\"}], \"requirements\": [{\"id\": \"requirement\", \"title\": \"Outcome\", \"outcome\": \"met\", \"evidence_ids\": [\"evidence\"]}]}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Todo\",\"operation\":\"progress.set\",\"payload\":{\"evidence\":[{\"id\":\"evidence\",\"kind\":\"ExternalLink\",\"title\":\"Delivery\",\"url\":\"https://example.test/delivery\"}],\"progress\":\"done\",\"reason\":\"Delivered\",\"record_id\":\"complete\",\"requirements\":[{\"evidence_ids\":[\"evidence\"],\"id\":\"requirement\",\"outcome\":\"met\",\"reason\":\"\",\"subject\":\"\",\"title\":\"Outcome\"}]},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "7ef91e2e1e6efec87513ffbeb40bacecc723e1b1b7a5b7b008689880356ca282",
+    "operation": "devgraph.work.progress.set.v2",
+    "resources": [
+      "ExternalLink/evidence",
+      "ReviewPacket/complete",
+      "Todo/example"
+    ]
+  },
+  {
+    "name": "rejection",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Proposal\", \"id\": \"example\", \"operation\": \"proposal.reject\", \"expected_version\": 1, \"payload\": {\"decision_id\": \"rejection\", \"reason\": \"Not aligned with strategy\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Proposal\",\"operation\":\"proposal.reject\",\"payload\":{\"decision_id\":\"rejection\",\"reason\":\"Not aligned with strategy\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "d13324369869f05a4050eef527268e6d105d81ddcd0e278a4de917be5ce1ee92",
+    "operation": "devgraph.work.proposal.reject.v2",
+    "resources": [
+      "Decision/rejection",
+      "Proposal/example"
+    ]
+  },
+  {
+    "name": "start-plan",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Project\", \"id\": \"example\", \"operation\": \"workflow.transition\", \"expected_version\": 1, \"payload\": {\"stage\": \"planning\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Project\",\"operation\":\"workflow.transition\",\"payload\":{\"reason\":\"\",\"stage\":\"planning\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "3dd1c9886f50cee36809873253be720fe9715cab7b57cd5ebf1b28eed99b2e62",
+    "operation": "devgraph.work.workflow.transition.v2",
+    "resources": [
+      "Project/example"
+    ]
+  },
+  {
+    "name": "classify",
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"kind\": \"Task\", \"id\": \"example\", \"operation\": \"workflow.assign\", \"expected_version\": 1, \"payload\": {\"workflow_id\": \"execution.v1\", \"stage\": \"backlog\", \"reason\": \"Recorded classification\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"example\",\"kind\":\"Task\",\"operation\":\"workflow.assign\",\"payload\":{\"reason\":\"Recorded classification\",\"stage\":\"backlog\",\"workflow_id\":\"execution.v1\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "digest": "96029eb2610f9e314becafab02b8a6d6f5195efa351a13b8c8c7c08925094e53",
+    "operation": "devgraph.work.workflow.assign.v2",
+    "resources": [
+      "Task/example"
+    ]
+  }
+]
