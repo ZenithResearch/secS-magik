@@ -50,8 +50,8 @@ fn policy(request: &WorkRequest) -> WorkPolicy {
                 ),
                 effect: "allow".into(),
                 status: "active".into(),
-                not_before: NOW - 10,
-                not_after: NOW + 600,
+                validity: server::grant_validity::GrantValidity::dated(NOW - 10, NOW + 600)
+                    .unwrap(),
                 operation: request.operation.clone(),
                 resource: resource.clone(),
                 resource_match: "exact".into(),
@@ -176,8 +176,20 @@ async fn every_affected_resource_requires_current_permission() {
                 let rule = &mut policy.rules[index];
                 match state {
                     "revoked" => rule.status = "revoked".into(),
-                    "expired" => rule.not_after = NOW,
-                    "future" => rule.not_before = NOW + 1,
+                    "expired" => {
+                        rule.validity = server::grant_validity::GrantValidity::dated(
+                            rule.validity.not_before(),
+                            NOW,
+                        )
+                        .unwrap()
+                    }
+                    "future" => {
+                        rule.validity = server::grant_validity::GrantValidity::dated(
+                            NOW + 1,
+                            rule.validity.not_after().unwrap(),
+                        )
+                        .unwrap()
+                    }
                     "deny" => rule.effect = "deny".into(),
                     "wrong-actor" => rule.actor_id = format!("pubkey:sha256:{}", "e".repeat(64)),
                     "wrong-operation" => {
@@ -223,7 +235,9 @@ async fn deny_wins_expiry_is_capped_and_replay_conflicts_are_durable() {
     let mut policy = policy(&request);
     let mut deny = policy.rules[0].clone();
     deny.effect = "deny".into();
-    deny.not_before = NOW + 5;
+    deny.validity =
+        server::grant_validity::GrantValidity::dated(NOW + 5, deny.validity.not_after().unwrap())
+            .unwrap();
     policy.rules.push(deny);
     let ledger = ledger().await;
     let projection = issue_work_authority(
@@ -256,7 +270,11 @@ async fn deny_wins_expiry_is_capped_and_replay_conflicts_are_durable() {
     )
     .await
     .is_err());
-    policy.rules[1].not_before = NOW;
+    policy.rules[1].validity = server::grant_validity::GrantValidity::dated(
+        NOW,
+        policy.rules[1].validity.not_after().unwrap(),
+    )
+    .unwrap();
     assert!(issue_work_authority(
         &ledger,
         &identity,
@@ -271,4 +289,61 @@ async fn deny_wins_expiry_is_capped_and_replay_conflicts_are_durable() {
     )
     .await
     .is_err());
+}
+
+#[tokio::test]
+async fn explicit_until_revoked_policy_issues_only_finite_authority() {
+    let vector = vectors().remove(0);
+    let raw = vector["raw"].as_str().unwrap().as_bytes();
+    let request = WorkRequest::parse(raw).unwrap();
+    let old = policy(&request);
+    let original = serde_json::to_value(&old).unwrap();
+    let mut wire = original.clone();
+    wire["schema"] = json!("secs-devgraph-work-policy.v2");
+    wire["schema_version"] = json!(2);
+    for rule in wire["rules"].as_array_mut().unwrap() {
+        let rule = rule.as_object_mut().unwrap();
+        let start = rule.remove("not_before").unwrap();
+        rule.remove("not_after");
+        rule.insert("validity".into(),json!({"schema":"castalia.grant-validity.v1","mode":"until_revoked","not_before":start}));
+    }
+    let policy = WorkPolicy::parse(&bytes(&wire)).expect("explicit v2 policy");
+    assert_eq!(serde_json::to_value(&policy).unwrap(), wire);
+    assert_ne!(policy.digest().unwrap(), old.digest().unwrap());
+    assert_eq!(
+        serde_json::to_value(WorkPolicy::parse(&bytes(&original)).unwrap()).unwrap(),
+        original
+    );
+    let mut legacy = wire.clone();
+    legacy["schema"] = json!("secs-devgraph-work-policy.v1");
+    legacy["schema_version"] = json!(1);
+    assert!(
+        WorkPolicy::parse(&bytes(&legacy)).is_err(),
+        "Old policy never acquires unbounded rules"
+    );
+    let identity = identity();
+    let registry = PublicVerifierKeyRegistry::from_keys([identity.public_verifier_key()]);
+    let ledger = ledger().await;
+    let presentation = bytes(&wallet(&request, KEY, 91));
+    let issued = issue_work_authority(
+        &ledger,
+        &identity,
+        &registry,
+        &policy,
+        WorkAuthorityInput {
+            request_json: raw,
+            wallet_presentation_json: &presentation,
+            idempotency_key: KEY,
+            now: NOW,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(issued.expires_at, NOW + 60);
+    let mut invalid = wire.clone();
+    invalid["rules"][0]["not_after"] = json!(NOW + 999);
+    assert!(
+        WorkPolicy::parse(&bytes(&invalid)).is_err(),
+        "Do not mix old and new validity fields"
+    );
 }

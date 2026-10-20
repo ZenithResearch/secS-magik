@@ -281,6 +281,13 @@ mod tests {
     }
     #[tokio::test]
     async fn private_cli_preflight_approval_retry_and_fail_closed() {
+        private_cli_fixture(false).await;
+    }
+    #[tokio::test]
+    async fn standing_policy_cli_preserves_exact_approval_and_replay() {
+        private_cli_fixture(true).await;
+    }
+    async fn private_cli_fixture(standing: bool) {
         const NOW: u64 = 1_800_000_000;
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().canonicalize().unwrap();
@@ -297,7 +304,7 @@ mod tests {
         let request = WorkRequest::parse(vectors[0]["raw"].as_str().unwrap().as_bytes()).unwrap();
         let holder = SigningKey::from_bytes(&[37; 32]);
         let issuer = SigningKey::from_bytes(&[43; 32]);
-        let policy = WorkPolicy {
+        let mut policy = WorkPolicy {
             audience: "devgraph://receiver-local".into(),
             policy_id: "v2-cli-fixture".into(),
             policy_version: 1,
@@ -309,8 +316,8 @@ mod tests {
                 .map(|r| WorkRule {
                     actor_id: actor_id_for_public_key(holder.verifying_key().as_bytes()),
                     effect: "allow".into(),
-                    not_before: NOW - 10,
-                    not_after: NOW + 600,
+                    validity: crate::grant_validity::GrantValidity::dated(NOW - 10, NOW + 600)
+                        .unwrap(),
                     operation: request.operation.clone(),
                     resource: r.clone(),
                     resource_match: "exact".into(),
@@ -318,6 +325,14 @@ mod tests {
                 })
                 .collect(),
         };
+        if standing {
+            policy.schema = "secs-devgraph-work-policy.v2".into();
+            policy.schema_version = 2;
+            for rule in &mut policy.rules {
+                rule.validity =
+                    crate::grant_validity::GrantValidity::until_revoked(NOW - 10).unwrap();
+            }
+        }
         let registry = json!({"schema":"secs-public-verifier-key-registry.v1","schema_version":1,"keys":[{"algorithm":"ed25519","key_id":"v2-cli-secs","public_key_base64url":encode_base64url(issuer.verifying_key().as_bytes()),"production_authority":true,"status":"active"}]});
         let registry_raw = canonical(&registry).unwrap();
         write(

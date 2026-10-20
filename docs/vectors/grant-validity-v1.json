@@ -1,0 +1,312 @@
+{
+  "schema": "castalia.grant-validity-vectors.v1",
+  "valid": [
+    {
+      "id": "dated",
+      "value": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "checks": [
+        {
+          "now": 99,
+          "active": false
+        },
+        {
+          "now": 100,
+          "active": true
+        },
+        {
+          "now": 199,
+          "active": true
+        },
+        {
+          "now": 200,
+          "active": false
+        }
+      ],
+      "deadlines": [
+        {
+          "now": 100,
+          "lifetime": 60,
+          "deadline": 160
+        },
+        {
+          "now": 190,
+          "lifetime": 60,
+          "deadline": 200
+        }
+      ]
+    },
+    {
+      "id": "until-revoked",
+      "value": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "until_revoked",
+        "not_before": 100
+      },
+      "checks": [
+        {
+          "now": 99,
+          "active": false
+        },
+        {
+          "now": 100,
+          "active": true
+        },
+        {
+          "now": 9007199254740990,
+          "active": true
+        }
+      ],
+      "deadlines": [
+        {
+          "now": 100,
+          "lifetime": 60,
+          "deadline": 160
+        },
+        {
+          "now": 9007199254740990,
+          "lifetime": 60,
+          "deadline": null
+        }
+      ]
+    },
+    {
+      "id": "epoch",
+      "value": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 0,
+        "not_after": 1
+      },
+      "checks": [
+        {
+          "now": 0,
+          "active": true
+        },
+        {
+          "now": 1,
+          "active": false
+        }
+      ],
+      "deadlines": [
+        {
+          "now": 0,
+          "lifetime": 60,
+          "deadline": 1
+        }
+      ]
+    },
+    {
+      "id": "safe-edge",
+      "value": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 9007199254740990,
+        "not_after": 9007199254740991
+      },
+      "checks": [
+        {
+          "now": 9007199254740990,
+          "active": true
+        },
+        {
+          "now": 9007199254740991,
+          "active": false
+        }
+      ],
+      "deadlines": [
+        {
+          "now": 9007199254740990,
+          "lifetime": 60,
+          "deadline": 9007199254740991
+        }
+      ]
+    }
+  ],
+  "invalid": [
+    {
+      "id": "unknown-schema",
+      "raw": "{\"schema\":\"castalia.grant-validity.v2\",\"mode\":\"dated\",\"not_before\":100,\"not_after\":200}"
+    },
+    {
+      "id": "unknown-mode",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"forever\",\"not_before\":100,\"not_after\":200}"
+    },
+    {
+      "id": "missing-mode",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"not_before\":100,\"not_after\":200}"
+    },
+    {
+      "id": "missing-end",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":100}"
+    },
+    {
+      "id": "null-end",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":100,\"not_after\":null}"
+    },
+    {
+      "id": "undated-end",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"until_revoked\",\"not_before\":100,\"not_after\":200}"
+    },
+    {
+      "id": "empty-interval",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":100,\"not_after\":100}"
+    },
+    {
+      "id": "backwards",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":100,\"not_after\":99}"
+    },
+    {
+      "id": "negative",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":-1,\"not_after\":200}"
+    },
+    {
+      "id": "unsafe",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":100,\"not_after\":9007199254740992}"
+    },
+    {
+      "id": "boolean",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":true,\"not_after\":200}"
+    },
+    {
+      "id": "float",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":100.0,\"not_after\":200}"
+    },
+    {
+      "id": "unknown-field",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"not_before\":100,\"not_after\":200,\"revoked\":false}"
+    },
+    {
+      "id": "missing-start",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"until_revoked\"}"
+    },
+    {
+      "id": "duplicate-mode",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"dated\",\"mode\":\"until_revoked\",\"not_before\":100}"
+    },
+    {
+      "id": "escaped-duplicate",
+      "raw": "{\"schema\":\"castalia.grant-validity.v1\",\"mode\":\"until_revoked\",\"not_before\":100,\"not_\\u0062efore\":101}"
+    }
+  ],
+  "subsets": [
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "until_revoked",
+        "not_before": 100
+      },
+      "allowed": true
+    },
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "until_revoked",
+        "not_before": 100
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "allowed": false
+    },
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "until_revoked",
+        "not_before": 110
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "until_revoked",
+        "not_before": 100
+      },
+      "allowed": true
+    },
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "until_revoked",
+        "not_before": 99
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "until_revoked",
+        "not_before": 100
+      },
+      "allowed": false
+    },
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 110,
+        "not_after": 190
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "allowed": true
+    },
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 99,
+        "not_after": 190
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "allowed": false
+    },
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 110,
+        "not_after": 201
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "allowed": false
+    },
+    {
+      "child": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "parent": {
+        "schema": "castalia.grant-validity.v1",
+        "mode": "dated",
+        "not_before": 100,
+        "not_after": 200
+      },
+      "allowed": true
+    }
+  ]
+}

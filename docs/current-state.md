@@ -1,5 +1,15 @@
 # secS-magik current state
 
+## Standing Work validity source candidate (2026-10-20)
+
+[Standing Work policy v2](devgraph-standing-work-policy-v2.md) is an opt-in
+source review candidate. Explicit dated/until-revoked rules preserve exact
+operation/resource admission and finite credentials/projections. Verifier-key
+expiry is independent and mandatory for v2 administration. Legacy v1 wire and
+replay behavior remain unchanged. Source tests are not installed qualification;
+no service, key, trust, grant or receiver registry is activated by this change.
+
+
 Native read authority source candidate: [shared read authority v1](read-authority-v1.md).
 Matched source tests are separate from installed iPhone/receiver qualification.
 

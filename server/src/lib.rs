@@ -16,6 +16,7 @@ pub mod dregg_live_source;
 pub mod evidence;
 pub mod file_write;
 pub mod gateway;
+pub mod grant_validity;
 pub mod identity;
 pub mod ingress;
 pub mod ledger;

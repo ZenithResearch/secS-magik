@@ -78,16 +78,60 @@ fn named_operation(s: &str) -> bool {
 pub struct WorkRule {
     pub actor_id: String,
     pub effect: String,
-    pub not_after: u64,
-    pub not_before: u64,
+    pub validity: crate::grant_validity::GrantValidity,
     pub operation: String,
     pub resource: String,
     pub resource_match: String,
     pub status: String,
 }
-
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+struct FiniteWorkRule {
+    actor_id: String,
+    effect: String,
+    not_after: u64,
+    not_before: u64,
+    operation: String,
+    resource: String,
+    resource_match: String,
+    status: String,
+}
+impl FiniteWorkRule {
+    fn into_rule(self) -> Result<WorkRule> {
+        Ok(WorkRule {
+            actor_id: self.actor_id,
+            effect: self.effect,
+            validity: crate::grant_validity::GrantValidity::dated(self.not_before, self.not_after)?,
+            operation: self.operation,
+            resource: self.resource,
+            resource_match: self.resource_match,
+            status: self.status,
+        })
+    }
+    fn from_rule(rule: &WorkRule) -> Result<Self> {
+        Ok(Self {
+            actor_id: rule.actor_id.clone(),
+            effect: rule.effect.clone(),
+            not_before: rule.validity.not_before(),
+            not_after: rule.validity.not_after().ok_or("invalid_work_policy")?,
+            operation: rule.operation.clone(),
+            resource: rule.resource.clone(),
+            resource_match: rule.resource_match.clone(),
+            status: rule.status.clone(),
+        })
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PolicyWire<R> {
+    audience: String,
+    policy_id: String,
+    policy_version: u64,
+    rules: Vec<R>,
+    schema: String,
+    schema_version: u64,
+}
+#[derive(Clone)]
 pub struct WorkPolicy {
     pub audience: String,
     pub policy_id: String,
@@ -96,17 +140,84 @@ pub struct WorkPolicy {
     pub schema: String,
     pub schema_version: u64,
 }
+impl Serialize for WorkPolicy {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::Error;
+        self.validate().map_err(S::Error::custom)?;
+        if self.schema_version == 1 {
+            let rules = self
+                .rules
+                .iter()
+                .map(FiniteWorkRule::from_rule)
+                .collect::<Result<Vec<_>>>()
+                .map_err(S::Error::custom)?;
+            PolicyWire {
+                audience: self.audience.clone(),
+                policy_id: self.policy_id.clone(),
+                policy_version: self.policy_version,
+                rules,
+                schema: self.schema.clone(),
+                schema_version: self.schema_version,
+            }
+            .serialize(serializer)
+        } else {
+            PolicyWire {
+                audience: self.audience.clone(),
+                policy_id: self.policy_id.clone(),
+                policy_version: self.policy_version,
+                rules: self.rules.clone(),
+                schema: self.schema.clone(),
+                schema_version: self.schema_version,
+            }
+            .serialize(serializer)
+        }
+    }
+}
 impl WorkPolicy {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let policy: Self = serde_json::from_value(strict_json(raw, 262_144)?)
-            .map_err(|_| "invalid_work_policy")?;
+        let value = strict_json(raw, 262_144)?;
+        let policy = match value.get("schema").and_then(|v| v.as_str()) {
+            Some("secs-devgraph-work-policy.v1") => {
+                let wire: PolicyWire<FiniteWorkRule> =
+                    serde_json::from_value(value).map_err(|_| "invalid_work_policy")?;
+                Self {
+                    audience: wire.audience,
+                    policy_id: wire.policy_id,
+                    policy_version: wire.policy_version,
+                    rules: wire
+                        .rules
+                        .into_iter()
+                        .map(FiniteWorkRule::into_rule)
+                        .collect::<Result<Vec<_>>>()?,
+                    schema: wire.schema,
+                    schema_version: wire.schema_version,
+                }
+            }
+            Some("secs-devgraph-work-policy.v2") => {
+                let wire: PolicyWire<WorkRule> =
+                    serde_json::from_value(value).map_err(|_| "invalid_work_policy")?;
+                Self {
+                    audience: wire.audience,
+                    policy_id: wire.policy_id,
+                    policy_version: wire.policy_version,
+                    rules: wire.rules,
+                    schema: wire.schema,
+                    schema_version: wire.schema_version,
+                }
+            }
+            _ => return Err("invalid_work_policy"),
+        };
         policy.validate()?;
         Ok(policy)
     }
     fn validate(&self) -> Result<()> {
-        if self.schema != POLICY_SCHEMA
-            || self.schema_version != 1
-            || self.policy_version == 0
+        if !matches!(
+            (self.schema.as_str(), self.schema_version),
+            ("secs-devgraph-work-policy.v1", 1) | ("secs-devgraph-work-policy.v2", 2)
+        ) || self.policy_version == 0
             || self.policy_version > MAX_SAFE
             || !safe_label(&self.policy_id, 128)
             || self.audience != "devgraph://receiver-local"
@@ -141,8 +252,7 @@ impl WorkPolicy {
                 || !resource_ok
                 || !matches!(rule.effect.as_str(), "allow" | "deny")
                 || !matches!(rule.status.as_str(), "active" | "revoked")
-                || rule.not_before >= rule.not_after
-                || rule.not_after > MAX_SAFE
+                || self.schema_version == 1 && rule.validity.not_after().is_none()
             {
                 return Err("invalid_work_policy");
             }
@@ -151,7 +261,12 @@ impl WorkPolicy {
     }
     pub fn digest(&self) -> Result<String> {
         self.validate()?;
-        Ok(digest(b"secs-devgraph-work-policy.v1\0", &json(self)?))
+        let domain: &[u8] = if self.schema_version == 1 {
+            b"secs-devgraph-work-policy.v1\0"
+        } else {
+            b"secs-devgraph-work-policy.v2\0"
+        };
+        Ok(digest(domain, &json(self)?))
     }
     fn authorize_until(&self, actor: &str, request: &WorkRequest, now: u64) -> Result<u64> {
         self.authorize_until_bounded(actor, request, now, 60)
@@ -174,21 +289,22 @@ impl WorkPolicy {
                 let matches = rule.status == "active"
                     && rule.actor_id == actor
                     && rule.operation == request.operation
-                    && (if rule.resource_match == "exact" {
+                    && if rule.resource_match == "exact" {
                         resource == &rule.resource
                     } else {
                         resource.starts_with(&rule.resource)
-                    });
-                if !matches || rule.not_after <= now {
+                    };
+                if !matches || rule.validity.not_after().is_some_and(|end| end <= now) {
                     continue;
                 }
                 if rule.effect == "deny" {
-                    if rule.not_before <= now {
+                    if rule.validity.not_before() <= now {
                         return Err("work_permission_denied");
                     }
-                    expires = expires.min(rule.not_before);
-                } else if rule.not_before <= now {
-                    allowed_until = Some(allowed_until.unwrap_or(0).max(rule.not_after));
+                    expires = expires.min(rule.validity.not_before());
+                } else if rule.validity.contains(now) {
+                    let deadline = rule.validity.credential_deadline(now, lifetime)?;
+                    allowed_until = Some(allowed_until.unwrap_or(0).max(deadline));
                 }
             }
             expires = expires.min(allowed_until.ok_or("work_permission_denied")?);
