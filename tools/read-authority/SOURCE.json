@@ -11,5 +11,5 @@
     "tests/origin_security.rs": "27fedac1429e5bae14b947b42bceedcb313c2afd4d7474652dbdbcb2e4a3f15d",
     "tests/read_authority.rs": "bdd19a77b72c4e8f135f9b6d439faeaa11f4081d9678665dd64f2f784807ada4"
   },
-  "revision": "9777b9420767a882ea6731f36f9a01a7cd83fdfe"
+  "revision": "95be8af399e22cf627e20fbb09c9f1cdf09e72aa"
 }

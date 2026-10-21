@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Align the seven-file read-contract snapshot with the reviewed Wallet release and document shared endpoint ownership — prevent companion parity drift while retaining finite read credentials and Wallet-key operator identity for the MVP.
+
+### Changed
+
 - Add opt-in Work policy v2 validity and require a separate finite verifier-key deadline — enables reusable until-revoked admission without inventing immortal projections or changing legacy signed policy bytes.
 
 
