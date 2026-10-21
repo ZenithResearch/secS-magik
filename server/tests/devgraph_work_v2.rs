@@ -70,8 +70,8 @@ fn policy(request: &WorkRequest) -> WorkPolicy {
                     SigningKey::from_bytes(&[37; 32]).verifying_key().as_bytes(),
                 ),
                 effect: "allow".into(),
-                not_after: NOW + 600,
-                not_before: NOW - 10,
+                validity: server::grant_validity::GrantValidity::dated(NOW - 10, NOW + 600)
+                    .unwrap(),
                 operation: request.operation.clone(),
                 resource: resource.clone(),
                 resource_match: "exact".into(),
@@ -379,7 +379,11 @@ fn preflight_denies_missing_grants_untrusted_callers_and_invalid_inputs() {
         }
     )
     .is_err());
-    policy.rules[0].not_after = NOW + 7;
+    policy.rules[0].validity = server::grant_validity::GrantValidity::dated(
+        policy.rules[0].validity.not_before(),
+        NOW + 7,
+    )
+    .unwrap();
     assert_eq!(
         credential(&request, &policy, 1)
             .credential

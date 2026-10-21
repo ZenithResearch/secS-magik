@@ -150,9 +150,9 @@ fn validate_claims(policy: &Policy, claims: &Claims, now: u64) -> Result<()> {
         || claims.receiver != policy.receiver
         || claims.audience != policy.audience
         || claims.policy_digest != policy.digest()?
-        || claims.issued_at > now
-        || now >= claims.expires_at
-        || claims.expires_at > crate::MAX_SAFE
+        || !crate::grant_validity::GrantValidity::dated(claims.issued_at, claims.expires_at)
+            .map_err(|_| INVALID)?
+            .contains(now)
         || claims.expires_at - claims.issued_at > policy.max_lifetime_seconds
     {
         return Err(INVALID);

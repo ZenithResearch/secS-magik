@@ -1,0 +1,25 @@
+{
+  "policy": {
+    "schema": "secs-devgraph-work-policy.v2",
+    "schema_version": 2,
+    "policy_id": "portable-standing-fixture",
+    "policy_version": 2,
+    "audience": "devgraph://receiver-local",
+    "rules": [
+      {
+        "actor_id": "pubkey:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "effect": "allow",
+        "operation": "devgraph.work.patch.v2",
+        "resource": "Task/",
+        "resource_match": "prefix",
+        "status": "active",
+        "validity": {
+          "schema": "castalia.grant-validity.v1",
+          "mode": "until_revoked",
+          "not_before": 100
+        }
+      }
+    ]
+  },
+  "digest_sha256": "dd6104d419c9348f70e8de4be723fe942cff3ad72fcfe54bf697adc6626b9e57"
+}

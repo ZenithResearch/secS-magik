@@ -14,6 +14,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- Add opt-in Work policy v2 validity and require a separate finite verifier-key deadline — enables reusable until-revoked admission without inventing immortal projections or changing legacy signed policy bytes.
+
+
 ### Fixed
 
 - Pin the retained Wallet presentation contract to 6c9c2e5 with patched URL/IDNA parsing and adversarial hostname tests — remove RUSTSEC-2024-0421 while preserving signed vectors.

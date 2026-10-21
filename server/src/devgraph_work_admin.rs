@@ -40,6 +40,9 @@ pub enum Command {
         expected_policy_digest: Option<String>,
         #[arg(long)]
         rotate_verifier: bool,
+        /// Independent signing-key deadline; required for explicit-validity policy v2.
+        #[arg(long)]
+        verifier_not_after: Option<u64>,
     },
     Status,
     Snapshot {
@@ -134,7 +137,7 @@ impl Bundle {
     fn descriptor(&self, action: &str, now: u64) -> Result<Value> {
         Ok(
             json!({"schema":"secs-devgraph-work-admin.v1", "action":action,
-            "ready":self.key_current && self.policy.rules.iter().any(|r| r.effect == "allow" && r.status == "active" && r.not_before <= now && now < r.not_after),
+            "ready":self.key_current && self.policy.rules.iter().any(|r| r.effect == "allow" && r.status == "active" && r.validity.contains(now)),
             "key_current": self.key_current, "policy_id":self.policy.policy_id,
             "policy_version":self.policy.policy_version, "policy_digest_sha256":self.policy.digest()?,
             "secs_verifier_key_id":self.manifest.secs_verifier_key_id,
@@ -297,8 +300,26 @@ async fn run_at(cli: AdminCli, root: &Path, now: u64) -> Result<Value> {
             policy_file,
             expected_policy_digest,
             rotate_verifier,
+            verifier_not_after,
         } => {
             let policy = WorkPolicy::parse(&read(&policy_file, 262144)?)?;
+            // A standing grant is not the signing key's lifetime. Never infer
+            // an infinite verifier key from an until-revoked policy.
+            let verifier_deadline = if policy.schema_version == 2 {
+                verifier_not_after
+                    .filter(|v| *v > now && *v <= crate::devgraph_work_request::MAX_SAFE)
+                    .ok_or("explicit_verifier_deadline_required")?
+            } else {
+                if verifier_not_after.is_some() {
+                    return Err("verifier_deadline_requires_policy_v2");
+                }
+                policy
+                    .rules
+                    .iter()
+                    .filter_map(|r| r.validity.not_after())
+                    .max()
+                    .ok_or("invalid_work_policy")?
+            };
             let previous = if active.try_exists().map_err(|_| "unsafe_work_authority")? {
                 Some(Bundle::load(&active, now)?)
             } else {
@@ -338,12 +359,7 @@ async fn run_at(cli: AdminCli, root: &Path, now: u64) -> Result<Value> {
             let identity = load_devgraph_authority_identity_v1(&key, "provisioning")
                 .map_err(|_| "invalid_secs_identity")?;
             let key_id = derive_ed25519_key_id(identity.public_key());
-            let until = policy
-                .rules
-                .iter()
-                .map(|r| r.not_after)
-                .max()
-                .ok_or("invalid_work_policy")?;
+            let until = verifier_deadline;
             let registry = json!({"schema":"secs-public-verifier-key-registry.v1", "schema_version":1, "keys":[{
                 "algorithm":"ed25519", "key_id":key_id, "public_key_base64url":encode_base64url(identity.public_key().as_bytes()),
                 "production_authority":true, "status":"active", "not_before":now.saturating_sub(1), "not_after":until}]});
@@ -414,6 +430,7 @@ mod tests {
                     policy_file,
                     expected_policy_digest: expected,
                     rotate_verifier: rotate,
+                    verifier_not_after: None,
                 },
             },
             root,
@@ -421,6 +438,60 @@ mod tests {
         )
         .await
     }
+    #[tokio::test]
+    async fn standing_policy_requires_separate_finite_verifier_deadline() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().canonicalize().unwrap();
+        directory(&base);
+        let root = base.join("secS");
+        directory(&root);
+        let path = policy_file(&base, 1, 300, false);
+        let mut policy: Value = serde_json::from_slice(&read(&path, 262144).unwrap()).unwrap();
+        policy["schema"] = json!("secs-devgraph-work-policy.v2");
+        policy["schema_version"] = json!(2);
+        let rule = policy["rules"][0].as_object_mut().unwrap();
+        rule.remove("not_before");
+        rule.remove("not_after");
+        rule.insert(
+            "validity".into(),
+            json!({"schema":"castalia.grant-validity.v1","mode":"until_revoked","not_before":100}),
+        );
+        fs::write(&path, encoded(&policy).unwrap()).unwrap();
+        assert_eq!(
+            provision(&root, path.clone(), None, false)
+                .await
+                .unwrap_err(),
+            "explicit_verifier_deadline_required"
+        );
+        assert!(!root.join("authority").join(BUNDLE).exists());
+        let result = run_at(
+            AdminCli {
+                command: Command::Provision {
+                    policy_file: path,
+                    expected_policy_digest: None,
+                    rotate_verifier: false,
+                    verifier_not_after: Some(400),
+                },
+            },
+            &root,
+            200,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["ready"], true);
+        assert_eq!(result["registry"]["keys"][0]["not_after"], 400);
+        assert_eq!(
+            result["policy"]["rules"][0]["validity"]["mode"],
+            "until_revoked"
+        );
+        let later = Bundle::load(&root.join("authority").join(BUNDLE), 401).unwrap();
+        assert_eq!(
+            later.descriptor("status", 401).unwrap()["ready"],
+            false,
+            "Expired verifier key still blocks issuance"
+        );
+    }
+
     #[tokio::test]
     async fn provision_renew_rotate_and_snapshots_preserve_replay_and_custody() {
         let temp = tempfile::tempdir().unwrap();

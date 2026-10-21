@@ -1,14 +1,15 @@
 {
   "source_repository": "bananawalnut/castalia-wallet",
   "base_revision": "ff8de6ddc04ac2fb6b39408274276bc4ce984d42",
-  "status": "commit-pinned source snapshot",
+  "status": "commit-pinned source snapshot; dated read credentials retain finite validity",
   "files": {
     "Cargo.toml": "713292c825c20f51ea4eaa6d4f7db7d91e13c518d768ff9ea8fba5c6a3d03105",
     "LICENSE": "20f4d915bd7924e095ee0c532941c5362828c4049371e0efa5b8ab597c9fa2c2",
-    "src/lib.rs": "c26151496f1e068704c72c11d44fae15f257d1ef7434f8e71acdf11837bae1eb",
-    "src/read_authority.rs": "9badea3aa5cb7b3c5a6e5951018f317fe70f7fad887e013305e6adea73f063b5",
-    "tests/read_authority.rs": "bdd19a77b72c4e8f135f9b6d439faeaa11f4081d9678665dd64f2f784807ada4",
-    "tests/origin_security.rs": "27fedac1429e5bae14b947b42bceedcb313c2afd4d7474652dbdbcb2e4a3f15d"
+    "src/grant_validity.rs": "07b7454deca3a0fbd8eedf561cfedd1e312a184f6331d7921e408177c70c97d7",
+    "src/lib.rs": "af69411d7c13b63073084ee0973c1bc28055c23b0a5646b15cc936620e6cc0c7",
+    "src/read_authority.rs": "19d5b5bafe61061726599d8f47b03f6f7c9268a92f22d25c0148e94e9141fe3d",
+    "tests/origin_security.rs": "27fedac1429e5bae14b947b42bceedcb313c2afd4d7474652dbdbcb2e4a3f15d",
+    "tests/read_authority.rs": "bdd19a77b72c4e8f135f9b6d439faeaa11f4081d9678665dd64f2f784807ada4"
   },
-  "revision": "6c9c2e5819547ed6a2170c129ca6dc1d6c501516"
+  "revision": "9777b9420767a882ea6731f36f9a01a7cd83fdfe"
 }
