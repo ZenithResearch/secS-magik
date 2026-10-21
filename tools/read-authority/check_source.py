@@ -10,7 +10,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parent
 source = json.loads((root / "SOURCE.json").read_text())
-expected_files = {"Cargo.toml", "LICENSE", "src/lib.rs", "src/read_authority.rs",
+expected_files = {"Cargo.toml", "LICENSE", "src/lib.rs", "src/read_authority.rs", "src/grant_validity.rs",
                   "tests/read_authority.rs", "tests/origin_security.rs"}
 if set(source["files"]) != expected_files:
     raise SystemExit("Read-authority snapshot file inventory changed; review provenance.")
@@ -18,4 +18,4 @@ for name, expected in source["files"].items():
     actual = hashlib.sha256((root / "vendor/castalia-wallet-presentation" / name).read_bytes())
     if actual.hexdigest() != expected:
         raise SystemExit(f"Read-authority snapshot checksum mismatch: {name}")
-print("All six retained Wallet source hashes match SOURCE.json.")
+print("All seven retained Wallet source hashes match SOURCE.json.")
