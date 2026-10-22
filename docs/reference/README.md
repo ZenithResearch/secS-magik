@@ -9,6 +9,7 @@ These pages describe the current code and delivery surfaces. They are subordinat
 | [Devgraph Issue-create fixed adapter](devgraph-issue-create-v1-cli.md) | DG-E1 owner-private data-root layout, three-file CLI, atomic output, and non-generic boundaries. |
 | [Devgraph Issue-create Wallet adapter](devgraph-issue-create-v1-wallet-cli.md) | DG-E2 fixed-origin one-shot Wallet ceremony, exact HTTP/CSRF state machine, listener-before-authority ordering, and non-claims. |
 | [Provider intake native CLI](provider-intake-v1-cli.md) | Fixed canonical key custody, create-only provisioning, public status, bounded envelope opening, and local integration boundary. |
+| [Frank connector-result authority](frank-connector-result-authority.md) | Fixed connector-journal attestation, create-only custody/setup, resume and renewal boundaries, and local verification commands. |
 | [WASM and Pages](wasm-and-pages.md) | wasm32 exports, browser panel behavior, local builds, generated API docs, and GitHub Pages delivery. |
 
 Reference pages document present behavior. They do not promote specs, plans, ideas, fixtures, or smoke output into production claims.

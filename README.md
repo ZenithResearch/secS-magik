@@ -106,6 +106,8 @@ The root `Cargo.toml` contains five members:
 | `secs-devgraph-issue-create-v1-wallet` | `server` | Serves one fixed `127.0.0.1:9045` user-click Wallet ceremony, closes its listener, then invokes the same typed producer and create-only output path; it is not a generic browser bridge or Devgraph client. |
 | `secs-devgraph-work-v1` | `server` | Invokes only the named Work/Arena v1 projection producer from owner-private files and fixed receiver authority state; `admin` provisions/statuses/snapshots its local authority bundle. It does not mutate Devgraph. |
 | `secs-provider-intake-v1` | `server` | Explicitly provisions one canonical provider X25519 key, exposes its public binding, and opens only `service.intake-envelope.v1` from bounded stdin. It does not verify membership, grant Service authority, persist or acknowledge queue deliveries. |
+| `secs-frank-connector-result` | `server` | Attests one immutable retained Matrix/Hermes connector result through a pinned owner configuration and private issuer. It validates the connector journal, assignment, policy and renewal chain before emitting a bounded native result envelope. |
+| `secs-frank-connector-result-setup` | `server` | Creates one private connector-result issuer, assignment, authority configuration, producer configuration and receiver policy from a canonical, digest-pinned plan. Creation is fail-closed and never replaces an existing or partial root. |
 
 ### A client limitation worth knowing
 
@@ -340,6 +342,8 @@ cargo test -p server --test devgraph_authority_projection
 cargo test -p server --test devgraph_work_authority
 cargo build -p server --bin secs-devgraph-work-v1
 cargo build -p server --bin secs-provider-intake-v1
+cargo build -p server --bin secs-frank-connector-result
+cargo build -p server --bin secs-frank-connector-result-setup
 cargo test -p server --test public_audit_cli
 cargo test -p server --test docs_overclaim_status_ledger
 ```

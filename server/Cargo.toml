@@ -54,6 +54,14 @@ path = "src/bin/secs-devgraph-work-v2.rs"
 name = "secs-provider-intake-v1"
 path = "src/bin/secs-provider-intake-v1.rs"
 
+[[bin]]
+name = "secs-frank-connector-result"
+path = "src/bin/secs-frank-connector-result.rs"
+
+[[bin]]
+name = "secs-frank-connector-result-setup"
+path = "src/bin/secs-frank-connector-result-setup.rs"
+
 [features]
 # Conformance only: signed bytes must not depend on transitive serde_json features.
 hostile-json-features = ["serde_json/preserve_order", "serde_json/arbitrary_precision"]
