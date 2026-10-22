@@ -25,6 +25,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+- Keep the restored Frank result authority clean under the repository's all-feature `-D warnings` Clippy gate — the recovered behavior is unchanged while the public branch remains eligible for normal CI and release review.
+
 - Pin the retained Wallet presentation contract to 6c9c2e5 with patched URL/IDNA parsing and adversarial hostname tests — remove RUSTSEC-2024-0421 while preserving signed vectors.
 - Audit every tracked Cargo lockfile in CI, including standalone read authority — root-workspace audits cannot cover separately built tools.
 

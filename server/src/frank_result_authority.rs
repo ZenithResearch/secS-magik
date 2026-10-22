@@ -1158,8 +1158,7 @@ impl ConnectorCapture {
                 || (index == 0 && (selected_mode != "attest" || selected_parent.is_some()))
                 || (index > 0
                     && (selected_mode != "renew"
-                        || selected_parent.as_deref()
-                            != previous.as_deref().map(|value| sha(value)).as_deref()))
+                        || selected_parent.as_deref() != previous.as_deref().map(sha).as_deref()))
                 || (index + 1 < exchange_rows.len() && envelope.is_none())
             {
                 return Err(Error);
@@ -1675,8 +1674,8 @@ impl FrankResultAuthority {
         if a.run_ids.iter().collect::<BTreeSet<_>>().len() != a.run_ids.len()
             || a.operations.iter().collect::<BTreeSet<_>>().len() != a.operations.len()
             || a.operations.iter().any(|s| {
-                !contract::OPERATIONS.contains(&s.as_str())
-                    && !(profile == AssignmentProfile::Connector && s == "compute")
+                !(contract::OPERATIONS.contains(&s.as_str())
+                    || profile == AssignmentProfile::Connector && s == "compute")
             })
         {
             return Err(Error);
