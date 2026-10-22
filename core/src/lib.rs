@@ -13,6 +13,7 @@ uniffi::setup_scaffolding!();
 pub mod caller_proof;
 pub mod execution_response;
 pub mod ingress_request;
+pub mod intake_envelope;
 pub mod packet_builder;
 pub mod response;
 pub mod tunnel;

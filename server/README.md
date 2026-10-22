@@ -14,6 +14,8 @@ Status: production-shaped local hardening is implemented for the current prototy
 | `src/bin/secs-devgraph-work-v1.rs` | Fixed named Devgraph Work/Arena v1 projection producer wrapper plus explicit owner-local admin subcommands. |
 | `src/bin/secs-devgraph-issue-create-v1.rs` | Thin wrapper for the fixed three-file DG-E1 producer adapter. |
 | `src/bin/secs-devgraph-issue-create-v1-wallet.rs` | Thin wrapper for the fixed three-file DG-E2 one-shot Wallet adapter. |
+| `src/bin/secs-provider-intake-v1.rs` | Fixed create-only provider-intake key custody, public status, and bounded native opener wrapper. |
+| `src/provider_intake_cli.rs` | Canonical data-root checks, provider recipient-key lifecycle, closed stdin/stdout frame, and stable errors. |
 | `src/devgraph_authority.rs` | Exact `devgraph.issue.create.v1` request/Wallet/policy verification, projection signing, and replay semantics. |
 | `src/devgraph_issue_create_cli.rs` | Owner-private fixed data-root/input loading and atomic projection output; no generic route or Devgraph mutation. |
 | `src/devgraph_issue_create_wallet_cli.rs` | Fixed `127.0.0.1:9045` one-shot Wallet page/CSRF state machine; listener closes before the typed producer opens authority/replay. |
@@ -149,6 +151,7 @@ This is a static fixture registry path only: no live Dregg consensus or Castalia
 cargo test -p server
 cargo build -p server --bin secs-gateway
 cargo build -p server --bin secs-devgraph-work-v1
+cargo build -p server --bin secs-provider-intake-v1
 cargo test --workspace
 cargo build --workspace
 ```

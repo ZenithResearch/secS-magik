@@ -44,6 +44,7 @@ secS-magik/
 │       ├── lib.rs                  # ZenithPacket v0, standard opcode constants, core exports
 │       ├── packet_builder.rs        # verifier-free packet construction helper
 │       ├── tunnel.rs                # tunnel crypto helpers
+│       ├── intake_envelope.rs       # bounded provider-intake seal/open primitive
 │       ├── zk.rs                    # signature/proof helper primitives; not the full server verifier
 │       └── ffi.rs                   # UniFFI bindings behind feature flag
 ├── client/
@@ -66,6 +67,7 @@ secS-magik/
 │       ├── credential_presentation.rs # generic closed credential/presentation verification
 │       ├── devgraph_work_v2.rs        # opt-in Work/Arena credential binding and isolated v2 replay
 │       ├── devgraph_work_v2_cli.rs    # owner-private preflight/authorize adapter; no live activation
+│       ├── provider_intake_cli.rs     # fixed native provider-intake key custody/opener
 │       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
 │       ├── ingress.rs               # bounded prototype TCP ingress and verifier/payload handoff
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
@@ -84,6 +86,7 @@ secS-magik/
 │           ├── secs-devgraph-issue-create-v1.rs # thin fixed DG-E1 adapter wrapper
 │           ├── secs-devgraph-issue-create-v1-wallet.rs # thin fixed DG-E2 Wallet wrapper
 │           ├── secs-devgraph-work-v1.rs # thin fixed named Work/Arena projection wrapper
+│           ├── secs-provider-intake-v1.rs # fixed provider-intake provision/status/open wrapper
 │           └── secz.rs              # historical compatibility and audit wrapper
 ├── permissions/
 │   ├── Cargo.toml
@@ -102,12 +105,15 @@ secS-magik/
     ├── devgraph-named-work-v1.md    # named Work/Arena v1 producer and setup boundary
     ├── implementation-status.md     # current status ledger
     ├── repository-schema.md         # this file
+    ├── contracts/
+    │   └── provider-intake-envelope-v1.md # binary/crypto contract and interop vector
     ├── client-surfaces.md           # client-side/outgoing-call boundary
     ├── reference/
     │   ├── README.md
     │   ├── devgraph-issue-create-v1-producer.md
     │   ├── devgraph-issue-create-v1-cli.md
     │   ├── devgraph-issue-create-v1-wallet-cli.md
+    │   ├── provider-intake-v1-cli.md
     │   ├── runtime.md
     │   └── wasm-and-pages.md
     ├── pages/
