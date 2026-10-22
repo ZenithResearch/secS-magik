@@ -37,7 +37,7 @@ The root README is the canonical front door and operating map. The implementatio
 | Receipts and audit | Solid local/operator implementation | Signed receipt/event records, SQLite persistence, redacted inspection, versioned audit bundles/chains, local verification, and bounded external-anchor witnesses. Not blockchain immutability or public auditability. |
 | Execution output transport | Solid core/server transport | Bounded, receiver-signed, request-correlated `ExecutionResponse` exists. The shipped client CLI does not yet have trusted response mappings for arbitrary non-legacy operations. |
 | Devgraph exact-operation producers | Solid DG-P Issue-create library/adapters plus named Work v1 producer | `devgraph.issue.create.v1` preserves the P4-O-DG-R1 RFC 8785 profile. Named Work v1 emits signed projections for closed Work/Arena operations. These producers are not Packet routes, generic operation selectors, Devgraph mutations, deployment proof, or hybrid/PQ v1 claims. |
-| WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt exports and a no-network permission-policy panel. No browser wallet product or remote administration plane. |
+| WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt and provider-intake sealing exports plus a no-network permission-policy panel. No released intake bundle, browser wallet product, or remote administration plane. |
 | `generate` / `chat` | Legacy examples only | Constants, client commands, and descriptors exist, but no inference backend, model routing, managed conversation store, or weave runtime is installed. |
 | Production deployment | Not evidenced | `production_verified` fails closed on missing operator config, but repository tests and fixture smoke are not proof of a deployed production service. |
 
@@ -88,7 +88,7 @@ The root `Cargo.toml` contains five members:
 
 | Package | Kind | What is actually present |
 |---|---|---|
-| [`libsec-core`](core/README.md) | `rlib`, `cdylib`, `staticlib` | `ZenithPacket`, ingress frames, caller-proof encoding, decision/execution responses, packet builder, tunnel primitives, signature/Merkle helpers, and optional wasm32 exports. It is verifier-free. |
+| [`libsec-core`](core/README.md) | `rlib`, `cdylib`, `staticlib` | `ZenithPacket`, ingress frames, caller-proof encoding, decision/execution responses, packet builder, tunnel and bounded provider-intake primitives, signature/Merkle helpers, and optional wasm32 exports. It is verifier-free. |
 | [`client`](client/README.md) | Native binary | `generate`, `chat`, `hub`, and `identity` commands; caller-key lifecycle; packet signing; plaintext/static/session tunnel modes; bounded response decoding. |
 | [`server`](server/README.md) | Library + six binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, the fixed DG-P `devgraph.issue.create.v1` authority producer, bounded file/Wallet adapters, and the separate named Work v1 projection producer. |
 | `secs-permissions` | Reusable library | Receiver-local permission records and fail-closed policy evaluation shared by the server, native policy CLI, and WASM panel. |

@@ -44,6 +44,7 @@ secS-magik/
 │       ├── lib.rs                  # ZenithPacket v0, standard opcode constants, core exports
 │       ├── packet_builder.rs        # verifier-free packet construction helper
 │       ├── tunnel.rs                # tunnel crypto helpers
+│       ├── intake_envelope.rs       # bounded provider-intake seal/open primitive
 │       ├── zk.rs                    # signature/proof helper primitives; not the full server verifier
 │       └── ffi.rs                   # UniFFI bindings behind feature flag
 ├── client/
@@ -99,6 +100,8 @@ secS-magik/
     ├── devgraph-named-work-v1.md    # named Work/Arena v1 producer and setup boundary
     ├── implementation-status.md     # current status ledger
     ├── repository-schema.md         # this file
+    ├── contracts/
+    │   └── provider-intake-envelope-v1.md # binary/crypto contract and interop vector
     ├── client-surfaces.md           # client-side/outgoing-call boundary
     ├── reference/
     │   ├── README.md
