@@ -37,7 +37,7 @@ The root README is the canonical front door and operating map. The implementatio
 | Receipts and audit | Solid local/operator implementation | Signed receipt/event records, SQLite persistence, redacted inspection, versioned audit bundles/chains, local verification, and bounded external-anchor witnesses. Not blockchain immutability or public auditability. |
 | Execution output transport | Solid core/server transport | Bounded, receiver-signed, request-correlated `ExecutionResponse` exists. The shipped client CLI does not yet have trusted response mappings for arbitrary non-legacy operations. |
 | Devgraph exact-operation producers | Solid DG-P Issue-create library/adapters plus named Work v1 producer | `devgraph.issue.create.v1` preserves the P4-O-DG-R1 RFC 8785 profile. Named Work v1 emits signed projections for closed Work/Arena operations. These producers are not Packet routes, generic operation selectors, Devgraph mutations, deployment proof, or hybrid/PQ v1 claims. |
-| WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt exports and a no-network permission-policy panel. No browser wallet product or remote administration plane. |
+| WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt and provider-intake sealing exports, a source-qualified browser intake package builder, plus a no-network permission-policy panel. No released intake package, browser wallet product, encrypted reference-object transport, or remote administration plane. |
 | `generate` / `chat` | Legacy examples only | Constants, client commands, and descriptors exist, but no inference backend, model routing, managed conversation store, or weave runtime is installed. |
 | Production deployment | Not evidenced | `production_verified` fails closed on missing operator config, but repository tests and fixture smoke are not proof of a deployed production service. |
 
@@ -88,9 +88,9 @@ The root `Cargo.toml` contains five members:
 
 | Package | Kind | What is actually present |
 |---|---|---|
-| [`libsec-core`](core/README.md) | `rlib`, `cdylib`, `staticlib` | `ZenithPacket`, ingress frames, caller-proof encoding, decision/execution responses, packet builder, tunnel primitives, signature/Merkle helpers, and optional wasm32 exports. It is verifier-free. |
+| [`libsec-core`](core/README.md) | `rlib`, `cdylib`, `staticlib` | `ZenithPacket`, ingress frames, caller-proof encoding, decision/execution responses, packet builder, tunnel and bounded provider-intake primitives, signature/Merkle helpers, and optional wasm32 exports. It is verifier-free. |
 | [`client`](client/README.md) | Native binary | `generate`, `chat`, `hub`, and `identity` commands; caller-key lifecycle; packet signing; plaintext/static/session tunnel modes; bounded response decoding. |
-| [`server`](server/README.md) | Library + six binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, the fixed DG-P `devgraph.issue.create.v1` authority producer, bounded file/Wallet adapters, and the separate named Work v1 projection producer. |
+| [`server`](server/README.md) | Library + seven binaries | Config/readiness, ingress, verifier, evidence adapters, manifests, permission integration, replay/nullifier gates, handlers, receipts, SQLite ledger, audit export/verification, the fixed DG-P `devgraph.issue.create.v1` authority producer, bounded file/Wallet adapters, the separate named Work v1 projection producer, and fixed provider-intake key custody/opener. |
 | `secs-permissions` | Reusable library | Receiver-local permission records and fail-closed policy evaluation shared by the server, native policy CLI, and WASM panel. |
 | [`panel`](panel/README.md) | `cdylib`, `rlib` | Four wasm-bindgen functions plus a static HTML/JavaScript policy panel that stores policy JSON in the browser. |
 
@@ -105,6 +105,9 @@ The root `Cargo.toml` contains five members:
 | `secs-devgraph-issue-create-v1` | `server` | Invokes only the fixed DG-P producer from owner-private files and fixed receiver authority state; it emits one signed projection file, not a Devgraph mutation. |
 | `secs-devgraph-issue-create-v1-wallet` | `server` | Serves one fixed `127.0.0.1:9045` user-click Wallet ceremony, closes its listener, then invokes the same typed producer and create-only output path; it is not a generic browser bridge or Devgraph client. |
 | `secs-devgraph-work-v1` | `server` | Invokes only the named Work/Arena v1 projection producer from owner-private files and fixed receiver authority state; `admin` provisions/statuses/snapshots its local authority bundle. It does not mutate Devgraph. |
+| `secs-provider-intake-v1` | `server` | Explicitly provisions one canonical provider X25519 key, exposes its public binding, and opens only `service.intake-envelope.v1` from bounded stdin. It does not verify membership, grant Service authority, persist or acknowledge queue deliveries. |
+| `secs-frank-connector-result` | `server` | Attests one immutable retained Matrix/Hermes connector result through a pinned owner configuration and private issuer. It validates the connector journal, assignment, policy and renewal chain before emitting a bounded native result envelope. |
+| `secs-frank-connector-result-setup` | `server` | Creates one private connector-result issuer, assignment, authority configuration, producer configuration and receiver policy from a canonical, digest-pinned plan. Creation is fail-closed and never replaces an existing or partial root. |
 
 ### A client limitation worth knowing
 
@@ -284,10 +287,11 @@ These commands validate the repository's bundle/chain/anchor contracts. A Gist o
 
 ## WASM and browser surfaces
 
-Two wasm32 surfaces exist:
+Three wasm32 surfaces exist:
 
 1. `libsec-core` with feature `uniffi` exports `wasm_encrypt` and `wasm_decrypt` for ChaCha20Poly1305 using caller-supplied key, nonce, plaintext/ciphertext, and associated data.
-2. `panel` exports permission-policy `grant`, `revoke`, `evaluate`, and `list` functions and supplies a vanilla HTML/JavaScript UI in `panel/www`.
+2. `libsec-core` exports `wasm_seal_intake_envelope_v1`; `browser/intake-sealer` packages it behind the Service Management browser sealer port with Web Crypto randomness and integrity inventory.
+3. `panel` exports permission-policy `grant`, `revoke`, `evaluate`, and `list` functions and supplies a vanilla HTML/JavaScript UI in `panel/www`.
 
 Build the panel locally:
 
@@ -338,6 +342,9 @@ cargo test -p server --test execution_output_transport
 cargo test -p server --test devgraph_authority_projection
 cargo test -p server --test devgraph_work_authority
 cargo build -p server --bin secs-devgraph-work-v1
+cargo build -p server --bin secs-provider-intake-v1
+cargo build -p server --bin secs-frank-connector-result
+cargo build -p server --bin secs-frank-connector-result-setup
 cargo test -p server --test public_audit_cli
 cargo test -p server --test docs_overclaim_status_ledger
 ```
@@ -351,6 +358,7 @@ secS-magik/
 ├── server/               verifier, gateway, evidence, handlers, receipts, ledger, CLIs
 ├── permissions/          shared receiver-local permission model
 ├── panel/                wasm-bindgen permission wrapper + static browser UI
+├── browser/              source wrapper and package metadata for browser-safe producers
 ├── docs/
 │   ├── current-state.md  concise derived orientation
 │   ├── implementation-status.md  authoritative status ledger

@@ -30,6 +30,7 @@ pub mod permctl;
 pub mod permissions;
 pub mod privacy;
 pub mod proof_keys;
+pub mod provider_intake_cli;
 pub mod public_audit;
 pub mod public_audit_cli;
 pub mod receipt;
@@ -39,5 +40,14 @@ pub mod session;
 pub mod verification_context;
 pub mod verifier;
 mod work_private_files;
+
+// Fixed accountable connector-result authority. Installed qualification and
+// receiver policy remain separate from this native implementation.
+mod frank_result_authority;
+mod frank_result_contract;
+mod frank_result_store;
+pub use frank_result_authority::{
+    FrankConnectorResultAuthority, FrankResultAuthority, FrankResultError, FrankResultMode,
+};
 
 mod devgraph_work_progress;

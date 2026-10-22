@@ -82,6 +82,18 @@ jobs:
     - name: Check wasm32 permission panel
       run: cargo check -p panel --target wasm32-unknown-unknown
 
+    - name: Install wasm-pack
+      uses: taiki-e/install-action@v2
+      with:
+        tool: wasm-pack
+
+    - name: Build and test reproducible browser intake sealer
+      run: |
+        ./scripts/build-browser-intake-sealer.sh /tmp/secs-intake-package-a
+        ./scripts/build-browser-intake-sealer.sh /tmp/secs-intake-package-b
+        diff -qr /tmp/secs-intake-package-a /tmp/secs-intake-package-b
+        node ./scripts/test-browser-intake-sealer.mjs /tmp/secs-intake-package-a
+
   build_and_test:
     runs-on: ubuntu-latest
 
