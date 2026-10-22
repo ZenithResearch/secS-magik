@@ -16,7 +16,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
-- Added a reproducible browser package around the canonical provider-intake WASM sealer so Anima can consume reviewed cryptography without reimplementing it; original reference-object transport remains explicitly separate.
+- Added the separately versioned `service.reference-object-envelope.v1` primitive,
+  browser producer and native opener so a provider can receive one bounded
+  original reference under the same pinned key while preserving the existing
+  request envelope and stored records.
+- Added a reproducible browser package around the canonical provider-intake WASM sealer so Anima can consume reviewed cryptography without reimplementing it.
 
 ### Changed
 

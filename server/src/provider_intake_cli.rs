@@ -11,6 +11,10 @@ use clap::{Parser, Subcommand};
 use libsec_core::intake_envelope::{
     open_intake_envelope_v1, IntakeEnvelopeError, MAX_INTAKE_ENVELOPE_BYTES,
 };
+use libsec_core::reference_object_envelope::{
+    open_reference_object_envelope_v1, ReferenceObjectEnvelopeError,
+    MAX_REFERENCE_OBJECT_ENVELOPE_BYTES,
+};
 use libsec_core::tunnel::tunnel_public_key_id;
 use rand::{rngs::OsRng, RngCore};
 use std::fmt;
@@ -25,6 +29,7 @@ const AUTHORITY_DIRECTORY: &str = "service.intake-envelope.v1";
 const KEY_FILE: &str = "recipient.x25519.key";
 const LOCK_FILE: &str = ".service-intake-envelope-v1.lock";
 pub const OPENED_FRAME_MAGIC: &[u8; 8] = b"SECSO01\0";
+pub const OPENED_REFERENCE_FRAME_MAGIC: &[u8; 8] = b"SECSOR1\0";
 
 #[derive(Debug, Clone, Parser)]
 #[command(
@@ -45,6 +50,8 @@ pub enum ProviderIntakeCommand {
     Status,
     /// Read one envelope from stdin and write one opened binary frame to stdout.
     Open,
+    /// Read one reference-object envelope and write one opened binary frame.
+    OpenReferenceObject,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,6 +141,9 @@ fn run_at<R: Read, W: Write, F: FnOnce() -> Result<u64, ProviderIntakeCliError>>
                 .map_err(|_| ProviderIntakeCliError::OutputFailed)
         }
         ProviderIntakeCommand::Open => open_at(data_root, input, output, clock()?),
+        ProviderIntakeCommand::OpenReferenceObject => {
+            open_reference_at(data_root, input, output, clock()?)
+        }
     }
 }
 
@@ -257,10 +267,65 @@ fn map_envelope_error(_: IntakeEnvelopeError) -> ProviderIntakeCliError {
     ProviderIntakeCliError::EnvelopeRejected
 }
 
+fn open_reference_at(
+    data_root: &Path,
+    input: &mut impl Read,
+    output: &mut impl Write,
+    now_ms: u64,
+) -> Result<(), ProviderIntakeCliError> {
+    let secret = load_key(data_root)?;
+    let public = PublicKey::from(&StaticSecret::from(*secret)).to_bytes();
+    let key_id = tunnel_public_key_id(&public);
+    let mut envelope = Vec::with_capacity(MAX_REFERENCE_OBJECT_ENVELOPE_BYTES + 1);
+    input
+        .take(MAX_REFERENCE_OBJECT_ENVELOPE_BYTES as u64 + 1)
+        .read_to_end(&mut envelope)
+        .map_err(|_| ProviderIntakeCliError::InputFailed)?;
+    if envelope.len() > MAX_REFERENCE_OBJECT_ENVELOPE_BYTES {
+        return Err(ProviderIntakeCliError::EnvelopeTooLarge);
+    }
+    let opened = open_reference_object_envelope_v1(&secret, &key_id, &envelope, now_ms)
+        .map_err(map_reference_error)?;
+    let request = opened.request_id.as_bytes();
+    let idempotency = opened.idempotency_key.as_bytes();
+    let artifact = opened.artifact_id.as_bytes();
+    let mut frame = Zeroizing::new(Vec::with_capacity(
+        8 + 3
+            + 32
+            + 8
+            + request.len()
+            + idempotency.len()
+            + artifact.len()
+            + opened.object.len()
+            + opened.requester_evidence.len(),
+    ));
+    frame.extend_from_slice(OPENED_REFERENCE_FRAME_MAGIC);
+    for value in [request, idempotency, artifact] {
+        frame.push(value.len() as u8);
+    }
+    frame.extend_from_slice(&opened.content_hash);
+    frame.extend_from_slice(&(opened.object.len() as u32).to_be_bytes());
+    frame.extend_from_slice(&(opened.requester_evidence.len() as u32).to_be_bytes());
+    frame.extend_from_slice(request);
+    frame.extend_from_slice(idempotency);
+    frame.extend_from_slice(artifact);
+    frame.extend_from_slice(&opened.object);
+    frame.extend_from_slice(&opened.requester_evidence);
+    output
+        .write_all(&frame)
+        .map_err(|_| ProviderIntakeCliError::OutputFailed)
+}
+
+fn map_reference_error(_: ReferenceObjectEnvelopeError) -> ProviderIntakeCliError {
+    ProviderIntakeCliError::EnvelopeRejected
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use libsec_core::intake_envelope::seal_intake_envelope_v1;
+    use libsec_core::reference_object_envelope::seal_reference_object_envelope_v1;
+    use sha2::{Digest, Sha256};
     use std::io::Cursor;
     use std::os::unix::fs::PermissionsExt;
     use tempfile::TempDir;
@@ -285,6 +350,32 @@ mod tests {
         let evidence = u32::from_be_bytes(frame[12..16].try_into().unwrap()) as usize;
         assert_eq!(frame.len(), 16 + intake + evidence);
         (&frame[16..16 + intake], &frame[16 + intake..])
+    }
+
+    fn decode_reference(frame: &[u8]) -> (&str, &str, &str, &[u8], &[u8]) {
+        assert_eq!(&frame[..8], OPENED_REFERENCE_FRAME_MAGIC);
+        let request_len = frame[8] as usize;
+        let idempotency_len = frame[9] as usize;
+        let artifact_len = frame[10] as usize;
+        let object_len = u32::from_be_bytes(frame[43..47].try_into().unwrap()) as usize;
+        let evidence_len = u32::from_be_bytes(frame[47..51].try_into().unwrap()) as usize;
+        let request_start = 51;
+        let idempotency_start = request_start + request_len;
+        let artifact_start = idempotency_start + idempotency_len;
+        let object_start = artifact_start + artifact_len;
+        let evidence_start = object_start + object_len;
+        assert_eq!(frame.len(), evidence_start + evidence_len);
+        assert_eq!(
+            Sha256::digest(&frame[object_start..evidence_start]).as_slice(),
+            &frame[11..43]
+        );
+        (
+            std::str::from_utf8(&frame[request_start..idempotency_start]).unwrap(),
+            std::str::from_utf8(&frame[idempotency_start..artifact_start]).unwrap(),
+            std::str::from_utf8(&frame[artifact_start..object_start]).unwrap(),
+            &frame[object_start..evidence_start],
+            &frame[evidence_start..],
+        )
     }
 
     #[test]
@@ -323,6 +414,37 @@ mod tests {
         open_at(&root, &mut Cursor::new(envelope), &mut output, 1_000).unwrap();
         let (intake, evidence) = decode_opened(&output);
         assert_eq!(intake, br#"{"schema":"service.intake.v1"}"#);
+        assert_eq!(evidence, b"exact-requester-evidence");
+    }
+
+    #[test]
+    fn native_opener_round_trips_reference_object_in_distinct_closed_frame() {
+        let (_temp, root) = root();
+        provision_at(&root).unwrap();
+        let (public, _) = public_binding(&root).unwrap();
+        let object = b"bounded original reference";
+        let content_hash = Sha256::digest(object).into();
+        let envelope = seal_reference_object_envelope_v1(
+            &public,
+            &[8; 32],
+            &[9; 12],
+            "request-1",
+            "submit-1",
+            "reference-1",
+            &content_hash,
+            object,
+            b"exact-requester-evidence",
+            2_000,
+        )
+        .unwrap();
+        let mut output = Vec::new();
+        open_reference_at(&root, &mut Cursor::new(envelope), &mut output, 1_000).unwrap();
+        let (request, idempotency, artifact, opened, evidence) = decode_reference(&output);
+        assert_eq!(
+            (request, idempotency, artifact),
+            ("request-1", "submit-1", "reference-1")
+        );
+        assert_eq!(opened, object);
         assert_eq!(evidence, b"exact-requester-evidence");
     }
 

@@ -15,6 +15,7 @@ pub mod execution_response;
 pub mod ingress_request;
 pub mod intake_envelope;
 pub mod packet_builder;
+pub mod reference_object_envelope;
 pub mod response;
 pub mod tunnel;
 pub mod zk;
