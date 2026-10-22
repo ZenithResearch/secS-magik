@@ -64,6 +64,7 @@ secS-magik/
 │       ├── devgraph_work_authority.rs # fixed named Work/Arena projection authority producer; no mutation
 │       ├── devgraph_work_cli.rs       # fixed owner-private Work/Arena projection adapter
 │       ├── devgraph_work_admin.rs     # owner-local Work authority lifecycle, status, and snapshots
+│       ├── provider_intake_cli.rs     # fixed native provider-intake key custody/opener
 │       ├── verifier.rs              # typed verifier errors, prototype envelope check, signed context helpers
 │       ├── ingress.rs               # bounded prototype TCP ingress and verifier/payload handoff
 │       ├── gateway.rs               # configurable router, legacy telemetry, local bounded handler routing
@@ -82,6 +83,7 @@ secS-magik/
 │           ├── secs-devgraph-issue-create-v1.rs # thin fixed DG-E1 adapter wrapper
 │           ├── secs-devgraph-issue-create-v1-wallet.rs # thin fixed DG-E2 Wallet wrapper
 │           ├── secs-devgraph-work-v1.rs # thin fixed named Work/Arena projection wrapper
+│           ├── secs-provider-intake-v1.rs # fixed provider-intake provision/status/open wrapper
 │           └── secz.rs              # historical compatibility and audit wrapper
 ├── permissions/
 │   ├── Cargo.toml
@@ -108,6 +110,7 @@ secS-magik/
     │   ├── devgraph-issue-create-v1-producer.md
     │   ├── devgraph-issue-create-v1-cli.md
     │   ├── devgraph-issue-create-v1-wallet-cli.md
+    │   ├── provider-intake-v1-cli.md
     │   ├── runtime.md
     │   └── wasm-and-pages.md
     ├── pages/

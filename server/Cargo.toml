@@ -45,6 +45,10 @@ path = "src/bin/secs-devgraph-issue-create-v1-wallet.rs"
 name = "secs-devgraph-work-v1"
 path = "src/bin/secs-devgraph-work-v1.rs"
 
+[[bin]]
+name = "secs-provider-intake-v1"
+path = "src/bin/secs-provider-intake-v1.rs"
+
 [dev-dependencies]
 serde_yaml = "0.9"
 tempfile = "=3.27.0"

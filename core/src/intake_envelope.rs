@@ -19,6 +19,8 @@ const INTAKE_PAYLOAD_V1_MAGIC: &[u8; 8] = b"SECSIP1\0";
 pub const MAX_INTAKE_BYTES: usize = 65_536;
 pub const MAX_REQUESTER_EVIDENCE_BYTES: usize = 262_144;
 pub const MAX_INTAKE_CIPHERTEXT_BYTES: usize = MAX_INTAKE_BYTES + MAX_REQUESTER_EVIDENCE_BYTES + 32;
+pub const MAX_INTAKE_ENVELOPE_BYTES: usize =
+    8 + 8 + 1 + u8::MAX as usize + 32 + 12 + 4 + MAX_INTAKE_CIPHERTEXT_BYTES;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IntakeEnvelopeError {

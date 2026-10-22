@@ -67,6 +67,6 @@ Full envelope hex:
 
 ## Integration boundary
 
-`core/src/intake_envelope.rs` provides native seal/open functions. With the `uniffi` feature on `wasm32`, `wasm_seal_intake_envelope_v1` provides the producer-side browser/WASM primitive. The recipient secret remains provider-local; no browser opener is exported.
+`core/src/intake_envelope.rs` provides native seal/open functions. With the `uniffi` feature on `wasm32`, `wasm_seal_intake_envelope_v1` provides the producer-side browser/WASM primitive. The recipient secret remains provider-local; no browser opener is exported. `secs-provider-intake-v1` owns create-only canonical native key custody and returns opened bytes through the closed local frame documented in [the native CLI reference](../reference/provider-intake-v1-cli.md).
 
-The current implementation has focused native tests and a wasm32 compile check. A released WASM artifact, public gateway deployment, provider key publication/rotation, queue provisioning, membership verifier, durable local consumer, and end-to-end production qualification are separate work and must not be inferred from this primitive.
+The current implementation has focused native tests, a wasm32 compile check, and the fixed native opener. A released WASM artifact, public gateway deployment, provider key publication/rotation, queue provisioning, membership verifier, durable local consumer composition, and end-to-end production qualification are separate work and must not be inferred from this primitive.
