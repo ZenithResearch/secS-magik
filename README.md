@@ -37,7 +37,7 @@ The root README is the canonical front door and operating map. The implementatio
 | Receipts and audit | Solid local/operator implementation | Signed receipt/event records, SQLite persistence, redacted inspection, versioned audit bundles/chains, local verification, and bounded external-anchor witnesses. Not blockchain immutability or public auditability. |
 | Execution output transport | Solid core/server transport | Bounded, receiver-signed, request-correlated `ExecutionResponse` exists. The shipped client CLI does not yet have trusted response mappings for arbitrary non-legacy operations. |
 | Devgraph exact-operation producers | Solid DG-P Issue-create library/adapters plus named Work v1 producer | `devgraph.issue.create.v1` preserves the P4-O-DG-R1 RFC 8785 profile. Named Work v1 emits signed projections for closed Work/Arena operations. These producers are not Packet routes, generic operation selectors, Devgraph mutations, deployment proof, or hybrid/PQ v1 claims. |
-| WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt and provider-intake sealing exports plus a no-network permission-policy panel. No released intake bundle, browser wallet product, or remote administration plane. |
+| WASM | Solid bounded surfaces | Core tunnel encrypt/decrypt and provider-intake sealing exports, a source-qualified browser intake package builder, plus a no-network permission-policy panel. No released intake package, browser wallet product, encrypted reference-object transport, or remote administration plane. |
 | `generate` / `chat` | Legacy examples only | Constants, client commands, and descriptors exist, but no inference backend, model routing, managed conversation store, or weave runtime is installed. |
 | Production deployment | Not evidenced | `production_verified` fails closed on missing operator config, but repository tests and fixture smoke are not proof of a deployed production service. |
 
@@ -287,10 +287,11 @@ These commands validate the repository's bundle/chain/anchor contracts. A Gist o
 
 ## WASM and browser surfaces
 
-Two wasm32 surfaces exist:
+Three wasm32 surfaces exist:
 
 1. `libsec-core` with feature `uniffi` exports `wasm_encrypt` and `wasm_decrypt` for ChaCha20Poly1305 using caller-supplied key, nonce, plaintext/ciphertext, and associated data.
-2. `panel` exports permission-policy `grant`, `revoke`, `evaluate`, and `list` functions and supplies a vanilla HTML/JavaScript UI in `panel/www`.
+2. `libsec-core` exports `wasm_seal_intake_envelope_v1`; `browser/intake-sealer` packages it behind the Service Management browser sealer port with Web Crypto randomness and integrity inventory.
+3. `panel` exports permission-policy `grant`, `revoke`, `evaluate`, and `list` functions and supplies a vanilla HTML/JavaScript UI in `panel/www`.
 
 Build the panel locally:
 
@@ -357,6 +358,7 @@ secS-magik/
 ├── server/               verifier, gateway, evidence, handlers, receipts, ledger, CLIs
 ├── permissions/          shared receiver-local permission model
 ├── panel/                wasm-bindgen permission wrapper + static browser UI
+├── browser/              source wrapper and package metadata for browser-safe producers
 ├── docs/
 │   ├── current-state.md  concise derived orientation
 │   ├── implementation-status.md  authoritative status ledger

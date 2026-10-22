@@ -95,10 +95,15 @@ secS-magik/
 │   ├── Cargo.toml
 │   ├── src/lib.rs                   # wasm-bindgen permission wrapper
 │   └── www/                         # static no-network browser UI
+├── browser/
+│   └── intake-sealer/               # source wrapper and package metadata for the provider-intake WASM producer
 ├── .github/workflows/
 │   ├── ci.yml                       # Rust, audit, and wasm checks
 │   └── pages.yml                    # README/docs/rustdoc/WASM Pages build and deploy
 ├── scripts/build-pages.sh           # safe generated-site source assembly
+├── scripts/build-browser-intake-sealer.sh # reproducible browser intake package assembly
+├── scripts/hash-browser-intake-sealer.py  # deterministic release-file inventory
+├── scripts/test-browser-intake-sealer.mjs # WASM vector and wrapper compatibility test
 └── docs/
     ├── README.md                    # docs index
     ├── current-state.md             # concise orientation derived from the status ledger

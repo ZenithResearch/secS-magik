@@ -14,6 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- Added a reproducible browser package around the canonical provider-intake WASM sealer so Anima can consume reviewed cryptography without reimplementing it; original reference-object transport remains explicitly separate.
+
 ### Changed
 
 - Align the seven-file read-contract snapshot with the reviewed Wallet release and document shared endpoint ownership — prevent companion parity drift while retaining finite read credentials and Wallet-key operator identity for the MVP.

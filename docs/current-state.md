@@ -1,5 +1,15 @@
 # secS-magik current state
 
+## Browser provider-intake producer candidate (2026-10-22)
+
+The canonical `service.intake-envelope.v1` WASM export now has a tracked browser
+package wrapper and reproducible build/test scripts under
+`browser/intake-sealer` and `scripts/`. The wrapper uses Web Crypto randomness,
+validates the provider profile, and implements Service Management's sealer port.
+This is source-qualified packaging only: no package is released, no provider is
+deployed, and original reference asset bytes still require a separately
+versioned encrypted object contract.
+
 ## Standing Work validity source candidate (2026-10-20)
 
 [Standing Work policy v2](devgraph-standing-work-policy-v2.md) is an opt-in
