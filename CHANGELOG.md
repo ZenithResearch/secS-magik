@@ -14,6 +14,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- Add a portable Buildkite holder-grant lane and standalone-package GitHub checks — the additive contract must remain tested even though it is outside the legacy packet workspace.
+
+
 ### Fixed
 
 - Reserve size and nesting room for equal-scope holder credentials and complete presentations — prevents accepted roots from producing envelopes the verifier cannot receive.

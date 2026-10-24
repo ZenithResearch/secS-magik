@@ -1,0 +1,8 @@
+# Portable contract verification only. No Wallet, real issuer or deployment.
+steps:
+  - label: ':rust: Shared holder grant contract and authority'
+    key: holder-grants
+    agents: {queue: linux-small}
+    command: bash .buildkite/holder-grants.sh
+    timeout_in_minutes: 20
+    artifact_paths: ['build/holder-grants/*.log']

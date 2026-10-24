@@ -86,3 +86,10 @@ jobs:
     # 4. Execute the Hardened Test Suite
     - name: Run Tests
       run: cargo test --workspace --all-targets --all-features --verbose
+
+    # Standalone packages deliberately do not change the ZenithPacket v0 workspace.
+    - name: Shared reusable holder grant contract
+      run: |
+        cargo test --manifest-path crates/secs-grant-contract/Cargo.toml --locked
+        cargo clippy --manifest-path crates/secs-grant-contract/Cargo.toml --locked --all-targets -- -D warnings
+        cargo build --manifest-path tools/holder-grant-authority/Cargo.toml --locked --release
