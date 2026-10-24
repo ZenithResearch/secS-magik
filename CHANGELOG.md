@@ -16,6 +16,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Exclude standalone holder-authority build output from source inventories — prevents generated binaries from being mistaken for reviewed source.
+
+
+### Changed
+
 - Reuse the published castalia.grant-validity.v1 nested wire format — keep standing validity consistent across Wallet and provider contracts.
 
 ### Added
