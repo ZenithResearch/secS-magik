@@ -16,6 +16,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Add a versioned reusable holder-grant contract and trusted native issuer/verifier adapter — let a Wallet derive equal or narrower same-holder credentials without acquiring issuer authority; onward delegation remains rejected.
+
+
+### Added
+
 - Add a pinned shared read-authority issuer/verifier tool — verify short-lived holder-bound reads without changing existing mutation or packet contracts.
 
 ### Changed
