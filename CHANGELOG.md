@@ -14,6 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- Reuse the published castalia.grant-validity.v1 nested wire format — keep standing validity consistent across Wallet and provider contracts.
+
 ### Added
 
 - Add a versioned reusable holder-grant contract and trusted native issuer/verifier adapter — let a Wallet derive equal or narrower same-holder credentials without acquiring issuer authority; onward delegation remains rejected.

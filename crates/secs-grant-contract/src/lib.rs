@@ -21,11 +21,67 @@ pub struct IssuerPin {
     pub public_key: String,
     pub service: String,
 }
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Validity {
     Dated { not_before: u64, not_after: u64 },
     UntilRevoked { not_before: u64 },
+}
+impl Serialize for Validity {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut v = serde_json::json!({"schema":"castalia.grant-validity.v1"});
+        match self {
+            Self::Dated {
+                not_before,
+                not_after,
+            } => {
+                v["mode"] = "dated".into();
+                v["not_before"] = (*not_before).into();
+                v["not_after"] = (*not_after).into()
+            }
+            Self::UntilRevoked { not_before } => {
+                v["mode"] = "until_revoked".into();
+                v["not_before"] = (*not_before).into()
+            }
+        }
+        v.serialize(s)
+    }
+}
+impl<'de> Deserialize<'de> for Validity {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+        enum Wire {
+            Dated {
+                schema: String,
+                not_before: u64,
+                not_after: u64,
+            },
+            UntilRevoked {
+                schema: String,
+                not_before: u64,
+            },
+        }
+        let (schema, value) = match Wire::deserialize(d)? {
+            Wire::Dated {
+                schema,
+                not_before,
+                not_after,
+            } => (
+                schema,
+                Self::Dated {
+                    not_before,
+                    not_after,
+                },
+            ),
+            Wire::UntilRevoked { schema, not_before } => {
+                (schema, Self::UntilRevoked { not_before })
+            }
+        };
+        if schema != "castalia.grant-validity.v1" {
+            return Err(serde::de::Error::custom("invalid_validity"));
+        }
+        Ok(value)
+    }
 }
 impl Validity {
     pub fn contains(&self, now: u64) -> bool {
