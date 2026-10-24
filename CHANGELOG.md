@@ -14,6 +14,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- Reserve size and nesting room for equal-scope holder credentials and complete presentations — prevents accepted roots from producing envelopes the verifier cannot receive.
+
+
 ### Changed
 
 - Exclude standalone holder-authority build output from source inventories — prevents generated binaries from being mistaken for reviewed source.

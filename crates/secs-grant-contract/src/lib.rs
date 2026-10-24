@@ -11,6 +11,7 @@ pub const GRANT: &str = "secs.holder-grant.v1";
 pub const CREDENTIAL: &str = "secs.holder-credential.v1";
 pub const PRESENTATION: &str = "secs.holder-presentation.v1";
 const MAX: usize = 131072;
+const MAX_ROOT_CLAIMS: usize = 61440;
 const SAFE: u64 = 9007199254740991;
 const INVALID: &str = "invalid_holder_authority";
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -296,6 +297,7 @@ fn permissions(p: &[Permission]) -> Result<()> {
         if !r.constraints.is_object() || p[..i].contains(r) {
             return Err(INVALID);
         }
+        safe(&r.constraints, 8)?;
     }
     canonical(p)?;
     Ok(())
@@ -317,6 +319,11 @@ pub fn permissions_within(child: &[Permission], parent: &[Permission]) -> Result
     }
 }
 fn validate_grant(pin: &IssuerPin, c: &GrantClaims, now: u64) -> Result<()> {
+    // Reserve room for the signed parent, equal-scope child and presentation.
+    // A root that fits alone must not imply an unrepresentable equal child.
+    if canonical(c)?.len() > MAX_ROOT_CLAIMS {
+        return Err(INVALID);
+    }
     for s in [&pin.issuer, &pin.key_id, &pin.service] {
         text(s)?
     }
@@ -414,9 +421,11 @@ pub fn derive_credential(
     };
     validate_credential(pin, &c, issued_at)?;
     c.signature = sign("secs.holder-credential.v1/signature", &c.claims, k)?;
+    canonical(&c)?;
     Ok(c)
 }
 pub fn verify_credential(pin: &IssuerPin, c: &Credential, now: u64) -> Result<()> {
+    canonical(c)?;
     validate_credential(pin, c, now)?;
     verify(
         "secs.holder-credential.v1/signature",
@@ -455,6 +464,9 @@ pub fn present(
         &proof_claims(&p),
         k,
     )?;
+    if canonical(&serde_json::json!({"credential": c, "call": call, "proof": p}))?.len() > 130000 {
+        return Err(INVALID);
+    }
     Ok(p)
 }
 pub fn verify_presentation(

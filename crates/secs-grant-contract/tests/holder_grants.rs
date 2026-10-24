@@ -159,3 +159,31 @@ fn closed_json_and_finite_parent() {
         .is_ok()
     );
 }
+
+#[test]
+fn accepted_root_has_room_for_equal_credential_and_transport() {
+    let (pin, issuer, holder, grant) = setup();
+    let mut claims = grant.claims;
+    claims.permissions[0].constraints = serde_json::json!({"padding":"x".repeat(59000)});
+    let root = issue_grant(&pin, claims.clone(), &issuer, 100).unwrap();
+    let child = derive_credential(
+        &pin,
+        root.clone(),
+        root.claims.permissions.clone(),
+        None,
+        "33".repeat(16),
+        101,
+        300,
+        &holder,
+    )
+    .unwrap();
+    let call = serde_json::json!({"operation":"work.read","resource":"work","parameters":{}});
+    let proof = present(&pin, &child, &call, "44".repeat(16), 102, &holder).unwrap();
+    let envelope = serde_json::json!({"credential":child,"call":call,"proof":proof});
+    let _: serde_json::Value = parse(&canonical(&envelope).unwrap()).unwrap();
+    claims.permissions[0].constraints = serde_json::json!({"padding":"x".repeat(62000)});
+    assert!(issue_grant(&pin, claims, &issuer, 100).is_err());
+    let mut too_large = call;
+    too_large["parameters"] = serde_json::json!({"padding":"x".repeat(20000)});
+    assert!(present(&pin, &child, &too_large, "55".repeat(16), 102, &holder).is_err());
+}

@@ -40,3 +40,5 @@ wrong holder, onward delegation, tampered signatures, expiry, service substituti
 call binding, duplicate fields and parent validity. Full cross-repository storage,
 UI, native/WASM, receiver, restart/revocation and installed Tailscale qualification
 remain required. Source tests alone do not qualify a production deployment.
+
+Wire bounds: root claims are at most61,440 canonical UTF-8 bytes. Opaque conditions reserve eight nesting levels for their enclosing chain. Complete credentials fit131,072 bytes; emitted presentation envelopes fit130,000 bytes, reserving space for the native verifier request wrapper. A root at this limit can still derive an equal-scope child. Oversized calls fail before a presentation is returned.
