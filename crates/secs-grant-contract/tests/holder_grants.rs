@@ -187,3 +187,59 @@ fn accepted_root_has_room_for_equal_credential_and_transport() {
     too_large["parameters"] = serde_json::json!({"padding":"x".repeat(20000)});
     assert!(present(&pin, &child, &too_large, "55".repeat(16), 102, &holder).is_err());
 }
+
+#[test]
+fn access_point_binding_authenticates_route_without_changing_grant_scope() {
+    let (pin, issuer, _, grant) = setup();
+    let claims = AccessPointClaims {
+        schema: ACCESS_POINT.into(),
+        issuer: pin.issuer.clone(),
+        key_id: pin.key_id.clone(),
+        service: pin.service.clone(),
+        origin: "https://graph.example:9443".into(),
+        authority_receiver: "https://127.0.0.1:58754".into(),
+        prefix: "/service/v1".into(),
+        not_before: 100,
+        not_after: 1000,
+    };
+    let binding = issue_access_point(&pin, claims, &issuer, 101).unwrap();
+    verify_access_point(&pin, &binding, "https://graph.example:9443", 102).unwrap();
+    assert!(verify_access_point(&pin, &binding, "https://evil.example", 102).is_err());
+    let mut other = pin.clone();
+    other.service = "service:other".into();
+    assert!(verify_access_point(&other, &binding, &binding.claims.origin, 102).is_err());
+    let mut changed = binding.clone();
+    changed.claims.authority_receiver = "https://evil.example".into();
+    assert!(verify_access_point(&pin, &changed, &binding.claims.origin, 102).is_err());
+    assert!(verify_access_point(&pin, &binding, &binding.claims.origin, 1000).is_err());
+    verify_grant(&pin, &grant, 102).unwrap();
+}
+
+#[test]
+fn access_point_binding_rejects_ambiguous_origins_and_arbitrary_dispatch_paths() {
+    let (pin, issuer, _, _) = setup();
+    for origin in [
+        "http://graph.example",
+        "https://user@graph.example",
+        "https://graph.example/path",
+        "https://graph.example?x=1",
+        "https://graph.example/",
+        "https://graph.example#x",
+    ] {
+        let claims = AccessPointClaims {
+            schema: ACCESS_POINT.into(),
+            issuer: pin.issuer.clone(),
+            key_id: pin.key_id.clone(),
+            service: pin.service.clone(),
+            origin: origin.into(),
+            authority_receiver: "https://127.0.0.1:58754".into(),
+            prefix: "/service/v1".into(),
+            not_before: 100,
+            not_after: 1000,
+        };
+        assert!(
+            issue_access_point(&pin, claims, &issuer, 101).is_err(),
+            "{origin}"
+        );
+    }
+}

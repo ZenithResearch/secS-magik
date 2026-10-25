@@ -565,3 +565,95 @@ pub fn parse<T: DeserializeOwned>(raw: &[u8]) -> Result<T> {
     safe(&v, 0)?;
     serde_json::from_value(v).map_err(|_| INVALID)
 }
+
+/// An issuer-authenticated route to one canonical service. This is public
+/// destination authentication, never a member grant or transport trust override.
+pub const ACCESS_POINT: &str = "secs.service-access-point.v1";
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AccessPointClaims {
+    pub schema: String,
+    pub issuer: String,
+    pub key_id: String,
+    pub service: String,
+    pub origin: String,
+    pub authority_receiver: String,
+    pub prefix: String,
+    pub not_before: u64,
+    pub not_after: u64,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AccessPointBinding {
+    pub claims: AccessPointClaims,
+    pub signature: String,
+}
+fn access_origin(value: &str) -> Result<()> {
+    if value.len() > 2048 || !value.is_ascii() {
+        return Err(INVALID);
+    }
+    let parsed = url::Url::parse(value).map_err(|_| INVALID)?;
+    if parsed.scheme() != "https"
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || value != parsed.origin().ascii_serialization()
+    {
+        return Err(INVALID);
+    }
+    Ok(())
+}
+fn access_point_claims(pin: &IssuerPin, c: &AccessPointClaims, now: u64) -> Result<()> {
+    text(&pin.service)?;
+    text(&pin.issuer)?;
+    text(&pin.key_id)?;
+    key(&pin.public_key)?;
+    if c.schema != ACCESS_POINT
+        || c.issuer != pin.issuer
+        || c.key_id != pin.key_id
+        || c.service != pin.service
+        || c.prefix != "/service/v1"
+        || now > SAFE
+        || c.not_before > now
+        || now >= c.not_after
+        || c.not_after > SAFE
+        || c.not_after.saturating_sub(c.not_before) > 604800
+    {
+        return Err(INVALID);
+    }
+    access_origin(&c.origin)?;
+    access_origin(&c.authority_receiver)?;
+    Ok(())
+}
+pub fn issue_access_point(
+    pin: &IssuerPin,
+    claims: AccessPointClaims,
+    issuer: &SigningKey,
+    now: u64,
+) -> Result<AccessPointBinding> {
+    access_point_claims(pin, &claims, now)?;
+    if hex::encode(issuer.verifying_key().to_bytes()) != pin.public_key {
+        return Err(INVALID);
+    }
+    let signature = sign(ACCESS_POINT, &claims, issuer)?;
+    Ok(AccessPointBinding { claims, signature })
+}
+pub fn verify_access_point(
+    pin: &IssuerPin,
+    binding: &AccessPointBinding,
+    origin: &str,
+    now: u64,
+) -> Result<()> {
+    access_point_claims(pin, &binding.claims, now)?;
+    if binding.claims.origin != origin {
+        return Err(INVALID);
+    }
+    verify(
+        ACCESS_POINT,
+        &binding.claims,
+        &binding.signature,
+        &pin.public_key,
+    )
+}

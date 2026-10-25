@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Authenticate canonical-service access points with a bounded issuer-signed public binding — route selection must not create a second authority domain or trust an unverified alias.
+
+### Added
+
 - Add a portable Buildkite holder-grant lane and standalone-package GitHub checks — the additive contract must remain tested even though it is outside the legacy packet workspace.
 - Added the separately versioned `service.reference-object-envelope.v1` primitive,
   browser producer and native opener so a provider can receive one bounded

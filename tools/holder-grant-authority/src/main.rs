@@ -9,6 +9,15 @@ use zeroize::Zeroizing;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Command {
+    IssueAccessPoint {
+        claims: AccessPointClaims,
+        now: u64,
+    },
+    VerifyAccessPoint {
+        binding: AccessPointBinding,
+        origin: String,
+        now: u64,
+    },
     Issue {
         claims: GrantClaims,
         now: u64,
@@ -49,6 +58,19 @@ fn private(path: &str) -> Result<Vec<u8>> {
     }
     Ok(b)
 }
+fn issuer_key(a: &[String]) -> Result<SigningKey> {
+    if a.len() != 5 || a[3] != "--issuer-key-file" {
+        return Err("invalid_arguments");
+    }
+    let raw = Zeroizing::new(private(&a[4])?);
+    let s = std::str::from_utf8(&raw).map_err(|_| "invalid_key")?.trim();
+    if s.len() != 64 {
+        return Err("invalid_key");
+    }
+    let seed = Zeroizing::new(hex::decode(s).map_err(|_| "invalid_key")?);
+    let seed: &[u8; 32] = seed.as_slice().try_into().map_err(|_| "invalid_key")?;
+    Ok(SigningKey::from_bytes(seed))
+}
 fn run() -> Result<Value> {
     let a: Vec<_> = std::env::args().collect();
     if (a.len() != 3 && a.len() != 5) || a[1] != "--issuer-pin-file" {
@@ -61,23 +83,26 @@ fn run() -> Result<Value> {
         .read_to_end(&mut b)
         .map_err(|_| "invalid_request")?;
     match parse::<Command>(&b)? {
-        Command::Issue { claims, now } => {
-            if a.len() != 5 || a[3] != "--issuer-key-file" {
+        Command::IssueAccessPoint { claims, now } => Ok(json!(issue_access_point(
+            &pin,
+            claims,
+            &issuer_key(&a)?,
+            now
+        )?)),
+        Command::VerifyAccessPoint {
+            binding,
+            origin,
+            now,
+        } => {
+            if a.len() != 3 {
                 return Err("invalid_arguments");
             }
-            let raw = Zeroizing::new(private(&a[4])?);
-            let s = std::str::from_utf8(&raw).map_err(|_| "invalid_key")?.trim();
-            if s.len() != 64 {
-                return Err("invalid_key");
-            }
-            let seed = Zeroizing::new(hex::decode(s).map_err(|_| "invalid_key")?);
-            let seed: &[u8; 32] = seed.as_slice().try_into().map_err(|_| "invalid_key")?;
-            Ok(json!(issue_grant(
-                &pin,
-                claims,
-                &SigningKey::from_bytes(seed),
-                now
-            )?))
+            verify_access_point(&pin, &binding, &origin, now)?;
+            Ok(json!(binding.claims))
+        }
+        Command::Issue { claims, now } => {
+            let signing = issuer_key(&a)?;
+            Ok(json!(issue_grant(&pin, claims, &signing, now)?))
         }
         Command::Verify {
             credential,
