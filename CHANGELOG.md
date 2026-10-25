@@ -17,6 +17,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 
 - Add a portable Buildkite holder-grant lane and standalone-package GitHub checks — the additive contract must remain tested even though it is outside the legacy packet workspace.
+- Added the separately versioned `service.reference-object-envelope.v1` primitive,
+  browser producer and native opener so a provider can receive one bounded
+  original reference under the same pinned key while preserving the existing
+  request envelope and stored records.
+- Added a reproducible browser package around the canonical provider-intake WASM sealer so Anima can consume reviewed cryptography without reimplementing it.
+
+### Changed
+
+- Align the seven-file read-contract snapshot with the reviewed Wallet release and document shared endpoint ownership — prevent companion parity drift while retaining finite read credentials and Wallet-key operator identity for the MVP.
+
+### Changed
+
+- Add opt-in Work policy v2 validity and require a separate finite verifier-key deadline — enables reusable until-revoked admission without inventing immortal projections or changing legacy signed policy bytes.
 
 
 ### Fixed
@@ -40,9 +53,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Keep the restored Frank result authority clean under the repository's all-feature `-D warnings` Clippy gate — the recovered behavior is unchanged while the public branch remains eligible for normal CI and release review.
+
+- Pin the retained Wallet presentation contract to 6c9c2e5 with patched URL/IDNA parsing and adversarial hostname tests — remove RUSTSEC-2024-0421 while preserving signed vectors.
+- Audit every tracked Cargo lockfile in CI, including standalone read authority — root-workspace audits cannot cover separately built tools.
+
+### Fixed
+
+- Scoped the Rust 1.99 duplicate `must_use` lint allowance to the async-trait-generated handler method — restores latest-stable CI without weakening workspace warning checks or changing handler behavior.
+
+### Added
+
+- Added stacked-branch/manual CI and process-level standalone read-authority tests — root workspace checks previously missed the read binary and stacked Todo PR; disposable fixtures now cover issuance, holder/call binding, policy change, expiry, revocation and unsafe inputs.
 - Add a pinned shared read-authority issuer/verifier tool — verify short-lived holder-bound reads without changing existing mutation or packet contracts.
 
 ### Changed
+- Composed the updated generic-authority foundation into the Todo/read candidate — both stacked PRs can pass latest-stable CI independently while retaining their source ancestry and unchanged contracts.
 - Extended generic Devgraph credential authority with independently validated workflow and canonical Todo requests plus 48 cross-language signed vectors — this allows the application-neutral Wallet path to authorize exact new operations without expanding existing grants or changing historical bytes.
 
 
@@ -60,7 +86,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - I07 review hardening: moved required authority mode to the receiver-held operation descriptor, bound it into verifier-signed context metadata separately from adapter-observed mode, and enforced the comparison in `ConfigurableRouter::route_verified` before replay/nullifier state, success receipts, or handler lookup — this replaces the earlier definition-only seam with executable downgrade rejection while preserving the stronger-rail non-claims.
 
 ### Added
+- Frank connector-result authority: restored the reviewed native attester, create-only issuer/setup path, immutable private result ledger, connector-journal validation, exact resume/renewal handling, and fail-closed tests to the public source tree. The binaries issue only `frank.result.attest.v1` envelopes for one pinned connector policy; they do not call a provider, grant runtime authority, or make Matrix/Hermes delivery authoritative.
 - Added an opt-in credential-bound Devgraph v2 preflight/projection adapter, generic signature fixtures and separate full-nonce replay table — this lets Wallet approve issuer-attested requests without embedding Devgraph operations while preserving v1 and current grant enforcement.
+- Provider intake native opener: added the fixed `secs-provider-intake-v1` create-only key custody, public status, bounded stdin opener and closed binary output frame — this lets a local Service Management worker consume the encrypted intake contract without receiving the provider private key or acquiring membership, Service authority, queue-acknowledgement, or deployment powers.
+- Provider intake envelope v1: added a bounded X25519/HKDF/ChaCha20-Poly1305 seal/open primitive, producer-side WASM export, strict binary contract, and stable interop vector — this keeps canonical service intake and exact requester evidence opaque across a public durable queue while preserving Service Management as the authority that verifies and admits the request.
 - Devgraph named Work/Arena v1: added `secs-devgraph-work-v1`, its closed Work/Arena request canonicalizer, Wallet/policy projection authority, owner-private three-file adapter, owner-local authority admin lifecycle, regression fixtures, and setup/runbook docs — this lets fresh remote checkouts build the secS producer Devgraph depends on without treating it as a Packet route, generic operation selector, Wallet-custody surface, Devgraph mutation, or deployment proof.
 - DG-E2: added `secs-devgraph-issue-create-v1-wallet`, a fixed `127.0.0.1:9045` one-shot Wallet ceremony that validates owner-private raw Issue/idempotency/create-only output files before listening, generates OS-random memory-only session/nonce/CSRF only after exact top-level GET, serves a no-store/non-frameable nonce-CSP page, binds a direct user-click call to the exact Wallet provider method with 300/60-second windows, consumes exact `/presentation` or stable text-free `/cancel`, closes the listener, and only then invokes DG-E1's typed producer/output seam — this supplies the narrow local Wallet-to-projection step without a configurable browser listener, generic RPC, browser launch/storage/cookie, temporary presentation file, `.castaway` read, Devgraph mutation, deployment/browser-acceptance proof, or hybrid/PQ claim.
 - DG-E1: added `secs-devgraph-issue-create-v1`, a file-bounded adapter that invokes only the existing `devgraph.issue.create.v1` producer from a fixed owner-controlled data-root manifest and writes one canonical signed projection through held-directory, atomic create-only publication; pre-issuance canonical-entry, inode, and authority-subtree guards prevent output from aliasing caller inputs, trust/replay state, or SQLite sidecars, invalid arguments are bounded and redacted, and current-time authority is revalidated before output — this supplies the narrow local producer seam needed for cross-repository evidence without adding a generic route, handler, operation selector, caller-selected authority control, key generation, Wallet custody, Devgraph mutation, or hybrid/PQ claim.

@@ -22,6 +22,30 @@ The functions delegate to the same ChaCha20Poly1305 helpers used by core. Inputs
 
 The wrapper does not generate, store, distribute, rotate, or authorize keys. Invalid key/nonce lengths trap through the current exact-length assertions; authentication failure returns `decryption failed` without plaintext.
 
+### Provider intake sealer package
+
+`browser/intake-sealer` supplies the browser adapter for
+`wasm_seal_intake_envelope_v1`. The adapter validates the closed provider
+profile, obtains a fresh ephemeral secret and nonce from Web Crypto, clears the
+temporary randomness after sealing, and checks the returned recipient key ID
+and expiry. Its output implements Service Management's
+`IntakeEnvelopeSealer` port.
+
+Build and verify the candidate package with:
+
+```bash
+./scripts/build-browser-intake-sealer.sh /tmp/secs-intake-sealer
+node ./scripts/test-browser-intake-sealer.mjs /tmp/secs-intake-sealer
+```
+
+The build creates a web-target JavaScript/WASM package and a deterministic
+`SHA256SUMS`. Loading those bytes is a release-integrity decision for the
+consumer. The package holds no recipient secret, requester key, membership,
+transport credential, or Service authority. Original reference asset bytes are
+outside the v1 request envelope and require a separately versioned encrypted
+reference-object contract; the browser package does not fall back to plaintext
+artifact upload.
+
 Build/check commands:
 
 ```bash

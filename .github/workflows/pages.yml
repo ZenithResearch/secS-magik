@@ -12,6 +12,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "core/**"
+      - "browser/**"
       - "client/README.md"
       - "server/README.md"
       - "permissions/**"
@@ -20,6 +21,9 @@ on:
       - "examples/README.md"
       - "scripts/README.md"
       - "scripts/build-pages.sh"
+      - "scripts/build-browser-intake-sealer.sh"
+      - "scripts/hash-browser-intake-sealer.py"
+      - "scripts/test-browser-intake-sealer.mjs"
   pull_request:
     branches: ["main"]
     paths:
@@ -31,6 +35,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "core/**"
+      - "browser/**"
       - "client/README.md"
       - "server/README.md"
       - "permissions/**"
@@ -39,6 +44,9 @@ on:
       - "examples/README.md"
       - "scripts/README.md"
       - "scripts/build-pages.sh"
+      - "scripts/build-browser-intake-sealer.sh"
+      - "scripts/hash-browser-intake-sealer.py"
+      - "scripts/test-browser-intake-sealer.mjs"
   workflow_dispatch:
 
 permissions:

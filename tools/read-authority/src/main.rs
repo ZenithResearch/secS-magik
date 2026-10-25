@@ -18,7 +18,7 @@ enum Command {
         now: u64,
     },
     Verify {
-        credential: Credential,
+        credential: Box<Credential>,
         call: Call,
         proof: Proof,
         active: bool,

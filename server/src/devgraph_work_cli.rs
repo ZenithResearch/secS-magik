@@ -268,8 +268,8 @@ mod tests {
                         resource_match: "exact".into(),
                         effect: "allow".into(),
                         status: "active".into(),
-                        not_before: now - 1,
-                        not_after: now + 600,
+                        validity: crate::grant_validity::GrantValidity::dated(now - 1, now + 600)
+                            .unwrap(),
                     })
                     .collect(),
             };

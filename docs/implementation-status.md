@@ -1,5 +1,15 @@
 # secS-magik implementation status
 
+## Standing Work validity source candidate (2026-10-20)
+
+[Standing Work policy v2](devgraph-standing-work-policy-v2.md) is an opt-in
+source review candidate. Explicit dated/until-revoked rules preserve exact
+operation/resource admission and finite credentials/projections. Verifier-key
+expiry is independent and mandatory for v2 administration. Legacy v1 wire and
+replay behavior remain unchanged. Source tests are not installed qualification;
+no service, key, trust, grant or receiver registry is activated by this change.
+
+
 Native read authority source candidate: [shared read authority v1](read-authority-v1.md).
 Matched source tests are separate from installed iPhone/receiver qualification.
 
@@ -45,6 +55,11 @@ pass that gate, followed by qualification of the final removal artifacts.
 | CLI decimal opcode parsing | `client/src/main.rs` | Solid / implemented | `hub 16 ...` parses as decimal `u8`; `0x10` and values above `255` are rejected by current tests. |
 | Client packet construction | `client/src/main.rs` | Solid / implemented with a scoped response-map limit | `generate` and `chat` build/sign/send Packet v0 requests and expect the legacy decision frame; `identity` emits a receiver-registry entry. `hub` parses decimal `u8` values, but the shipped trusted response map contains only `0x01`/`0x02`, so non-legacy opcodes are rejected before TCP dispatch rather than accepted without a pinned response schema/key. |
 | Tunnel helper functions | `core/src/tunnel.rs` | Solid / implemented | ChaCha20Poly1305 helper tests cover round trips and tamper/wrong-key rejection. |
+| Provider intake envelope v1 | `core/src/intake_envelope.rs`, `docs/contracts/provider-intake-envelope-v1.md` | Solid / implemented as a bounded crypto primitive | Seals canonical intake bytes plus exact requester evidence to one pinned X25519 recipient with authenticated public routing metadata, strict bounds/framing, native open/seal functions, producer-side WASM sealing, and a stable interop vector. It is not a released WASM artifact, requester-membership decision, Service authority, queue delivery acknowledgement, durable consumer, or deployed provider path. |
+| Provider reference-object envelope v1 | `core/src/reference_object_envelope.rs`, `docs/contracts/provider-reference-object-envelope-v1.md` | Solid / implemented as a bounded crypto primitive | Seals one original object plus exact requester evidence and binds stable request/idempotency/artifact identities, expected SHA-256, recipient and expiry. It is separate from the unchanged intake envelope and is not durable storage, manifest admission, execution materialization, or deployment proof. |
+| Provider intake browser package | `browser/intake-sealer/`, `scripts/build-browser-intake-sealer.sh`, `scripts/test-browser-intake-sealer.mjs` | Partial / source-qualified release candidate | Wraps both canonical producer-side WASM seal exports with Web Crypto randomness and closed provider-profile checks, emits a deterministic integrity inventory, and proves stable native/WASM vectors. It is not released, deployed, or evidence that a provider consumed either envelope. |
+| Provider intake native custody/opener | `server/src/provider_intake_cli.rs`, `server/src/bin/secs-provider-intake-v1.rs`, `docs/reference/provider-intake-v1-cli.md` | Solid / implemented as a fixed local adapter | Provides explicit create-only X25519 key provisioning under canonical owner-private secS custody, public-key status, bounded intake/reference opening and distinct closed binary stdout frames. It accepts no caller-selected root/key/algorithm/operation/output path and collapses crypto failures. It is not membership verification, Service authority, queue acknowledgement, an installed release, or end-to-end provider qualification. |
+| Frank connector-result authority | `server/src/frank_result_authority.rs`, `server/src/frank_result_store.rs`, `server/src/bin/secs-frank-connector-result.rs`, `server/src/bin/secs-frank-connector-result-setup.rs`, `docs/reference/frank-connector-result-authority.md` | Solid / implemented as a fixed native authority candidate | Validates one immutable retained connector capture against its exact journal rows and pinned connector policy, then issues or resumes one bounded `frank.result.attest.v1` envelope with a private ledger and explicit renewal chain. Setup creates a closed issuer/assignment/configuration bundle without replacing existing material. This is source and local-test evidence; it is not an installed-release claim, provider execution, Runtime admission, Matrix authority, or production qualification. |
 | Ed25519 helper primitives | `core/src/zk.rs` | Solid / implemented as primitive | Signature/proof helper tests pass. These primitives are not yet a full server verifier. |
 | Session store | `server/src/session.rs` | Solid / implemented as local utility | In-memory session-store tests pass. This is not yet replay/session binding for the verifier pipeline. |
 | Retired legacy direct TCP entrypoint | `server/src/lib.rs`, removed `server/src/main.rs` | Solid / implemented as entrypoint hardening | The old `run_node` / `PayloadRouter` direct opcode dispatch path and implicit `server` binary are gone, so the packaged server no longer exposes that bypass around verifier/replay/receipt boundaries. |

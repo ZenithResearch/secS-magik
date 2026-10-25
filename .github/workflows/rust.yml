@@ -4,7 +4,11 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "codex/credential-presentation-v2" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,6 +16,27 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  standalone_read_authority:
+    # This is a separate workspace; the root tests do not cover it.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: tools/read-authority
+    - name: Verify retained Wallet source hashes
+      run: python3 tools/read-authority/check_source.py
+    - name: Test standalone native read adapter and contract
+      working-directory: tools/read-authority
+      run: |
+        cargo fmt --all -- --check
+        cargo clippy --locked --all-targets -- -D warnings
+        cargo test --locked
+        cargo test --locked --manifest-path vendor/castalia-wallet-presentation/Cargo.toml
+        cargo build --locked
+
   supply_chain_audit:
     runs-on: ubuntu-latest
 
@@ -24,10 +49,10 @@ jobs:
     - name: Install cargo-audit
       uses: taiki-e/install-action@v2
       with:
-        tool: cargo-audit
+        tool: cargo-audit@0.22.1
 
     - name: Audit dependency advisories
-      run: cargo audit
+      run: python3 scripts/audit-rust-locks.py
 
   wasm_ffi_check:
     runs-on: ubuntu-latest
@@ -56,6 +81,18 @@ jobs:
     # exercise the wasm cdylib, so without this lane panel breakage is silent.
     - name: Check wasm32 permission panel
       run: cargo check -p panel --target wasm32-unknown-unknown
+
+    - name: Install wasm-pack
+      uses: taiki-e/install-action@v2
+      with:
+        tool: wasm-pack
+
+    - name: Build and test reproducible browser intake sealer
+      run: |
+        ./scripts/build-browser-intake-sealer.sh /tmp/secs-intake-package-a
+        ./scripts/build-browser-intake-sealer.sh /tmp/secs-intake-package-b
+        diff -qr /tmp/secs-intake-package-a /tmp/secs-intake-package-b
+        node ./scripts/test-browser-intake-sealer.mjs /tmp/secs-intake-package-a
 
   build_and_test:
     runs-on: ubuntu-latest

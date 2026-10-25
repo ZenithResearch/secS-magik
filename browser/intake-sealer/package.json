@@ -1,0 +1,28 @@
+{
+  "name": "@zenithresearch/secs-provider-intake-sealer",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Browser producer for the closed secS provider-intake envelope",
+  "files": [
+    "README.md",
+    "SHA256SUMS",
+    "index.d.ts",
+    "index.js",
+    "libsec_core.d.ts",
+    "libsec_core.js",
+    "libsec_core_bg.wasm"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    },
+    "./raw": {
+      "types": "./libsec_core.d.ts",
+      "import": "./libsec_core.js"
+    },
+    "./libsec_core_bg.wasm": "./libsec_core_bg.wasm"
+  },
+  "sideEffects": false
+}
+

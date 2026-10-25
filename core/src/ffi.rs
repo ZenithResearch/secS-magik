@@ -32,3 +32,73 @@ pub fn wasm_decrypt(
     crate::tunnel::decrypt_payload(key_array, nonce_array, ciphertext, aad)
         .map_err(|_| JsValue::from_str("decryption failed"))
 }
+
+#[wasm_bindgen]
+pub fn wasm_seal_intake_envelope_v1(
+    recipient_public: &[u8],
+    ephemeral_secret: &[u8],
+    nonce: &[u8],
+    intake: &[u8],
+    requester_evidence: &[u8],
+    expires_at_ms: u64,
+) -> Result<Vec<u8>, JsValue> {
+    let recipient_public: &[u8; 32] = recipient_public
+        .try_into()
+        .map_err(|_| JsValue::from_str("recipient_public must be exactly 32 bytes"))?;
+    let ephemeral_secret: &[u8; 32] = ephemeral_secret
+        .try_into()
+        .map_err(|_| JsValue::from_str("ephemeral_secret must be exactly 32 bytes"))?;
+    let nonce: &[u8; 12] = nonce
+        .try_into()
+        .map_err(|_| JsValue::from_str("nonce must be exactly 12 bytes"))?;
+    crate::intake_envelope::seal_intake_envelope_v1(
+        recipient_public,
+        ephemeral_secret,
+        nonce,
+        intake,
+        requester_evidence,
+        expires_at_ms,
+    )
+    .map_err(|_| JsValue::from_str("intake envelope rejected"))
+}
+
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn wasm_seal_reference_object_envelope_v1(
+    recipient_public: &[u8],
+    ephemeral_secret: &[u8],
+    nonce: &[u8],
+    request_id: &str,
+    idempotency_key: &str,
+    artifact_id: &str,
+    content_hash: &[u8],
+    object: &[u8],
+    requester_evidence: &[u8],
+    expires_at_ms: u64,
+) -> Result<Vec<u8>, JsValue> {
+    let recipient_public: &[u8; 32] = recipient_public
+        .try_into()
+        .map_err(|_| JsValue::from_str("recipient_public must be exactly 32 bytes"))?;
+    let ephemeral_secret: &[u8; 32] = ephemeral_secret
+        .try_into()
+        .map_err(|_| JsValue::from_str("ephemeral_secret must be exactly 32 bytes"))?;
+    let nonce: &[u8; 12] = nonce
+        .try_into()
+        .map_err(|_| JsValue::from_str("nonce must be exactly 12 bytes"))?;
+    let content_hash: &[u8; 32] = content_hash
+        .try_into()
+        .map_err(|_| JsValue::from_str("content_hash must be exactly 32 bytes"))?;
+    crate::reference_object_envelope::seal_reference_object_envelope_v1(
+        recipient_public,
+        ephemeral_secret,
+        nonce,
+        request_id,
+        idempotency_key,
+        artifact_id,
+        content_hash,
+        object,
+        requester_evidence,
+        expires_at_ms,
+    )
+    .map_err(|_| JsValue::from_str("reference object envelope rejected"))
+}
