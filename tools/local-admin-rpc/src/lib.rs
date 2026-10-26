@@ -254,8 +254,8 @@ fn action(v: &Value) -> Result<&'static str> {
     match name {
         "inbox" => Ok("access.inbox"),
         "review" => Ok("access.review"),
-        "approve" | "deny" | "revoke" => Ok("access.decide"),
-        "status" => Ok("access.status"),
+        "approve" | "deny" | "revoke" | "upgrade_arena_policy" | "create_arena" => Ok("access.decide"),
+        "status" | "arena_policy_status" | "arena_create_status" => Ok("access.status"),
         _ => Err("operation_unavailable"),
     }
 }
@@ -726,6 +726,20 @@ mod tests {
         request.body["service_access_point"]["claims"]["authority_receiver"] =
             json!("https://evil.example");
         assert!(check_service(&config, &request, &pin, 101).is_err());
+    }
+    #[test]
+    fn owner_arena_commands_remain_signed_and_operation_bound() {
+        for (name, operation) in [("upgrade_arena_policy", "access.decide"), ("arena_policy_status", "access.status")] {
+            let key = SigningKey::from_bytes(&[7; 32]);
+            let mut r = signed();
+            r.body["challenge"]["operation"] = json!(operation);
+            r.body["challenge"]["details"]["action"] = json!({"schema":"devgraph.access-operator-action.v10","action":name,"action_id":"ef".repeat(16),"arena_read_ids":["research"]});
+            let sig = key.sign(&[DOMAIN, &canonical(&r.body["challenge"], 0).unwrap()].concat());
+            r.body["signature"] = json!(URL_SAFE_NO_PAD.encode(sig.to_bytes()));
+            assert!(r.check(&config(), 101).is_ok());
+            r.body["challenge"]["details"]["action"]["arena_read_ids"] = json!(["private"]);
+            assert!(r.check(&config(), 101).is_err());
+        }
     }
     #[test]
     fn initial_input_has_a_deadline() {
