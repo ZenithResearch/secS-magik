@@ -16,6 +16,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Track the guarded local administration RPC source, canonical-service operations and cross-language binding vector — installed native administration must be reproducible from the public source and share the same verifier as HTTPS.
+
+- Authenticate canonical-service access points with a bounded issuer-signed public binding — route selection must not create a second authority domain or trust an unverified alias.
+
+### Added
+
+- Add a portable Buildkite holder-grant lane and standalone-package GitHub checks — the additive contract must remain tested even though it is outside the legacy packet workspace.
 - Added the separately versioned `service.reference-object-envelope.v1` primitive,
   browser producer and native opener so a provider can receive one bounded
   original reference under the same pinned key while preserving the existing
@@ -32,6 +39,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 
 ### Fixed
+
+- Update the existing workspace ctutils lock to 0.4.4 — fixes RUSTSEC-2026-0385 constant-time mask/comparison defects and restores the required supply-chain check without an advisory exception.
+
+- Reserve size and nesting room for equal-scope holder credentials and complete presentations — prevents accepted roots from producing envelopes the verifier cannot receive.
+
+
+### Changed
+
+- Exclude standalone holder-authority build output from source inventories — prevents generated binaries from being mistaken for reviewed source.
+
+
+### Changed
+
+- Reuse the published castalia.grant-validity.v1 nested wire format — keep standing validity consistent across Wallet and provider contracts.
+
+### Added
+
+- Add a versioned reusable holder-grant contract and trusted native issuer/verifier adapter — let a Wallet derive equal or narrower same-holder credentials without acquiring issuer authority; onward delegation remains rejected.
+
+
+### Added
 
 - Keep the restored Frank result authority clean under the repository's all-feature `-D warnings` Clippy gate — the recovered behavior is unchanged while the public branch remains eligible for normal CI and release review.
 

@@ -1,0 +1,24 @@
+{
+  "challenge": {
+    "schema": "castalia.access-request-challenge.v1",
+    "challenge_id": "abababababababababababababababab",
+    "nonce": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+    "issuer": "fixture",
+    "receiver": "https://127.0.0.1:18443",
+    "subject_public_key": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+    "installation_id": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "operation": "access.inbox",
+    "issued_at": 100,
+    "expires_at": 220,
+    "details": {
+      "action": {
+        "schema": "devgraph.access-operator-action.v1",
+        "action_id": "efefefefefefefefefefefefefefefef",
+        "action": "inbox"
+      },
+      "policy_revision": 1,
+      "policy_digest_sha256": "abababababababababababababababababababababababababababababababab"
+    }
+  },
+  "signature": "IXTU2_Ky6owa6UkH47pBLHYpr_qZ2Net_qamkPol_YhRRyR_YrZmbhAAIDen1Ms12vWnWFQ27xALfSegR_PuAw"
+}
