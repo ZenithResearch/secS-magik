@@ -16,6 +16,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Track the guarded local administration RPC source, canonical-service operations and cross-language binding vector — installed native administration must be reproducible from the public source and share the same verifier as HTTPS.
+
 - Authenticate canonical-service access points with a bounded issuer-signed public binding — route selection must not create a second authority domain or trust an unverified alias.
 
 ### Added

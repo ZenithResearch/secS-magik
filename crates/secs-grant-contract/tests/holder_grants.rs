@@ -243,3 +243,22 @@ fn access_point_binding_rejects_ambiguous_origins_and_arbitrary_dispatch_paths()
         );
     }
 }
+
+#[test]
+fn access_point_cross_language_golden_vector() {
+    let v: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/access-point.json")).unwrap();
+    let pin: IssuerPin = serde_json::from_value(v["pin"].clone()).unwrap();
+    let binding: AccessPointBinding = serde_json::from_value(v["binding"].clone()).unwrap();
+    verify_access_point(&pin, &binding, &binding.claims.origin, 102).unwrap();
+    assert_eq!(
+        issue_access_point(
+            &pin,
+            binding.claims.clone(),
+            &SigningKey::from_bytes(&[1; 32]),
+            102
+        )
+        .unwrap(),
+        binding
+    );
+}

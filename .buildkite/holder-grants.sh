@@ -11,3 +11,6 @@ run contract-tests cargo test --manifest-path crates/secs-grant-contract/Cargo.t
 run contract-clippy cargo clippy --manifest-path crates/secs-grant-contract/Cargo.toml --locked --all-targets -- -D warnings
 run authority-build cargo build --manifest-path tools/holder-grant-authority/Cargo.toml --locked --release
 run authority-clippy cargo clippy --manifest-path tools/holder-grant-authority/Cargo.toml --locked --all-targets -- -D warnings
+
+cargo test --locked --manifest-path tools/local-admin-rpc/Cargo.toml
+cargo build --locked --release --manifest-path tools/local-admin-rpc/Cargo.toml

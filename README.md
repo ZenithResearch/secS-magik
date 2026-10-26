@@ -422,3 +422,9 @@ The [credential-bound Devgraph v2 adapter](docs/devgraph-credential-presentation
 provides an opt-in issuer preflight and projection path for generic Wallet
 approval. It preserves v1 and requires explicit owner-private caller pins;
 review fixtures are not installed-service or browser acceptance.
+
+The standalone local administration adapter is documented in
+[local administration RPC](docs/reference/local-admin-rpc-v1.md). Run its own
+`cargo test --locked --manifest-path tools/local-admin-rpc/Cargo.toml`; the Packet
+workspace does not include this additive adapter. Source validation does not
+activate a deployed service or confer Wallet authority.

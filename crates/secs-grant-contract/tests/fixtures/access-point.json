@@ -1,0 +1,23 @@
+{
+  "pin": {
+    "issuer": "provider:fixture",
+    "key_id": "key:v1",
+    "public_key": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c",
+    "service": "service:fixture"
+  },
+  "binding": {
+    "claims": {
+      "schema": "secs.service-access-point.v1",
+      "issuer": "provider:fixture",
+      "key_id": "key:v1",
+      "service": "service:fixture",
+      "origin": "https://graph.example:9443",
+      "authority_receiver": "https://127.0.0.1:58754",
+      "prefix": "/service/v1",
+      "not_before": 100,
+      "not_after": 1000
+    },
+    "signature": "df1df5a200477268b0a9d483dcb2a7300cec0074b53bb2ead19b3e510397ec5866dfbd7575965ff7067704475c11cf4f64f770cdc1660452a9ddf97370bad309"
+  },
+  "now": 102
+}
