@@ -40,6 +40,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+- Update the existing workspace ctutils lock to 0.4.4 — fixes RUSTSEC-2026-0385 constant-time mask/comparison defects and restores the required supply-chain check without an advisory exception.
+
 - Reserve size and nesting room for equal-scope holder credentials and complete presentations — prevents accepted roots from producing envelopes the verifier cannot receive.
 
 
