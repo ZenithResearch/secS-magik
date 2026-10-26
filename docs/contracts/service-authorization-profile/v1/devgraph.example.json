@@ -1,0 +1,84 @@
+{
+  "schema": "secs.authorization-profile.proposal.v1",
+  "id": "devgraph.authorization.v1",
+  "revision": 1,
+  "display_name": "DevGraph",
+  "contracts": {
+    "grant": "secs.holder-grant.v1",
+    "credential": "secs.holder-credential.v1",
+    "presentation": "secs.holder-presentation.v1"
+  },
+  "resources": [
+    {
+      "id": "Arena",
+      "label": "Arenas",
+      "description": "Objects resolved through the service-owned canonical hierarchy.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "Arena"
+      ]
+    },
+    {
+      "id": "Work",
+      "label": "Work items",
+      "description": "Objects resolved through the service-owned canonical hierarchy.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "Arena",
+        "Initiative",
+        "Project",
+        "Issue",
+        "Task"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "devgraph.arena.list",
+      "label": "List Arenas",
+      "description": "Only matching authorized resources may be returned or changed.",
+      "resource": "Arena",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "devgraph.arena.constraints.v1"
+    },
+    {
+      "id": "devgraph.arena.get",
+      "label": "Read Arena",
+      "description": "Only matching authorized resources may be returned or changed.",
+      "resource": "Arena",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "devgraph.arena.constraints.v1"
+    },
+    {
+      "id": "devgraph.work.get",
+      "label": "Read Work item",
+      "description": "Only matching authorized resources may be returned or changed.",
+      "resource": "Work",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "devgraph.work.constraints.v1"
+    }
+  ],
+  "presets": [
+    {
+      "id": "arena-reader",
+      "label": "Arena reader",
+      "operations": [
+        "devgraph.arena.list",
+        "devgraph.arena.get"
+      ]
+    }
+  ],
+  "onward_delegation": false
+}

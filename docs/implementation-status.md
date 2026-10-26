@@ -1,5 +1,14 @@
 # secS-magik implementation status
 
+## Reusable service onboarding (2026-10-26)
+
+Status: **proposed / planned implementation**. The
+[service authorization profile specification](specs/reusable-service-authorization-profile-v1.md)
+and [two-model fixtures](contracts/service-authorization-profile/v1/README.md)
+describe generic onboarding and exact compatibility boundaries. Existing
+holder-grant cryptography is implemented; a profile-driven administration SDK
+and editor are not. Schema/fixture validation is not runtime or deployment proof.
+
 ## Standing Work validity source candidate (2026-10-20)
 
 [Standing Work policy v2](devgraph-standing-work-policy-v2.md) is an opt-in

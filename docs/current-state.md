@@ -1,5 +1,14 @@
 # secS-magik current state
 
+## Reusable service onboarding proposal (2026-10-26)
+
+The [service authorization profile specification](specs/reusable-service-authorization-profile-v1.md)
+defines a shared descriptor, receiver adapter and generated editor direction on
+top of the existing holder-grant contract. DevGraph and album-service examples
+are document/schema fixtures only. The provider SDK extraction, generic client
+editor and second-service runtime qualification are **planned**, not implemented.
+No signed contract, installed application, service or authority changes.
+
 ## Browser provider-intake producer candidate (2026-10-22)
 
 The canonical `service.intake-envelope.v1` WASM export now has a tracked browser

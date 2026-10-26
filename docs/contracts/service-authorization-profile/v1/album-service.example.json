@@ -1,0 +1,81 @@
+{
+  "schema": "secs.authorization-profile.proposal.v1",
+  "id": "album-service.authorization.v1",
+  "revision": 1,
+  "display_name": "Album service example",
+  "contracts": {
+    "grant": "secs.holder-grant.v1",
+    "credential": "secs.holder-credential.v1",
+    "presentation": "secs.holder-presentation.v1"
+  },
+  "resources": [
+    {
+      "id": "Album",
+      "label": "Albums",
+      "description": "Objects resolved through the service-owned canonical hierarchy.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "Album"
+      ]
+    },
+    {
+      "id": "Asset",
+      "label": "Images and files",
+      "description": "Objects resolved through the service-owned canonical hierarchy.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "Album",
+        "Asset"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "album-service.album.list.v1",
+      "label": "List albums",
+      "description": "Only matching authorized resources may be returned or changed.",
+      "resource": "Album",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "album-service.asset.get.v1",
+      "label": "Read asset",
+      "description": "Only matching authorized resources may be returned or changed.",
+      "resource": "Asset",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "album-service.asset.rename.v1",
+      "label": "Rename asset",
+      "description": "Only matching authorized resources may be returned or changed.",
+      "resource": "Asset",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    }
+  ],
+  "presets": [
+    {
+      "id": "album-viewer",
+      "label": "Album viewer",
+      "operations": [
+        "album-service.album.list.v1",
+        "album-service.asset.get.v1"
+      ]
+    }
+  ],
+  "onward_delegation": false
+}
