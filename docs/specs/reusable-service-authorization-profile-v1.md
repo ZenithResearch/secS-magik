@@ -138,6 +138,11 @@ being the first remote caller or merely being on the same machine is insufficien
 The owner gets the defined administration role, not a self-credential picker.
 Legacy owner-policy conversion is a compatibility migration, not an Arena switch.
 
+An `admin` display classification is not issuer authority. The administration
+controller independently checks the registered owner/admin role; an ordinary
+member grant must not bootstrap that role or authorize issuing grants to others.
+Delegated access administration needs a separate explicitly bounded contract.
+
 ## Compatibility and safe boundaries
 
 - Preserve existing v1 signed grant, credential and presentation bytes. They are
