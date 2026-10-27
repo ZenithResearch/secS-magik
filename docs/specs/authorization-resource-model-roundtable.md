@@ -211,3 +211,11 @@ Implement in order: refine the versioned profile and selectors; extract the
 provider lifecycle SDK; render the profile-driven editor; migrate DevGraph via
 its compatibility adapter; then run the real timed second-service trial. The
 existing generic signing model is retained throughout.
+
+
+## Exact selection and compound operations follow-up
+
+The [follow-up roundtable](exact-selection-and-compound-operations-roundtable.md)
+compares exact-ID selectors, self/subtree path modes, compatibility constraints,
+hierarchy-preserving attenuation and paired source/destination operation plans.
+It records current DevGraph checks separately from the proposed shared model.

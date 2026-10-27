@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Compare exact identity selectors and compound operation plans — preserve path/grant semantics while defining safe object narrowing, source/destination checks and a reusable receiver boundary.
+
+### Added
+
 - Record the reusable authorization resource/scope roundtable and a 20-operation media-service design fixture — define a measurable mapping-file onboarding target without presenting the planned SDK/editor as implemented.
 
 ### Fixed
