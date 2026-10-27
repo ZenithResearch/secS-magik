@@ -322,3 +322,48 @@ fn independent_action_hierarchies_are_not_a_cartesian_product() {
     delegated.onward_delegation = true;
     assert!(issue_grant(&pin, delegated, &issuer, 100).is_err());
 }
+
+#[test]
+fn live_collection_scope_is_not_an_issuance_time_inventory() {
+    let (pin, issuer, holder, original) = setup();
+    let mut claims = original.claims;
+    claims.permissions[0].scope = Scope::All;
+    claims.permissions[0].operation = "catalog.item.get".into();
+    // Generic provider conditions stay opaque and exact; no object IDs are
+    // copied into the signed root to simulate collection coverage.
+    let root = issue_grant(&pin, claims, &issuer, 100).unwrap();
+    let same = derive_credential(
+        &pin,
+        root.clone(),
+        root.claims.permissions.clone(),
+        None,
+        "33".repeat(16),
+        101,
+        300,
+        &holder,
+    )
+    .unwrap();
+    verify_credential(&pin, &same, 102).unwrap();
+    let mut narrowed = root.claims.permissions.clone();
+    narrowed[0].scope = Scope::Paths {
+        roots: vec![vec![Node {
+            kind: "CollectionItem".into(),
+            id: "created-later".into(),
+        }]],
+    };
+    let fixed = derive_credential(
+        &pin,
+        root.clone(),
+        narrowed.clone(),
+        None,
+        "44".repeat(16),
+        102,
+        300,
+        &holder,
+    )
+    .unwrap();
+    verify_credential(&pin, &fixed, 103).unwrap();
+    assert!(permissions_within(&root.claims.permissions, &narrowed).is_err());
+    assert_eq!(same.claims.permissions[0].scope, Scope::All);
+    assert!(!root.claims.onward_delegation);
+}

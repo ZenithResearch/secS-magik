@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Qualify live collection `All` scopes and same-holder path narrowing — future provider resources need no issuance-time ID snapshot, while fixed grants cannot widen and opaque conditions remain exact.
+
+### Added
+
 - Exercise independent action/hierarchy holder-grant rules and cross-rule scope substitution — protect reusable read-A/write-B editing without changing signed formats, provider conditions or delegation.
 
 

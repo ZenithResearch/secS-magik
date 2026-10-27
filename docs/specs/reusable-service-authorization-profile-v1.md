@@ -204,3 +204,16 @@ are not implicitly attached to a hierarchy. These adapter semantics do not make
 the proposed descriptor a runtime authority source; the generic profile SDK and
 a second provider remain planned. Wallet Core retains the same native revision
 and verifies stored and derived rules through the same secS contract.
+
+
+## Live collections and future resources
+
+The existing reusable-grant `Scope::All` denotes a live resource set within one
+signed permission and its exact opaque provider constraints, not an issuance-time
+inventory. A provider may use that to cover current and future objects of a
+collection. Generic secS does not interpret provider-owned collection predicates.
+Same-holder `All` → `All` stays equal; `All` → specific path roots narrows; a
+fixed/path scope cannot widen to `All`. Opaque constraints remain byte-equivalent,
+current assignment and revocation remain receiver checks, and onward delegation
+remains disabled. Conformance tests use provider-neutral collection/item names;
+DevGraph maps its explicit Arena selector without changing signed v1 envelopes.
