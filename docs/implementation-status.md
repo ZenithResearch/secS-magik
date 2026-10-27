@@ -256,3 +256,12 @@ The [compound resource checker](specs/compound-resource-rules.md) now keeps all 
 ## Scoped holder v2 integration candidate (2026-10-27)
 
 Implemented source: separate v2 signed permissions/credentials/presentations with complete roles, same-holder narrowing and bounded provider-process selector/effect witnesses. Existing v1 readers and signed bytes remain. See [precise integration and remaining gates](specs/scoped-holder-grants-v2.md). No runtime rollout or app installation is implied.
+
+## Session provenance Work v2 source candidate (2026-10-27)
+
+The DevGraph provider parser and authority policy recognize
+`devgraph.work.session.attach.v2`. Its exact Work subject and derived SessionRef
+and optional SessionLink endpoints participate in the existing signature,
+resource-policy, expiry and replay gates. V1 requests and base Todo reject this
+operation. This is an additive source change; installed adapters, authority and
+signed grants are unchanged. No native source identity supplies authentication.

@@ -15,6 +15,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- Admit the additive DevGraph Work v2 session attachment operation with closed source metadata and exact SessionRef/SessionLink resource derivation — native session observations need a signed provenance path without widening existing operations or grants.
+- Add shared Python/Rust canonical request vectors to the signed authority and resource-denial regression suite — both receivers must bind identical bytes and require every affected record.
+
+
+### Added
 
 - Versioned v2 holder permissions with complete resource-role selectors and trusted-provider snapshot/effect helpers — preserve v1 authority while integrating stable IDs, retained hierarchy guards and paired mutation checks.
 

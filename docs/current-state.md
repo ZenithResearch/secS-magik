@@ -173,3 +173,12 @@ The implementation ledger remains the source for current I16-I19, wallet-core pa
 Update this page when a change alters the top-level request path, production/status posture, active architecture decisions, or the location of authoritative documentation. Always update [implementation-status.md](implementation-status.md) first or in the same change.
 
 The [compound resource checker](specs/compound-resource-rules.md) now keeps all required effect roles together in one rule and reuses selector narrowing. It is an in-process resource-only helper, not a signed permit or transactional provider deployment.
+
+## Session provenance Work v2 source candidate (2026-10-27)
+
+The DevGraph provider parser and authority policy recognize
+`devgraph.work.session.attach.v2`. Its exact Work subject and derived SessionRef
+and optional SessionLink endpoints participate in the existing signature,
+resource-policy, expiry and replay gates. V1 requests and base Todo reject this
+operation. This is an additive source change; installed adapters, authority and
+signed grants are unchanged. No native source identity supplies authentication.

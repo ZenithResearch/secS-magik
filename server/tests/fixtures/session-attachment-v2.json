@@ -1,0 +1,22 @@
+[
+  {
+    "raw": "{\"schema\":\"devgraph.work-request.v2\",\"operation\":\"session.attach\",\"kind\":\"Task\",\"id\":\"work\",\"expected_version\":1,\"payload\":{\"session\":{\"application\":\"codex\",\"source_instance_id\":\"native-store\",\"external_session_id\":\"native-id\"},\"observed_at\":\"2026-10-27T20:00:00Z\",\"basis\":\"inspected\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"work\",\"kind\":\"Task\",\"operation\":\"session.attach\",\"payload\":{\"basis\":\"inspected\",\"link\":null,\"observed_at\":\"2026-10-27T20:00:00Z\",\"session\":{\"application\":\"codex\",\"external_session_id\":\"native-id\",\"source_instance_id\":\"native-store\"}},\"schema\":\"devgraph.work-request.v2\"}",
+    "resources": [
+      "SessionRef/sr-bf4631e986c767554b9927bb666302e556ff4649f114db09243048ca3b44fbd0",
+      "Task/work"
+    ],
+    "digest": "ff2c3c35c9218e0823028bf7fb87dc4be23d602f8841a0941733cc30486c37f4"
+  },
+  {
+    "raw": "{\"schema\":\"devgraph.work-request.v2\",\"operation\":\"session.attach\",\"kind\":\"Task\",\"id\":\"work\",\"expected_version\":1,\"payload\":{\"session\":{\"application\":\"codex\",\"source_instance_id\":\"native-store\",\"external_session_id\":\"native-id\"},\"observed_at\":\"2026-10-27T20:00:00Z\",\"basis\":\"inspected\",\"link\":{\"source_instance_id\":\"hermes-store\",\"event_id\":\"binding-event\",\"attempt_id\":\"binding-attempt\",\"relation\":\"uses_runtime\",\"origin\":{\"application\":\"hermes\",\"source_instance_id\":\"hermes-store\",\"external_session_id\":\"parent\"},\"target\":{\"application\":\"codex\",\"source_instance_id\":\"native-store\",\"external_session_id\":\"native-id\"},\"observed_at\":\"2026-10-27T20:00:00Z\",\"basis\":\"source_observed\"}}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"work\",\"kind\":\"Task\",\"operation\":\"session.attach\",\"payload\":{\"basis\":\"inspected\",\"link\":{\"attempt_id\":\"binding-attempt\",\"basis\":\"source_observed\",\"event_id\":\"binding-event\",\"observed_at\":\"2026-10-27T20:00:00Z\",\"origin\":{\"application\":\"hermes\",\"external_session_id\":\"parent\",\"source_instance_id\":\"hermes-store\"},\"relation\":\"uses_runtime\",\"source_instance_id\":\"hermes-store\",\"target\":{\"application\":\"codex\",\"external_session_id\":\"native-id\",\"source_instance_id\":\"native-store\"}},\"observed_at\":\"2026-10-27T20:00:00Z\",\"session\":{\"application\":\"codex\",\"external_session_id\":\"native-id\",\"source_instance_id\":\"native-store\"}},\"schema\":\"devgraph.work-request.v2\"}",
+    "resources": [
+      "SessionLink/sl-d3475d568b795c0b565dd8ab19647ca178faad84daae97adc9b8e3c61b9dc84d",
+      "SessionRef/sr-a3d8363ff94a30161a4b180929908046c8f369b8f6daa2d790c3104f29591499",
+      "SessionRef/sr-bf4631e986c767554b9927bb666302e556ff4649f114db09243048ca3b44fbd0",
+      "Task/work"
+    ],
+    "digest": "d84585a81f6bb73609ee4cc0fbe11c0e40ae0e045bc876b1d1e3fb2574a99cd6"
+  }
+]

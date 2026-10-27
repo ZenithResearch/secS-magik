@@ -89,6 +89,10 @@ fn vectors() -> Vec<Value> {
         serde_json::from_slice::<Vec<Value>>(include_bytes!("fixtures/arena-v1/requests.json"))
             .unwrap(),
     );
+    all.extend(
+        serde_json::from_slice::<Vec<Value>>(include_bytes!("fixtures/session-attachment-v2.json"))
+            .unwrap(),
+    );
     all
 }
 
@@ -346,4 +350,47 @@ async fn explicit_until_revoked_policy_issues_only_finite_authority() {
         WorkPolicy::parse(&bytes(&invalid)).is_err(),
         "Do not mix old and new validity fields"
     );
+}
+
+#[test]
+fn session_attachment_python_canonical_and_resource_parity() {
+    let vectors: Vec<Value> =
+        serde_json::from_slice(include_bytes!("fixtures/session-attachment-v2.json")).unwrap();
+    for vector in vectors {
+        let raw = vector["raw"].as_str().unwrap();
+        let parsed = WorkRequest::parse(raw.as_bytes()).unwrap();
+        assert_eq!(
+            parsed.canonical,
+            vector["canonical"].as_str().unwrap().as_bytes()
+        );
+        assert_eq!(
+            serde_json::to_value(&parsed.resources).unwrap(),
+            vector["resources"]
+        );
+        assert_eq!(parsed.operation, "devgraph.work.session.attach.v2");
+        let value: Value = serde_json::from_str(raw).unwrap();
+        for field in [
+            "invalid_version",
+            "invalid_kind",
+            "invalid_time",
+            "unknown_field",
+            "invalid_id",
+        ] {
+            let mut invalid = value.clone();
+            match field {
+                "invalid_version" => invalid["schema"] = json!("devgraph.work-request.v1"),
+                "invalid_kind" => invalid["kind"] = json!("Todo"),
+                "invalid_time" => invalid["payload"]["observed_at"] = json!("2026-02-30T20:00:00Z"),
+                "unknown_field" => invalid["payload"]["extra"] = json!(true),
+                "invalid_id" => {
+                    invalid["payload"]["session"]["external_session_id"] = json!("../path")
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                WorkRequest::parse(&serde_json::to_vec(&invalid).unwrap()).is_err(),
+                "{field}"
+            );
+        }
+    }
 }
