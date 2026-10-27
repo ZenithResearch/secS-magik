@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Keep compound operation resource effects correlated in a single rule — prevent source/destination pooling and cross-parent narrowing while preserving existing signed formats and provider transaction ownership.
+
+### Added
+
 - Add a separate resource-selector primitive with exact objects, explicit descendant guards and type-bounded All — let providers and Wallet Core share conservative narrowing without reinterpreting stored v1 grants or laundering hierarchy restrictions.
 
 ### Added

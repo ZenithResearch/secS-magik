@@ -2,6 +2,7 @@
 //! This verifies cryptographic authority, not current provider status or ancestry.
 //! Receivers MUST check current grant/revision/revocation and consume proof nonces
 //! atomically before exposing results; discovery and transport origins confer no authority.
+pub mod compound_resources;
 pub mod resource_selector;
 
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};

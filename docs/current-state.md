@@ -161,3 +161,5 @@ The implementation ledger remains the source for current I16-I19, wallet-core pa
 ## Maintenance rule
 
 Update this page when a change alters the top-level request path, production/status posture, active architecture decisions, or the location of authoritative documentation. Always update [implementation-status.md](implementation-status.md) first or in the same change.
+
+The [compound resource checker](specs/compound-resource-rules.md) now keeps all required effect roles together in one rule and reuses selector narrowing. It is an in-process resource-only helper, not a signed permit or transactional provider deployment.

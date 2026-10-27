@@ -79,3 +79,5 @@ subset check. Shared media vectors are in
 `crates/secs-grant-contract/tests/fixtures/resource-selectors.json`.
 
 Vocabulary/source review: [domain crosswalk](../contracts/authorization-ontology-alignment/v1/README.md).
+
+The next resource-only prerequisite is now implemented as [compound resource rules](compound-resource-rules.md). It still does not provide signed integration, database atomicity or installed provider capabilities.
