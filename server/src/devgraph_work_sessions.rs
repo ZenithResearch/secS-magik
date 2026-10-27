@@ -84,7 +84,7 @@ fn utc(value: &str) -> bool {
         return false;
     }
     let n: Vec<u32> = parts.iter().map(|s| s.parse().unwrap()).collect();
-    let leap = n[0] % 4 == 0 && (n[0] % 100 != 0 || n[0] % 400 == 0);
+    let leap = n[0].is_multiple_of(4) && (!n[0].is_multiple_of(100) || n[0].is_multiple_of(400));
     let days = match n[1] {
         2 => {
             if leap {
