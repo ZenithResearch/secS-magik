@@ -229,3 +229,7 @@ recommends Selected / All as the primary labels, fixed snapshots as selection
 conveniences, an explicit distinction between object identity and containment,
 and a timed 20-operation second-service benchmark. It records remaining generic
 SDK/editor work and does not change deployed authority or signed contracts.
+
+## Ontology alignment
+
+See the [pinned domain-vocabulary crosswalk](../contracts/authorization-ontology-alignment/v1/README.md). It distinguishes existing canonical terms, related draft concepts and missing candidates without changing signed semantics.

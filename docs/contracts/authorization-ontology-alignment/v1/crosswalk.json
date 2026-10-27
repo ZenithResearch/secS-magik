@@ -1,0 +1,299 @@
+{
+  "schema": "zenith.authorization-vocabulary-alignment.review.v1",
+  "status": "review_mapping_not_ontology_release",
+  "organization": "domain_modules_with_application_profiles",
+  "sources": {
+    "devgraph": {
+      "repository": "https://github.com/ZenithResearch/devgraph",
+      "revision": "8f97e26518ead4342a261c403d78f7dc4d6aa408",
+      "release": "v0.10.0",
+      "manifest_sha256": "4d6b556256ef6e815d474a7a80edcece49c2317f51c92bb2b97918c097074953"
+    },
+    "shared_draft": {
+      "schema": "zenith.shared-schema-draft.v0.1.0",
+      "status": "review_only_not_a_release",
+      "catalog_sha256": "87d5c91fbccf4d9dd12621c088c282adece9ff391cef0b9badcd19c568fd491e",
+      "manifest_sha256": "5f62d3641016d33a1f3691f8f5307d7c75a3393f407cdd79d8818628b0279c22"
+    },
+    "secs": {
+      "repository": "https://github.com/ZenithResearch/secS-magik",
+      "design_revision": "43bb025e1760b37d6167e7930c5a57280d3c2b40"
+    }
+  },
+  "boundaries": {
+    "defines_new_canonical_iris": false,
+    "declares_owl_equivalence": false,
+    "changes_signed_contracts": false,
+    "grants_authority": false,
+    "imports_application_records": false
+  },
+  "concepts": [
+    {
+      "id": "wallet_identity",
+      "label": "Wallet identity",
+      "domain": "Identity and participation",
+      "disposition": "related",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:directory#ExternalSubjectBinding",
+          "relation": "binding_evidence_not_key"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/Entity",
+          "relation": "directory_identity_not_authentication"
+        }
+      ],
+      "decision": "Keep cryptographic key control, directory identity, provider account binding and membership separate."
+    },
+    {
+      "id": "provider_authority",
+      "label": "Provider authority",
+      "domain": "Authorization",
+      "disposition": "candidate",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:authority#VerifiedOperationAuthorityReference",
+          "relation": "verified_context_evidence_only"
+        }
+      ],
+      "decision": "A verified-operation reference is evidence of one checked call, not an issuer or authority root. Reuse it for evidence; separately describe trusted issuer/key lifecycle."
+    },
+    {
+      "id": "canonical_service",
+      "label": "Canonical service",
+      "domain": "Resources and services",
+      "disposition": "candidate",
+      "references": [
+        {
+          "id": "https://zenith-research.ca/ontology/terms/ServiceInstance",
+          "relation": "deployment_not_authority_namespace"
+        }
+      ],
+      "decision": "One canonical service owns authority across several access points and launched instances. Do not identify it with a process, URL or ServiceInstance record."
+    },
+    {
+      "id": "service_instance",
+      "label": "Service instance",
+      "domain": "Software and interfaces",
+      "disposition": "reuse",
+      "references": [
+        {
+          "id": "https://zenith-research.ca/ontology/terms/ServiceInstance",
+          "relation": "reuse_definition"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/LocalResourceRegistration",
+          "relation": "advisory_registration"
+        }
+      ],
+      "decision": "Reuse the v0.9.0 descriptive instance vocabulary. Discovery and local registration establish no ownership, trust or permission."
+    },
+    {
+      "id": "access_point",
+      "label": "Access point",
+      "domain": "Software and interfaces",
+      "disposition": "candidate",
+      "references": [
+        {
+          "id": "https://zenith-research.ca/ontology/terms/LocalResourceRegistration",
+          "relation": "advisory_route_metadata"
+        },
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:directory#PersonInterfaceBinding",
+          "relation": "person_contact_interface_not_service_route"
+        }
+      ],
+      "decision": "A verified service route is distinct from a person contact interface. A secS access-point binding links a route to canonical authority without granting access."
+    },
+    {
+      "id": "resource_reference",
+      "label": "Protected resource reference",
+      "domain": "Authorization",
+      "disposition": "specialize",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:foundation#/$defs/OwnedRecordRef",
+          "relation": "reuse_reference_shape_with_binding"
+        }
+      ],
+      "decision": "Reuse owner/kind/ID reference vocabulary and add an explicit verified canonical-service binding in the authorization profile. Owner and namespace scope are not automatically that binding."
+    },
+    {
+      "id": "resource_instance",
+      "label": "Resource instance",
+      "domain": "Resources and services",
+      "disposition": "related",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:resources#ResourceInstance",
+          "relation": "capacity_resource_not_every_protected_record"
+        }
+      ],
+      "decision": "The existing draft models physical/compute/virtual resources, offers and capacity. Do not force a Task or permission target into that shape. A protected-object reference may refer to such a resource or to any supported domain record."
+    },
+    {
+      "id": "resource_type",
+      "label": "Resource type",
+      "domain": "Domain modules",
+      "disposition": "reuse",
+      "references": [
+        {
+          "id": "https://zenith-research.ca/ontology/terms/Arena",
+          "relation": "domain_type"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/Project",
+          "relation": "domain_type"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/Task",
+          "relation": "domain_type"
+        }
+      ],
+      "decision": "Reuse namespaced domain class identities. A shared authorization metamodel selects types; it does not replace Work, hospitality or inventory semantics with one superclass."
+    },
+    {
+      "id": "resource_relation",
+      "label": "Authorization containment relation",
+      "domain": "Authorization",
+      "disposition": "specialize",
+      "references": [
+        {
+          "id": "https://zenith-research.ca/ontology/terms/CONTAINS",
+          "relation": "canonical_work_containment_runtime_HAS_CHILD"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/CONTAINS_WORK",
+          "relation": "arena_membership"
+        }
+      ],
+      "decision": "Map canonical CONTAINS to runtime HAS_CHILD using the provider contract; CONTAINS_WORK is distinct Arena membership. Use the actual named relation and installed evaluator. Semantic subclassing and browsing groups confer no containment authority."
+    },
+    {
+      "id": "operation",
+      "label": "Operation",
+      "domain": "Authorization",
+      "disposition": "specialize",
+      "references": [],
+      "decision": "Map immutable semantic operation IDs and exact effect contracts. DevGraph operations.json supplies its catalog; receiver opcodes, URLs and UI group labels remain separate."
+    },
+    {
+      "id": "resource_selector",
+      "label": "Resource selector",
+      "domain": "Authorization",
+      "disposition": "candidate",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:foundation#/$defs/ScopeRef",
+          "relation": "namespace_not_authorization_selector"
+        }
+      ],
+      "decision": "Objects, Descendants and All select resources under explicit rules. Existing ScopeRef identifies an owner-scoped namespace; it is not the secS scope algebra."
+    },
+    {
+      "id": "permission_rule",
+      "label": "Permission rule",
+      "domain": "Authorization",
+      "disposition": "candidate",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:authority#ContributionPolicyReference",
+          "relation": "descriptive_policy_reference_not_grant"
+        }
+      ],
+      "decision": "Bind operation, resource selector, conditions and any paired source/destination requirements. A policy reference or ontology record grants no authority."
+    },
+    {
+      "id": "grant",
+      "label": "Provider grant",
+      "domain": "Authorization",
+      "disposition": "candidate",
+      "references": [],
+      "decision": "Describe the existing secS provider-signed grant without inventing a second credential producer or treating its ontology description as a valid grant."
+    },
+    {
+      "id": "credential",
+      "label": "Holder credential",
+      "domain": "Authorization",
+      "disposition": "candidate",
+      "references": [],
+      "decision": "Describe finite equal-or-narrower same-Wallet use of a verified current grant. Keep storage/backup and signed runtime schemas owned by Wallet Core and secS."
+    },
+    {
+      "id": "presentation",
+      "label": "Call presentation",
+      "domain": "Authorization",
+      "disposition": "candidate",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:authority#VerifiedOperationAuthorityReference",
+          "relation": "post_verification_evidence"
+        }
+      ],
+      "decision": "An exact-call proof is distinct from the grant, credential and receiver verification evidence. Current assignment, replay and revocation checks remain runtime requirements."
+    },
+    {
+      "id": "preset",
+      "label": "Credential preset",
+      "domain": "Identity and participation",
+      "disposition": "reuse",
+      "references": [
+        {
+          "id": "https://zenith-research.ca/ontology/terms/CredentialPreset",
+          "relation": "reuse_definition"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/CredentialPresetRevision",
+          "relation": "immutable_recipe_revision"
+        }
+      ],
+      "decision": "Reuse v0.10.0 terms. Recipes suggest a draft and preserve exact revisions; editing a recipe never changes an issued grant."
+    },
+    {
+      "id": "seat",
+      "label": "Organizational seat",
+      "domain": "Identity and participation",
+      "disposition": "reuse",
+      "references": [
+        {
+          "id": "https://zenith-research.ca/ontology/terms/Seat",
+          "relation": "reuse_definition"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/SeatType",
+          "relation": "reuse_definition"
+        },
+        {
+          "id": "https://zenith-research.ca/ontology/terms/SeatAssignment",
+          "relation": "reuse_definition"
+        },
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:directory#ScopedPost",
+          "relation": "related_not_equivalent"
+        },
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:directory#PostAssignment",
+          "relation": "related_not_equivalent"
+        }
+      ],
+      "decision": "Reuse canonical Seats and retain the draft ScopedPost mapping as related. Draft PostAssignment currently differs in occupant constraints. Appointment, reporting lines and classification confer no permission."
+    },
+    {
+      "id": "revision_evidence",
+      "label": "Exact revision evidence",
+      "domain": "Knowledge, evidence and publication",
+      "disposition": "reuse",
+      "references": [
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:foundation#/$defs/RevisionQualifiedRef",
+          "relation": "exact_revision_reference"
+        },
+        {
+          "id": "urn:zenith:ontology-review:shared:0.1.0:evidence#RevisionApproval",
+          "relation": "review_evidence_not_runtime_permission"
+        }
+      ],
+      "decision": "Reuse exact revision and approval evidence concepts. Signed provider review remains the authority boundary; a website display or schema validation is not approval."
+    }
+  ]
+}

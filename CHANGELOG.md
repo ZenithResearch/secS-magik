@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Align the authorization design with pinned DevGraph and shared-domain vocabulary — prevent service routes, namespaces, organizational seats and physical resources from being mistaken for permission authority.
+
+### Added
+
 - Compare exact identity selectors and compound operation plans — preserve path/grant semantics while defining safe object narrowing, source/destination checks and a reusable receiver boundary.
 
 ### Added

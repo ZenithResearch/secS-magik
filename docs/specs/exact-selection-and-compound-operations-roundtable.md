@@ -180,3 +180,7 @@ Primary reference: [Cedar compound authorization](https://docs.cedarpolicy.com/b
 explicitly describes source, destination and optional object checks for a move.
 It supports the design vocabulary; it is not a claim that Cedar is installed or
 that these proposed contracts already interoperate with it.
+
+## Ontology alignment
+
+See the [pinned domain-vocabulary crosswalk](../contracts/authorization-ontology-alignment/v1/README.md). It distinguishes existing canonical terms, related draft concepts and missing candidates without changing signed semantics.

@@ -1,0 +1,30 @@
+{
+  "schema": "zenith.authorization-source-reference-index.review.v1",
+  "status": "extracted_reference_index_not_vocabulary",
+  "catalog_sha256": "87d5c91fbccf4d9dd12621c088c282adece9ff391cef0b9badcd19c568fd491e",
+  "files": [
+    {
+      "path": "ontology.jsonld",
+      "sha256": "a580cbf4d61766850c46de651a57c39a6a0c2606dd2b6ff868dba52f714f62e4",
+      "references": [
+        "urn:zenith:ontology-review:shared:0.1.0:authority#ContributionPolicyReference",
+        "urn:zenith:ontology-review:shared:0.1.0:authority#VerifiedOperationAuthorityReference",
+        "urn:zenith:ontology-review:shared:0.1.0:directory#ExternalSubjectBinding",
+        "urn:zenith:ontology-review:shared:0.1.0:directory#PersonInterfaceBinding",
+        "urn:zenith:ontology-review:shared:0.1.0:directory#PostAssignment",
+        "urn:zenith:ontology-review:shared:0.1.0:directory#ScopedPost",
+        "urn:zenith:ontology-review:shared:0.1.0:evidence#RevisionApproval",
+        "urn:zenith:ontology-review:shared:0.1.0:resources#ResourceInstance"
+      ]
+    },
+    {
+      "path": "foundation.schema.json",
+      "sha256": "541d3d1b57fe97dbb2cad92a542f7d59d1b8a9898a0a00252a808a1c075f86eb",
+      "references": [
+        "urn:zenith:ontology-review:shared:0.1.0:foundation#/$defs/OwnedRecordRef",
+        "urn:zenith:ontology-review:shared:0.1.0:foundation#/$defs/RevisionQualifiedRef",
+        "urn:zenith:ontology-review:shared:0.1.0:foundation#/$defs/ScopeRef"
+      ]
+    }
+  ]
+}

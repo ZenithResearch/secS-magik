@@ -219,3 +219,7 @@ The [follow-up roundtable](exact-selection-and-compound-operations-roundtable.md
 compares exact-ID selectors, self/subtree path modes, compatibility constraints,
 hierarchy-preserving attenuation and paired source/destination operation plans.
 It records current DevGraph checks separately from the proposed shared model.
+
+## Ontology alignment
+
+See the [pinned domain-vocabulary crosswalk](../contracts/authorization-ontology-alignment/v1/README.md). It distinguishes existing canonical terms, related draft concepts and missing candidates without changing signed semantics.
