@@ -1,5 +1,16 @@
 # secS-magik current state
 
+## Shared resource selector primitive (2026-10-27)
+
+Status: **implemented additive library; no signed-grant/provider rollout**.
+The [versioned resource selector](specs/resource-selector-v1.md) supplies exact
+objects, explicit descendant guards, type-bounded All and conservative structural
+narrowing in the standalone grant-contract crate. Wallet Core uses the same source.
+Existing v1 grants/credentials/backups, prefix meaning and Packet bytes remain
+unchanged. The primitive does not authorize operations by itself; coordinated
+signed integration, compound effects and provider/editor adapters remain planned.
+
+
 ## Reusable service onboarding proposal (2026-10-26)
 
 The [service authorization profile specification](specs/reusable-service-authorization-profile-v1.md)

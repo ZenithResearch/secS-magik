@@ -1,0 +1,160 @@
+{
+  "schema": "secs.resource-selector-vectors.v1",
+  "status": "unsigned_selector_primitive_not_v1_grant_input",
+  "cases": [
+    {
+      "name": "all-to-exact-media",
+      "service": "media-library",
+      "parent": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "all"
+        }
+      },
+      "child": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "objects",
+          "refs": [
+            {
+              "kind": "media:Asset",
+              "id": "asset-1"
+            }
+          ]
+        }
+      },
+      "within": true
+    },
+    {
+      "name": "exact-cannot-become-all",
+      "service": "media-library",
+      "parent": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "objects",
+          "refs": [
+            {
+              "kind": "media:Asset",
+              "id": "asset-1"
+            }
+          ]
+        }
+      },
+      "child": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "all"
+        }
+      },
+      "within": false
+    },
+    {
+      "name": "exact-must-retain-guard",
+      "service": "media-library",
+      "parent": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "descendants",
+          "hierarchy": {
+            "relation": "media:folder-membership.v1",
+            "roots": [
+              {
+                "kind": "media:Folder",
+                "id": "folder-a"
+              }
+            ],
+            "include_self": false
+          }
+        }
+      },
+      "child": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "objects",
+          "refs": [
+            {
+              "kind": "media:Asset",
+              "id": "asset-1"
+            }
+          ]
+        }
+      },
+      "within": false
+    },
+    {
+      "name": "guarded-exact-media",
+      "service": "media-library",
+      "parent": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "descendants",
+          "hierarchy": {
+            "relation": "media:folder-membership.v1",
+            "roots": [
+              {
+                "kind": "media:Folder",
+                "id": "folder-a"
+              }
+            ],
+            "include_self": false
+          }
+        }
+      },
+      "child": {
+        "schema": "secs.resource-selector.v1",
+        "service": "media-library",
+        "kinds": [
+          "media:Asset"
+        ],
+        "selection": {
+          "mode": "objects",
+          "refs": [
+            {
+              "kind": "media:Asset",
+              "id": "asset-1"
+            }
+          ],
+          "within": {
+            "relation": "media:folder-membership.v1",
+            "roots": [
+              {
+                "kind": "media:Folder",
+                "id": "folder-a"
+              }
+            ],
+            "include_self": false
+          }
+        }
+      },
+      "within": true
+    }
+  ]
+}

@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Add a separate resource-selector primitive with exact objects, explicit descendant guards and type-bounded All — let providers and Wallet Core share conservative narrowing without reinterpreting stored v1 grants or laundering hierarchy restrictions.
+
+### Added
+
 - Align the authorization design with pinned DevGraph and shared-domain vocabulary — prevent service routes, namespaces, organizational seats and physical resources from being mistaken for permission authority.
 
 ### Added

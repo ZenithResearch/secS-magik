@@ -233,3 +233,7 @@ SDK/editor work and does not change deployed authority or signed contracts.
 ## Ontology alignment
 
 See the [pinned domain-vocabulary crosswalk](../contracts/authorization-ontology-alignment/v1/README.md). It distinguishes existing canonical terms, related draft concepts and missing candidates without changing signed semantics.
+
+## Implemented selector prerequisite
+
+The [resource-selector primitive](resource-selector-v1.md) now exists separately from the v1 signed Scope and from profile negotiation. It is not yet an installed selector for these descriptors or a replacement grant format. Compound-effect and signed-grant integration remain the next coordinated slice.

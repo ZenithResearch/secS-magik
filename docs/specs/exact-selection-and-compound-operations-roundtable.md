@@ -184,3 +184,7 @@ that these proposed contracts already interoperate with it.
 ## Ontology alignment
 
 See the [pinned domain-vocabulary crosswalk](../contracts/authorization-ontology-alignment/v1/README.md). It distinguishes existing canonical terms, related draft concepts and missing candidates without changing signed semantics.
+
+## First implementation slice
+
+The [resource selector primitive](resource-selector-v1.md) now implements shared closed selection and conservative narrowing separately from v1 signed permissions. Provider effect plans and signed integration remain next work.
