@@ -6,36 +6,42 @@ use crate::{
     resource_selector::{ResourceRef, ResourceSelector, ResourceSnapshot},
     text,
 };
+use serde::{Deserialize, Serialize};
 const INVALID: &str = "invalid_compound_resources";
 
 /// Installed operation effect roles and cardinality. This is not caller metadata.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct RoleContract {
     pub name: String,
     pub kinds: Vec<String>,
     pub minimum: usize,
     pub maximum: usize,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct EffectContract {
     pub service: String,
     pub operation: String,
     pub roles: Vec<RoleContract>,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct RoleSelection {
     pub role: String,
     pub selector: ResourceSelector,
 }
 /// All role selectors stay together; they may not be pooled across other rules.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct EffectRule {
     pub service: String,
     pub operation: String,
     pub roles: Vec<RoleSelection>,
 }
 /// Provider-resolved actual resources for each required effect, in one snapshot.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ResolvedRole {
     pub role: String,
     pub resources: Vec<ResourceRef>,

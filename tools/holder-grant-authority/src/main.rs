@@ -18,6 +18,27 @@ enum Command {
         origin: String,
         now: u64,
     },
+    CheckSelector {
+        selector: resource_selector::ResourceSelector,
+        targets: Vec<resource_selector::ResourceRef>,
+        snapshot: provider_snapshot::ProviderSnapshot,
+    },
+    CheckEffect {
+        rule: compound_resources::EffectRule,
+        contract: compound_resources::EffectContract,
+        effects: Vec<compound_resources::ResolvedRole>,
+        snapshot: provider_snapshot::ProviderSnapshot,
+    },
+    IssueV2 {
+        claims: scoped_grants::GrantClaims,
+        now: u64,
+    },
+    VerifyV2 {
+        credential: Box<scoped_grants::Credential>,
+        call: Value,
+        proof: Proof,
+        now: u64,
+    },
     Issue {
         claims: GrantClaims,
         now: u64,
@@ -99,6 +120,69 @@ fn run() -> Result<Value> {
             }
             verify_access_point(&pin, &binding, &origin, now)?;
             Ok(json!(binding.claims))
+        }
+        Command::CheckSelector {
+            selector,
+            targets,
+            snapshot,
+        } => {
+            if a.len() != 3 || targets.len() > 128 || snapshot.service != pin.service {
+                return Err("invalid_provider_snapshot");
+            }
+            snapshot.validate()?;
+            let allowed: Vec<bool> = targets
+                .iter()
+                .map(|t| selector.permits(&pin.service, t, &snapshot))
+                .collect::<Result<_>>()?;
+            Ok(json!({"allowed":allowed}))
+        }
+        Command::CheckEffect {
+            rule,
+            contract,
+            effects,
+            snapshot,
+        } => {
+            if a.len() != 3 || snapshot.service != pin.service || contract.service != pin.service {
+                return Err("invalid_provider_snapshot");
+            }
+            snapshot.validate()?;
+            Ok(json!({"allowed":rule.permits(&contract,&effects,&snapshot)?}))
+        }
+        Command::IssueV2 { claims, now } => Ok(json!(scoped_grants::issue_grant(
+            &pin,
+            claims,
+            &issuer_key(&a)?,
+            now
+        )?)),
+        Command::VerifyV2 {
+            credential,
+            call,
+            proof,
+            now,
+        } => {
+            if a.len() != 3 {
+                return Err("invalid_arguments");
+            }
+            scoped_grants::verify_presentation(&pin, &credential, &call, &proof, now)?;
+            let o = call.as_object().ok_or("invalid_call")?;
+            if o.len() != 3 || !o.contains_key("parameters") {
+                return Err("invalid_call");
+            }
+            let p: Vec<_> = credential
+                .claims
+                .permissions
+                .iter()
+                .filter(|p| {
+                    Some(p.operation.as_str()) == call["operation"].as_str()
+                        && Some(p.resource.as_str()) == call["resource"].as_str()
+                })
+                .collect();
+            if p.is_empty() {
+                return Err("not_permitted");
+            }
+            Ok(
+                json!({"schema":"secs.verified-holder-credential.v2","grant_id":credential.grant.claims.grant_id,"revision":credential.grant.claims.revision,"grant_digest":digest(&credential.grant)?,"credential_id":credential.claims.credential_id,"holder_public_key":credential.claims.holder_public_key,"installation_id":credential.claims.installation_id,"expires_at":credential.claims.expires_at,"permissions":p}),
+            )
         }
         Command::Issue { claims, now } => {
             let signing = issuer_key(&a)?;

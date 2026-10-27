@@ -16,6 +16,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Versioned v2 holder permissions with complete resource-role selectors and trusted-provider snapshot/effect helpers — preserve v1 authority while integrating stable IDs, retained hierarchy guards and paired mutation checks.
+
+
+### Added
+
 - Keep compound operation resource effects correlated in a single rule — prevent source/destination pooling and cross-parent narrowing while preserving existing signed formats and provider transaction ownership.
 
 ### Added

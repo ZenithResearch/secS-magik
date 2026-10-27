@@ -3,7 +3,9 @@
 //! Receivers MUST check current grant/revision/revocation and consume proof nonces
 //! atomically before exposing results; discovery and transport origins confer no authority.
 pub mod compound_resources;
+pub mod provider_snapshot;
 pub mod resource_selector;
+pub mod scoped_grants;
 
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -157,7 +159,7 @@ pub struct Permission {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GrantClaims {
+pub struct GrantClaims<P = Permission> {
     pub schema: String,
     pub grant_id: String,
     pub revision: String,
@@ -169,31 +171,31 @@ pub struct GrantClaims {
     pub validity: Validity,
     pub max_credential_lifetime_seconds: u64,
     pub onward_delegation: bool,
-    pub permissions: Vec<Permission>,
+    pub permissions: Vec<P>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Grant {
-    pub claims: GrantClaims,
+pub struct Grant<P = Permission> {
+    pub claims: GrantClaims<P>,
     pub signature: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CredentialClaims {
+pub struct CredentialClaims<P = Permission> {
     pub schema: String,
     pub credential_id: String,
     pub grant_digest: String,
     pub holder_public_key: String,
     pub installation_id: Option<String>,
-    pub permissions: Vec<Permission>,
+    pub permissions: Vec<P>,
     pub issued_at: u64,
     pub expires_at: u64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Credential {
-    pub grant: Grant,
-    pub claims: CredentialClaims,
+pub struct Credential<P = Permission> {
+    pub grant: Grant<P>,
+    pub claims: CredentialClaims<P>,
     pub signature: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]

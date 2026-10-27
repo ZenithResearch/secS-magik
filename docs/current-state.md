@@ -1,5 +1,15 @@
 # secS-magik current state
 
+## Scoped holder integration candidate (2026-10-27)
+
+The [v2 holder contract](specs/scoped-holder-grants-v2.md) now signs complete
+resource-role selections with distinct signature domains and preserved v1 readers.
+Wallet Core has dual encrypted custody readers; DevGraph's candidate adapter
+intersects selectors with original read constraints and adds paired receiver
+checks to the existing signed write path. Source qualification is in progress;
+installed apps and production authority are unchanged. Generic service onboarding,
+role-specific administration and holder-derived write issuance remain separate gates.
+
 ## Shared resource selector primitive (2026-10-27)
 
 Status: **implemented additive library; no signed-grant/provider rollout**.

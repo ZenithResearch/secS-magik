@@ -1,11 +1,10 @@
 # Compound resource rule checks
 
-Status: **implemented Rust resource-only prerequisite**, not a signed permission
-format, installed operation adapter or mutation/transaction implementation.
+Status: **implemented Rust resource-only prerequisite**, with candidate signed v2 and DevGraph adapter integration; see [v2 status](scoped-holder-grants-v2.md).
 This extends the [selector primitive](resource-selector-v1.md) and the
 [compound-operation review](exact-selection-and-compound-operations-roundtable.md).
 
-`compound_resources` provides typed in-process records (no serde/wire schema):
+`compound_resources` provides closed typed process records (serde for the provider bridge):
 
 - EffectContract: installed provider operation, canonical service and complete
   effect-role definitions, permitted kinds and bounded cardinality.
@@ -39,7 +38,7 @@ or execute an operation. Those remain mandatory gates in the receiver adapter.
 Revocation/freshness changes and ambiguous relationships must be handled under
 that provider consistency boundary. Cross-service mutations are unsupported.
 
-Wallet Core reuses the same types and complete-rule narrowing function for
+The original resource-only slice let Wallet Core reuse the same types and complete-rule narrowing function for
 public review. No new signing command, custody field, backup decoder or browser
 method is added. Existing v1 grants/credentials/opaque conditions and Packet
 bytes remain unchanged; the new typed rules cannot be inserted into them.
@@ -49,3 +48,5 @@ integration remain follow-up work, before any generic editor/issuance rollout.
 Tests exercise complete pair acceptance, cross-pair/reverse denial, retained-rule
 postchecks, missing/duplicate/unlisted effects, bounded contracts, every target
 in multi-resource roles, foreign operation/service/kind and deleted resources.
+
+The subsequent [v2 integration](scoped-holder-grants-v2.md) adds distinct signed formats and dual custody readers. The original v1 non-conversion and provider-consistency requirements remain in force.
