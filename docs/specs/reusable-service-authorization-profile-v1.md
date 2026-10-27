@@ -83,8 +83,11 @@ select an executable handler or download code. Private catalogs require the
 appropriate authorization; profiles need not reveal actual Arena or album names.
 
 Only built-in supported selectors are rendered. Start with `path_prefix.v1`,
-using the existing `Scope::All` / `Scope::Paths` representation. An exact record
-set is a union of explicit leaf paths. Unsupported selectors or constraints are
+using the existing `Scope::All` / `Scope::Paths` representation. Paths are
+prefixes: a currently leaf object may acquire descendants later. Exact record
+selection requires an explicitly supported adapter constraint or a separately
+versioned selector; it must never be inferred from current leaf status.
+Unsupported selectors or constraints are
 shown as unsupported and cannot be approved. No arbitrary JavaScript, expression
 language, shell command or service-provided native view is part of onboarding.
 
@@ -217,3 +220,12 @@ fixed/path scope cannot widen to `All`. Opaque constraints remain byte-equivalen
 current assignment and revocation remain receiver checks, and onward delegation
 remains disabled. Conformance tests use provider-neutral collection/item names;
 DevGraph maps its explicit Arena selector without changing signed v1 envelopes.
+
+
+## Scope and second-service roundtable
+
+The [scope/resource metamodel review](authorization-resource-model-roundtable.md)
+recommends Selected / All as the primary labels, fixed snapshots as selection
+conveniences, an explicit distinction between object identity and containment,
+and a timed 20-operation second-service benchmark. It records remaining generic
+SDK/editor work and does not change deployed authority or signed contracts.

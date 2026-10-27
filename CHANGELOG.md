@@ -16,6 +16,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Record the reusable authorization resource/scope roundtable and a 20-operation media-service design fixture — define a measurable mapping-file onboarding target without presenting the planned SDK/editor as implemented.
+
+### Fixed
+
+- Reject unsupported constraint profiles in proposal-fixture validation and correct the exact-leaf-path claim — metadata must not imply installed semantics, and prefix scope must not be confused with an exact object selection.
+
+### Added
+
 - Qualify live collection `All` scopes and same-holder path narrowing — future provider resources need no issuance-time ID snapshot, while fixed grants cannot widen and opaque conditions remain exact.
 
 ### Added

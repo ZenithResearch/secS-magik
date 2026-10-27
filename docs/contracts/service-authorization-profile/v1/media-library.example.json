@@ -1,0 +1,325 @@
+{
+  "schema": "secs.authorization-profile.proposal.v1",
+  "id": "media-library.authorization.v1",
+  "revision": 1,
+  "display_name": "Media library design benchmark",
+  "contracts": {
+    "grant": "secs.holder-grant.v1",
+    "credential": "secs.holder-credential.v1",
+    "presentation": "secs.holder-presentation.v1"
+  },
+  "resources": [
+    {
+      "id": "media:Service",
+      "label": "Media services",
+      "description": "Design-only resource vocabulary. Actual containment and touched-resource resolution require an installed adapter.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "media:Service"
+      ]
+    },
+    {
+      "id": "media:Project",
+      "label": "Projects",
+      "description": "Design-only resource vocabulary. Actual containment and touched-resource resolution require an installed adapter.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "media:Service",
+        "media:Project"
+      ]
+    },
+    {
+      "id": "media:Collection",
+      "label": "Collections",
+      "description": "Design-only resource vocabulary. Actual containment and touched-resource resolution require an installed adapter.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "media:Service",
+        "media:Project",
+        "media:Collection"
+      ]
+    },
+    {
+      "id": "media:Asset",
+      "label": "Assets",
+      "description": "Design-only resource vocabulary. Actual containment and touched-resource resolution require an installed adapter.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "media:Service",
+        "media:Project",
+        "media:Collection",
+        "media:Asset"
+      ]
+    },
+    {
+      "id": "media:RenderJob",
+      "label": "Render jobs",
+      "description": "Design-only resource vocabulary. Actual containment and touched-resource resolution require an installed adapter.",
+      "selector": "path_prefix.v1",
+      "node_kinds": [
+        "media:Service",
+        "media:Project",
+        "media:RenderJob"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "media.project.list.v1",
+      "label": "List projects",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Service",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.project.get.v1",
+      "label": "View project",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Project",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.project.create.v1",
+      "label": "Create project in this service",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Service",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.project.rename.v1",
+      "label": "Rename project",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Project",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.project.archive.v1",
+      "label": "Archive project",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Project",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.collection.list.v1",
+      "label": "List collections in a project",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Project",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.collection.get.v1",
+      "label": "View collection",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Collection",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.collection.create.v1",
+      "label": "Create collection in a project",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Project",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.collection.move.v1",
+      "label": "Move collection",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Collection",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.collection.archive.v1",
+      "label": "Archive collection",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Collection",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.asset.list.v1",
+      "label": "List assets in a collection",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Collection",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.asset.get.v1",
+      "label": "View asset",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Asset",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.asset.upload.v1",
+      "label": "Upload asset into a collection",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Collection",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.asset.rename.v1",
+      "label": "Rename asset",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Asset",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.asset.move.v1",
+      "label": "Move asset",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Asset",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.asset.delete.v1",
+      "label": "Delete asset",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Asset",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.job.list.v1",
+      "label": "List project render jobs",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Project",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.job.get.v1",
+      "label": "View render job",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:RenderJob",
+      "effect": "read",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.job.start.v1",
+      "label": "Start a render job in a project",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:Project",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    },
+    {
+      "id": "media.job.cancel.v1",
+      "label": "Cancel render job",
+      "description": "Design benchmark only. The installed receiver must resolve every affected resource and enforce transaction-time authorization.",
+      "resource": "media:RenderJob",
+      "effect": "write",
+      "scope_modes": [
+        "all",
+        "paths"
+      ],
+      "constraints_profile": "constraints.exact.v1"
+    }
+  ],
+  "presets": [
+    {
+      "id": "media-viewer",
+      "label": "Media viewer",
+      "operations": [
+        "media.project.list.v1",
+        "media.project.get.v1",
+        "media.collection.list.v1",
+        "media.collection.get.v1",
+        "media.asset.list.v1",
+        "media.asset.get.v1",
+        "media.job.list.v1",
+        "media.job.get.v1"
+      ]
+    }
+  ],
+  "onward_delegation": false
+}
