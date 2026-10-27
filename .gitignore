@@ -10,3 +10,6 @@
 panel/www/pkg/
 # Generated README/docs/rustdoc/WASM Pages assembly.
 .pages/
+
+# Stable cache for the standalone reusable holder-grant workspace.
+/crates/secs-grant-contract/target/

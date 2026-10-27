@@ -187,3 +187,20 @@ profile drift, expanded scope, escaped path ancestry, replay across access
 points, expired/revoked/superseded grants, duplicate decisions, partial writes,
 lock/relaunch recovery and cross-holder delegation. Installed native and remote
 qualification remain necessary after source/schema tests pass.
+
+## Independent rule editing compatibility (2026-10-27)
+
+Implemented in the existing `secs-grant-contract` holder verifier: each child
+permission must fit one parent permission with the same operation, resource and
+exact opaque constraints, and an equal or narrower path scope. Read-A/write-B
+must never become read/write-A/B. The independent-action conformance test covers
+equal and narrower derivation, both crossed-scope attacks, relaxed conditions
+and onward delegation rejection. No signature domain or wire field changes.
+
+Transfer's DevGraph adapter now compiles independently selected rules to the
+existing provider draft arrays. DevGraph owns exact Arena IDs, touched-resource
+requirements and current hierarchy evaluation. Creation, proposals and provenance
+are not implicitly attached to a hierarchy. These adapter semantics do not make
+the proposed descriptor a runtime authority source; the generic profile SDK and
+a second provider remain planned. Wallet Core retains the same native revision
+and verifies stored and derived rules through the same secS contract.

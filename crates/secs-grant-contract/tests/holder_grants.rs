@@ -262,3 +262,63 @@ fn access_point_cross_language_golden_vector() {
         binding
     );
 }
+
+#[test]
+fn independent_action_hierarchies_are_not_a_cartesian_product() {
+    let (pin, issuer, holder, original) = setup();
+    let mut claims = original.claims;
+    let read = claims.permissions[0].clone();
+    let mut write = read.clone();
+    write.operation = "work.patch".into();
+    write.scope = Scope::Paths {
+        roots: vec![vec![Node {
+            kind: "Arena".into(),
+            id: "b".into(),
+        }]],
+    };
+    claims.permissions = vec![read.clone(), write.clone()];
+    let grant = issue_grant(&pin, claims, &issuer, 100).unwrap();
+    let derive = |permissions| {
+        derive_credential(
+            &pin,
+            grant.clone(),
+            permissions,
+            None,
+            "33".repeat(16),
+            101,
+            300,
+            &holder,
+        )
+    };
+    let equal = derive(vec![read.clone(), write.clone()]).unwrap();
+    verify_credential(&pin, &equal, 102).unwrap();
+    let mut narrow = write.clone();
+    if let Scope::Paths { roots } = &mut narrow.scope {
+        roots[0].push(Node {
+            kind: "Project".into(),
+            id: "p".into(),
+        });
+    }
+    verify_credential(&pin, &derive(vec![narrow]).unwrap(), 102).unwrap();
+    let mut mixed = write.clone();
+    mixed.scope = read.scope.clone();
+    assert!(
+        derive(vec![mixed]).is_err(),
+        "write-B cannot borrow read-A's scope"
+    );
+    let mut mixed = read;
+    mixed.scope = write.scope;
+    assert!(
+        derive(vec![mixed]).is_err(),
+        "read-A cannot borrow write-B's scope"
+    );
+    let mut relaxed = grant.claims.permissions.clone();
+    relaxed[0].constraints = serde_json::json!({});
+    assert!(
+        derive(relaxed).is_err(),
+        "opaque provider conditions must remain exact"
+    );
+    let mut delegated = grant.claims.clone();
+    delegated.onward_delegation = true;
+    assert!(issue_grant(&pin, delegated, &issuer, 100).is_err());
+}
