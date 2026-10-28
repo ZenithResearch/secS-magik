@@ -51,3 +51,4 @@ pub use frank_result_authority::{
 };
 
 mod devgraph_work_progress;
+mod devgraph_work_sessions;

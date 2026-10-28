@@ -162,7 +162,11 @@ impl WorkRequest {
             return Err("invalid_work_request");
         }
         if (v2 && op == "status")
-            || (!v2 && matches!(op.as_str(), "progress.set" | "restore" | "proposal.reject"))
+            || (!v2
+                && matches!(
+                    op.as_str(),
+                    "progress.set" | "restore" | "proposal.reject" | "session.attach"
+                ))
             || (label == "Todo"
                 && !matches!(
                     op.as_str(),
@@ -238,6 +242,9 @@ impl WorkRequest {
                 ) {
                     return Err("invalid_work_request");
                 }
+            }
+            "session.attach" => {
+                payload = crate::devgraph_work_sessions::normalize(&payload, &mut resources)?;
             }
             "archive" | "restore" => exact(&payload, &[])?,
             "workflow.assign" | "workflow.review" | "workflow.transition" | "progress.set" => {

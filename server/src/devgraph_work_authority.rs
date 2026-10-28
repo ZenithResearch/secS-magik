@@ -50,7 +50,10 @@ fn named_operation(s: &str) -> bool {
             if version == 2 && s == "status" {
                 return false;
             }
-            if matches!(s, "progress.set" | "restore" | "proposal.reject") {
+            if matches!(
+                s,
+                "progress.set" | "restore" | "proposal.reject" | "session.attach"
+            ) {
                 return version == 2;
             }
             matches!(
@@ -235,7 +238,14 @@ impl WorkPolicy {
             let resource_ok = (kind(label)
                 || matches!(
                     label,
-                    "Todo" | "Decision" | "Arena" | "ReviewPacket" | "Handoff" | "ExternalLink"
+                    "Todo"
+                        | "Decision"
+                        | "Arena"
+                        | "ReviewPacket"
+                        | "Handoff"
+                        | "ExternalLink"
+                        | "SessionRef"
+                        | "SessionLink"
                 ))
                 && match rule.resource_match.as_str() {
                     "exact" => identifier(id),
