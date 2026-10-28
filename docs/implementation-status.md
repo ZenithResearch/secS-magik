@@ -265,3 +265,11 @@ and optional SessionLink endpoints participate in the existing signature,
 resource-policy, expiry and replay gates. V1 requests and base Todo reject this
 operation. This is an additive source change; installed adapters, authority and
 signed grants are unchanged. No native source identity supplies authentication.
+
+## DevGraph session disposition — source candidate
+
+Implemented closed parser and exact-operation admission for
+`devgraph.work.session.state.v2`. One existing SessionRef is the only resource;
+state is Open or Done with a positive expected revision. Canonical lifecycle
+execution belongs to DevGraph. Existing grants are not expanded. Coordinated
+native/runtime deployment remains separate; see `devgraph-session-state-v2.md`.

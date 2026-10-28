@@ -52,7 +52,7 @@ fn named_operation(s: &str) -> bool {
             }
             if matches!(
                 s,
-                "progress.set" | "restore" | "proposal.reject" | "session.attach"
+                "progress.set" | "restore" | "proposal.reject" | "session.attach" | "session.state"
             ) {
                 return version == 2;
             }

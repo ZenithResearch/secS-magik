@@ -1,0 +1,18 @@
+[
+  {
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"operation\": \"session.state\", \"kind\": \"SessionRef\", \"id\": \"sr-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"expected_version\": 1, \"payload\": {\"state\": \"done\"}}",
+    "canonical": "{\"expected_version\":1,\"id\":\"sr-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"SessionRef\",\"operation\":\"session.state\",\"payload\":{\"state\":\"done\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "resources": [
+      "SessionRef/sr-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "digest": "faa0efcbe8f82242d1b156e147f2aa30e016ea3c8de0146bfd2aa8eb84929b64"
+  },
+  {
+    "raw": "{\"schema\": \"devgraph.work-request.v2\", \"operation\": \"session.state\", \"kind\": \"SessionRef\", \"id\": \"sr-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"expected_version\": 2, \"payload\": {\"state\": \"open\"}}",
+    "canonical": "{\"expected_version\":2,\"id\":\"sr-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"SessionRef\",\"operation\":\"session.state\",\"payload\":{\"state\":\"open\"},\"schema\":\"devgraph.work-request.v2\"}",
+    "resources": [
+      "SessionRef/sr-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "digest": "3a7960fb574c93d529b50d3d4a9d0f15695fc70db12d792a6860c294191b84e7"
+  }
+]
