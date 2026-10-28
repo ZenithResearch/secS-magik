@@ -14,6 +14,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- Exact DevGraph session work-state operation — let operators finish or reopen session work independently of retained application conversations, without expanding attachment grants.
+
+
 ### Fixed
 - Use the standard leap-year divisibility predicate in session timestamp validation — keep the additive parser compatible with the CI Clippy gate without changing date acceptance.
 

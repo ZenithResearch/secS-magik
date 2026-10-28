@@ -93,6 +93,10 @@ fn vectors() -> Vec<Value> {
         serde_json::from_slice::<Vec<Value>>(include_bytes!("fixtures/session-attachment-v2.json"))
             .unwrap(),
     );
+    all.extend(
+        serde_json::from_slice::<Vec<Value>>(include_bytes!("fixtures/session-state-v2.json"))
+            .unwrap(),
+    );
     all
 }
 
@@ -391,6 +395,55 @@ fn session_attachment_python_canonical_and_resource_parity() {
                 WorkRequest::parse(&serde_json::to_vec(&invalid).unwrap()).is_err(),
                 "{field}"
             );
+        }
+    }
+}
+
+#[test]
+fn session_state_python_parity_and_closed_subject() {
+    let vectors: Vec<Value> =
+        serde_json::from_slice(include_bytes!("fixtures/session-state-v2.json")).unwrap();
+    for vector in vectors {
+        let raw = vector["raw"].as_str().unwrap();
+        let parsed = WorkRequest::parse(raw.as_bytes()).unwrap();
+        assert_eq!(
+            parsed.canonical,
+            vector["canonical"].as_str().unwrap().as_bytes()
+        );
+        assert_eq!(
+            serde_json::to_value(&parsed.resources).unwrap(),
+            vector["resources"]
+        );
+        assert_eq!(
+            digest(parsed.request_domain(), &parsed.canonical),
+            vector["digest"]
+        );
+        assert_eq!(parsed.operation, "devgraph.work.session.state.v2");
+        let value: Value = serde_json::from_str(raw).unwrap();
+        for field in [
+            "schema",
+            "kind",
+            "id",
+            "state",
+            "extra",
+            "version",
+            "operation",
+        ] {
+            let mut invalid = value.clone();
+            match field {
+                "schema" => invalid["schema"] = json!("devgraph.work-request.v1"),
+                "kind" => invalid["kind"] = json!("Task"),
+                "id" => invalid["id"] = json!("work"),
+                "state" => invalid["payload"]["state"] = json!("ended"),
+                "extra" => invalid["payload"]["native_status"] = json!("completed"),
+                "version" => invalid["expected_version"] = json!(0),
+                "operation" => {
+                    invalid["operation"] = json!("archive");
+                    invalid["payload"] = json!({});
+                }
+                _ => unreachable!(),
+            }
+            assert!(WorkRequest::parse(&bytes(&invalid)).is_err(), "{field}");
         }
     }
 }

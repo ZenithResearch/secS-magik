@@ -158,14 +158,30 @@ impl WorkRequest {
         let op = text(&value, "operation")?.to_string();
         let label = text(&value, "kind")?.to_string();
         let id = text(&value, "id")?.to_string();
-        if !(kind(&label) || v2 && label == "Todo") || !identifier(&id) {
+        if !(kind(&label) || v2 && matches!(label.as_str(), "Todo" | "SessionRef"))
+            || !identifier(&id)
+        {
+            return Err("invalid_work_request");
+        }
+        if (label == "SessionRef") != (op == "session.state")
+            || (label == "SessionRef"
+                && !(id.starts_with("sr-")
+                    && id.len() == 67
+                    && id[3..]
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))))
+        {
             return Err("invalid_work_request");
         }
         if (v2 && op == "status")
             || (!v2
                 && matches!(
                     op.as_str(),
-                    "progress.set" | "restore" | "proposal.reject" | "session.attach"
+                    "progress.set"
+                        | "restore"
+                        | "proposal.reject"
+                        | "session.attach"
+                        | "session.state"
                 ))
             || (label == "Todo"
                 && !matches!(
@@ -186,6 +202,12 @@ impl WorkRequest {
         let fields = payload.as_object_mut().ok_or("invalid_work_request")?;
         let mut resources = BTreeSet::from([format!("{label}/{id}")]);
         match op.as_str() {
+            "session.state" => {
+                exact(&payload, &["state"])?;
+                if !matches!(text(&payload, "state")?, "open" | "done") {
+                    return Err("invalid_work_request");
+                }
+            }
             "create" | "patch" => {
                 let allowed = [
                     "id",

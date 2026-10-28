@@ -182,3 +182,10 @@ and optional SessionLink endpoints participate in the existing signature,
 resource-policy, expiry and replay gates. V1 requests and base Todo reject this
 operation. This is an additive source change; installed adapters, authority and
 signed grants are unchanged. No native source identity supplies authentication.
+
+## DevGraph session disposition source candidate
+
+The parser and operation allowlist now include the separately granted
+`devgraph.work.session.state.v2` provenance operation. See
+[session state](devgraph-session-state-v2.md). No installed policy or runtime is
+changed by this source change; existing operations and signed domains are preserved.
