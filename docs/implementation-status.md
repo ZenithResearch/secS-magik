@@ -1,5 +1,15 @@
 # secS-magik implementation status
 
+## Finite holder sessions (2026-10-28)
+
+Status: **implemented additive library/native verification candidate**. The
+[versioned session contract](specs/holder-sessions-v1.md) verifies typed holder
+consent, separate temporary-key possession, fixed expiry, v2 permission subsets,
+issuer credentials, per-call proofs and original-result status. Provider-current
+parent/policy/replay checks and explicit opt-in remain mandatory. This does not
+enable browser login, install a Wallet, change an existing grant or establish
+receiver/deployment qualification.
+
 ## Shared resource selector primitive (2026-10-27)
 
 Status: **implemented additive library; no signed-grant/provider rollout**.

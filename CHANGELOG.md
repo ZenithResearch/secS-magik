@@ -16,6 +16,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Add separately versioned finite holder-session approval, issuer credentials and temporary-key proofs — applications need bounded access without importing a Wallet's reusable grant or weakening existing same-holder v1/v2 verification.
+
+### Added
+
 - Exact DevGraph session work-state operation — let operators finish or reopen session work independently of retained application conversations, without expanding attachment grants.
 
 

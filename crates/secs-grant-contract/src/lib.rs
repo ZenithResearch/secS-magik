@@ -3,6 +3,7 @@
 //! Receivers MUST check current grant/revision/revocation and consume proof nonces
 //! atomically before exposing results; discovery and transport origins confer no authority.
 pub mod compound_resources;
+pub mod holder_sessions;
 pub mod provider_snapshot;
 pub mod resource_selector;
 pub mod scoped_grants;
