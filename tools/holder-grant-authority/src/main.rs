@@ -9,6 +9,37 @@ use zeroize::Zeroizing;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Command {
+    VerifyHolderSessionStatus {
+        challenge: Box<holder_sessions::Challenge>,
+        proof: holder_sessions::StatusRequest,
+        context: holder_sessions::Context,
+        now: u64,
+    },
+    ReviewHolderSession {
+        parent_grant: Box<scoped_grants::Grant>,
+        challenge: Box<holder_sessions::Challenge>,
+        context: holder_sessions::Context,
+        now: u64,
+    },
+    VerifyHolderSessionAuthorization {
+        authorization: Box<holder_sessions::Authorization>,
+        context: holder_sessions::Context,
+        now: u64,
+    },
+    IssueHolderSession {
+        authorization: Box<holder_sessions::Authorization>,
+        credential_id: String,
+        context: holder_sessions::Context,
+        now: u64,
+    },
+    VerifyHolderSession {
+        credential: Box<holder_sessions::Credential>,
+        parent_grant: Box<scoped_grants::Grant>,
+        call: Value,
+        proof: Proof,
+        context: holder_sessions::Context,
+        now: u64,
+    },
     IssueAccessPoint {
         claims: AccessPointClaims,
         now: u64,
@@ -104,6 +135,96 @@ fn run() -> Result<Value> {
         .read_to_end(&mut b)
         .map_err(|_| "invalid_request")?;
     match parse::<Command>(&b)? {
+        Command::VerifyHolderSessionStatus {
+            challenge,
+            proof,
+            context,
+            now,
+        } => {
+            if a.len() != 3 {
+                return Err("invalid_arguments");
+            }
+            holder_sessions::verify_status(&challenge, &proof, &context, now)?;
+            Ok(
+                json!({"schema":"secs.holder-session-status-verified.v1", "request_id":proof.request_id,"challenge_id":proof.challenge_id}),
+            )
+        }
+        Command::ReviewHolderSession {
+            parent_grant,
+            challenge,
+            context,
+            now,
+        } => {
+            if a.len() != 3 {
+                return Err("invalid_arguments");
+            }
+            holder_sessions::review_challenge(&pin, &parent_grant, &challenge, &context, now)?;
+            Ok(
+                json!({"schema":"secs.holder-session-reviewed.v1", "challenge_digest":digest(&challenge)?}),
+            )
+        }
+        Command::VerifyHolderSessionAuthorization {
+            authorization,
+            context,
+            now,
+        } => {
+            if a.len() != 3 {
+                return Err("invalid_arguments");
+            }
+            holder_sessions::verify_authorization(&pin, &authorization, &context, now)?;
+            Ok(
+                json!({"schema":"secs.holder-session-authorization-verified.v1", "challenge_digest":digest(&authorization.challenge)?}),
+            )
+        }
+        Command::IssueHolderSession {
+            authorization,
+            credential_id,
+            context,
+            now,
+        } => Ok(json!(holder_sessions::issue(
+            &pin,
+            &authorization,
+            credential_id,
+            &context,
+            &issuer_key(&a)?,
+            now
+        )?)),
+        Command::VerifyHolderSession {
+            credential,
+            parent_grant,
+            call,
+            proof,
+            context,
+            now,
+        } => {
+            if a.len() != 3 {
+                return Err("invalid_arguments");
+            }
+            holder_sessions::verify_presentation(
+                &pin,
+                &parent_grant,
+                &credential,
+                &call,
+                &proof,
+                &context,
+                now,
+            )?;
+            let challenge = &credential.claims.challenge;
+            let permissions: Vec<_> = challenge
+                .permissions
+                .iter()
+                .filter(|p| {
+                    Some(p.operation.as_str()) == call["operation"].as_str()
+                        && Some(p.resource.as_str()) == call["resource"].as_str()
+                })
+                .collect();
+            Ok(json!({"schema":"secs.verified-holder-session.v1",
+                "grant_id":challenge.parent_grant_id,"revision":challenge.parent_revision,
+                "grant_digest":challenge.parent_grant_digest,"credential_id":credential.claims.credential_id,
+                "holder_public_key":challenge.holder_public_key,"installation_id":challenge.installation_id,
+                "session_public_key":challenge.session_public_key,"session_installation_id":challenge.session_installation_id,
+                "expires_at":challenge.expires_at,"permissions":permissions}))
+        }
         Command::IssueAccessPoint { claims, now } => Ok(json!(issue_access_point(
             &pin,
             claims,

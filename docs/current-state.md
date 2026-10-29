@@ -1,5 +1,14 @@
 # secS-magik current state
 
+## Finite holder session source candidate (2026-10-28)
+
+The [additive holder-session contract](specs/holder-sessions-v1.md) binds a
+temporary proof key to explicit holder consent and an issuer-signed fixed end.
+It reuses v2 permission narrowing, keeps parent grants Wallet-owned, and requires
+current parent/revocation checks at every receiver. This is a shared library and
+native verifier candidate; no application, issuer policy or service is enabled.
+Existing v1/v2 and owner-bootstrap session formats are unchanged.
+
 ## Scoped holder integration candidate (2026-10-27)
 
 The [v2 holder contract](specs/scoped-holder-grants-v2.md) now signs complete
